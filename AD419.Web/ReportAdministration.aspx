@@ -46,7 +46,7 @@
                             DataTextField="Project" DataValueField="Project" AppendDataBoundItems="True" OnDataBound="dlistProject_DataBound">
                             <asp:ListItem Selected="True"></asp:ListItem>
                         </asp:DropDownList><asp:ObjectDataSource ID="AD419DataAssociationProject" runat="server"
-                            SelectMethod="getProjectsByDept" TypeName="CAESDO.AD419DataAccess">
+                            SelectMethod="get204ProjectsByDept" TypeName="CAESDO.AD419DataAccess">
                             <SelectParameters>
                                 <asp:ControlParameter ControlID="dlistAssocationsReportingOrg" Name="OrgR" PropertyName="SelectedValue"
                                     Type="String" />
