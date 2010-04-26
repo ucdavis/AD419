@@ -1,68 +1,50 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2005/01/reportdefinition" xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner">
+<Report xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner" xmlns="http://schemas.microsoft.com/sqlserver/reporting/2008/01/reportdefinition">
   <DataSources>
     <DataSource Name="AD419Devel">
       <DataSourceReference>AD419Devel</DataSourceReference>
       <rd:DataSourceID>299bf072-972a-4a33-8cd8-28df79ad43df</rd:DataSourceID>
+      <rd:SecurityType>None</rd:SecurityType>
     </DataSource>
   </DataSources>
-  <BottomMargin>1in</BottomMargin>
-  <RightMargin>1in</RightMargin>
-  <ReportParameters>
-    <ReportParameter Name="CRISDeptCd">
-      <DataType>String</DataType>
-      <Prompt>CRISDeptCd</Prompt>
-    </ReportParameter>
-  </ReportParameters>
-  <rd:DrawGrid>true</rd:DrawGrid>
-  <InteractiveWidth>8.5in</InteractiveWidth>
-  <rd:SnapToGrid>true</rd:SnapToGrid>
-  <Body>
-    <ReportItems>
-      <Textbox Name="textbox1">
-        <rd:DefaultName>textbox1</rd:DefaultName>
-        <ZIndex>1</ZIndex>
-        <Width>6in</Width>
-        <Style>
-          <PaddingLeft>2pt</PaddingLeft>
-          <PaddingBottom>2pt</PaddingBottom>
-          <FontFamily>Tahoma</FontFamily>
-          <FontWeight>700</FontWeight>
-          <FontSize>20pt</FontSize>
-          <Color>SteelBlue</Color>
-          <PaddingRight>2pt</PaddingRight>
-          <PaddingTop>2pt</PaddingTop>
-        </Style>
-        <CanGrow>true</CanGrow>
-        <Height>0.36in</Height>
-        <Value>Report3</Value>
-      </Textbox>
-      <Textbox Name="OrgR">
-        <Top>0.375in</Top>
-        <rd:DefaultName>OrgR</rd:DefaultName>
-        <Width>6in</Width>
-        <Style>
-          <PaddingLeft>2pt</PaddingLeft>
-          <PaddingBottom>2pt</PaddingBottom>
-          <FontFamily>Tahoma</FontFamily>
-          <FontSize>14pt</FontSize>
-          <Color>SlateGray</Color>
-          <PaddingRight>2pt</PaddingRight>
-          <PaddingTop>2pt</PaddingTop>
-        </Style>
-        <CanGrow>true</CanGrow>
-        <Height>0.27in</Height>
-        <Value>=Fields!OrgR.Value</Value>
-      </Textbox>
-    </ReportItems>
-    <Height>2.515in</Height>
-  </Body>
-  <rd:ReportID>c930b100-c5c5-4d7a-9ac7-616eb30e57c7</rd:ReportID>
-  <LeftMargin>1in</LeftMargin>
   <DataSets>
     <DataSet Name="AD419Devel">
+      <Fields>
+        <Field Name="Chart">
+          <DataField>Chart</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="Account">
+          <DataField>Account</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="SubAcct">
+          <DataField>SubAcct</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="PI_Name">
+          <DataField>PI_Name</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="Org">
+          <DataField>Org</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+        <Field Name="Expenses">
+          <DataField>Expenses</DataField>
+          <rd:TypeName>System.Decimal</rd:TypeName>
+        </Field>
+        <Field Name="FTE">
+          <DataField>FTE</DataField>
+          <rd:TypeName>System.Decimal</rd:TypeName>
+        </Field>
+        <Field Name="OrgR">
+          <DataField>OrgR</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+      </Fields>
       <Query>
-        <rd:UseGenericDesigner>true</rd:UseGenericDesigner>
+        <DataSourceName>AD419Devel</DataSourceName>
         <CommandText>SELECT     Expenses.Chart, Expenses.Account, Expenses.SubAcct, Expenses.PI_Name, Expenses.Org, Expenses.Expenses, Expenses.FTE, 
                       ReportingOrg.OrgR
 FROM         Expenses INNER JOIN
@@ -73,46 +55,91 @@ WHERE     (ReportingOrg.CRISDeptCd = @CRISDeptCd) AND PI_Name &lt;&gt; ''</Comma
             <Value>=Parameters!CRISDeptCd.Value</Value>
           </QueryParameter>
         </QueryParameters>
-        <DataSourceName>AD419Devel</DataSourceName>
+        <rd:UseGenericDesigner>true</rd:UseGenericDesigner>
       </Query>
-      <Fields>
-        <Field Name="Chart">
-          <rd:TypeName>System.String</rd:TypeName>
-          <DataField>Chart</DataField>
-        </Field>
-        <Field Name="Account">
-          <rd:TypeName>System.String</rd:TypeName>
-          <DataField>Account</DataField>
-        </Field>
-        <Field Name="SubAcct">
-          <rd:TypeName>System.String</rd:TypeName>
-          <DataField>SubAcct</DataField>
-        </Field>
-        <Field Name="PI_Name">
-          <rd:TypeName>System.String</rd:TypeName>
-          <DataField>PI_Name</DataField>
-        </Field>
-        <Field Name="Org">
-          <rd:TypeName>System.String</rd:TypeName>
-          <DataField>Org</DataField>
-        </Field>
-        <Field Name="Expenses">
-          <rd:TypeName>System.Decimal</rd:TypeName>
-          <DataField>Expenses</DataField>
-        </Field>
-        <Field Name="FTE">
-          <rd:TypeName>System.Decimal</rd:TypeName>
-          <DataField>FTE</DataField>
-        </Field>
-        <Field Name="OrgR">
-          <rd:TypeName>System.String</rd:TypeName>
-          <DataField>OrgR</DataField>
-        </Field>
-      </Fields>
     </DataSet>
   </DataSets>
+  <Body>
+    <ReportItems>
+      <Textbox Name="OrgR">
+        <CanGrow>true</CanGrow>
+        <KeepTogether>true</KeepTogether>
+        <Paragraphs>
+          <Paragraph>
+            <TextRuns>
+              <TextRun>
+                <Value>=Fields!OrgR.Value</Value>
+                <Style>
+                  <FontFamily>Tahoma</FontFamily>
+                  <FontSize>14pt</FontSize>
+                  <Color>SlateGray</Color>
+                </Style>
+              </TextRun>
+            </TextRuns>
+            <Style />
+          </Paragraph>
+        </Paragraphs>
+        <rd:DefaultName>OrgR</rd:DefaultName>
+        <Top>0.375in</Top>
+        <Height>0.27in</Height>
+        <Width>6in</Width>
+        <Style>
+          <PaddingLeft>2pt</PaddingLeft>
+          <PaddingRight>2pt</PaddingRight>
+          <PaddingTop>2pt</PaddingTop>
+          <PaddingBottom>2pt</PaddingBottom>
+        </Style>
+      </Textbox>
+      <Textbox Name="textbox1">
+        <CanGrow>true</CanGrow>
+        <KeepTogether>true</KeepTogether>
+        <Paragraphs>
+          <Paragraph>
+            <TextRuns>
+              <TextRun>
+                <Value>Report3</Value>
+                <Style>
+                  <FontFamily>Tahoma</FontFamily>
+                  <FontSize>20pt</FontSize>
+                  <FontWeight>Bold</FontWeight>
+                  <Color>SteelBlue</Color>
+                </Style>
+              </TextRun>
+            </TextRuns>
+            <Style />
+          </Paragraph>
+        </Paragraphs>
+        <rd:DefaultName>textbox1</rd:DefaultName>
+        <Height>0.36in</Height>
+        <Width>6in</Width>
+        <ZIndex>1</ZIndex>
+        <Style>
+          <PaddingLeft>2pt</PaddingLeft>
+          <PaddingRight>2pt</PaddingRight>
+          <PaddingTop>2pt</PaddingTop>
+          <PaddingBottom>2pt</PaddingBottom>
+        </Style>
+      </Textbox>
+    </ReportItems>
+    <Height>0.645in</Height>
+    <Style />
+  </Body>
+  <ReportParameters>
+    <ReportParameter Name="CRISDeptCd">
+      <DataType>String</DataType>
+      <Prompt>CRISDeptCd</Prompt>
+    </ReportParameter>
+  </ReportParameters>
   <Width>6.5in</Width>
-  <InteractiveHeight>11in</InteractiveHeight>
+  <Page>
+    <LeftMargin>1in</LeftMargin>
+    <RightMargin>1in</RightMargin>
+    <TopMargin>1in</TopMargin>
+    <BottomMargin>1in</BottomMargin>
+    <Style />
+  </Page>
   <Language>en-US</Language>
-  <TopMargin>1in</TopMargin>
+  <ConsumeContainerWhitespace>true</ConsumeContainerWhitespace>
+  <rd:ReportID>c930b100-c5c5-4d7a-9ac7-616eb30e57c7</rd:ReportID>
+  <rd:ReportUnitType>Inch</rd:ReportUnitType>
 </Report>

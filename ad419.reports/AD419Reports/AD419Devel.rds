@@ -1,10 +1,10 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <RptDataSource xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <Name>AD419Devel</Name>
-  <DataSourceID>d2f8cd19-a2ed-4f77-9527-630796353e82</DataSourceID>
   <ConnectionProperties>
     <Extension>SQL</Extension>
-    <ConnectString>Data Source=elzar;Initial Catalog=AD419</ConnectString>
+    <ConnectString>Data Source=TERRY;Initial Catalog=AD419</ConnectString>
     <IntegratedSecurity>true</IntegratedSecurity>
   </ConnectionProperties>
+  <DataSourceID>d2f8cd19-a2ed-4f77-9527-630796353e82</DataSourceID>
 </RptDataSource>
