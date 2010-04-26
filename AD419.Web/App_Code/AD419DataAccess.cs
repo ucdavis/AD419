@@ -433,6 +433,23 @@ namespace CAESDO
         }
 
         /// <summary>
+        /// Returns the SFN 204 projects information associated with the given OrgR, 
+        /// only the projects ending with CG, OG, or SG, as per Steve Pesis. 
+        /// 
+        /// </summary>
+        /// <param name="OrgR">The org to filter on, or 'All' for all</param>
+        /// <returns>Project, Accession</returns>
+        public DataSet get204ProjectsByDept(string OrgR)
+        {
+            dops.ResetDops();
+            dops.Sproc = "usp_get204ProjectsByDept";
+
+            dops.SetParameter("@OrgR", OrgR, "IN");
+
+            return dops.get_dataset();
+        }
+
+        /// <summary>
         /// Returns the project information associated with the given OrgR
         /// </summary>
         /// <param name="OrgR">The org to filter on, or 'All' for all</param>
