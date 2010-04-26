@@ -60,10 +60,9 @@
       <Name>Production</Name>
       <Platform>Win32</Platform>
       <Options>
-        <TargetServerURL>http://elzar.caesdo.caes.ucdavis.edu/reportserver</TargetServerURL>
+        <TargetServerURL>http://flexo.caesdo.caes.ucdavis.edu/reportserver</TargetServerURL>
         <TargetFolder>AD419Reports</TargetFolder>
         <TargetDataSourceFolder>Data Sources</TargetDataSourceFolder>
-        <OverwriteDataSources>true</OverwriteDataSources>
       </Options>
     </Configuration>
   </Configurations>

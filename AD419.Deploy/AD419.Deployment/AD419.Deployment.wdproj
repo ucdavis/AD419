@@ -36,10 +36,10 @@
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU'">
     <AssemblyAttributes Include="AssemblyFileVersion">
-      <Value>2.12.6.07</Value>
+      <Value>2.12.14.07</Value>
     </AssemblyAttributes>
     <AssemblyAttributes Include="AssemblyVersion">
-      <Value>2.12.6.07</Value>
+      <Value>2.12.14.07</Value>
     </AssemblyAttributes>
     <WebConfigReplacementFiles Include="WebAppSettings.config">
       <Section>appSettings</Section>
