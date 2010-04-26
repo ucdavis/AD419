@@ -1,10 +1,10 @@
 <%@ Page Language="C#" MasterPageFile="~/AD419.master" AutoEventWireup="true" CodeFile="ReportAdministration.aspx.cs" Inherits="CAESDO.ReportAdministration" Title="AD-419 Report Administration" Trace="false" %>
  
-<%@ Register Assembly="AtlasControlToolkit" Namespace="AtlasControlToolkit" TagPrefix="atlasToolkit" %>
+<%@ Register Assembly="AjaxControlToolkit" Namespace="AjaxControlToolkit" TagPrefix="AjaxToolkit" %>
 <asp:Content ID="Content1" ContentPlaceHolderID="ContentHeader" Runat="Server">
 </asp:Content>
 <asp:Content ID="Content2" ContentPlaceHolderID="ContentBody" Runat="Server">
-<atlas:ScriptManager ID="ScriptManager" runat="server"></atlas:ScriptManager>
+<Ajax:ScriptManager ID="ScriptManager" runat="server"></Ajax:ScriptManager>
     <br />
     <div id="wrapper">
            <asp:ImageButton ID="ibutExpenses" runat="server" ImageUrl="~/images/ad419_05.gif" OnClick="ibutExpenses_Click" /><asp:ImageButton ID="ibutInterdept" runat="server" ImageUrl="~/images/ad419_06.gif" OnClick="ImageButton2_Click" /><asp:ImageButton ID="ibutProject" runat="server" ImageUrl="~/images/ad419_07.gif" OnClick="ibutProject_Click" /><asp:ImageButton ID="ibutCoop" runat="server" ImageUrl="~/images/ad419_08.gif" OnClick="ibutCoop_Click" /><br />
@@ -354,9 +354,11 @@
                 </SelectParameters>
             </asp:ObjectDataSource>
         </asp:Panel>
-        <atlasToolkit:ModalPopupExtender ID="MPopupAddExpense" runat="server">
-            <atlasToolkit:ModalPopupProperties BackgroundCssClass="modalBackground" PopupControlID="pnlPopupAddExpense" TargetControlID="btnAddExpense" CancelControlID="btnCancelAddExpense" />
-        </atlasToolkit:ModalPopupExtender>
+        
+        <AjaxControlToolkit:ModalPopupExtender ID="MPopupAddExpense" runat="server" BackgroundCssClass="modalBackground" 
+                            PopupControlID="pnlPopupAddExpense" TargetControlID="btnAddExpense" CancelControlID="btnCancelAddExpense">
+        </AjaxControlToolkit:ModalPopupExtender>
+        
         <asp:Panel ID="pnlPopupAddExpense" runat="server" Width="350px" CssClass="modalPopup" style="display:none;" DefaultButton="btnConfirmAddExpense">
         <div style="text-align:center;">
             <strong>Add Expense<br />

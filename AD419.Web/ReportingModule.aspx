@@ -4,7 +4,9 @@
 <asp:Content ID="Content1" ContentPlaceHolderID="ContentHeader" Runat="Server">
 </asp:Content>
 <asp:Content ID="Content2" ContentPlaceHolderID="ContentBody" Runat="Server">
-<atlas:ScriptManager ID="ScriptManager" runat="server" EnablePartialRendering="true"></atlas:ScriptManager>
+
+<Ajax:ScriptManager ID="ScriptManager" runat="server" EnablePartialRendering="true"></Ajax:ScriptManager>
+
 <div id="wrapper2" style="font-size:12px;">
 <script type="text/javascript" language="javascript">
     function showProgress(generateID)
@@ -15,12 +17,14 @@
    function IMG1_onclick() {}
 </script>
 
-<atlas:UpdateProgress ID="progressReportingModule" runat="server">
+<Ajax:UpdateProgress ID="progressReportingModule" runat="server">
     <ProgressTemplate>
         <div class="loadingbox">
             <br /><img src="images/indicator_mozilla_blu.gif" alt="Progress" id="IMG1" /> Calculating...
-        </div></ProgressTemplate>
-</atlas:UpdateProgress>
+        </div>
+    </ProgressTemplate>
+</Ajax:UpdateProgress>
+
 <asp:ImageButton ID="ibutProjects" runat="server" ImageUrl="~/images/projects_sel.gif" OnClick="ibutProjects_Click" /><asp:ImageButton ID="ibutAssociations" runat="server" ImageUrl="~/images/associations_unsel.gif" OnClick="ibutAssociations_Click" /><asp:ImageButton ID="ibutReports" runat="server" ImageUrl="~/images/reports_unsel.gif" OnClick="ibutReports_Click" /><br />
     
 <table border="0" cellpadding="0" cellspacing="0" width="980">
@@ -57,7 +61,7 @@
             </asp:GridView></div></div><img src="images/rm_bluemod_05.jpg" alt="" height="42" /></div>
     <div style="float:right">
          <div style="background-image:url(images/rm_totalmod_04.gif); background-repeat:no-repeat; padding-left:25px; padding-top:25px;"> 
-             <atlas:UpdatePanel ID="updateViewMode" runat="server" Mode="conditional">
+             <Ajax:UpdatePanel ID="updateViewMode" runat="server" UpdateMode="Conditional">
                  <ContentTemplate>
                      <asp:ImageButton ID="ibtnSFNTotals" runat="server" ImageUrl="~/images/totals_sel.gif"
                          CommandArgument="1" OnClick="ibtnSFNTotals_Click" />
@@ -66,15 +70,15 @@
                         <asp:ImageButton ID="ibtnSFNUnassociated" runat="server" ImageUrl="~/images/unass_unsel.gif" CommandArgument="3" OnClick="ibtnSFNUnassociated_Click" />
                         <asp:ImageButton ID="ibtnSFNProject" runat="server" ImageUrl="~/images/proj_unsel.gif" CommandArgument="4" OnClick="ibtnSFNProject_Click" />
                  </ContentTemplate>
-             </atlas:UpdatePanel>
+             </Ajax:UpdatePanel>
          </div><%--
-            <atlas:UpdateProgress ID="progressTotalExpenses" runat="server">
+            <Ajax:UpdateProgress ID="progressTotalExpenses" runat="server">
             <ProgressTemplate>
             <div>
                 Calculating...peopl
             </div>
             </ProgressTemplate>
-            </atlas:UpdateProgress>
+            </Ajax:UpdateProgress>
             --%>
             <table cellpadding="0" cellspacing="0" border="0">
               <tr>
@@ -82,7 +86,7 @@
                 </td>
                 <td>
                 
-            <atlas:UpdatePanel ID="updateTotalExpenses" runat="server" Mode="conditional">
+            <Ajax:UpdatePanel ID="updateTotalExpenses" runat="server" UpdateMode="Conditional">
             <ContentTemplate>
             <asp:GridView ID="gViewSFNTotalExpenses" runat="server" AutoGenerateColumns="False"
                 CellPadding="2" DataKeyNames="LineTypeCode" DataSourceID="AD419DataSFNTotals"
@@ -102,7 +106,7 @@
             </asp:GridView>
             </ContentTemplate>
            
-        </atlas:UpdatePanel>
+        </Ajax:UpdatePanel>
                         </td>
                 <td style="background-image:url(images/rm_totalmod_08.gif); width: 10px;">
                 </td>
@@ -117,11 +121,11 @@
    
             <%-- Header table --%>
             <%-- Loading Progress: Keep out for now
-            <atlas:UpdateProgress ID="UpdateProjectsBodyProgress" runat="server">
+            <Ajax:UpdateProgress ID="UpdateProjectsBodyProgress" runat="server">
                 <ProgressTemplate>
                     Loading New Project Record ... 
                 </ProgressTemplate>
-            </atlas:UpdateProgress>
+            </Ajax:UpdateProgress>
             --%>
             <br /><br />
             <table id="projectsHeader" width="384" cellpadding="0" cellspacing="0" border="0"><tr>
@@ -137,7 +141,7 @@
             </tr></table>
 
             <%-- Body with the project information --%>
-            <atlas:UpdatePanel ID="UpdateProjectsBody" runat="server" Mode="conditional">
+            <Ajax:UpdatePanel ID="UpdateProjectsBody" runat="server" UpdateMode="Conditional">
             <ContentTemplate>
             <br />
             <table id="ProjectsBody"   width="384" cellpadding="0" cellspacing="0" border="0">
@@ -209,7 +213,7 @@
                 </tr>
             </table>
             </ContentTemplate>
-            </atlas:UpdatePanel>
+            </Ajax:UpdatePanel>
 
 
 <asp:ObjectDataSource ID="AD419DataReportingOrg" runat="server"
@@ -256,7 +260,7 @@
     
     <div id="AssociationsHeader" style="float:left; width:540px;" >
             <div style="background-image:url(images/rm_associationsbig.gif); background-repeat:no-repeat;  padding-left:21px; padding-right:20px; padding-top: 25px; padding-bottom: 10px;" > 
-            <atlas:UpdatePanel ID="updateAssociationsHeader" runat="server" Mode="conditional">
+            <Ajax:UpdatePanel ID="updateAssociationsHeader" runat="server" UpdateMode="conditional">
             <ContentTemplate>
                 <strong>
                 Expense Record Grouping:</strong> &nbsp;
@@ -268,11 +272,11 @@
                     <asp:ListItem Value="None">No Grouping</asp:ListItem>
                 </asp:DropDownList>
                 <%-- 
-                <atlas:UpdateProgress ID="updateProgressAssociationGrouping" runat="server">
+                <Ajax:UpdateProgress ID="updateProgressAssociationGrouping" runat="server">
                 <ProgressTemplate>
                     Processing...
                 </ProgressTemplate>
-                </atlas:UpdateProgress>
+                </Ajax:UpdateProgress>
                 --%>
                 <br />
                 <strong>
@@ -280,7 +284,7 @@
                 <asp:CheckBox ID="cboxAssociated" runat="server" Text="Associated" AutoPostBack="True" OnCheckedChanged="cboxAssociated_CheckedChanged" OnPreRender="cboxAssociated_PreRender" />&nbsp;
                 <asp:CheckBox ID="cboxUnassociated" runat="server" Text="Unassociated" Checked="true" AutoPostBack="True" OnCheckedChanged="cboxUnassociated_CheckedChanged" OnPreRender="cboxUnassociated_PreRender" />
             </ContentTemplate>
-            </atlas:UpdatePanel>
+            </Ajax:UpdatePanel>
             </div>
             <table cellpadding="0" cellspacing="0" border="0" width="539">
               <tr>
@@ -289,7 +293,7 @@
                 <td>
             <%--Associations List--%>
             <div style="overflow:auto; height: 349px; width:520px; visibility: visible;">
-            <atlas:UpdatePanel ID="updateAssociationsGrouping" runat="server" Mode="conditional">
+            <Ajax:UpdatePanel ID="updateAssociationsGrouping" runat="server" UpdateMode="conditional">
             <ContentTemplate>
                 <asp:GridView ID="gvAssociationRecords" runat="server" AllowSorting="True" DataSourceID="AD419DataExpenseRecordGrouping" AutoGenerateColumns="False" CellPadding="4" CssClass="bordertop" ForeColor="White" GridLines="Horizontal" EmptyDataText="No Records Found" DataKeyNames="isAssociated,Code" OnPreRender="gvAssociationRecords_PreRender" OnSorted="gvAssociationRecords_Sorted" BorderColor="White" Width="100%" AllowPaging="True" OnPageIndexChanged="gvAssociationRecords_PageIndexChanged" PageSize="200">
                     <FooterStyle BackColor="#5D7B9D" Font-Bold="True" ForeColor="White" />
@@ -332,18 +336,18 @@
                 &nbsp;&nbsp;
             </ContentTemplate>
             <Triggers>
-                <atlas:ControlEventTrigger ControlID="dlistRecordGrouping" EventName="SelectedIndexChanged" />
-                <atlas:ControlEventTrigger ControlID="cboxAssociated" EventName="CheckedChanged" />
-                <atlas:ControlEventTrigger ControlID="cboxUnassociated" EventName="CheckedChanged" />
+                <Ajax:AsyncPostBackTrigger ControlID="dlistRecordGrouping" EventName="SelectedIndexChanged" />
+                <Ajax:AsyncPostBackTrigger ControlID="cboxAssociated" EventName="CheckedChanged" />
+                <Ajax:AsyncPostBackTrigger ControlID="cboxUnassociated" EventName="CheckedChanged" />
             </Triggers>
-            </atlas:UpdatePanel>
+            </Ajax:UpdatePanel>
             </div></td>
                 <td style="background-image:url(images/rm_totalmod_08.gif); width: 10px;">
                 </td>
               </tr>
             </table><img src="images/rm_associationsbigbot.gif" alt="" />
             <!--AssociationsTotals-->
-            <atlas:UpdatePanel ID="updateAssociationsTotalExpenses" Mode="conditional" runat="server">
+            <Ajax:UpdatePanel ID="updateAssociationsTotalExpenses" UpdateMode="conditional" runat="server">
             <ContentTemplate>
             <div id="intdepBox2">
                 <br />
@@ -379,18 +383,18 @@
                 <br />
            </div>
            </ContentTemplate>
-           </atlas:UpdatePanel> 
+           </Ajax:UpdatePanel> 
     </div>
     <div style="float:right; width:390px;">
 
-    <atlas:UpdatePanel ID="UpdateAssociateRecords" runat="server" Mode="conditional">
+    <Ajax:UpdatePanel ID="UpdateAssociateRecords" runat="server" UpdateMode="Conditional">
     <ContentTemplate>
         <div style="background-image:url(images/rm_associationssm.gif); background-repeat:no-repeat;  padding-left:21px; padding-right:20px; padding-top: 25px; padding-bottom: 10px;" >           
           <asp:ImageButton ID="btnUnassociateRecords" runat="server" OnClick="btnUnassociateRecords_Click"  ImageUrl="images/unass_selrecord.gif" />
           <asp:ImageButton ID="btnAssociateRecords" runat="server"  OnClick="btnAssociateRecords_Click" ImageUrl="images/ass_selrecord.gif" />
         </div>
     </ContentTemplate>
-    </atlas:UpdatePanel>
+    </Ajax:UpdatePanel>
     
         <table cellpadding="0" cellspacing="0" border="0"  width="389">
               <tr>
@@ -400,17 +404,17 @@
             
             <%--
             <div class="updateProgress">
-                <atlas:UpdateProgress ID="updateAssociationProjectsProgress" runat="server">
+                <Ajax:UpdateProgress ID="updateAssociationProjectsProgress" runat="server">
                 <ProgressTemplate>
                 <div>
                     Calculating...
                 </div>
                 </ProgressTemplate>
-                </atlas:UpdateProgress> 
+                </Ajax:UpdateProgress> 
             </div>
             --%>
             <div style="overflow:auto;height:450px; width:370px;" >
-                <atlas:UpdatePanel ID="updateAssociationProjects" runat="server" Mode="conditional">
+                <Ajax:UpdatePanel ID="updateAssociationProjects" runat="server" UpdateMode="conditional">
                 <ContentTemplate>
                     <asp:Label ID="lblError" runat="server" EnableViewState="False" Font-Size="Larger"
                         ForeColor="Red"></asp:Label><asp:GridView ID="gvAssociationProjects" runat="server" AutoGenerateColumns="False" DataSourceID="AD419AssociationsDataProjects" CellPadding="4" CssClass="bordertop" ForeColor="#333333" GridLines="None" Enabled="False" DataKeyNames="Accession" EmptyDataText="No Projects Found" Width="100%">
@@ -451,7 +455,7 @@
                     </asp:ObjectDataSource>
                     &nbsp;&nbsp;
                 </ContentTemplate>
-                </atlas:UpdatePanel>
+                </Ajax:UpdatePanel>
             </div>
             </td>
                 <td style="background-image:url(images/rm_totalmod_08.gif); width: 10px;">
