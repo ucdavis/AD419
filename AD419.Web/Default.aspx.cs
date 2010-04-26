@@ -31,7 +31,7 @@ namespace CAESDO
                 hlinkReportAdministration.Visible = false;
             }
 
-            if (User.IsInRole("Manage All") == false)
+            if (User.IsInRole("ManageAll") == false)
             {
                hLinkUserAdministration.Visible = false;
             }
