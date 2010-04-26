@@ -7,5 +7,6 @@
         <siteMapNode url="Reports.aspx" title="Reports" />
         <siteMapNode url="Emulation.aspx" title="Emulation" />
         <siteMapNode url="Error.aspx" title="Error Page" />
+        <siteMapNode url="UserManagementPage.aspx" title="User Administration" />
     </siteMapNode>
 </siteMap>

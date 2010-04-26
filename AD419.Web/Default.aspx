@@ -9,13 +9,16 @@
     <asp:LinkButton ID="lbtnResetUser" runat="server" OnClick="lbtnResetUser_Click">[Reset User]</asp:LinkButton></span></div>
     <div style="background-image: url(images/indexrepeat.gif); background-repeat:repeat-x; background-color: #dadada; width: 380px; margin-left: 2em;"><br />
     <div style="margin-left:2em; margin-right:1em;" class="indexlinks">
-    <asp:HyperLink ID="hlinkReportAdministration" runat="server" NavigateUrl="~/ReportAdministration.aspx">Report Administration</asp:HyperLink>
-    <br /><br />
+    <asp:HyperLink ID="hlinkReportAdministration" runat="server" NavigateUrl="~/ReportAdministration.aspx">Report Administration<br /><br /></asp:HyperLink>
+    
     <asp:HyperLink ID="hlinkReportingModule" runat="server" NavigateUrl="~/reportingModule.aspx">Reporting Module</asp:HyperLink>
     <br /><br />
     <asp:HyperLink ID="hlinkInstructions" runat="server" NavigateUrl="~/AD419Instructions.pdf" Target="_blank">Instructions (PDF)</asp:HyperLink>
     <br /><br />
-    <asp:HyperLink ID="hlinkEmulation" runat="server" NavigateUrl="~/Emulation.aspx">Emulation</asp:HyperLink><br /><br /></div></div>
+    <asp:HyperLink ID="hlinkEmulation" runat="server" NavigateUrl="~/Emulation.aspx">Emulation<br /><br /></asp:HyperLink>
+    
+    <asp:HyperLink ID="hLinkUserAdministration" runat="server" NavigateUrl="~/UserManagementPage.aspx">User Administration<br /><br /></asp:HyperLink>
+    </div></div>
     <img src="images/indexbot.gif" alt="" style="margin-left: 2em;"/> 
 </asp:Content>
 

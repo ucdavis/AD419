@@ -56,7 +56,7 @@ namespace CAESDO
                 // Get the user information and put into CAESDOPrincipal
                 DataOps dops = new DataOps();
                 dops.ResetDops();
-                dops.ConnectionString = "CATBERT";
+                dops.ConnectionString = "MainDB";
                 dops.Sproc = "usp_getUserByLogin";
                 dops.SetParameter("@LoginID", HttpContext.Current.User.Identity.Name, "input");
 
@@ -78,6 +78,7 @@ namespace CAESDO
                 dops.ResetDops();
                 dops.Sproc = "usp_GetUserUnits";
                 dops.SetParameter("@EmployeeID", results[2].ToString(), "input");
+                dops.SetParameter("@ApplicationName", System.Configuration.ConfigurationManager.AppSettings["AppName"].ToString(), "input");
 
                 fields.Clear();
                 fields.Add("ShortName");
