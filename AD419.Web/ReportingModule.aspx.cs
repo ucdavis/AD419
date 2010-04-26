@@ -84,6 +84,7 @@ namespace CAESDO
 
             //Update the ViewMode drop down list with this choice
             updateViewMode.Update();
+            updateTotalExpenses.Update();
         }
 
         /// <summary>
