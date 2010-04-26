@@ -185,10 +185,10 @@ namespace CAESDO
         /// <summary>
         /// Gets a filtered list of ReportingOrgs (depts) that the given employee has access to.
         /// </summary>
-        /// <param name="employeeID">The EID of the current employee</param>
+        /// <param name="loginID">The loginID of the current employee</param>
         /// <returns>If the user is an admin, all departments are returned (by calling getReportingOrg()),
         /// else the departments that the user has explicit access to are returned</returns>
-        public DataSet getReportingOrgFiltered(string employeeID)
+        public DataSet getReportingOrgFiltered(string loginID)
         {
             string[] roles = Roles.GetRolesForUser();
                         
@@ -197,10 +197,11 @@ namespace CAESDO
                 if (roles[0] == "Admin")
                     return getReportingOrg();
                 else
-                {            
+                {
+                    string _loginID = HttpContext.Current.User.Identity.Name;
                     dops.ResetDops();
                     dops.Sproc = "usp_GetReportingOrgByUser";
-                    dops.SetParameter("@EmployeeID", employeeID, "input");
+                    dops.SetParameter("@LoginID", loginID, "input");
                     return dops.get_dataset();
                 }
             }
@@ -218,7 +219,7 @@ namespace CAESDO
                 // If this is reached admin was not found
                 dops.ResetDops();
                 dops.Sproc = "usp_GetReportingOrgByUser";
-                dops.SetParameter("@EmployeeID", employeeID, "input");
+                dops.SetParameter("@LoginID", loginID, "input");
                 return dops.get_dataset();
             }
 
