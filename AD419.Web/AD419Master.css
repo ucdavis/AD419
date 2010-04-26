@@ -1,0 +1,345 @@
+
+/*This is the general formatting for the page*/
+.AD419
+{
+	font-family: Verdana, Arial, Helvetica, sans-serif;
+	font-size: small;
+	color: #000000;
+	background-image:url(images/testbg.gif);
+	background-repeat:repeat-x;
+	background-color:#353535;
+}
+
+.AD419 TEXTAREA
+{
+	font-family: Verdana, Arial, Helvetica, sans-serif;
+    font-size: small;
+}
+
+.calTable
+{
+	background-color:#A8B4C0;
+}
+
+.headerstyle
+{
+	background-color: #A8B4C0;
+	color: white;
+	font-size: x-small; /*font-weight: bold;*/
+	border-bottom: 1px solid #2266AA;
+	border-right: 1px solid #2266AA;
+	border-top: 1px solid #CCDDFF;
+	border-left: 1px solid #CCDDFF;
+	vertical-align: top;
+	filter: progid:DXImageTransform.Microsoft.Gradient(GradientType=0, StartColorStr=   '#A8B4C0' , EndColorStr= '#A8B4C0' );
+}
+.headerstyle td {
+    BACKGROUND-COLOR: #A8B4C0;
+	color: white;
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: x-small;
+	/*font-weight: bold;*/
+    border-bottom:1px solid #2266AA;
+    border-right:1px solid #2266AA;
+    border-top:1px solid #CCDDFF;
+   	border-left:1px solid #CCDDFF;
+	vertical-align:top;
+	filter: progid:DXImageTransform.Microsoft.Gradient(GradientType=0, StartColorStr= '#80BBFF' , EndColorStr= '#3399FF' );
+}
+.headerstyle td a {
+	/*font-weight: bold;*/
+	color: white;
+}
+.headerstyle span a {
+	/*font-weight: bold;*/
+	color: white;
+}
+.itemstyle
+{
+	background-color: White;
+	text-align: center;
+	font-size: x-small;
+	font-family: Arial;
+}
+.altstyle {
+	BACKGROUND-COLOR: #dae1e8;
+	text-align: center;
+	font-size: x-small;
+	font-family: Arial;
+}
+.bgstyle
+{
+	background-color: #D5BD59;
+}
+
+
+
+
+
+/*This is the general formatting for the page*/
+.QandA {
+	font-family: Verdana, Arial, Helvetica, sans-serif;
+	font-size: 100%;
+	color: #003366;
+}
+/*This code is for the Page Title Section this is live version*/
+.header {
+	font-family: Verdana, Arial, Helvetica, sans-serif;
+	font-size: large;
+	font-weight: bold;
+	color: #FFCC33;
+	background-color: #003366;
+	position: relative;
+	width: 100%;
+	padding: 0;
+	margin:0;
+	left: 0px;
+	top: 0px;
+	right: 0px;
+	border-top-style: outset;
+	border-right-style: outset;
+	border-bottom-style: outset;
+	border-left-style: outset;
+	line-height: 150%;
+}
+
+/*This code is for the Pose a Question Section*/
+.questions {
+	font-family: Verdana, Arial, Helvetica, sans-serif;
+	font-size: small;
+	font-weight: bold;
+	background-color: #003366;
+	color: #FFCC33;
+	width: 100%;
+	}
+
+
+
+.title {
+		border-bottom: 1px solid #002666;
+		margin: 0;
+		padding: 0.2em 0em 0.3em 0em;
+		font-family: georgia, "times new roman", times, serif;
+		font-weight: normal;
+		font-size: 2em;
+        font-style: normal;
+		color: #002666;
+
+}
+
+
+
+.nav
+{
+	position: relative;
+	background-color: #A8B4C0; /* unhack ie5/win */
+	text-align: left;
+	background-image: url(images/pointer.gif);
+	background-repeat: no-repeat;
+	background-position: left center;
+	margin: 0; /* text-align: center; */
+	padding: 0.3em 0.4em 0.4em 15px;
+	list-style-type: none;
+	list-style-position: inside;
+	display: block;
+	font-size: .75em;
+	font-weight: bolder;
+	border-bottom: 1px solid #969697;
+	clear: both;
+}	
+
+.about_nav {
+		position: relative;
+		/* unhack ie5/win */
+		text-align: left;
+		/* background-image: url(images/pointer.gif); */
+		background-repeat: no-repeat;
+		background-position: left center;
+	}
+	
+.about_nav ul {
+			margin: 0;
+			/* text-align: center; */
+			padding: 0.3em 0.4em 0.4em 15px;
+			list-style-type: none;
+			list-style-position: inside;
+			display: block;
+			font-size: 0.7em;
+			clear: both;
+		}
+
+
+.audiences_nav {	
+		position: relative;
+		background-color: #6a6c6e;
+		/* unhack ie5/win */
+		text-align: left;
+		background-image: url(images/pointer.gif);
+		background-repeat: no-repeat;
+		background-position: left center;
+	}
+	
+.audiences_nav ul {
+			margin: 0;
+			/* text-align: center; */
+			padding: 0.3em 0.4em 0.4em 15px;
+			list-style-type: none;
+			list-style-position: inside;
+			display: block;
+			font-size: 0.7em;
+			border-bottom: 1px solid #969697;
+			border-top: 1px solid #969697;
+			clear: both;
+		}
+		
+		/* Hack to hide this from IE PC */
+/*
+		.audiences_nav > ul {
+			font-size: 0.75em;
+		}		
+*/		
+.audiences_nav li {
+			white-space: nowrap;
+			display: inline;
+			line-height: 150%;
+			color: #FFFFFF;
+		}
+		
+.audiences_nav li a {
+			text-decoration: none;
+			background-color: transparent;
+			color: #FFFFFF;
+			font-weight: bold;
+			/*margin: 10px 0 10px 0;*/
+			margin-left: 1em;
+			padding: 0.4em 0 0.5em 0;
+		}
+		
+.audiences_nav li a:link {
+			color: #002666;
+		}
+		
+.audiences_nav li a:visited {
+			color: #002666;
+		}
+		
+.audiences_nav li a:hover {
+			color: #8ca8d8;
+		}
+		
+.audiences_nav li a:active {
+			color: #8ca8d8;
+		}
+		
+.audiences_nav li span.here {
+			padding: 0;
+			margin: 0;
+			font-weight: bold;
+			color: #304C6A;
+		}
+
+
+
+	
+/*This code for the Links*/	
+a:link {color: #cbd8b6}     
+a:visited {color: #cbd8b6}  
+a:hover {color: #D5BD59; font-size: 105%}   
+a:active {color: #D5BD59}
+
+/*This code for the Pose a Question Link*/
+a.one:link {color: #D5BD59}
+a.one:visited {color: #D5BD59}
+a.one:hover {font-size: 125%}
+
+/*This code is for the Application Section*/
+.Apps {
+	font-size: large;
+	background-color: #D5BD59;
+	border: thin outset;
+	position: relative;
+	width: 75%;
+	font-family: Verdana, Arial, Helvetica, sans-serif;
+	font-weight: bold;
+}
+
+/*This code is for the Devices and Peripherals Section*/
+.Devices {
+	background-color: #D5BD59;
+	border: thin outset;
+	position: relative;
+	width: 75%;
+	font-family: Verdana, Arial, Helvetica, sans-serif;
+	font-size: large;
+	color: #003366;
+	font-weight: bold;
+
+}
+/*This code is for the Introduction Section*/
+.Intro {
+	font-weight: bold;
+	position: relative;
+	white-space: normal;
+	line-height: 150%;
+
+
+
+}
+
+.Heading
+{
+	font-family: georgia, "times new roman", times, serif;
+	font-weight: normal;
+	font-size: 1.5em;
+    font-style: normal;
+	
+}
+
+/* --------------- Footer section --------------- */
+	#footer {
+		/* 1st degree container. Contains the "other" navigation and the copyright info, etc. */
+		clear: left;
+		font-size: 0.7em;
+		text-align: center;
+		color: #FFF;
+	}
+	
+	#footer #nav_other {
+
+		margin: 5px 0 0 0;
+	}
+	
+	#footer #nav_bottom {
+
+		margin: 5px 0 0 0;
+	}
+
+	#footer #nav_bottom p {
+		margin: 0;
+		padding: 0 0 0.8em 0;
+	}
+
+		#footer #nav_bottom a {	
+			text-decoration: none;
+			padding: 0;
+			margin: 0;
+			border-bottom: 1px solid;
+		}
+		
+		#footer #nav_bottom a:link {
+			color: #cbd8b6;
+		}
+		
+		#footer #nav_bottom a:visited {
+			color: #cbd8b6;
+		}
+		
+		#footer #nav_bottom a:hover {	
+			text-decoration: none;
+			color: #77160B;
+			border-bottom: 0px none;
+		}
+		
+		#footer #nav_bottom a:active {
+			color: #77160B;
+		}

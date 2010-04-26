@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<siteMap xmlns="http://schemas.microsoft.com/AspNet/SiteMap-File-1.0" >
+    <siteMapNode url="default.aspx" title="AD419 Home">
+        <siteMapNode url="ReportAdministration.aspx" title="AD-419 Report Administration" />
+        <siteMapNode url="ReportingModule.aspx" title="Reporting Module"  />
+        <siteMapNode url="reportingAssociations.aspx" title="Associations" />
+        <siteMapNode url="Reports.aspx" title="Reports" />
+        <siteMapNode url="Emulation.aspx" title="Emulation" />
+        <siteMapNode url="Error.aspx" title="Error Page" />
+    </siteMapNode>
+</siteMap>

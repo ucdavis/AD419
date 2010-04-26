@@ -1,0 +1,178 @@
+/*  
+Theme Name: AD-419
+Version: 1
+Author: Viet Tran 
+*/
+
+body
+	{
+		margin: 0px;
+	}
+
+#wrapper
+	{ 
+	  background-color:#353535;
+	  padding-left: 30px;
+	}
+	
+#wrapper2
+	{ 
+	  background-color:#353535;
+	  padding-left: 10px;
+	}
+
+.fillinBox 
+	{
+	 background-image: url(images/fillin.gif);
+	 height:32px;
+	}
+
+.fillinBox2 
+	{
+	 background-image: url(images/fillin2.gif);
+	 height: 32px;
+	}
+	
+.fillinBox3 
+	{
+	 background-image: url(images/fillin3.gif);
+	 height:32px;
+	}
+
+.labelboxes
+	{
+	 padding-left:5px;
+	 padding-right:5px;
+	 padding-top:2px;
+	 padding-bottom:2px;
+	 background-color:White;
+	 border: solid 1px #4a6d8d;
+	 text-align: center;
+	}
+
+.labelboxesdark
+	{
+	 padding-left:5px;
+	 padding-right:5px;
+	 padding-top:2px;
+	 padding-bottom:2px;
+	 background-color:#e2e2e2;
+	 border: solid 1px #4a6d8d;
+	 text-align: center;
+	}
+
+.loadingbox
+	{
+	 padding-left:5px; padding-right:5px; padding-top:2px; padding-bottom:2px;
+	 background-color:#333333;
+	 border: solid 1px #000000;
+	 text-align: center; 
+	 color: White;
+	 width: 150px;
+	 height: 50px;
+	 opacity: .9;
+	 filter: alpha(opacity=90);
+	 position: absolute; top: 300px; left: 400px;
+	 z-index:5;
+	}
+
+
+.indexlinks a:link{color:Black;}
+.indexlinks a:visited{color:Black;}
+.indexlinks a:hover{color:#9c8c08;}
+.indexlinks a:active{color:#9c8c08;}
+
+
+.selecthead
+    {
+		background-image: url(images/bg_gradgreen.gif);
+    }
+
+.selecthead2
+    {
+		background-image: url(images/greenbghack.gif);
+    }
+    
+.bordertop
+	{
+		border-top: solid 2px white;
+	}
+
+.xxxstyle
+	{
+		border: 1px solid #7f9db9;
+	}
+
+.xxxstyle2
+	{
+		border-right: 1px solid #7f9db9;
+		border-top: 1px solid #7f9db9;
+		border-bottom: 1px solid #7f9db9;
+	}
+	
+.investleft
+	{
+		background-image: url(images/bluebg.gif);
+		background-repeat: repeat-y;
+		text-align: center;
+	}
+
+.investleftwht
+	{
+		background-image: url(images/whitebg.gif);
+		background-repeat: repeat-y;
+		text-align: center;
+	}
+
+
+
+#intdepBox
+	{
+	  margin-left: auto;
+	  margin-right: auto;
+	  width: 680px;
+	  border: 1px solid #7f9db9;
+	  background-color: #dbe2e8;  
+	}
+	
+	
+#intdepBox2
+	{
+	  border: 1px solid #7f9db9;
+	  background-color: #dbe2e8;  
+	  width:500px;
+	  margin-left:10px;
+	  padding-left:10px;
+	  padding-right:10px;
+	}
+
+
+#RAbuttons
+	{ 
+	  margin-left: auto;
+	  margin-right: auto;
+	  width: 951px;
+	  background-color:#353535;
+	}
+
+#RAbody
+	{ 
+	  margin-left: auto;
+	  margin-right: auto;
+	  width: 951px;
+	  background-image: url(images/ad419_10.gif);
+	  background-repeat:repeat-x;
+	  background-color:#cfcfcf;
+	}
+	
+#RAfooter
+	{
+	 margin-left: auto;
+	 margin-right: auto;
+	 width: 951px;
+	}
+
+.rmtotals
+	{
+	 padding-right:10px;
+	}

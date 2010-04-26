@@ -1,0 +1,50 @@
+<%@ Master Language="C#" CodeFile="~/AD419.master.cs" Inherits="AD419" %>
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<script runat="server">
+
+</script>
+
+<html xmlns="http://www.w3.org/1999/xhtml" >
+<head id="Head1" runat="server">
+<link href="AD419Master.css" rel="stylesheet" type="text/css" />
+    <link href="AD419.css" rel="stylesheet" type="text/css" />
+    <link href="AD419style.css" rel="stylesheet" type="text/css" />
+    <title>AD419</title>
+</head>
+<body class="AD419">
+    <form id="form1" runat="server">
+         <img src="images/logo.gif" style="float:left;padding-left:30px;" alt="" /><br /><br /><br /><br /><div style="float:right; padding-right: 20px"></div><br /><br />
+  <div class="audiences_nav">
+  <ul>
+    <li>&nbsp;<asp:SiteMapPath ID="siteMap" runat="server">
+    </asp:SiteMapPath>
+    </li>
+  <%-- <li><a href="default.aspx">Submit a Request</a> |</li>
+  <li><a href="default.aspx">View Pending Requests</a> |</li>
+  <li><a href="default.aspx">Admin Page (ISPS Only)</a></li> --%>
+  </ul>
+  </div>
+ <div class="about_nav"><ul></ul></div>
+
+    <asp:ContentPlaceHolder ID="ContentHeader" runat="server"></asp:ContentPlaceHolder>
+
+    <div>
+        <asp:contentplaceholder id="ContentBody" runat="server">
+        </asp:contentplaceholder>
+    </div>
+    <br style="clear:left;" />
+    <hr style="clear:left;" />
+    <div id="footer">
+		    <div>
+			    <p>
+				    AD-419 Version: <asp:Literal ID="litAssemblyVersion" runat="server"></asp:Literal> | 
+                    <asp:HyperLink ID="hlinkEmail" runat="server">Questions or Comments?</asp:HyperLink>
+			    </p>
+    			
+		    </div>
+    </div>
+    </form>
+</body>
+</html>

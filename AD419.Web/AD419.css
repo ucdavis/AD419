@@ -1,0 +1,75 @@
+﻿.InfoList
+{
+    padding:0;
+    list-style-type: none;
+}
+
+.InfoList li
+{
+    display: inline;
+    margin-left: 1em;
+    margin-right: 1em;
+}
+
+.GridHeaderProfessional
+{
+    background-image: url(images/bg_gradgreen.gif);
+    font-weight:bold; 
+    color:White;
+}
+
+.Submit
+{
+	text-align: center;
+	position:relative;	
+}
+
+/*-- For the Modal Popup -- */
+.modalBackground {
+	background-color:#111111;
+	filter:alpha(opacity=80);
+	opacity:0.8;
+}
+
+
+.modalPopup {
+	background-color:#D5DBE1;
+	border-width:3px;
+	border-style:solid;
+	border-color:Gray;
+	padding:3px;
+	width:250px;
+}
+
+.DeptInfo tr td
+{
+    background-color: InfoBackground;
+    border-top-style: none;
+    border-right-style: none;
+    border-left-style: none;
+    border-bottom-style: none;
+    padding-right: 5px;
+    padding-left: 5px;
+    padding-bottom: 5px;
+    padding-top: 5px;
+}
+
+.NoBorder tr td
+{
+    border-top-style: none;
+    border-right-style: none;
+    border-left-style: none;
+    border-bottom-style: none;
+    padding-right:1em;
+}
+
+.NoBorder
+{
+    background-color: InfoBackground;
+}
+
+
+.InvestigatorName
+{
+    background-color:White; 
+}
