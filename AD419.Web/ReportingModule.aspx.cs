@@ -83,8 +83,14 @@ namespace CAESDO
             //addProjectInfoToDropDownList(dl_ViewMode);
 
             //Update the ViewMode drop down list with this choice
+            ibtnSFNProject_Click(ibtnSFNProject, null);
             updateViewMode.Update();
-            updateTotalExpenses.Update();
+            
+            
+            
+
+           
+            updateTotalExpenses.Update(); 
         }
 
         /// <summary>
