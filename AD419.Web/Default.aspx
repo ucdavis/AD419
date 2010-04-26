@@ -13,6 +13,8 @@
     <br /><br />
     <asp:HyperLink ID="hlinkReportingModule" runat="server" NavigateUrl="~/reportingModule.aspx">Reporting Module</asp:HyperLink>
     <br /><br />
+    <asp:HyperLink ID="hlinkInstructions" runat="server" NavigateUrl="~/AD419Instructions.pdf" Target="_blank">Instructions (PDF)</asp:HyperLink>
+    <br /><br />
     <asp:HyperLink ID="hlinkEmulation" runat="server" NavigateUrl="~/Emulation.aspx">Emulation</asp:HyperLink><br /><br /></div></div>
     <img src="images/indexbot.gif" alt="" style="margin-left: 2em;"/> 
 </asp:Content>
