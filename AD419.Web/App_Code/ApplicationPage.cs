@@ -147,12 +147,10 @@ namespace CAESDO
             else
             {
                 //TODO: Add error reporting back in
-                /* 
                 if ( ex.InnerException != null )
                     AD419ErrorReporting.ReportError(ex.InnerException, "OnError");
                 else
                     AD419ErrorReporting.ReportError(ex, "OnError");
-                 */
                 ctx.Server.ClearError();
                 ctx.Response.Redirect(AD419Configuration.ErrorPage(AD419Configuration.ErrorType.UNKNOWN));
             }
