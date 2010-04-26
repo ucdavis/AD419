@@ -480,7 +480,7 @@ namespace CAESDO
         /// Pulls out Account information for the selected department
         /// </summary>
         /// <param name="OrgR">OrgR or 'All'</param>
-        /// <returns>pk, Chart, AccountID, Expenses, Account_Name, Award_Num, Principal_Incestigator_Name, Project, TermDate</returns>
+        /// <returns>pk, Chart, AccountID, Expenses, AccountName, AwardNum, Principal_Incestigator_Name, Project, TermDate</returns>
         /// <remarks>Queries the FIS database on the same server-- 
         /// so an account to that db needs to be added (with datareader permissions)</remarks>
         public DataSet getProjectAssociations(string OrgR)

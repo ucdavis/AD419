@@ -15,6 +15,7 @@ using System.Collections.Specialized;
 using System.Threading;
 using System.Web.SessionState;
 using System.Web.Caching;
+using Elmah;
 
 
 namespace CAESDO
@@ -128,6 +129,14 @@ namespace CAESDO
 
             //Grab the exception that raised this error
             Exception ex = ctx.Server.GetLastError();
+
+            //Handle Error
+
+            // Send exception to ELMAH to do its thing.
+            //Elmah.ErrorLog.Default.Log(new Error(ex)); // <-- Depricated.  Use the following instead:
+            ErrorLog.GetDefault(ctx).Log(new Error(ex));
+
+            base.OnError(e); //won't get called
 
             //Only handle HttpException Errors
             if (ex.GetType().Name == "HttpException")

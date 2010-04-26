@@ -31,13 +31,13 @@
                     HtmlEncode="False" SortExpression="Expenses" ReadOnly="True" >
                     <HeaderStyle CssClass="selecthead" Height="33px" />
                 </asp:BoundField>
-                <asp:BoundField DataField="Account_Name" HeaderText="Account Name" SortExpression="Account_Name" ReadOnly="True" >
+                <asp:BoundField DataField="AccountName" HeaderText="Account Name" SortExpression="AccountName" ReadOnly="True" >
                     <HeaderStyle CssClass="selecthead" Height="33px" />
                 </asp:BoundField>
-                <asp:BoundField DataField="Award_Num" HeaderText="Award Number" SortExpression="Award_Num" ReadOnly="True" >
+                <asp:BoundField DataField="AwardNum" HeaderText="Award Number" SortExpression="AwardNum" ReadOnly="True" >
                     <HeaderStyle CssClass="selecthead" Height="33px" />
                 </asp:BoundField>
-                <asp:BoundField DataField="Principal_Investigator_Name" HeaderText="P.I. Name" SortExpression="Principal_Investigator_Name" ReadOnly="True" >
+                <asp:BoundField DataField="PrincipalInvestigatorName" HeaderText="P.I. Name" SortExpression="PrincipalInvestigatorName" ReadOnly="True" >
                     <HeaderStyle CssClass="selecthead" Height="33px" />
                 </asp:BoundField>
                 <asp:TemplateField HeaderText="Project" SortExpression="Project">
@@ -435,7 +435,7 @@
                                </td>
                                <td style="height: 33px;">
                                    <asp:DropDownList ID="DDL_PI" runat="server" AppendDataBoundItems="True" AutoPostBack="True"
-                                       DataTextField="Principal_Investigator_Name" DataValueField="Principal_Investigator_Name"
+                                       DataTextField="PrincipalInvestigatorName" DataValueField="PrincipalInvestigatorName"
                                        Enabled="False" OnSelectedIndexChanged="DDL_PI_SelectedIndexChanged" Width="250px">
                                    </asp:DropDownList></td>
                                <td style="height: 33px">
