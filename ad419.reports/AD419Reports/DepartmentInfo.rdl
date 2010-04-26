@@ -1,0 +1,881 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2005/01/reportdefinition" xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner">
+  <DataSources>
+    <DataSource Name="AD419Devel">
+      <DataSourceReference>AD419Devel</DataSourceReference>
+      <rd:DataSourceID>ae1fae31-9de0-440e-bc65-6b6f93235d2e</rd:DataSourceID>
+    </DataSource>
+  </DataSources>
+  <BottomMargin>1in</BottomMargin>
+  <RightMargin>1in</RightMargin>
+  <ReportParameters>
+    <ReportParameter Name="CRISDeptCd">
+      <DataType>String</DataType>
+      <DefaultValue>
+        <Values>
+          <Value>0331</Value>
+        </Values>
+      </DefaultValue>
+      <Prompt>CRISDeptCd</Prompt>
+    </ReportParameter>
+    <ReportParameter Name="OrgR">
+      <DataType>String</DataType>
+      <DefaultValue>
+        <DataSetReference>
+          <DataSetName>GetOrgR</DataSetName>
+          <ValueField>OrgR</ValueField>
+        </DataSetReference>
+      </DefaultValue>
+      <ValidValues>
+        <DataSetReference>
+          <DataSetName>GetOrgR</DataSetName>
+          <ValueField>OrgR</ValueField>
+          <LabelField>OrgR</LabelField>
+        </DataSetReference>
+      </ValidValues>
+    </ReportParameter>
+    <ReportParameter Name="SortColumn">
+      <DataType>String</DataType>
+      <DefaultValue>
+        <Values>
+          <Value>Project</Value>
+        </Values>
+      </DefaultValue>
+      <AllowBlank>true</AllowBlank>
+      <Prompt>Sort By</Prompt>
+    </ReportParameter>
+  </ReportParameters>
+  <rd:DrawGrid>true</rd:DrawGrid>
+  <InteractiveWidth>8.5in</InteractiveWidth>
+  <rd:SnapToGrid>true</rd:SnapToGrid>
+  <Body>
+    <ReportItems>
+      <Line Name="line4">
+        <Left>6.5in</Left>
+        <Top>1.25in</Top>
+        <ZIndex>14</ZIndex>
+        <Width>-6.5in</Width>
+        <Style>
+          <BorderStyle>
+            <Default>Solid</Default>
+          </BorderStyle>
+        </Style>
+        <Height>0in</Height>
+      </Line>
+      <Table Name="table3">
+        <DataSetName>ProjectsByDepartment</DataSetName>
+        <Top>2in</Top>
+        <ZIndex>13</ZIndex>
+        <Details>
+          <TableRows>
+            <TableRow>
+              <TableCells>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="Project">
+                      <rd:DefaultName>Project</rd:DefaultName>
+                      <ZIndex>6</ZIndex>
+                      <Style>
+                        <BorderStyle>
+                          <Default>Solid</Default>
+                        </BorderStyle>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <FontSize>9pt</FontSize>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>=Fields!Project.Value</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="Accession">
+                      <rd:DefaultName>Accession</rd:DefaultName>
+                      <ZIndex>5</ZIndex>
+                      <Style>
+                        <BorderStyle>
+                          <Default>Solid</Default>
+                        </BorderStyle>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <FontSize>9pt</FontSize>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>=Fields!Accession.Value</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="textbox30">
+                      <rd:DefaultName>textbox30</rd:DefaultName>
+                      <ZIndex>4</ZIndex>
+                      <Style>
+                        <BorderStyle>
+                          <Default>Solid</Default>
+                        </BorderStyle>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <FontSize>9pt</FontSize>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>=Trim(Fields!inv1.Value) &amp; 
+	IIF(Trim(Fields!inv2.Value)="","","; " &amp; Trim(Fields!inv2.Value)) &amp; 
+	IIF(Trim(Fields!inv3.Value)="","","; " &amp; Trim(Fields!inv3.Value)) &amp;
+	IIF(Trim(Fields!inv4.Value)="","","; " &amp; Trim(Fields!inv4.Value)) &amp;
+	IIF(Trim(Fields!inv5.Value)="","","; " &amp; Trim(Fields!inv5.Value)) &amp;
+	IIF(Trim(Fields!inv6.Value)="","","; " &amp; Trim(Fields!inv6.Value))</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="ProjTypeCd">
+                      <rd:DefaultName>ProjTypeCd</rd:DefaultName>
+                      <ZIndex>3</ZIndex>
+                      <Style>
+                        <BorderStyle>
+                          <Default>Solid</Default>
+                        </BorderStyle>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <FontSize>9pt</FontSize>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>=Fields!ProjTypeCd.Value</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="StatusCd_1">
+                      <rd:DefaultName>StatusCd_1</rd:DefaultName>
+                      <ZIndex>2</ZIndex>
+                      <Style>
+                        <BorderStyle>
+                          <Default>Solid</Default>
+                        </BorderStyle>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <FontSize>9pt</FontSize>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>=Fields!StatusCd.Value</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="Spent_1">
+                      <rd:DefaultName>Spent_1</rd:DefaultName>
+                      <ZIndex>1</ZIndex>
+                      <Style>
+                        <BorderStyle>
+                          <Default>Solid</Default>
+                        </BorderStyle>
+                        <TextAlign>Right</TextAlign>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <FontSize>9pt</FontSize>
+                        <Format>C</Format>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>=IIF(Fields!Spent.Value IS NOTHING, 0, Fields!Spent.Value)</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="FTE_1">
+                      <rd:DefaultName>FTE_1</rd:DefaultName>
+                      <Style>
+                        <BorderStyle>
+                          <Default>Solid</Default>
+                        </BorderStyle>
+                        <TextAlign>Right</TextAlign>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <FontSize>9pt</FontSize>
+                        <Format>N1</Format>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>=IIF(Fields!FTE.Value IS NOTHING, "0.0", Fields!FTE.Value)</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+              </TableCells>
+              <Height>0.25in</Height>
+            </TableRow>
+          </TableRows>
+          <Sorting>
+            <SortBy>
+              <SortExpression>=Switch(
+	Parameters!SortColumn.Value = "Project", Fields!Project.Value,
+	Parameters!SortColumn.Value = "Accession", Fields!Accession.Value,
+	Parameters!SortColumn.Value = "Spent", Fields!Spent.Value,
+	Parameters!SortColumn.Value = "FTE", Fields!FTE.Value
+	)</SortExpression>
+              <Direction>Ascending</Direction>
+            </SortBy>
+          </Sorting>
+        </Details>
+        <Header>
+          <TableRows>
+            <TableRow>
+              <TableCells>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="textbox25">
+                      <rd:DefaultName>textbox25</rd:DefaultName>
+                      <ZIndex>13</ZIndex>
+                      <Style>
+                        <BorderStyle>
+                          <Default>Solid</Default>
+                        </BorderStyle>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>Project</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="textbox28">
+                      <rd:DefaultName>textbox28</rd:DefaultName>
+                      <ZIndex>12</ZIndex>
+                      <Style>
+                        <BorderStyle>
+                          <Default>Solid</Default>
+                        </BorderStyle>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>Accession</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="textbox29">
+                      <rd:DefaultName>textbox29</rd:DefaultName>
+                      <ZIndex>11</ZIndex>
+                      <Style>
+                        <BorderStyle>
+                          <Default>Solid</Default>
+                        </BorderStyle>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>Investigators</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="textbox34">
+                      <rd:DefaultName>textbox34</rd:DefaultName>
+                      <ZIndex>10</ZIndex>
+                      <Style>
+                        <BorderStyle>
+                          <Default>Solid</Default>
+                        </BorderStyle>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>Type</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="textbox32">
+                      <rd:DefaultName>textbox32</rd:DefaultName>
+                      <ZIndex>9</ZIndex>
+                      <Style>
+                        <BorderStyle>
+                          <Default>Solid</Default>
+                        </BorderStyle>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>Status</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="textbox27">
+                      <rd:DefaultName>textbox27</rd:DefaultName>
+                      <ZIndex>8</ZIndex>
+                      <Style>
+                        <BorderStyle>
+                          <Default>Solid</Default>
+                        </BorderStyle>
+                        <TextAlign>Right</TextAlign>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>Spent</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="textbox26">
+                      <rd:DefaultName>textbox26</rd:DefaultName>
+                      <ZIndex>7</ZIndex>
+                      <Style>
+                        <BorderStyle>
+                          <Default>Solid</Default>
+                        </BorderStyle>
+                        <TextAlign>Right</TextAlign>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>FTE</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+              </TableCells>
+              <Height>0.25in</Height>
+            </TableRow>
+          </TableRows>
+          <RepeatOnNewPage>true</RepeatOnNewPage>
+        </Header>
+        <TableColumns>
+          <TableColumn>
+            <Width>1.625in</Width>
+          </TableColumn>
+          <TableColumn>
+            <Width>0.875in</Width>
+          </TableColumn>
+          <TableColumn>
+            <Width>1.375in</Width>
+          </TableColumn>
+          <TableColumn>
+            <Width>0.5in</Width>
+          </TableColumn>
+          <TableColumn>
+            <Width>0.625in</Width>
+          </TableColumn>
+          <TableColumn>
+            <Width>1in</Width>
+          </TableColumn>
+          <TableColumn>
+            <Width>0.5in</Width>
+          </TableColumn>
+        </TableColumns>
+        <Height>0.5in</Height>
+      </Table>
+      <Line Name="line5">
+        <Top>1.875in</Top>
+        <ZIndex>12</ZIndex>
+        <Style>
+          <BorderStyle>
+            <Default>Solid</Default>
+          </BorderStyle>
+        </Style>
+        <Height>0in</Height>
+      </Line>
+      <Table Name="table2">
+        <DataSetName>usp_getTotalExpensesByDept</DataSetName>
+        <Top>1.375in</Top>
+        <ZIndex>11</ZIndex>
+        <Width>6.125in</Width>
+        <Details>
+          <TableRows>
+            <TableRow>
+              <TableCells>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="textbox13">
+                      <ZIndex>3</ZIndex>
+                      <Style>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>=Fields!ID.Value</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="textbox14">
+                      <ZIndex>2</ZIndex>
+                      <Style>
+                        <TextAlign>Right</TextAlign>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <Format>C</Format>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>=Fields!SPENT.Value</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="textbox15">
+                      <ZIndex>1</ZIndex>
+                      <Style>
+                        <TextAlign>Right</TextAlign>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <Format>N</Format>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>=Fields!FTE.Value</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="textbox16">
+                      <Style>
+                        <TextAlign>Right</TextAlign>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>=Fields!RECS.Value</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+              </TableCells>
+              <Height>0.25in</Height>
+            </TableRow>
+          </TableRows>
+        </Details>
+        <Header>
+          <TableRows>
+            <TableRow>
+              <TableCells>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="textbox17">
+                      <ZIndex>7</ZIndex>
+                      <Style>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value />
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="textbox18">
+                      <ZIndex>6</ZIndex>
+                      <Style>
+                        <TextAlign>Right</TextAlign>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>SPENT</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="textbox19">
+                      <ZIndex>5</ZIndex>
+                      <Style>
+                        <TextAlign>Right</TextAlign>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>FTE</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+                <TableCell>
+                  <ReportItems>
+                    <Textbox Name="textbox20">
+                      <ZIndex>4</ZIndex>
+                      <Style>
+                        <TextAlign>Right</TextAlign>
+                        <PaddingLeft>2pt</PaddingLeft>
+                        <PaddingBottom>2pt</PaddingBottom>
+                        <PaddingRight>2pt</PaddingRight>
+                        <PaddingTop>2pt</PaddingTop>
+                      </Style>
+                      <CanGrow>true</CanGrow>
+                      <Value>RECS</Value>
+                    </Textbox>
+                  </ReportItems>
+                </TableCell>
+              </TableCells>
+              <Height>0.25in</Height>
+            </TableRow>
+          </TableRows>
+        </Header>
+        <TableColumns>
+          <TableColumn>
+            <Width>1.25in</Width>
+          </TableColumn>
+          <TableColumn>
+            <Width>1.875in</Width>
+          </TableColumn>
+          <TableColumn>
+            <Width>1.75in</Width>
+          </TableColumn>
+          <TableColumn>
+            <Width>1.25in</Width>
+          </TableColumn>
+        </TableColumns>
+        <Height>0.5in</Height>
+      </Table>
+      <Textbox Name="textbox22">
+        <Left>1.125in</Left>
+        <Top>0.75in</Top>
+        <ZIndex>10</ZIndex>
+        <Width>2.125in</Width>
+        <Style>
+          <PaddingLeft>2pt</PaddingLeft>
+          <PaddingBottom>2pt</PaddingBottom>
+          <PaddingRight>2pt</PaddingRight>
+          <PaddingTop>2pt</PaddingTop>
+        </Style>
+        <CanGrow>true</CanGrow>
+        <Height>0.25in</Height>
+        <Value>University of California, Davis</Value>
+      </Textbox>
+      <Textbox Name="textbox12">
+        <Left>5.375in</Left>
+        <Top>0.25in</Top>
+        <rd:DefaultName>textbox12</rd:DefaultName>
+        <ZIndex>9</ZIndex>
+        <Width>1in</Width>
+        <Style>
+          <PaddingLeft>2pt</PaddingLeft>
+          <PaddingBottom>2pt</PaddingBottom>
+          <PaddingRight>2pt</PaddingRight>
+          <PaddingTop>2pt</PaddingTop>
+        </Style>
+        <CanGrow>true</CanGrow>
+        <Height>0.25in</Height>
+        <Value>=Now().ToShortDateString()</Value>
+      </Textbox>
+      <Textbox Name="textbox11">
+        <Left>4.75in</Left>
+        <Top>0.125in</Top>
+        <rd:DefaultName>textbox11</rd:DefaultName>
+        <ZIndex>8</ZIndex>
+        <Width>0.625in</Width>
+        <Style>
+          <PaddingLeft>2pt</PaddingLeft>
+          <PaddingBottom>2pt</PaddingBottom>
+          <FontWeight>700</FontWeight>
+          <PaddingRight>2pt</PaddingRight>
+          <PaddingTop>2pt</PaddingTop>
+        </Style>
+        <CanGrow>true</CanGrow>
+        <Height>0.25in</Height>
+        <Value>Date</Value>
+      </Textbox>
+      <Line Name="line3">
+        <Left>4.625in</Left>
+        <ZIndex>7</ZIndex>
+        <Width>0in</Width>
+        <Style>
+          <BorderStyle>
+            <Default>Solid</Default>
+          </BorderStyle>
+        </Style>
+        <Height>0.625in</Height>
+      </Line>
+      <Textbox Name="textbox10">
+        <Left>0.125in</Left>
+        <Top>0.25in</Top>
+        <rd:DefaultName>textbox10</rd:DefaultName>
+        <ZIndex>6</ZIndex>
+        <Width>4in</Width>
+        <Style>
+          <PaddingLeft>2pt</PaddingLeft>
+          <PaddingBottom>2pt</PaddingBottom>
+          <FontWeight>700</FontWeight>
+          <PaddingRight>2pt</PaddingRight>
+          <PaddingTop>2pt</PaddingTop>
+        </Style>
+        <CanGrow>true</CanGrow>
+        <Height>0.25in</Height>
+        <Value>AD-419 Research Departments ~ Summary Information</Value>
+      </Textbox>
+      <Line Name="line1">
+        <ZIndex>5</ZIndex>
+        <Style>
+          <BorderStyle>
+            <Default>Solid</Default>
+          </BorderStyle>
+        </Style>
+        <Height>0in</Height>
+      </Line>
+      <Textbox Name="textbox5">
+        <Left>0.625in</Left>
+        <rd:DefaultName>textbox5</rd:DefaultName>
+        <ZIndex>4</ZIndex>
+        <Width>3.375in</Width>
+        <Style>
+          <PaddingLeft>2pt</PaddingLeft>
+          <PaddingBottom>2pt</PaddingBottom>
+          <PaddingRight>2pt</PaddingRight>
+          <PaddingTop>2pt</PaddingTop>
+        </Style>
+        <CanGrow>true</CanGrow>
+        <Height>0.25in</Height>
+        <Value>United States Department of Agriculture</Value>
+      </Textbox>
+      <Line Name="line2">
+        <Top>0.625in</Top>
+        <ZIndex>3</ZIndex>
+        <Style>
+          <BorderStyle>
+            <Default>Solid</Default>
+          </BorderStyle>
+        </Style>
+        <Height>0in</Height>
+      </Line>
+      <Textbox Name="textbox21">
+        <Left>0.125in</Left>
+        <Top>0.75in</Top>
+        <rd:DefaultName>textbox21</rd:DefaultName>
+        <ZIndex>2</ZIndex>
+        <Width>1in</Width>
+        <Style>
+          <TextAlign>Right</TextAlign>
+          <PaddingLeft>2pt</PaddingLeft>
+          <PaddingBottom>2pt</PaddingBottom>
+          <FontWeight>700</FontWeight>
+          <PaddingRight>2pt</PaddingRight>
+          <PaddingTop>2pt</PaddingTop>
+        </Style>
+        <CanGrow>true</CanGrow>
+        <Height>0.25in</Height>
+        <Value>Station:</Value>
+      </Textbox>
+      <Textbox Name="textbox23">
+        <Left>0.125in</Left>
+        <Top>1in</Top>
+        <ZIndex>1</ZIndex>
+        <Width>1in</Width>
+        <Style>
+          <TextAlign>Right</TextAlign>
+          <PaddingLeft>2pt</PaddingLeft>
+          <PaddingBottom>2pt</PaddingBottom>
+          <FontWeight>700</FontWeight>
+          <PaddingRight>2pt</PaddingRight>
+          <PaddingTop>2pt</PaddingTop>
+        </Style>
+        <CanGrow>true</CanGrow>
+        <Height>0.25in</Height>
+        <Value>Department:</Value>
+      </Textbox>
+      <Textbox Name="textbox24">
+        <Left>1.125in</Left>
+        <Top>1in</Top>
+        <Width>2.125in</Width>
+        <Style>
+          <PaddingLeft>2pt</PaddingLeft>
+          <PaddingBottom>2pt</PaddingBottom>
+          <PaddingRight>2pt</PaddingRight>
+          <PaddingTop>2pt</PaddingTop>
+        </Style>
+        <CanGrow>true</CanGrow>
+        <Height>0.25in</Height>
+        <Value>=First(Fields!OrgName.Value, "GetOrgR")</Value>
+      </Textbox>
+    </ReportItems>
+    <Height>3.125in</Height>
+  </Body>
+  <rd:ReportID>d847c75f-3a5c-4622-9970-e99026be08cd</rd:ReportID>
+  <LeftMargin>1in</LeftMargin>
+  <DataSets>
+    <DataSet Name="usp_getTotalExpensesByDept">
+      <Query>
+        <CommandType>StoredProcedure</CommandType>
+        <CommandText>usp_getTotalExpensesByDept</CommandText>
+        <QueryParameters>
+          <QueryParameter Name="@OrgR">
+            <Value>=Parameters!OrgR.Value</Value>
+          </QueryParameter>
+        </QueryParameters>
+        <DataSourceName>AD419Devel</DataSourceName>
+      </Query>
+      <Fields>
+        <Field Name="ID">
+          <rd:TypeName>System.String</rd:TypeName>
+          <DataField />
+        </Field>
+        <Field Name="SPENT">
+          <rd:TypeName>System.Decimal</rd:TypeName>
+          <DataField>SPENT</DataField>
+        </Field>
+        <Field Name="FTE">
+          <rd:TypeName>System.Decimal</rd:TypeName>
+          <DataField>FTE</DataField>
+        </Field>
+        <Field Name="RECS">
+          <rd:TypeName>System.Int32</rd:TypeName>
+          <DataField>RECS</DataField>
+        </Field>
+      </Fields>
+    </DataSet>
+    <DataSet Name="ProjectsByDepartment">
+      <Query>
+        <rd:UseGenericDesigner>true</rd:UseGenericDesigner>
+        <CommandText>SELECT     Project.Project, Project.Accession, Project.ProjTypeCd, Project.RegionalProjNum, Project.StatusCd, SUM(Associations.Expenses) AS Spent, 
+                      SUM(Associations.FTE) AS FTE, Project.inv1, Project.inv2, Project.inv3, Project.inv4, Project.inv5, Project.inv6
+FROM         Project INNER JOIN
+                      ProjXOrgR ON Project.Accession = ProjXOrgR.Accession LEFT OUTER JOIN
+                      Associations ON Project.Accession = Associations.Accession INNER JOIN
+                      ReportingOrg ON ProjXOrgR.OrgR = ReportingOrg.OrgR
+WHERE     (ReportingOrg.CRISDeptCd = @CRISDeptCd)
+GROUP BY Project.Project, Project.Accession, Project.inv1, Project.ProjTypeCd, Project.RegionalProjNum, Project.StatusCd, Project.inv2, Project.inv3, 
+                      Project.inv4, Project.inv5, Project.inv6</CommandText>
+        <QueryParameters>
+          <QueryParameter Name="@CRISDeptCd">
+            <Value>=Parameters!CRISDeptCd.Value</Value>
+          </QueryParameter>
+        </QueryParameters>
+        <DataSourceName>AD419Devel</DataSourceName>
+      </Query>
+      <Fields>
+        <Field Name="Project">
+          <rd:TypeName>System.String</rd:TypeName>
+          <DataField>Project</DataField>
+        </Field>
+        <Field Name="Accession">
+          <rd:TypeName>System.String</rd:TypeName>
+          <DataField>Accession</DataField>
+        </Field>
+        <Field Name="ProjTypeCd">
+          <rd:TypeName>System.String</rd:TypeName>
+          <DataField>ProjTypeCd</DataField>
+        </Field>
+        <Field Name="RegionalProjNum">
+          <rd:TypeName>System.String</rd:TypeName>
+          <DataField>RegionalProjNum</DataField>
+        </Field>
+        <Field Name="StatusCd">
+          <rd:TypeName>System.String</rd:TypeName>
+          <DataField>StatusCd</DataField>
+        </Field>
+        <Field Name="Spent">
+          <rd:TypeName>System.Double</rd:TypeName>
+          <DataField>Spent</DataField>
+        </Field>
+        <Field Name="FTE">
+          <rd:TypeName>System.Double</rd:TypeName>
+          <DataField>FTE</DataField>
+        </Field>
+        <Field Name="inv1">
+          <rd:TypeName>System.String</rd:TypeName>
+          <DataField>inv1</DataField>
+        </Field>
+        <Field Name="inv2">
+          <rd:TypeName>System.String</rd:TypeName>
+          <DataField>inv2</DataField>
+        </Field>
+        <Field Name="inv3">
+          <rd:TypeName>System.String</rd:TypeName>
+          <DataField>inv3</DataField>
+        </Field>
+        <Field Name="inv4">
+          <rd:TypeName>System.String</rd:TypeName>
+          <DataField>inv4</DataField>
+        </Field>
+        <Field Name="inv5">
+          <rd:TypeName>System.String</rd:TypeName>
+          <DataField>inv5</DataField>
+        </Field>
+        <Field Name="inv6">
+          <rd:TypeName>System.String</rd:TypeName>
+          <DataField>inv6</DataField>
+        </Field>
+      </Fields>
+    </DataSet>
+    <DataSet Name="GetOrgR">
+      <Query>
+        <rd:UseGenericDesigner>true</rd:UseGenericDesigner>
+        <CommandText>SELECT     TOP 1 OrgR, OrgName
+FROM         ReportingOrg
+WHERE     (CRISDeptCd = @CRISDeptCd)</CommandText>
+        <QueryParameters>
+          <QueryParameter Name="@CRISDeptCd">
+            <Value>=Parameters!CRISDeptCd.Value</Value>
+          </QueryParameter>
+        </QueryParameters>
+        <DataSourceName>AD419Devel</DataSourceName>
+      </Query>
+      <Fields>
+        <Field Name="OrgR">
+          <rd:TypeName>System.String</rd:TypeName>
+          <DataField>OrgR</DataField>
+        </Field>
+        <Field Name="OrgName">
+          <rd:TypeName>System.String</rd:TypeName>
+          <DataField>OrgName</DataField>
+        </Field>
+      </Fields>
+    </DataSet>
+  </DataSets>
+  <Width>6.50001in</Width>
+  <InteractiveHeight>11in</InteractiveHeight>
+  <Language>en-US</Language>
+  <TopMargin>1in</TopMargin>
+</Report>

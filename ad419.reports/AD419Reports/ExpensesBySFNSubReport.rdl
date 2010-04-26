@@ -1,0 +1,433 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2005/01/reportdefinition" xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner">
+  <DataSources>
+    <DataSource Name="AD419Devel">
+      <DataSourceReference>AD419Devel</DataSourceReference>
+      <rd:DataSourceID>275500be-7f24-4fe3-a118-d2003594a354</rd:DataSourceID>
+    </DataSource>
+  </DataSources>
+  <BottomMargin>1in</BottomMargin>
+  <RightMargin>1in</RightMargin>
+  <ReportParameters>
+    <ReportParameter Name="OrgR">
+      <DataType>String</DataType>
+      <DefaultValue>
+        <Values>
+          <Value>AANS</Value>
+        </Values>
+      </DefaultValue>
+      <Prompt>OrgR</Prompt>
+    </ReportParameter>
+    <ReportParameter Name="Accession">
+      <DataType>String</DataType>
+      <DefaultValue>
+        <Values>
+          <Value>0002587</Value>
+        </Values>
+      </DefaultValue>
+      <Prompt>Accession</Prompt>
+    </ReportParameter>
+    <ReportParameter Name="intAssociationStatus">
+      <DataType>Integer</DataType>
+      <DefaultValue>
+        <Values>
+          <Value>4</Value>
+        </Values>
+      </DefaultValue>
+    </ReportParameter>
+  </ReportParameters>
+  <rd:DrawGrid>true</rd:DrawGrid>
+  <InteractiveWidth>8.5in</InteractiveWidth>
+  <rd:SnapToGrid>true</rd:SnapToGrid>
+  <Body>
+    <ReportItems>
+      <Textbox Name="textbox2">
+        <Left>4.375in</Left>
+        <Top>0.25in</Top>
+        <rd:DefaultName>textbox2</rd:DefaultName>
+        <ZIndex>13</ZIndex>
+        <Width>0.75in</Width>
+        <Style>
+          <BorderStyle>
+            <Left>Solid</Left>
+            <Right>Solid</Right>
+          </BorderStyle>
+          <TextAlign>Center</TextAlign>
+          <PaddingLeft>2pt</PaddingLeft>
+          <PaddingBottom>2pt</PaddingBottom>
+          <PaddingRight>2pt</PaddingRight>
+          <PaddingTop>2pt</PaddingTop>
+        </Style>
+        <CanGrow>true</CanGrow>
+        <Height>0.25in</Height>
+        <Value>Field #</Value>
+      </Textbox>
+      <Line Name="line12">
+        <Top>1.125in</Top>
+        <ZIndex>12</ZIndex>
+        <Style>
+          <BorderStyle>
+            <Default>Solid</Default>
+          </BorderStyle>
+        </Style>
+        <Height>0in</Height>
+      </Line>
+      <Textbox Name="textbox13">
+        <Top>1.125in</Top>
+        <rd:DefaultName>textbox13</rd:DefaultName>
+        <ZIndex>11</ZIndex>
+        <Width>2in</Width>
+        <Style>
+          <PaddingLeft>2pt</PaddingLeft>
+          <PaddingBottom>2pt</PaddingBottom>
+          <PaddingRight>2pt</PaddingRight>
+          <PaddingTop>2pt</PaddingTop>
+        </Style>
+        <CanGrow>true</CanGrow>
+        <Height>0.25in</Height>
+        <Value>Submitted by: (signature)</Value>
+      </Textbox>
+      <Line Name="line2">
+        <Top>1in</Top>
+        <ZIndex>10</ZIndex>
+        <Style>
+          <BorderStyle>
+            <Default>Solid</Default>
+          </BorderStyle>
+        </Style>
+        <Height>0in</Height>
+      </Line>
+      <Line Name="line8">
+        <Left>6.5in</Left>
+        <Top>0.25in</Top>
+        <ZIndex>9</ZIndex>
+        <Width>-6.5in</Width>
+        <Style>
+          <BorderStyle>
+            <Default>Solid</Default>
+          </BorderStyle>
+        </Style>
+        <Height>0in</Height>
+      </Line>
+      <Line Name="line1">
+        <Top>0.25in</Top>
+        <ZIndex>8</ZIndex>
+        <Style>
+          <BorderStyle>
+            <Default>Solid</Default>
+          </BorderStyle>
+        </Style>
+        <Height>0in</Height>
+      </Line>
+      <Line Name="line4">
+        <Top>0.5in</Top>
+        <ZIndex>7</ZIndex>
+        <Style>
+          <BorderStyle>
+            <Default>Solid</Default>
+          </BorderStyle>
+        </Style>
+        <Height>0in</Height>
+      </Line>
+      <Line Name="line3">
+        <Left>6.5in</Left>
+        <Top>0.5in</Top>
+        <ZIndex>6</ZIndex>
+        <Width>-6.5in</Width>
+        <Style>
+          <BorderStyle>
+            <Default>Solid</Default>
+          </BorderStyle>
+        </Style>
+        <Height>0in</Height>
+      </Line>
+      <Textbox Name="textbox3">
+        <Left>5.125in</Left>
+        <Top>0.25in</Top>
+        <rd:DefaultName>textbox3</rd:DefaultName>
+        <ZIndex>5</ZIndex>
+        <Style>
+          <BorderStyle>
+            <Right>None</Right>
+          </BorderStyle>
+          <PaddingLeft>2pt</PaddingLeft>
+          <PaddingBottom>2pt</PaddingBottom>
+          <PaddingRight>2pt</PaddingRight>
+          <PaddingTop>2pt</PaddingTop>
+        </Style>
+        <CanGrow>true</CanGrow>
+        <Height>0.25in</Height>
+        <Value>="FY" &amp; (Year(Now())-1).ToString() &amp; " Actual"</Value>
+      </Textbox>
+      <Line Name="line13">
+        <Left>3.875in</Left>
+        <Top>1.125in</Top>
+        <ZIndex>4</ZIndex>
+        <Width>0in</Width>
+        <Style>
+          <BorderStyle>
+            <Default>Solid</Default>
+          </BorderStyle>
+        </Style>
+        <Height>0.625in</Height>
+      </Line>
+      <Textbox Name="textbox1">
+        <Left>0.625in</Left>
+        <Top>0.25in</Top>
+        <rd:DefaultName>textbox1</rd:DefaultName>
+        <ZIndex>3</ZIndex>
+        <Width>2.125in</Width>
+        <Style>
+          <PaddingLeft>2pt</PaddingLeft>
+          <PaddingBottom>2pt</PaddingBottom>
+          <PaddingRight>2pt</PaddingRight>
+          <PaddingTop>2pt</PaddingTop>
+        </Style>
+        <CanGrow>true</CanGrow>
+        <Height>0.25in</Height>
+        <Value>Allocation of Research Funds</Value>
+      </Textbox>
+      <Textbox Name="textbox7">
+        <Left>5.125in</Left>
+        <Top>0.5in</Top>
+        <ZIndex>2</ZIndex>
+        <Style>
+          <BorderStyle>
+            <Left>Solid</Left>
+            <Right>None</Right>
+          </BorderStyle>
+        </Style>
+        <CanGrow>true</CanGrow>
+        <Height>0.25in</Height>
+        <Value />
+      </Textbox>
+      <List Name="list1">
+        <ReportItems>
+          <Line Name="line5">
+            <Top>0.45in</Top>
+            <ZIndex>3</ZIndex>
+            <Style>
+              <BorderStyle>
+                <Default>Solid</Default>
+              </BorderStyle>
+            </Style>
+          </Line>
+          <List Name="list2">
+            <Left>0.375in</Left>
+            <Filters>
+              <Filter>
+                <Operator>NotEqual</Operator>
+                <FilterValues>
+                  <FilterValue>Heading</FilterValue>
+                </FilterValues>
+                <FilterExpression>=Fields!LineTypeCode.Value</FilterExpression>
+              </Filter>
+            </Filters>
+            <ReportItems>
+              <Line Name="line7">
+                <Left>4in</Left>
+                <ZIndex>4</ZIndex>
+                <Visibility>
+                  <Hidden>=Switch(
+	Fields!LineTypeCode.Value = "SFN", true,
+	Fields!LineTypeCode.Value = "FTE", true,
+	true, false
+	)</Hidden>
+                </Visibility>
+                <Style>
+                  <BorderStyle>
+                    <Default>Solid</Default>
+                  </BorderStyle>
+                </Style>
+                <Height>0in</Height>
+              </Line>
+              <Line Name="line6">
+                <Left>4in</Left>
+                <ZIndex>3</ZIndex>
+                <Visibility>
+                  <Hidden>=IIF(Fields!LineTypeCode.Value = "GrandTotal", false, true)</Hidden>
+                </Visibility>
+                <Width>-4in</Width>
+                <Style>
+                  <BorderStyle>
+                    <Default>Solid</Default>
+                  </BorderStyle>
+                </Style>
+                <Height>0in</Height>
+              </Line>
+              <Textbox Name="Total">
+                <Left>4.75in</Left>
+                <rd:DefaultName>Total</rd:DefaultName>
+                <ZIndex>2</ZIndex>
+                <Style>
+                  <BorderStyle>
+                    <Right>None</Right>
+                  </BorderStyle>
+                  <TextAlign>Right</TextAlign>
+                  <FontWeight>=IIf(Fields!LineTypeCode.Value = "GroupSum" Or
+	Fields!LineTypeCode.Value = "GrandTotal" Or
+	Fields!LineTypeCode.Value = "FTETotal",
+	"Bold",
+	"Normal"
+	)</FontWeight>
+                </Style>
+                <CanGrow>true</CanGrow>
+                <Value>=Switch(
+	Fields!LineTypeCode.Value = "SFN", FormatCurrency(Fields!Total.Value),
+	Fields!LineTypeCode.Value = "GroupSum", FormatCurrency(Fields!Total.Value),
+	Fields!LineTypeCode.Value = "GrandTotal", FormatCurrency(Fields!Total.Value),
+	Fields!LineTypeCode.Value = "FTE", FormatNumber(Fields!Total.Value,1),
+	Fields!LineTypeCode.Value = "FTETotal", FormatNumber(Fields!Total.Value,1)
+	)</Value>
+              </Textbox>
+              <Textbox Name="SFN">
+                <Left>4in</Left>
+                <rd:DefaultName>SFN</rd:DefaultName>
+                <ZIndex>1</ZIndex>
+                <Width>0.75in</Width>
+                <Style>
+                  <BorderStyle>
+                    <Left>Solid</Left>
+                    <Right>Solid</Right>
+                  </BorderStyle>
+                  <TextAlign>Center</TextAlign>
+                  <FontWeight>=IIf(Fields!LineTypeCode.Value = "GroupSum" Or
+	Fields!LineTypeCode.Value = "GrandTotal" Or
+	Fields!LineTypeCode.Value = "FTETotal",
+	"Bold",
+	"Normal"
+	)</FontWeight>
+                </Style>
+                <CanGrow>true</CanGrow>
+                <Value>=Fields!SFN.Value</Value>
+              </Textbox>
+              <Textbox Name="LineDisplayDescriptor_1">
+                <rd:DefaultName>LineDisplayDescriptor_1</rd:DefaultName>
+                <Width>4in</Width>
+                <Style>
+                  <FontWeight>=IIf(Fields!LineTypeCode.Value = "GroupSum" Or
+	Fields!LineTypeCode.Value = "GrandTotal" Or
+	Fields!LineTypeCode.Value = "FTETotal",
+	"Bold",
+	"Normal"
+	)</FontWeight>
+                  <Direction>=IIf(Fields!LineTypeCode.Value = "GroupSum" Or
+	Fields!LineTypeCode.Value = "GrandTotal" Or
+	Fields!LineTypeCode.Value = "FTETotal",
+	"RTL",
+	"LTR"
+	)</Direction>
+                </Style>
+                <Value>=Fields!LineDisplayDescriptor.Value</Value>
+              </Textbox>
+            </ReportItems>
+            <DataSetName>usp_GetExpensesBySFN</DataSetName>
+            <Top>0.25in</Top>
+            <ZIndex>2</ZIndex>
+            <Style>
+              <FontSize>6pt</FontSize>
+            </Style>
+          </List>
+          <Textbox Name="LineDisplayDescriptor">
+            <Left>0.125in</Left>
+            <rd:DefaultName>LineDisplayDescriptor</rd:DefaultName>
+            <ZIndex>1</ZIndex>
+            <Width>4.25in</Width>
+            <CanGrow>true</CanGrow>
+            <Height>0.25in</Height>
+            <Value>=Fields!LineDisplayDescriptor.Value</Value>
+          </Textbox>
+          <Textbox Name="textbox4">
+            <Left>4.375in</Left>
+            <Width>0.75in</Width>
+            <Style>
+              <BorderStyle>
+                <Left>Solid</Left>
+                <Right>Solid</Right>
+              </BorderStyle>
+            </Style>
+            <CanGrow>true</CanGrow>
+            <Height>0.25in</Height>
+            <Value />
+          </Textbox>
+        </ReportItems>
+        <DataSetName>usp_GetExpensesBySFN</DataSetName>
+        <Top>0.5in</Top>
+        <ZIndex>1</ZIndex>
+        <Grouping Name="list1_Details_Group">
+          <GroupExpressions>
+            <GroupExpression>=Fields!GroupDisplayOrder.Value</GroupExpression>
+          </GroupExpressions>
+        </Grouping>
+        <Height>0.45in</Height>
+      </List>
+      <Textbox Name="textbox14">
+        <Left>3.875in</Left>
+        <Top>1.125in</Top>
+        <Width>0.625in</Width>
+        <Style>
+          <PaddingLeft>2pt</PaddingLeft>
+          <PaddingBottom>2pt</PaddingBottom>
+          <PaddingRight>2pt</PaddingRight>
+          <PaddingTop>2pt</PaddingTop>
+        </Style>
+        <CanGrow>true</CanGrow>
+        <Height>0.25in</Height>
+        <Value>Title:</Value>
+      </Textbox>
+    </ReportItems>
+    <Height>2in</Height>
+  </Body>
+  <rd:ReportID>694f0bf6-cf10-438a-93d6-b8c36024de73</rd:ReportID>
+  <LeftMargin>1in</LeftMargin>
+  <DataSets>
+    <DataSet Name="usp_GetExpensesBySFN">
+      <Query>
+        <CommandType>StoredProcedure</CommandType>
+        <CommandText>usp_GetExpensesBySFN</CommandText>
+        <QueryParameters>
+          <QueryParameter Name="@OrgR">
+            <Value>=Parameters!OrgR.Value</Value>
+          </QueryParameter>
+          <QueryParameter Name="@Accession">
+            <Value>=Parameters!Accession.Value</Value>
+          </QueryParameter>
+          <QueryParameter Name="@intAssociationStatus">
+            <Value>=Parameters!intAssociationStatus.Value</Value>
+          </QueryParameter>
+        </QueryParameters>
+        <DataSourceName>AD419Devel</DataSourceName>
+      </Query>
+      <Fields>
+        <Field Name="GroupDisplayOrder">
+          <rd:TypeName>System.Byte</rd:TypeName>
+          <DataField>GroupDisplayOrder</DataField>
+        </Field>
+        <Field Name="LineDisplayOrder">
+          <rd:TypeName>System.Byte</rd:TypeName>
+          <DataField>LineDisplayOrder</DataField>
+        </Field>
+        <Field Name="LineTypeCode">
+          <rd:TypeName>System.String</rd:TypeName>
+          <DataField>LineTypeCode</DataField>
+        </Field>
+        <Field Name="LineDisplayDescriptor">
+          <rd:TypeName>System.String</rd:TypeName>
+          <DataField>LineDisplayDescriptor</DataField>
+        </Field>
+        <Field Name="SFN">
+          <rd:TypeName>System.String</rd:TypeName>
+          <DataField>SFN</DataField>
+        </Field>
+        <Field Name="Total">
+          <rd:TypeName>System.Double</rd:TypeName>
+          <DataField>Total</DataField>
+        </Field>
+      </Fields>
+    </DataSet>
+  </DataSets>
+  <Width>6.50001in</Width>
+  <InteractiveHeight>11in</InteractiveHeight>
+  <Language>en-US</Language>
+  <TopMargin>1in</TopMargin>
+</Report>
