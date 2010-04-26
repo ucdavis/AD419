@@ -35,7 +35,8 @@ namespace CAESDO
         protected void lbtnResetUser_Click(object sender, EventArgs e)
         {
             FormsAuthentication.SignOut();
-            Response.Redirect(FormsAuthentication.LoginUrl);
+            Response.Redirect(Request.Url.AbsolutePath);
+            //Response.Redirect(FormsAuthentication.LoginUrl);
         }
 } 
 }

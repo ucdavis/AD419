@@ -11,12 +11,116 @@ using System.Collections;
 
 using System.Security.Principal;
 using System.Web.Caching;
+using System.IO;
+using System.Net;
 
 namespace CAESDO
 {
     public partial class login : System.Web.UI.Page
     {
+        private const string STR_ReturnURL = "ReturnURL";
+        private const string STR_CAS_URL = "https://cas.ucdavis.edu:8443/cas/";
+        private const string STR_KERBEROS_URL = "https://secureweb.ucdavis.edu/form-auth/sendback?";
+        private const string STR_Ticket = "ticket";
+
         protected void Page_Load(object sender, EventArgs e)
+        {
+            CASLogin();
+        }
+
+        #region CAS
+        /// <summary>
+        /// Login to the campus DistAuth system using CAS        
+        /// </summary>
+        private void CASLogin()
+        {
+            string loginUrl = STR_CAS_URL;
+
+            // get the context from the source
+            HttpContext context = HttpContext.Current;
+
+            // try to load a valid ticket
+            HttpCookie validCookie = context.Request.Cookies[FormsAuthentication.FormsCookieName];
+            FormsAuthenticationTicket validTicket = null;
+
+            // check to make sure cookie is valid by trying to decrypt it
+            if (validCookie != null)
+            {
+                try
+                {
+                    validTicket = FormsAuthentication.Decrypt(validCookie.Value);
+                }
+                catch
+                {
+                    validTicket = null;
+                }
+            }
+
+            // if user is unauthorized and no validTicket is defined then authenticate with cas
+            //if (context.Response.StatusCode == 0x191 && (validTicket == null || validTicket.Expired))
+            if (validTicket == null || validTicket.Expired)
+            {
+                // build query string but strip out ticket if it is defined
+                string query = "";
+
+                foreach (string key in context.Request.QueryString.AllKeys)
+                {
+                    if (String.Compare(key, STR_Ticket, true) != 0)
+                    {
+                        if (query.Contains(key) == false)
+                            query += "&" + key + "=" + context.Request.QueryString[key];
+                    }
+                }
+
+                // replace 1st character with ? if query is not empty
+                if (!String.IsNullOrEmpty(query))
+                {
+                    query = "?" + query.Substring(1);
+                }
+
+                // get ticket & service
+                string ticket = context.Request.QueryString[STR_Ticket];
+                string service = context.Server.UrlEncode(context.Request.Url.GetLeftPart(UriPartial.Path) + query);
+
+                // if ticket is defined then we assume they are coming from CAS
+                if (!String.IsNullOrEmpty(ticket))
+                {
+                    // validate ticket against cas
+                    StreamReader sr = new StreamReader(new WebClient().OpenRead(loginUrl + "validate?ticket=" + ticket + "&service=" + service));
+
+                    // parse text file
+                    if (sr.ReadLine() == "yes")
+                    {
+                        // get kerberos id
+                        string kerberos = sr.ReadLine();
+
+                        // set forms authentication ticket
+                        FormsAuthentication.SetAuthCookie(kerberos, false);
+
+                        string returnURL = string.Empty;
+
+                        if (!string.IsNullOrEmpty(query))
+                        {
+                            //need to grab the return url from the query string: ?ReturnURL=/...                        
+                            returnURL = query.Substring(query.IndexOf("=") + 1); //So get everything after the first equals sign
+                        }
+
+                        if (returnURL == null)
+                            returnURL = FormsAuthentication.DefaultUrl;
+
+                        context.Response.Redirect(returnURL);
+
+                        return;
+                    }
+                }
+
+                // ticket doesn't exist or is invalid so redirect user to CAS login
+                context.Response.Redirect(loginUrl + "login?service=" + service);
+            }
+        }
+        #endregion
+
+        private void KerberosAuth()
         {
             HttpCookie authCookie = System.Web.HttpContext.Current.Request.Cookies["AuthUser"];
 
