@@ -625,7 +625,7 @@
         }
         "ProjectOutput"
         {
-            "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_13CF9D9B205548479F405AA66AD0EF08"
+            "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_B6C8C8BE1193444282D686BF6AAF7165"
             {
             "SourcePath" = "8:"
             "TargetName" = "8:"
@@ -647,7 +647,7 @@
             "ProjectOutputGroupRegister" = "3:1"
             "OutputConfiguration" = "8:"
             "OutputGroupCanonicalName" = "8:Built"
-            "OutputProjectGuid" = "8:{A648899F-B9B5-4471-BFBF-D002D7C105EA}"
+            "OutputProjectGuid" = "8:{6FBA088C-3678-4096-BAD5-CBF3F29C3735}"
             "ShowKeyOutput" = "11:TRUE"
                 "ExcludeFilters"
                 {
