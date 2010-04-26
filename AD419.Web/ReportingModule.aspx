@@ -116,7 +116,7 @@
 <br />
 <div style="float:left;">
 <div style="text-align: center; width:429px;font-size:20px; font-weight:bold;">FISCAL YEAR 2007</div>
-   <div style="background-image:url(images/rm_bluemodbg.gif);background-repeat:repeat-y; vertical-align:top;; float: left;" >
+   <div style="background-image:url(images/rm_bluemodbg.gif);background-repeat:repeat-y; vertical-align:top; float: left;" >
               <div style="background-image:url(images/rm_bluemod_03.jpg); background-repeat:no-repeat;  padding-left:23px; padding-right:20px;" > 
    
             <%-- Header table --%>
