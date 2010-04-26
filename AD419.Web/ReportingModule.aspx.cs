@@ -245,27 +245,27 @@ namespace CAESDO
             lblProjectAccession.Text = (string)dr["Accession"];
 
             //Fill in the investigators -- boxes with no investigators get the blank records from the db
-            lblProjectInvestigator1.Text = (string)dr["inv1"];
-            lblProjectInvestigator2.Text = (string)dr["inv2"];
-            lblProjectInvestigator3.Text = (string)dr["inv3"];
-            lblProjectInvestigator4.Text = (string)dr["inv4"];
-            lblProjectInvestigator5.Text = (string)dr["inv5"];
-            lblProjectInvestigator6.Text = (string)dr["inv6"];
+            lblProjectInvestigator1.Text = dr["inv1"] as string ?? string.Empty;
+            lblProjectInvestigator2.Text = dr["inv2"] as string ?? string.Empty;
+            lblProjectInvestigator3.Text = dr["inv3"] as string ?? string.Empty;
+            lblProjectInvestigator4.Text = dr["inv4"] as string ?? string.Empty;
+            lblProjectInvestigator5.Text = dr["inv5"] as string ?? string.Empty;
+            lblProjectInvestigator6.Text = dr["inv6"] as string ?? string.Empty;
 
             //Grab the date from the row -- might have to parse it first
             lblBeginningDate.Text = ((DateTime)dr["BeginDate"]).ToShortDateString();
             lblTerminationDate.Text = ((DateTime)dr["TermDate"]).ToShortDateString();
 
             //Fill in the types -- may have to do lookups on this data
-            lblProjectStatusType.Text = (string)dr["StatusCd"];
-            lblProjectType.Text = (string)dr["ProjTypeCd"];
+            lblProjectStatusType.Text = dr["StatusCd"] as string ?? string.Empty;
+            lblProjectType.Text = dr["ProjTypeCd"] as string ?? string.Empty;
             lblProjectFundingType.Text = "N/A"; //No implemented
 
             //Project number
-            lblProjectNumber.Text = (string)dr["RegionalProjNum"];
+            lblProjectNumber.Text = dr["RegionalProjNum"] as string ?? string.Empty;
 
             //Fill the title into this read only textbox
-            txtProjectDescription.Text = (string)dr["Title"];
+            txtProjectDescription.Text = dr["Title"] as string ?? string.Empty;
         }
 
         private void ClearProjectLabels()

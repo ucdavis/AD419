@@ -87,15 +87,15 @@ namespace CAESDO
             ArrayList investigators = new ArrayList();
             investigators.Add(((string)dr["inv1"]).Trim());
 
-            if (!string.IsNullOrEmpty(((string)dr["inv2"]).Trim()))
+            if (!string.IsNullOrEmpty(GetNullSafeString(dr["inv2"]).Trim()))
                 investigators.Add((string)dr["inv2"]);
-            if (!string.IsNullOrEmpty(((string)dr["inv3"]).Trim()))
+            if (!string.IsNullOrEmpty(GetNullSafeString(dr["inv3"]).Trim()))
                 investigators.Add((string)dr["inv3"]);
-            if (!string.IsNullOrEmpty(((string)dr["inv4"]).Trim()))
+            if (!string.IsNullOrEmpty(GetNullSafeString(dr["inv4"]).Trim()))
                 investigators.Add((string)dr["inv4"]);
-            if (!string.IsNullOrEmpty(((string)dr["inv5"]).Trim()))
+            if (!string.IsNullOrEmpty(GetNullSafeString(dr["inv5"]).Trim()))
                 investigators.Add((string)dr["inv5"]);
-            if (!string.IsNullOrEmpty(((string)dr["inv6"]).Trim()))
+            if (!string.IsNullOrEmpty(GetNullSafeString(dr["inv6"]).Trim()))
                 investigators.Add((string)dr["inv6"]);
             //Now run through the array list and remove null entries
             
@@ -789,6 +789,14 @@ namespace CAESDO
             dops.Sproc = "usp_getTotalExpensesByDept";
             dops.SetParameter("@OrgR", OrgR, "input");
             return dops.get_dataset();
+        }
+
+        /// <summary>
+        /// Returns the object as a string or string.empty if it is null
+        /// </summary>
+        private string GetNullSafeString(object obj)
+        {
+            return obj as string ?? string.Empty;
         }
     } 
 }
