@@ -253,7 +253,7 @@
     <asp:ObjectDataSource ID="AD419DataAssociationsReportingOrg" runat="server"
         SelectMethod="getReportingOrgFiltered" TypeName="CAESDO.AD419DataAccess">
         <SelectParameters>
-        <asp:Parameter DefaultValue="<%$ Code: ((CAESDO.CAESDOPrincipal)Cache.Get(HttpContext.Current.User.Identity.Name)).EmployeeID %>" Name="employeeID" Type="String" />
+        <asp:Parameter DefaultValue="<%$ Code: (HttpContext.Current.User.Identity.Name) %>" Name="loginID" Type="String" />
         </SelectParameters>
     </asp:ObjectDataSource>
     <br />
