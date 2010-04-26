@@ -29,9 +29,11 @@ Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "AD419_Setup", "AD419.Setup\
 EndProject
 Project("{F14B399A-7131-4C87-9E4B-1186C45EF12D}") = "AD419Reports", "AD419.Reports\AD419Reports\AD419Reports.rptproj", "{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}"
 EndProject
+Project("{4F174C21-8C12-11D0-8340-0000F80270F8}") = "Database", "Database\Database.dbp", "{CA8FD5F8-3C00-450E-90B7-EC3A4B090DB4}"
+EndProject
 Global
 	GlobalSection(TeamFoundationVersionControl) = preSolution
-		SccNumberOfProjects = 4
+		SccNumberOfProjects = 5
 		SccEnterpriseProvider = {4CA58AB2-18FA-4F8D-95D4-32DDF27D184C}
 		SccTeamFoundationServer = http://1x:8080/
 		SccLocalPath0 = .
@@ -46,6 +48,9 @@ Global
 		SccProjectUniqueName3 = AD419.Reports\\AD419Reports\\AD419Reports.rptproj
 		SccProjectName3 = AD419.Reports/AD419Reports
 		SccLocalPath3 = AD419.Reports\\AD419Reports
+		SccProjectUniqueName4 = Database\\Database.dbp
+		SccProjectName4 = Database
+		SccLocalPath4 = Database
 	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|.NET = Debug|.NET

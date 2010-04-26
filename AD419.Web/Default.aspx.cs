@@ -29,7 +29,11 @@ namespace CAESDO
             {
                 hlinkEmulation.Visible = false;
                 hlinkReportAdministration.Visible = false;
-                hLinkUserAdministration.Visible = false;
+            }
+
+            if (User.IsInRole("Manage All") == false)
+            {
+               hLinkUserAdministration.Visible = false;
             }
         }
 
