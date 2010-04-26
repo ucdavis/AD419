@@ -31,9 +31,11 @@ Project("{F14B399A-7131-4C87-9E4B-1186C45EF12D}") = "AD419Reports", "AD419.Repor
 EndProject
 Project("{4F174C21-8C12-11D0-8340-0000F80270F8}") = "Database", "Database\Database.dbp", "{CA8FD5F8-3C00-450E-90B7-EC3A4B090DB4}"
 EndProject
+Project("{2CFEAB61-6A3B-4EB8-B523-560B4BEEF521}") = "AD419.Web_deploy", "AD419.Web_deploy\AD419.Web_deploy.wdproj", "{B3C089B9-F008-46E2-A223-BAE717354FDD}"
+EndProject
 Global
 	GlobalSection(TeamFoundationVersionControl) = preSolution
-		SccNumberOfProjects = 5
+		SccNumberOfProjects = 6
 		SccEnterpriseProvider = {4CA58AB2-18FA-4F8D-95D4-32DDF27D184C}
 		SccTeamFoundationServer = http://1x:8080/
 		SccLocalPath0 = .
@@ -51,6 +53,9 @@ Global
 		SccProjectUniqueName4 = Database\\Database.dbp
 		SccProjectName4 = Database
 		SccLocalPath4 = Database
+		SccProjectUniqueName5 = AD419.Web_deploy\\AD419.Web_deploy.wdproj
+		SccProjectName5 = AD419.Web_deploy
+		SccLocalPath5 = AD419.Web_deploy
 	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|.NET = Debug|.NET
@@ -146,6 +151,26 @@ Global
 		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.Release|Mixed Platforms.ActiveCfg = Production
 		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.Release|Mixed Platforms.Build.0 = Production
 		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.Release|Mixed Platforms.Deploy.0 = Production
+		{B3C089B9-F008-46E2-A223-BAE717354FDD}.Debug|.NET.ActiveCfg = Debug|Any CPU
+		{B3C089B9-F008-46E2-A223-BAE717354FDD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B3C089B9-F008-46E2-A223-BAE717354FDD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B3C089B9-F008-46E2-A223-BAE717354FDD}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
+		{B3C089B9-F008-46E2-A223-BAE717354FDD}.Debug|Mixed Platforms.Build.0 = Debug|Any CPU
+		{B3C089B9-F008-46E2-A223-BAE717354FDD}.DebugLocal|.NET.ActiveCfg = Debug|Any CPU
+		{B3C089B9-F008-46E2-A223-BAE717354FDD}.DebugLocal|Any CPU.ActiveCfg = Debug|Any CPU
+		{B3C089B9-F008-46E2-A223-BAE717354FDD}.DebugLocal|Any CPU.Build.0 = Debug|Any CPU
+		{B3C089B9-F008-46E2-A223-BAE717354FDD}.DebugLocal|Mixed Platforms.ActiveCfg = Debug|Any CPU
+		{B3C089B9-F008-46E2-A223-BAE717354FDD}.DebugLocal|Mixed Platforms.Build.0 = Debug|Any CPU
+		{B3C089B9-F008-46E2-A223-BAE717354FDD}.Production|.NET.ActiveCfg = Release|Any CPU
+		{B3C089B9-F008-46E2-A223-BAE717354FDD}.Production|Any CPU.ActiveCfg = Release|Any CPU
+		{B3C089B9-F008-46E2-A223-BAE717354FDD}.Production|Any CPU.Build.0 = Release|Any CPU
+		{B3C089B9-F008-46E2-A223-BAE717354FDD}.Production|Mixed Platforms.ActiveCfg = Release|Any CPU
+		{B3C089B9-F008-46E2-A223-BAE717354FDD}.Production|Mixed Platforms.Build.0 = Release|Any CPU
+		{B3C089B9-F008-46E2-A223-BAE717354FDD}.Release|.NET.ActiveCfg = Release|Any CPU
+		{B3C089B9-F008-46E2-A223-BAE717354FDD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B3C089B9-F008-46E2-A223-BAE717354FDD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B3C089B9-F008-46E2-A223-BAE717354FDD}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
+		{B3C089B9-F008-46E2-A223-BAE717354FDD}.Release|Mixed Platforms.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

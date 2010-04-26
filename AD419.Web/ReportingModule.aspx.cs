@@ -85,10 +85,6 @@ namespace CAESDO
             //Update the ViewMode drop down list with this choice
             ibtnSFNProject_Click(ibtnSFNProject, null);
             updateViewMode.Update();
-            
-            
-            
-
            
             updateTotalExpenses.Update(); 
         }
@@ -127,6 +123,12 @@ namespace CAESDO
 
             gv_TotalExpensesByDept.DataSource = ds;
             gv_TotalExpensesByDept.DataBind();
+
+            if (AD419DataSFNTotals.SelectParameters["AssociationStatus"].DefaultValue == ibtnSFNProject.CommandArgument)
+            {
+                // The the Program view was selected, so update the project ID:
+                ibtnSFNProject_Click(ibtnSFNProject, null);
+            }
         }
 
         /// <summary>
