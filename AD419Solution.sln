@@ -33,11 +33,16 @@ Project("{4F174C21-8C12-11D0-8340-0000F80270F8}") = "Database", "Database\Databa
 EndProject
 Project("{2CFEAB61-6A3B-4EB8-B523-560B4BEEF521}") = "AD419.Web_deploy", "AD419.Web_deploy\AD419.Web_deploy.wdproj", "{B3C089B9-F008-46E2-A223-BAE717354FDD}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Bin", "Bin", "{C0B8E7F5-2E5D-44AF-B8D7-B20F0EB0D2E6}"
+	ProjectSection(SolutionItems) = preProject
+		Bin\Elmah.dll = Bin\Elmah.dll
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(TeamFoundationVersionControl) = preSolution
 		SccNumberOfProjects = 6
 		SccEnterpriseProvider = {4CA58AB2-18FA-4F8D-95D4-32DDF27D184C}
-		SccTeamFoundationServer = http://1x:8080/
+		SccTeamFoundationServer = https://tfs.caes.ucdavis.edu:8088/tfs
 		SccLocalPath0 = .
 		SccProjectUniqueName1 = AD419.Setup\\AD419_Setup.vdproj
 		SccProjectName1 = AD419.Setup
