@@ -1,22 +1,16 @@
 using System;
-using System.Data;
-using System.Configuration;
 using System.Collections;
-using System.Web;
+using System.Collections.Specialized;
+using System.Data;
+using System.Data.SqlClient;
 using System.Web.Security;
 using System.Web.UI;
 using System.Web.UI.WebControls;
-using System.Web.UI.WebControls.WebParts;
-using System.Web.UI.HtmlControls;
-using System.Data.SqlClient;
-using System.Drawing;
-using System.Collections.Specialized;
 
 namespace CAESDO
 {
     public partial class ReportingModule : ApplicationPage
     {
-
         /// <summary>
         /// Page_Load
         /// </summary>
@@ -39,7 +33,7 @@ namespace CAESDO
                 dlistDepartment.DataBind();
                 dlistProjectID.DataBind();
                 populateProjectBody(dlistProjectID.SelectedValue);
-                
+
                 //addProjectInfoToDropDownList(dl_ViewMode);
 
                 AD419DataAccess da = new AD419DataAccess();
@@ -66,8 +60,7 @@ namespace CAESDO
             }
         }
 
-
-#region ReportingModule
+        #region ReportingModule
 
         #region Object Events
 
@@ -85,8 +78,8 @@ namespace CAESDO
             //Update the ViewMode drop down list with this choice
             ibtnSFNProject_Click(ibtnSFNProject, null);
             updateViewMode.Update();
-           
-            updateTotalExpenses.Update(); 
+
+            updateTotalExpenses.Update();
         }
 
         /// <summary>
@@ -94,7 +87,6 @@ namespace CAESDO
         /// </summary>
         protected void dlistDepartment_SelectedIndexChanged(object sender, EventArgs e)
         {
-
             ClearProjectLabels();
 
             //Bind the project dropdownlist (which depends on the department dl), then update the project body
@@ -152,7 +144,7 @@ namespace CAESDO
         /// <param name="e"></param>
         protected void gv_TotalExpensesByDept_RowDataBound(object sender, GridViewRowEventArgs e)
         {
-            //Only look at DataRow(s) 
+            //Only look at DataRow(s)
             if (e.Row.RowType == DataControlRowType.DataRow)
             {
                 e.Row.Cells[0].Font.Bold = true;
@@ -173,7 +165,7 @@ namespace CAESDO
 
             foreach (GridViewRow row in gview.Rows)
             {
-                //Only look at DataRow(s) 
+                //Only look at DataRow(s)
                 if (row.RowType == DataControlRowType.DataRow)
                 {
                     //Pull out the LineTypeCode for this row
@@ -217,7 +209,7 @@ namespace CAESDO
             }
         }
 
-        #endregion
+        #endregion Object Events
 
         #region Private Functions
 
@@ -320,11 +312,11 @@ namespace CAESDO
             }
         }
 
-        #endregion 
+        #endregion Private Functions
 
-#endregion
+        #endregion ReportingModule
 
-#region Associations
+        #region Associations
 
         #region Object Callbacks
 
@@ -484,7 +476,6 @@ namespace CAESDO
                 }
 
                 setPercentTotal(percent);
-
             }
             else
             {
@@ -733,14 +724,12 @@ namespace CAESDO
 
                     //Now delete all of the ExpenseIDs in the currentGroupingExpense
                     dataExpenses.deleteAssociationsTransaction(currentGroupingExpenses, dlistAssociationsDepartment.SelectedValue);
-
                 }
                 catch (SqlException ex)
                 {
                     AD419ErrorReporting.ReportError(ex, "associateRecords");
                     Response.Redirect(AD419Configuration.ErrorPage(AD419Configuration.ErrorType.DATA));
                 }
-
             }
 
             //Now that all of the records have been unassociated, clear the projects grid and rebind the records grid and totals grid
@@ -770,7 +759,6 @@ namespace CAESDO
             updateAssociationProjects.Update();
             updateAssociationsTotalExpenses.Update();
             updateAssociationsGrouping.Update();
-            
         }
 
         /// <summary>
@@ -792,9 +780,10 @@ namespace CAESDO
             }
         }
 
-        #endregion
+        #endregion Object Callbacks
 
         #region Private Methods
+
         /// <summary>
         /// Given a DataSet of Associations Data, this function will update the projects
         /// gridview by making correct associations, taking into account its current state.
@@ -1013,7 +1002,7 @@ namespace CAESDO
 
             ArrayList checkedRecords = (ArrayList)ViewState["CheckedRecords"];
 
-            //Keep an arraylist of all projects checked in the projects grid, along with percentages, so that we don't have to 
+            //Keep an arraylist of all projects checked in the projects grid, along with percentages, so that we don't have to
             //do the parse-ing every time.
             //-- Will be array list of array lists -- with each array list being Accession, Percent
             ArrayList projectCheckedArray = new ArrayList();
@@ -1201,7 +1190,11 @@ namespace CAESDO
 
                 int currentExpenseID = (int)currentExpense[0];
                 double TotalSpent = double.Parse(currentExpense[1].ToString());
-                double TotalFTE = double.Parse(currentExpense[2].ToString());
+                double TotalFTE = 0d;
+                double tempFTE = 0d;
+
+                if (double.TryParse(currentExpense[2].ToString(), out tempFTE))
+                    TotalFTE = tempFTE;
 
                 double currentSpentSum = 0.0;
                 double currentFTESum = 0.0;
@@ -1238,7 +1231,7 @@ namespace CAESDO
         /// <param name="ColumnName">The Display Name of the LinkButton</param>
         /// <param name="SortExpression">The expression to sort on that matches the database column name</param>
         /// <returns>A LinkButton which causes a sorting postback when clicked</returns>
-        /// <remarks>There must be a SortExpression defined in the gridview that matches the one here, as well as a 
+        /// <remarks>There must be a SortExpression defined in the gridview that matches the one here, as well as a
         /// blank initial header text.  Also, this is gridview specific so it will only work with the gvAssociationRecords
         /// grid.</remarks>
         private LinkButton getSortingLinkButton(string ColumnName, string SortExpression)
@@ -1274,13 +1267,13 @@ namespace CAESDO
             return parameterArray;
         }
 
-        #endregion
+        #endregion Private Methods
 
-#endregion
+        #endregion Associations
 
-#region Reports
+        #region Reports
 
-    #region Object Callbacks
+        #region Object Callbacks
 
         /// <summary>
         /// Generates a report on the reporting server, depending on the ReportType currently selected.
@@ -1300,7 +1293,6 @@ namespace CAESDO
                 paramList.Add(new Microsoft.Reporting.WebForms.ReportParameter("OrgR", dlistReportDepartment.SelectedValue));
                 //paramList.Add(new Microsoft.Reporting.WebForms.ReportParameter("SortColumn", dlistSortBy.SelectedValue));
                 rview.ServerReport.ReportPath = "/AD419Reports/ProjectAD419";
-
             }
             else if (ReportID == (int)AD419Configuration.ReportType.DepartmentAD419)
             {
@@ -1376,10 +1368,12 @@ namespace CAESDO
                 pnlGenerate.Visible = false;
         }
 
-    #endregion
-#endregion
+        #endregion Object Callbacks
 
-#region ViewControl
+        #endregion Reports
+
+        #region ViewControl
+
         /// <summary>
         /// Handles panel swapping so the code is re-usable.  Takes advantage of the ReportingModuleType
         /// enum in the static AD419Configuration class to keep the naming/code clean.
@@ -1405,9 +1399,9 @@ namespace CAESDO
                     pnlAssociations.Visible = false;
                     break;
             }
-
         }
-#endregion
+
+        #endregion ViewControl
 
         protected void ibutReports_Click(object sender, ImageClickEventArgs e)
         {
@@ -1415,15 +1409,16 @@ namespace CAESDO
             ibutAssociations.ImageUrl = "Images/associations_unsel.gif";
             ibutReports.ImageUrl = "Images/reports_sel.gif";
             setupReportView(AD419Configuration.ReportingModuleType.Reports);
-   
         }
+
         protected void ibutAssociations_Click(object sender, ImageClickEventArgs e)
         {
             ibutProjects.ImageUrl = "Images/projects_unsel.gif";
             ibutAssociations.ImageUrl = "Images/associations_sel.gif";
             ibutReports.ImageUrl = "Images/reports_unsel.gif";
-            setupReportView(AD419Configuration.ReportingModuleType.Associations); 
+            setupReportView(AD419Configuration.ReportingModuleType.Associations);
         }
+
         protected void ibutProjects_Click(object sender, ImageClickEventArgs e)
         {
             ibutProjects.ImageUrl = "Images/projects_sel.gif";
@@ -1477,6 +1472,7 @@ namespace CAESDO
                 gViewSFNTotalExpenses.HeaderRow.Cells[AD419Configuration.cellIndexSFNExpensesAmmount].Text = dlistProjectID.SelectedValue;
             }
         }
+
         private void changeSFNTotalsViewMode(ImageButton ibtn)
         {
             AD419DataSFNTotals.SelectParameters["AssociationStatus"].DefaultValue = ibtn.CommandArgument;
@@ -1484,7 +1480,7 @@ namespace CAESDO
             updateTotalExpenses.Update();
         }
 
-        #endregion
+        #endregion SFNTotals View Mode
 
         protected void gvAssociationRecords_PageIndexChanged(object sender, EventArgs e)
         {
@@ -1492,5 +1488,5 @@ namespace CAESDO
             clearGvAssociationProjects();
             currentGridView.Focus();
         }
-} 
+    }
 }

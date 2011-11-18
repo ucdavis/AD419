@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet type='text/xsl' href='_UpgradeReport_Files/UpgradeReport.xslt'?><UpgradeLog>
+<Properties><Property Name="Solution" Value="AD419Solution">
+</Property><Property Name="Solution File" Value="C:\Users\taylor\Documents\Visual Studio 2010\Projects\AD419\AD419Solution.sln">
+</Property><Property Name="Date" Value="Thursday, November 10, 2011">
+</Property><Property Name="Time" Value="13:38 PM">
+</Property></Properties><Event ErrorLevel="0" Project="C:\Users\taylor\Documents\Visual Studio 2010\Projects\AD419\Database\Database.dbp" Source="Database\Database.dbp" Description="Beginning Upgrade">
+</Event><Event ErrorLevel="0" Project="C:\Users\taylor\Documents\Visual Studio 2010\Projects\AD419\Database\Database.dbp" Source="Database\Database.dbp" Description="Converting deprecated dbp file 'C:\Users\taylor\Documents\Visual Studio 2010\Projects\AD419\Database\Database.dbp' to 'C:\Users\taylor\Documents\Visual Studio 2010\Projects\AD419\Database\Database.dbproj'">
+</Event><Event ErrorLevel="0" Project="C:\Users\taylor\Documents\Visual Studio 2010\Projects\AD419\Database\Database.dbp" Source="Database\Database.dbp" Description="Successfully converted dbp to C:\Users\taylor\Documents\Visual Studio 2010\Projects\AD419\Database\Database.dbproj">
+</Event><Event ErrorLevel="3" Project="C:\Users\taylor\Documents\Visual Studio 2010\Projects\AD419\Database\Database.dbp" Source="Database\Database.dbp" Description="Converted">
+</Event><Event ErrorLevel="0" Project="" Source="AD419Solution.sln" Description="Solution converted successfully">
+</Event><Event ErrorLevel="3" Project="" Source="AD419Solution.sln" Description="Converted">
+</Event></UpgradeLog>
