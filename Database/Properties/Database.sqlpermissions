@@ -1,15 +1,17 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Permissions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="urn:Microsoft.VisualStudio.Data.Schema.Permissions" Version="1.0">
-  <!--  $permissionsComment$
+  <!--  The examples below are provided to illustrate how permissions 
+        are defined in the project system for Databases, Objects, 
+        and Columns.
         
-        $permissionsComment_GrantDatabase$
+        GRANT Database Permissions
         
         <PermissionStatement Action ="GRANT">
           <Permission>CREATE TABLE</Permission>
           <Grantee>User1</Grantee>
         </PermissionStatement>
         
-        $permissionsComment_GrantObject$
+        GRANT Object Permission
         
         <PermissionStatement Action ="GRANT">
           <Permission>SELECT</Permission>
@@ -17,7 +19,7 @@
           <Object Name ="Table1" Schema ="User1" Type ="OBJECT"/>
         </PermissionStatement>
 
-        $permissionsComment_DenyObject$
+        DENY Object Permission
         
         <PermissionStatement Action ="DENY">
           <Permission>DELETE</Permission>
@@ -25,7 +27,7 @@
           <Object Name ="Table1" Schema ="User1" Type ="OBJECT"/>
         </PermissionStatement>
 
-        $permissionsComment_GrantObjectColumn$
+        GRANT Object Column Permission
         
         <PermissionStatement Action ="GRANT">
           <Permission>SELECT</Permission>

@@ -1,0 +1,4 @@
+﻿CREATE PARTITION FUNCTION [MyPartitionRange](INT)
+    AS RANGE LEFT
+    FOR VALUES (1, 2, 3);
+

@@ -1,0 +1,35 @@
+﻿CREATE Procedure [dbo].[usp_DownloadTitles]
+
+AS
+
+DECLARE @MaxDate DATETIME
+SET @MaxDate = (SELECT MAX(UpdateTimestamp) FROM Titles)
+
+SELECT 
+	TCI_TITLE_CODE TitleCode,
+	TCI_TITLE_NAME Name,
+	TCI_TITLE_NM_ABBRV AbbreviatedName,
+	TCI_PERSONL_PGM_CD PersonnelProgramCode,
+	TCI_TITLE_UNIT_CD UnitCode,
+	JGT_JOB_GROUP_ID TitleGroup,
+	TCI_FOC_SUBCAT_CD FOCSubCatCode,
+	TCI_OVRTM_EXMPT_CD OvertimeExemptionCode,
+	TCI_EFFECTIVE_DATE EffectiveDate,
+	CAST(TCI_UPDT_TIMESTAMP as datetime) as UpdateTimestamp --UPDT_TIMESTAMP
+FROM OPENQUERY(PAY_PERS_EXTR, '
+	SELECT 
+		TCI_TITLE_CODE,
+		TCI_TITLE_NAME, 
+		TCI_TITLE_NM_ABBRV, 
+		TCI_PERSONL_PGM_CD, 
+		TCI_TITLE_UNIT_CD,
+		JGT_JOB_GROUP_ID,
+		TCI_FOC_SUBCAT_CD,  
+		TCI_OVRTM_EXMPT_CD, 
+		TCI_EFFECTIVE_DATE, 
+		SUBSTR(tci_updt_timestamp, 0, 10) TCI_UPDT_TIMESTAMP 
+	FROM PAYROLL.CTLTCI
+	LEFT OUTER JOIN PAYROLL.CTLJGT ON PAYROLL.CTLTCI.TCI_TITLE_CODE = PAYROLL.CTLJGT.JGT_TITLE_CODE
+')
+WHERE @MaxDate IS NULL OR cast(substring(tci_updt_timestamp, 0, 11) as datetime) > @MaxDate
+and TCI_TITLE_CODE not in (select TitleCode from Titles)

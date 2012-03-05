@@ -1,0 +1,28 @@
+﻿CREATE TABLE [dbo].[Appointments] (
+    [EmployeeID]       CHAR (9)        NOT NULL,
+    [ApptNo]           SMALLINT        NOT NULL,
+    [Grade]            CHAR (1)        NULL,
+    [Department]       CHAR (6)        NULL,
+    [TitleCode]        VARCHAR (50)    NULL,
+    [TitleUnitCode]    VARCHAR (2)     NULL,
+    [AcademicBasis]    CHAR (2)        NULL,
+    [PaidOver]         VARCHAR (2)     NULL,
+    [RetirementCode]   CHAR (1)        NULL,
+    [FixedVarCode]     CHAR (1)        NULL,
+    [TypeCode]         CHAR (1)        NULL,
+    [ADCCode]          CHAR (1)        NULL,
+    [WOSCode]          CHAR (1)        NULL,
+    [PersonnelProgram] CHAR (1)        NULL,
+    [TimeReportCode]   CHAR (1)        NULL,
+    [LeaveAccrualCode] CHAR (1)        NULL,
+    [RepresentedCode]  CHAR (1)        NULL,
+    [Percent]          DECIMAL (3, 2)  NULL,
+    [PayRate]          DECIMAL (10, 4) NULL,
+    [PaySchedule]      VARCHAR (2)     NULL,
+    [RateCode]         CHAR (1)        NULL,
+    [BeginDate]        DATETIME        NULL,
+    [EndDate]          DATETIME        NULL,
+    [Duration]         VARCHAR (1)     NULL,
+    [IsInPPS]          BIT             NULL
+);
+

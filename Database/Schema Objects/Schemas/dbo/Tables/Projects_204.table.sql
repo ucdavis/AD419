@@ -1,0 +1,25 @@
+﻿CREATE TABLE [dbo].[Projects_204] (
+    [Accession]             CHAR (7)      NOT NULL,
+    [Project]               VARCHAR (24)  NOT NULL,
+    [isInterdepartmental]   TINYINT       NULL,
+    [isValid]               TINYINT       NULL,
+    [BeginDate]             DATETIME      NULL,
+    [TermDate]              DATETIME      NULL,
+    [ProjTypeCd]            CHAR (1)      NULL,
+    [RegionalProjNum]       VARCHAR (9)   NULL,
+    [CRIS_DeptID]           CHAR (4)      NULL,
+    [CoopDepts]             VARCHAR (50)  NULL,
+    [CSREES_ContractNo]     VARCHAR (20)  NULL,
+    [StatusCd]              CHAR (1)      NULL,
+    [Title]                 VARCHAR (200) NULL,
+    [UpdateDate]            DATETIME      NULL,
+    [inv1]                  VARCHAR (30)  NULL,
+    [inv2]                  VARCHAR (30)  NULL,
+    [inv3]                  VARCHAR (30)  NULL,
+    [inv4]                  VARCHAR (30)  NULL,
+    [inv5]                  VARCHAR (30)  NULL,
+    [inv6]                  VARCHAR (30)  NULL,
+    [idProject]             INT           IDENTITY (1, 1) NOT NULL,
+    [IsCurrentAD419Project] BIT           NULL
+);
+
