@@ -1,22 +1,12 @@
 using System;
+using System.Collections;
 using System.Data;
-using System.Configuration;
-using System.Web;
-using System.Web.Security;
-using System.Web.UI;
-using System.Web.UI.WebControls;
-using System.Web.UI.WebControls.WebParts;
-using System.Web.UI.HtmlControls;
+
 // added
 using System.Security.Principal;
-using System.Data.SqlClient;
-using System.Collections;
-using System.Collections.Specialized;
-using System.Threading;
-using System.Web.SessionState;
+using System.Web;
 using System.Web.Caching;
 using Elmah;
-
 
 namespace CAESDO
 {
@@ -49,7 +39,7 @@ namespace CAESDO
         protected override void OnPreInit(EventArgs e)
         {
             //Don't cache the credentials if we don't have a user authenticated
-            if ( HttpContext.Current.User.Identity.IsAuthenticated == false )
+            if (HttpContext.Current.User.Identity.IsAuthenticated == false)
                 return;
 
             if (Cache.Get(HttpContext.Current.User.Identity.Name) == null)
@@ -157,7 +147,7 @@ namespace CAESDO
             else
             {
                 //TODO: Add error reporting back in
-                if ( ex.InnerException != null )
+                if (ex.InnerException != null)
                     AD419ErrorReporting.ReportError(ex.InnerException, "OnError");
                 else
                     AD419ErrorReporting.ReportError(ex, "OnError");
@@ -168,11 +158,6 @@ namespace CAESDO
             base.OnError(e);
         }
 
-
-        #endregion
-
-
-
+        #endregion Events
     }
-
 }

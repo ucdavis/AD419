@@ -107,7 +107,6 @@ Global
 		{6016D790-8B23-4911-BD3D-F9833383FC22}.DebugLocal|Any CPU.ActiveCfg = Debug
 		{6016D790-8B23-4911-BD3D-F9833383FC22}.DebugLocal|Any CPU.Build.0 = Debug
 		{6016D790-8B23-4911-BD3D-F9833383FC22}.DebugLocal|Mixed Platforms.ActiveCfg = Debug
-		{6016D790-8B23-4911-BD3D-F9833383FC22}.DebugLocal|Mixed Platforms.Build.0 = Debug
 		{6016D790-8B23-4911-BD3D-F9833383FC22}.Production|.NET.ActiveCfg = Release
 		{6016D790-8B23-4911-BD3D-F9833383FC22}.Production|.NET.Build.0 = Release
 		{6016D790-8B23-4911-BD3D-F9833383FC22}.Production|Any CPU.ActiveCfg = Release
@@ -126,9 +125,7 @@ Global
 		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.Debug|Any CPU.ActiveCfg = DebugLocal
 		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.Debug|Any CPU.Build.0 = DebugLocal
 		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.Debug|Any CPU.Deploy.0 = DebugLocal
-		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.Debug|Mixed Platforms.ActiveCfg = DebugLocal
-		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.Debug|Mixed Platforms.Build.0 = DebugLocal
-		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.Debug|Mixed Platforms.Deploy.0 = DebugLocal
+		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.Debug|Mixed Platforms.ActiveCfg = Debug
 		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.DebugLocal|.NET.ActiveCfg = DebugLocal
 		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.DebugLocal|.NET.Build.0 = DebugLocal
 		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.DebugLocal|.NET.Deploy.0 = DebugLocal
@@ -136,8 +133,6 @@ Global
 		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.DebugLocal|Any CPU.Build.0 = DebugLocal
 		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.DebugLocal|Any CPU.Deploy.0 = DebugLocal
 		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.DebugLocal|Mixed Platforms.ActiveCfg = DebugLocal
-		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.DebugLocal|Mixed Platforms.Build.0 = DebugLocal
-		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.DebugLocal|Mixed Platforms.Deploy.0 = DebugLocal
 		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.Production|.NET.ActiveCfg = Production
 		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.Production|.NET.Build.0 = Production
 		{F6BCE6B8-1497-421F-A9E0-539197D6A5A0}.Production|.NET.Deploy.0 = Production

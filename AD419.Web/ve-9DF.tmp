@@ -673,7 +673,9 @@ namespace CAESDO
 
             lbtnNumCheckedProjects.Text = numCheckedProjects.ToString();
 
-            double cumulativePercent = 0;
+            // Reset the header's Percent Total value if appropriate:
+            if (ViewState["PercentTotal"] != null)
+                gvAssociationProjects.HeaderRow.Cells[1].Text = ViewState["PercentTotal"].ToString();
 
             // Restore any prior values that were lost after a sort's re-databinding:
             foreach (var key in associatedProjectData.Keys)
@@ -699,14 +701,6 @@ namespace CAESDO
                         var txtAssociatePercent = (string)savedRowValues["AssociatePercent"];
                         currentTextBox.Text = txtAssociatePercent;
 
-                        // 2012-03-19 by kjt: I added this to keep track of "select all" percentages
-                        // when expenses were selected, num projects select all link selected, and the
-                        // expenses de-selected and then re-selected.
-                        double currentPercent = 0;
-                        bool result = double.TryParse(currentTextBox.Text, out currentPercent);
-                        if (true == result)
-                            cumulativePercent += currentPercent;
-
                         // Set the Project Spent amount to its saved value:
                         var projectSpent = (string)savedRowValues["ProjectSpent"];
                         row.Cells[AD419Configuration.cellIndexProjectSpent].Text = projectSpent;
@@ -718,10 +712,6 @@ namespace CAESDO
                     i++;
                 }
             }
-
-            // 2012-03-19 by kjt part of restoring select all percent (see above).
-            // Reset the header's Percent Total value if appropriate:
-            setPercentTotal(cumulativePercent);
 
             // Refresh the gridview's values so they are displayed:
             updateAssociationProjects.Update();
@@ -824,6 +814,14 @@ namespace CAESDO
             if (checkedRecords.Count == 0)
             {
                 gvAssociationProjects.Enabled = false;
+
+                // Also clear out any saved row data
+                // and reset the header row values accordingly:
+                //ViewState["AssociatedProjectData"] = null;
+                //ViewState["PercentTotal"] = null;
+                //ViewState["NumCheckedProjects"] = 0;
+                gvAssociationProjects.HeaderRow.Cells[0].Text = "0";
+                gvAssociationProjects.HeaderRow.Cells[1].Text = "0%";
             }
             else
                 gvAssociationProjects.Enabled = true;
@@ -1183,9 +1181,14 @@ namespace CAESDO
             //Update header with the number of checked cells
             if (gvAssociationProjects.Rows.Count != 0)
             {
-                //var percentTotal = "0%";
+                var percentTotal = "0%";
                 LinkButton lbtnNumCheckedProjects = (LinkButton)gvAssociationProjects.HeaderRow.FindControl("lbtnNumCheckedProjects");
                 lbtnNumCheckedProjects.Text = ViewState["NumCheckedProjects"].ToString();
+                if (ViewState["PercentTotal"] != null)
+                    percentTotal = ViewState["PercentTotal"].ToString();
+
+                setPercentTotal(percent);
+                //gvAssociationProjects.HeaderRow.Cells[0].Text = ViewState["NumCheckedProjects"].ToString();
             }
         }
 
@@ -1359,6 +1362,8 @@ namespace CAESDO
                 gvAssociationProjects.HeaderRow.Cells[1].Text = "0%";
             else
                 gvAssociationProjects.HeaderRow.Cells[1].Text = percent.ToString("#") + "%";
+
+            ViewState["PercentTotal"] = gvAssociationProjects.HeaderRow.Cells[1].Text;
         }
 
         /// <summary>
@@ -1397,7 +1402,7 @@ namespace CAESDO
 
             // Clear out any saved row data:
             ViewState["AssociatedProjectData"] = null;
-
+            ViewState["PercentTotal"] = null;
             // Also set the header's num checked projects back to zero:
             gvAssociationProjects.HeaderRow.Cells[0].Text = "0";
 

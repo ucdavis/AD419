@@ -1,12 +1,3 @@
-using System;
-using System.Data;
-using System.Configuration;
-using System.Web;
-using System.Web.Security;
-using System.Web.UI;
-using System.Web.UI.WebControls;
-using System.Web.UI.WebControls.WebParts;
-using System.Web.UI.HtmlControls;
 using System.Drawing;
 
 namespace CAESDO
@@ -76,9 +67,9 @@ namespace CAESDO
 
         //Const vars which hold the cell indexes for certain types of data.  Change here if the column orders are
         //ever changed, or if columns are added/deleted
-        public const int cellIndexProjectSpent = 3;
+        public const int cellIndexProjectSpent = 4; // was 3 before adding PI
         public const int cellIndexRecordsSpent = 4;
-        public const int cellIndexProjectsFTE = 4;
+        public const int cellIndexProjectsFTE = 5; // was 4 before adding PI
         public const int cellIndexRecordsFTE = 5;
         public const int ViewProjectTotals = 4;
         public const int cellIndexSFNExpensesAmmount = 2;

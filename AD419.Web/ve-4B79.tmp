@@ -362,18 +362,6 @@ namespace CAESDO
         /// <remarks>Sets/Retrieves data from the "NumCheckedProjects" ViewState Key</remarks>
         protected void cboxAssociatePercent_CheckedChanged(object sender, EventArgs e)
         {
-            // Get or initialize the saved data array:
-            IOrderedDictionary associatedProjectData;  // To hold any previously saved data retrieved from the viewstate.
-
-            if (ViewState["AssociatedProjectData"] == null)
-            {
-                associatedProjectData = new OrderedDictionary();
-            }
-            else
-            {
-                associatedProjectData = (IOrderedDictionary)ViewState["AssociatedProjectData"];
-            }
-
             CheckBox cboxSender = (CheckBox)sender;   //the checkbox that raised the event
             LinkButton lbtnNumCheckedProjects = (LinkButton)gvAssociationProjects.HeaderRow.FindControl("lbtnNumCheckedProjects");//The header cell of the checkbox column
             //Check to see if the box was checked or unchecked
@@ -413,7 +401,6 @@ namespace CAESDO
             double percent = 100.00 / numChecks;
 
             //Go through the grid, and for each checked row, add the percent value to the corresponding text box
-            int i = 0;
             foreach (GridViewRow row in gvAssociationProjects.Rows)
             {
                 //We are only concerned with the data rows
@@ -423,32 +410,19 @@ namespace CAESDO
                     CheckBox cbox = (CheckBox)row.FindControl("cboxAssociatePercent");
                     TextBox tbox = (TextBox)row.FindControl("txtAssociatePercent");
 
-                    // Remove row data that would otherwise be restored after a sort:
-                    if (associatedProjectData.Contains(gvAssociationProjects.DataKeys[i].Value))
-                        associatedProjectData.Remove(gvAssociationProjects.DataKeys[i].Value);
-
                     //If the checkbox is checked, we will insert the percent into the textbox, if not, we will blank it out
                     if (cbox.Checked == true)
                     {
                         tbox.Text = percent.ToString("F");
-
-                        // Save row data to be restored after a sort:
-                        if (!associatedProjectData.Contains(gvAssociationProjects.DataKeys[i].Value))
-                            associatedProjectData.Add(gvAssociationProjects.DataKeys[i].Value, populateValuesToSave(row));
                     }
                     else
                     {
                         tbox.Text = string.Empty;
                     }
                 }
-                i++;
             }
 
-            //gvAssociationProjects.HeaderRow.Cells[1].Text = "100%";
-            if (numChecks == 0)
-                setPercentTotal(0);
-            else
-                setPercentTotal(100);
+            gvAssociationProjects.HeaderRow.Cells[1].Text = "100%";
         }
 
         /// <summary>
@@ -608,44 +582,9 @@ namespace CAESDO
             clearGvAssociationProjects();
         }
 
-        /// <summary>
-        /// Created: March 2012 by Ken Taylor
-        /// Purpose:
-        /// This method restores "erased" gridview data after a sort has occured so that any data that
-        /// was displayed prior to the sort is displayed after the sort, but just in the new sort order.
-        ///
-        /// Background:
-        /// Steve Pesis had asked that I add PI to the gvAssociationProjects.  Once I did that they also
-        /// wanted to have it sorted by PI as this is how most of the associations are made.
-        /// Since it was formerly sorted by project, I thought it would be a nice addition to add a sort
-        /// feature that allowed them to sort by PI or project.  That was where the fun begin.
-        ///
-        /// Scott had progammatically manipulated some of the fields in gvAssociationProjects after
-        /// the project number and newly added PI field were initially databound.  This allowed users
-        /// to select/deselect check boxes and alter percentages independently and prior to making the
-        /// changes permanent.
-        ///
-        /// This meant that once I added sorting on the project and PI fields, any values that were populated
-        /// after the initial databinding were being lost when a sort was executed.  This is because of the
-        /// re-databinding that happens in order to accomplish the sort.
-        ///
-        /// Therefore, I modified the updateAssociations method to save the "after the databind" data in the
-        /// viewstate and restore it once the sorting's re-databinding had occured.  I tried placing the
-        /// data restoration logic in several more intuitive methods like gridview_OnSorting and gridview_OnSorted;
-        /// however, my research indicated that the re-databinding happens after the gridview_OnSorted event
-        /// has fired, so any changes made in that method will be lost as well.  Placing it here in this method is
-        /// the only place I could get it to work successfully.  I also needed to add some logic to the
-        /// clearGvAssociationProjects and cboxExpense_CheckedChanged methods to clear/reset the saved values
-        /// in the ViewState, and the updateAssociations method to save, update or remove any changed values
-        /// from view state's "to-be-restored" records.
-        ///
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
         protected void gvAssociationProjects_DataBound(object sender, EventArgs e)
         {
-            // Get or initialize the saved data array:
-            IOrderedDictionary associatedProjectData;  // To hold any previously saved data retrieved from the viewstate.
+            IOrderedDictionary associatedProjectData;
 
             if (ViewState["AssociatedProjectData"] == null)
             {
@@ -656,7 +595,6 @@ namespace CAESDO
                 associatedProjectData = (IOrderedDictionary)ViewState["AssociatedProjectData"];
             }
 
-            // Find the num-checked projects link and set/reset it as appropriate:
             var lbtnNumCheckedProjects = (LinkButton)gvAssociationProjects.HeaderRow.FindControl("lbtnNumCheckedProjects");
 
             int numCheckedProjects = 0;
@@ -672,59 +610,132 @@ namespace CAESDO
             }
 
             lbtnNumCheckedProjects.Text = numCheckedProjects.ToString();
+            //gvAssociationProjects.HeaderRow.Cells[0].Text = "22";
 
-            double cumulativePercent = 0;
+            if (ViewState["PercentTotal"] != null)
+                gvAssociationProjects.HeaderRow.Cells[1].Text = ViewState["PercentTotal"].ToString();
 
-            // Restore any prior values that were lost after a sort's re-databinding:
+            //restore old values if databind was result of sort:
             foreach (var key in associatedProjectData.Keys)
             {
-                var i = 0;
+                int i = 0;
                 var accession = key.ToString();
-
-                foreach (DataKey dk in gvAssociationProjects.DataKeys)
+                foreach (var dk in gvAssociationProjects.DataKeys)
                 {
-                    if (dk.Value.Equals(accession))
+                    if(dk.ToString().Equals(accession))
                     {
-                        // Get the saved row data:
-                        var savedRowValues = (IOrderedDictionary)associatedProjectData[accession];
-                        // Get the matching gridview row from its newly sorted location:
+                        IOrderedDictionary savedRowValues = associatedProjectData[accession];
                         var row = gvAssociationProjects.Rows[i];
 
-                        // Find the check box and check it:
                         var currentCheckBox = (CheckBox)row.FindControl("cboxAssociatePercent");
                         currentCheckBox.Checked = true;
 
-                        // Find the textbox and set it to its saved value:
                         var currentTextBox = (TextBox)row.FindControl("txtAssociatePercent");
-                        var txtAssociatePercent = (string)savedRowValues["AssociatePercent"];
+                        var txtAssociatePercent = (string)savedRowValues["txtAssociatePercent"];
                         currentTextBox.Text = txtAssociatePercent;
 
-                        // 2012-03-19 by kjt: I added this to keep track of "select all" percentages
-                        // when expenses were selected, num projects select all link selected, and the
-                        // expenses de-selected and then re-selected.
-                        double currentPercent = 0;
-                        bool result = double.TryParse(currentTextBox.Text, out currentPercent);
-                        if (true == result)
-                            cumulativePercent += currentPercent;
-
-                        // Set the Project Spent amount to its saved value:
                         var projectSpent = (string)savedRowValues["ProjectSpent"];
                         row.Cells[AD419Configuration.cellIndexProjectSpent].Text = projectSpent;
 
-                        // Set the Project FTE to its saved value:
-                        var projectsFte = (string)savedRowValues["ProjectsFTE"];
+                        var projectsFte = (string)savedRowValues["projectsFte"];
                         row.Cells[AD419Configuration.cellIndexProjectsFTE].Text = projectsFte;
                     }
                     i++;
                 }
             }
 
-            // 2012-03-19 by kjt part of restoring select all percent (see above).
-            // Reset the header's Percent Total value if appropriate:
-            setPercentTotal(cumulativePercent);
-
-            // Refresh the gridview's values so they are displayed:
             updateAssociationProjects.Update();
+        }
+
+        protected void gvAssociationProjects_Sorted(object sender, EventArgs e)
+        {
+            //LinkButton lbtnNumCheckedProjects = (LinkButton)gvAssociationProjects.HeaderRow.FindControl("lbtnNumCheckedProjects");
+            //lbtnNumCheckedProjects.Text = "22";//ViewState["NumCheckedProjects"].ToString();
+            //gvAssociationProjects.HeaderRow.Cells[0].Text = "22";
+
+            //updateAssociationProjects.Update();
+        }
+
+        protected void gvAssociationProjects_Sorting(object sender, EventArgs e)
+        {
+            //gvAssociationRecords.DataBind();
+
+            //var gv = sender as GridView;
+            //System.Collections.Specialized.IOrderedDictionary rowData = new OrderedDictionary();
+            //ViewState["_Direction_"] = e.SortDirection; //= "ASC";
+            //ViewState["_SortExp_"] = e.SortExpression;// "Project";
+            //foreach (GridViewRow row in abc
+            //    .Rows)
+            //{
+            //    //Get the row's checkbox and textbox
+            //    CheckBox currentCheckBox = (CheckBox)row.FindControl("cboxAssociatePercent");
+            //    bool isChecked = currentCheckBox.Checked;
+
+            //    if (isChecked)
+            //    {
+            //        DataKey dk = gvAssociationProjects.DataKeys[row.RowIndex];
+            //        string dkValue = dk.Value.ToString();
+
+            //        TextBox currentTextBox = (TextBox)row.FindControl("txtAssociatePercent");
+            //        String associatePercent = currentTextBox.Text;
+            //        String projectSpent = row.Cells[AD419Configuration.cellIndexProjectSpent].Text;
+            //        String projectsFTE = row.Cells[AD419Configuration.cellIndexProjectsFTE].Text;
+            //        rowData.Add(dk, row);
+            //    }
+
+            //    //Clear all values
+            //    //row.Cells[AD419Configuration.cellIndexProjectSpent].Text = string.Empty;
+            //    //row.Cells[AD419Configuration.cellIndexProjectsFTE].Text = string.Empty;
+            //}
+            //gv.DataBind();
+
+            //int numRecs = 0;
+            //foreach (DataKey key in rowData.Keys)
+            //{
+            //    numRecs++;
+            //    string keyval = key.Value.ToString();
+            //    GridViewRow gvr = rowData[key] as GridViewRow;
+            //    var projectSpent = gvr.Cells[AD419Configuration.cellIndexProjectSpent].Text;
+            //    var projectsFTE = gvr.Cells[AD419Configuration.cellIndexProjectsFTE].Text;
+            //    var currentTextBox = (TextBox)gvr.FindControl("txtAssociatePercent");
+            //    var associatePercent = currentTextBox.Text;
+            //    var currentCheckBox = (CheckBox)gvr.FindControl("cboxAssociatePercent");
+            //    bool isChecked = currentCheckBox.Checked;
+            //    var numProjectsChecked = ViewState["NumCheckedProjects"];
+
+            //    setPercentTotal(Double.Parse(associatePercent));
+            //    LinkButton lbtnNumCheckedProjects = (LinkButton)gv.HeaderRow.FindControl("lbtnNumCheckedProjects");
+            //    lbtnNumCheckedProjects.Text = numRecs.ToString();
+
+            //    gv.HeaderRow.Cells[0].Text = "22";
+            //    gv.HeaderRow.Cells[1].Text = "100%";
+
+            //    updateAssociationProjects.Update();
+
+            //    var test = 0;
+            //}
+
+            ////foreach (GridViewRow row in gvAssociationProjects.Rows)
+            ////{
+            ////    DataKey dk = gvAssociationProjects.DataKeys[row.RowIndex];
+            ////    string dkValue = dk.Value.ToString();
+            ////    foreach (DataKey key in rowData.Keys)
+            ////    {
+            ////        if (dk.Value.ToString().Equals(key.Value.ToString()))
+            ////        {
+            ////            // restore row values:
+            ////            CheckBox currentCheckBox = (CheckBox)row.FindControl("cboxAssociatePercent");
+            ////            currentCheckBox.Checked = true;
+            ////            var TotalRowSpent =
+            ////                (rowData[dk.Value] as GridViewRow).Cells[AD419Configuration.cellIndexProjectSpent].Text;
+            ////            var TotalFTE =
+            ////                (rowData[dk.Value] as GridViewRow).Cells[AD419Configuration.cellIndexProjectsFTE].Text;
+            ////            row.Cells[AD419Configuration.cellIndexProjectSpent].Text = TotalRowSpent;
+            ////            row.Cells[AD419Configuration.cellIndexProjectsFTE].Text = TotalFTE;
+            ////            TextBox currentTextBox = (TextBox)row.FindControl("txtAssociatePercent");
+            ////        }
+            ////    }
+            ////}
         }
 
         /// <summary>
@@ -824,6 +835,9 @@ namespace CAESDO
             if (checkedRecords.Count == 0)
             {
                 gvAssociationProjects.Enabled = false;
+                ViewState["AssociatedProjectData"] = null;
+                ViewState["PercentTotal"] = null;
+                gvAssociationProjects.HeaderRow.Cells[0].Text = "0";
             }
             else
                 gvAssociationProjects.Enabled = true;
@@ -915,40 +929,15 @@ namespace CAESDO
         /// </summary>
         protected void lbtnNumCheckedProjects_Click(object sender, EventArgs e)
         {
-            ////Set the number checked to 0
-            //ViewState["NumCheckedProjects"] = 0;
-
-            /*****************************************************************
-             * 2012-03-19 by kjt: Added this logic block that will toggle
-             * from select all to select none, where formerly it only would
-             * select all.
-             *****************************************************************/
-            var isChecked = true;
-            var lbtnNumCheckedProjects = (LinkButton)gvAssociationProjects.HeaderRow.FindControl("lbtnNumCheckedProjects");//The header cell of the checkbox column
-            var numProjectsChecked = Convert.ToInt32(lbtnNumCheckedProjects.Text);
-
-            if (numProjectsChecked == gvAssociationProjects.Rows.Count)
-            {
-                // This means that all projects were formerly checked,
-                // so the user reclicked the box to uncheck all the
-                // boxes.
-                // Set isChecked to false to uncheck all the boxes:
-                isChecked = false;
-            }
-            else
-            {
-                // This was relocated from its original location.
-                //Set/reset the number checked to 0.
-                ViewState["NumCheckedProjects"] = 0;
-            }
-            /*****************************************************************/
+            //Set the number checked to 0
+            ViewState["NumCheckedProjects"] = 0;
 
             //Go through all of the project rows and check the boxes and assign percentages
             foreach (GridViewRow row in gvAssociationProjects.Rows)
             {
                 CheckBox cbox = (CheckBox)row.FindControl("cboxAssociatePercent");
 
-                cbox.Checked = isChecked;
+                cbox.Checked = true;
                 cboxAssociatePercent_CheckedChanged(cbox, e);
             }
         }
@@ -957,18 +946,13 @@ namespace CAESDO
 
         #region Private Methods
 
-        /// <summary>
-        /// Given a GridViewRow, get the values and insert them into a new
-        /// OrderedDictionary so that they can be restored after a sort.
-        /// </summary>
-        /// <param name="row">The GridViewRow with the data to be saved.</param>
-        /// <returns>An OrderedDictionary containing the row's data.</returns>
         private IOrderedDictionary populateValuesToSave(GridViewRow row)
         {
             var rowData = new OrderedDictionary();
-
+            // save the txtAssociatePercent.Text
+            // row.Cells[AD419Configuration.cellIndexProjectSpent].Text, and
+            // row.Cells[AD419Configuration.cellIndexProjectsFTE].Text
             // In all cases the check bix will be checked, so it is not necessary to save it.
-
             var currentTextBox = (TextBox)row.FindControl("txtAssociatePercent");
             rowData.Add("AssociatePercent", currentTextBox.Text);
 
@@ -994,11 +978,9 @@ namespace CAESDO
             if (ViewState["NumCheckedProjects"] == null)
                 ViewState["NumCheckedProjects"] = 0;
 
-            // Init OrderedDictionary for saving row data if necessary:
             if (ViewState["AssociatedProjectData"] == null)
                 ViewState["AssociatedProjectData"] = new OrderedDictionary();
 
-            // Retrieve the saved row data OrderedDictionary from the viewstate:
             var associatedProjectData = ViewState["AssociatedProjectData"] as IOrderedDictionary;
 
             double percent = 0.0;
@@ -1027,8 +1009,6 @@ namespace CAESDO
                         {
                             currentCheckBox.Checked = false;
                             ViewState["NumCheckedProjects"] = (int)ViewState["NumCheckedProjects"] - 1;
-
-                            // Remove row data that would otherwise be restored after a sort:
                             associatedProjectData.Remove(accession);
                         }
                     }
@@ -1056,7 +1036,6 @@ namespace CAESDO
                                     currentCheckBox.Checked = true;
                                     ViewState["NumCheckedProjects"] = (int)ViewState["NumCheckedProjects"] + 1;
 
-                                    // Save row data to be restored after a sort:
                                     associatedProjectData.Add(accession, populateValuesToSave(row));
                                 }
                             }
@@ -1093,8 +1072,6 @@ namespace CAESDO
                                     {
                                         currentCheckBox.Checked = false;
                                         ViewState["NumCheckedProjects"] = (int)ViewState["NumCheckedProjects"] - 1;
-
-                                        // Remove row data that would otherwise be restored after a sort:
                                         associatedProjectData.Remove(accession);
                                     }
                                 }
@@ -1103,8 +1080,6 @@ namespace CAESDO
                                     //If the check is false, check it and add one to the viewstate.  Otherwise do nothing.
                                     currentCheckBox.Checked = true;
                                     ViewState["NumCheckedProjects"] = (int)ViewState["NumCheckedProjects"] + 1;
-
-                                    // Save row data to be restored after a sort:
                                     associatedProjectData.Add(accession, populateValuesToSave(row));
 
                                     //Keep track of the new percent
@@ -1137,8 +1112,6 @@ namespace CAESDO
                                     {
                                         currentCheckBox.Checked = false;
                                         ViewState["NumCheckedProjects"] = (int)ViewState["NumCheckedProjects"] - 1;
-
-                                        // Remove row data that would otherwise be restored after a sort:
                                         associatedProjectData.Remove(accession);
                                     }
                                 }
@@ -1147,8 +1120,6 @@ namespace CAESDO
                                     //If the check is false, check it and add one to the viewstate.  Otherwise do nothing.
                                     currentCheckBox.Checked = true;
                                     ViewState["NumCheckedProjects"] = (int)ViewState["NumCheckedProjects"] + 1;
-
-                                    // Save row data to be restored after a sort:
                                     associatedProjectData.Add(accession, populateValuesToSave(row));
 
                                     //Keep track of the new percent
@@ -1166,8 +1137,6 @@ namespace CAESDO
                                 {
                                     currentCheckBox.Checked = false;
                                     ViewState["NumCheckedProjects"] = (int)ViewState["NumCheckedProjects"] - 1;
-
-                                    // Remove row data that would otherwise be restored after a sort:
                                     associatedProjectData.Remove(accession);
                                 }
 
@@ -1183,9 +1152,9 @@ namespace CAESDO
             //Update header with the number of checked cells
             if (gvAssociationProjects.Rows.Count != 0)
             {
-                //var percentTotal = "0%";
                 LinkButton lbtnNumCheckedProjects = (LinkButton)gvAssociationProjects.HeaderRow.FindControl("lbtnNumCheckedProjects");
                 lbtnNumCheckedProjects.Text = ViewState["NumCheckedProjects"].ToString();
+                //gvAssociationProjects.HeaderRow.Cells[0].Text = ViewState["NumCheckedProjects"].ToString();
             }
         }
 
@@ -1359,6 +1328,8 @@ namespace CAESDO
                 gvAssociationProjects.HeaderRow.Cells[1].Text = "0%";
             else
                 gvAssociationProjects.HeaderRow.Cells[1].Text = percent.ToString("#") + "%";
+
+            ViewState["PercentTotal"] = gvAssociationProjects.HeaderRow.Cells[1].Text;
         }
 
         /// <summary>
@@ -1395,10 +1366,8 @@ namespace CAESDO
                 gvAssociationProjects.Enabled = false;
             }
 
-            // Clear out any saved row data:
             ViewState["AssociatedProjectData"] = null;
-
-            // Also set the header's num checked projects back to zero:
+            ViewState["PercentTotal"] = null;
             gvAssociationProjects.HeaderRow.Cells[0].Text = "0";
 
             //update the projects updatepanel so the changes will take effect asynchronously
