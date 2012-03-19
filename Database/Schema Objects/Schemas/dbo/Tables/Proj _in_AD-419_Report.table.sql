@@ -1,0 +1,26 @@
+﻿CREATE TABLE [dbo].[Proj _in_AD-419_Report] (
+    [Investigator]    NVARCHAR (255) NULL,
+    [Fund]            NVARCHAR (255) NULL,
+    [Project #]       NVARCHAR (255) NULL,
+    [Accession_#]     NVARCHAR (255) NULL,
+    [Start_Date]      DATETIME       NULL,
+    [Term_Date]       DATETIME       NULL,
+    [Status]          NVARCHAR (255) NULL,
+    [Dept_Code]       NVARCHAR (255) NULL,
+    [Department]      NVARCHAR (255) NULL,
+    [1st Coop Dept#]  NVARCHAR (255) NULL,
+    [2nd Coop# Dept#] NVARCHAR (255) NULL,
+    [Notes]           NVARCHAR (255) NULL,
+    [F13]             NVARCHAR (255) NULL,
+    [F14]             NVARCHAR (255) NULL,
+    [F15]             NVARCHAR (255) NULL,
+    [F16]             NVARCHAR (255) NULL,
+    [F17]             NVARCHAR (255) NULL,
+    [F18]             NVARCHAR (255) NULL,
+    [F19]             NVARCHAR (255) NULL,
+    [F20]             NVARCHAR (255) NULL,
+    [F21]             NVARCHAR (255) NULL,
+    [F22]             NVARCHAR (255) NULL,
+    [F23]             NVARCHAR (255) NULL
+);
+

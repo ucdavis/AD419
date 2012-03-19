@@ -1,0 +1,11 @@
+﻿CREATE Procedure [dbo].[usp_DownloadTitleGroups]
+
+AS
+
+DECLARE @MaxDate DATETIME
+SET @MaxDate = (SELECT MAX(LastActionDate) FROM TitleGroups)
+
+SELECT * FROM OPENQUERY(PAY_PERS_EXTR, '
+	SELECT * FROM PAYROLL.CTLJGD
+')
+WHERE @MaxDate IS NULL OR JGD_LAST_ACTION_DT > @MaxDate

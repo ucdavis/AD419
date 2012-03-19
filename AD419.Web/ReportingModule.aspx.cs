@@ -1422,7 +1422,11 @@ namespace CAESDO
 
                 int currentExpenseID = (int)currentExpense[0];
                 double TotalSpent = double.Parse(currentExpense[1].ToString());
-                double TotalFTE = double.Parse(currentExpense[2].ToString());
+                double TotalFTE = 0d;
+                double tempFTE = 0d;
+
+                if (double.TryParse(currentExpense[2].ToString(), out tempFTE))
+                    TotalFTE = tempFTE;
 
                 double currentSpentSum = 0.0;
                 double currentFTESum = 0.0;
