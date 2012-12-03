@@ -656,75 +656,83 @@ namespace CAESDO
                 associatedProjectData = (IOrderedDictionary)ViewState["AssociatedProjectData"];
             }
 
-            // Find the num-checked projects link and set/reset it as appropriate:
-            var lbtnNumCheckedProjects = (LinkButton)gvAssociationProjects.HeaderRow.FindControl("lbtnNumCheckedProjects");
-
-            int numCheckedProjects = 0;
-
-            if (ViewState["NumCheckedProjects"] != null)
+            // 2012-12-03 by kjt:
+            // Added gvAssociationProjects.HeaderRow != null check to handle going from one admin,
+            // no-project department to another admin, no-project org:
+            if (gvAssociationProjects.HeaderRow != null)
             {
-                var vsNumCheckedProjects = (int)ViewState["NumCheckedProjects"];
-                numCheckedProjects = vsNumCheckedProjects;
-            }
-            else
-            {
-                numCheckedProjects = associatedProjectData.Count;
-            }
 
-            lbtnNumCheckedProjects.Text = numCheckedProjects.ToString();
+                // Find the num-checked projects link and set/reset it as appropriate:
+                var lbtnNumCheckedProjects =
+                    (LinkButton) gvAssociationProjects.HeaderRow.FindControl("lbtnNumCheckedProjects");
 
-            double cumulativePercent = 0;
+                int numCheckedProjects = 0;
 
-            // Restore any prior values that were lost after a sort's re-databinding:
-            foreach (var key in associatedProjectData.Keys)
-            {
-                var i = 0;
-                var accession = key.ToString();
-
-                foreach (DataKey dk in gvAssociationProjects.DataKeys)
+                if (ViewState["NumCheckedProjects"] != null)
                 {
-                    if (dk.Value.Equals(accession))
-                    {
-                        // Get the saved row data:
-                        var savedRowValues = (IOrderedDictionary)associatedProjectData[accession];
-                        // Get the matching gridview row from its newly sorted location:
-                        var row = gvAssociationProjects.Rows[i];
-
-                        // Find the check box and check it:
-                        var currentCheckBox = (CheckBox)row.FindControl("cboxAssociatePercent");
-                        currentCheckBox.Checked = true;
-
-                        // Find the textbox and set it to its saved value:
-                        var currentTextBox = (TextBox)row.FindControl("txtAssociatePercent");
-                        var txtAssociatePercent = (string)savedRowValues["AssociatePercent"];
-                        currentTextBox.Text = txtAssociatePercent;
-
-                        // 2012-03-19 by kjt: I added this to keep track of "select all" percentages
-                        // when expenses were selected, num projects select all link selected, and the
-                        // expenses de-selected and then re-selected.
-                        double currentPercent = 0;
-                        bool result = double.TryParse(currentTextBox.Text, out currentPercent);
-                        if (true == result)
-                            cumulativePercent += currentPercent;
-
-                        // Set the Project Spent amount to its saved value:
-                        var projectSpent = (string)savedRowValues["ProjectSpent"];
-                        row.Cells[AD419Configuration.cellIndexProjectSpent].Text = projectSpent;
-
-                        // Set the Project FTE to its saved value:
-                        var projectsFte = (string)savedRowValues["ProjectsFTE"];
-                        row.Cells[AD419Configuration.cellIndexProjectsFTE].Text = projectsFte;
-                    }
-                    i++;
+                    var vsNumCheckedProjects = (int) ViewState["NumCheckedProjects"];
+                    numCheckedProjects = vsNumCheckedProjects;
                 }
+                else
+                {
+                    numCheckedProjects = associatedProjectData.Count;
+                }
+
+                lbtnNumCheckedProjects.Text = numCheckedProjects.ToString();
+
+                double cumulativePercent = 0;
+
+                // Restore any prior values that were lost after a sort's re-databinding:
+                foreach (var key in associatedProjectData.Keys)
+                {
+                    var i = 0;
+                    var accession = key.ToString();
+
+                    foreach (DataKey dk in gvAssociationProjects.DataKeys)
+                    {
+                        if (dk.Value.Equals(accession))
+                        {
+                            // Get the saved row data:
+                            var savedRowValues = (IOrderedDictionary) associatedProjectData[accession];
+                            // Get the matching gridview row from its newly sorted location:
+                            var row = gvAssociationProjects.Rows[i];
+
+                            // Find the check box and check it:
+                            var currentCheckBox = (CheckBox) row.FindControl("cboxAssociatePercent");
+                            currentCheckBox.Checked = true;
+
+                            // Find the textbox and set it to its saved value:
+                            var currentTextBox = (TextBox) row.FindControl("txtAssociatePercent");
+                            var txtAssociatePercent = (string) savedRowValues["AssociatePercent"];
+                            currentTextBox.Text = txtAssociatePercent;
+
+                            // 2012-03-19 by kjt: I added this to keep track of "select all" percentages
+                            // when expenses were selected, num projects select all link selected, and the
+                            // expenses de-selected and then re-selected.
+                            double currentPercent = 0;
+                            bool result = double.TryParse(currentTextBox.Text, out currentPercent);
+                            if (true == result)
+                                cumulativePercent += currentPercent;
+
+                            // Set the Project Spent amount to its saved value:
+                            var projectSpent = (string) savedRowValues["ProjectSpent"];
+                            row.Cells[AD419Configuration.cellIndexProjectSpent].Text = projectSpent;
+
+                            // Set the Project FTE to its saved value:
+                            var projectsFte = (string) savedRowValues["ProjectsFTE"];
+                            row.Cells[AD419Configuration.cellIndexProjectsFTE].Text = projectsFte;
+                        }
+                        i++;
+                    }
+                }
+
+                // 2012-03-19 by kjt part of restoring select all percent (see above).
+                // Reset the header's Percent Total value if appropriate:
+                setPercentTotal(cumulativePercent);
+
+                // Refresh the gridview's values so they are displayed:
+                updateAssociationProjects.Update();
             }
-
-            // 2012-03-19 by kjt part of restoring select all percent (see above).
-            // Reset the header's Percent Total value if appropriate:
-            setPercentTotal(cumulativePercent);
-
-            // Refresh the gridview's values so they are displayed:
-            updateAssociationProjects.Update();
         }
 
         /// <summary>
@@ -1660,6 +1668,15 @@ namespace CAESDO
 
             gViewSFNTotalExpenses.DataBind();
             dlistProjectID_SelectedIndexChanged(dlistProjectID, new EventArgs());
+
+            //2012-12-03 by kjt: Added call to dlistDepartment_SelectedIndexChanged
+            // so that changes made in associations tab would be reflected in project
+            // tab's total expenses when the project tab's selected department was
+            // the same as the associations tab's department.
+            // Otherwise; no update was being done to the totals that would have normally
+            // been done when a department was selected from the department's drop-down list.
+            if (dlistAssociationsDepartment.SelectedValue == dlistDepartment.SelectedValue)
+                dlistDepartment_SelectedIndexChanged(dlistDepartment, new EventArgs());
         }
 
         #region SFNTotals View Mode
