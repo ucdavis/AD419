@@ -1,4 +1,11 @@
-﻿/*
+﻿USE [AD419]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_RePopulate_CAES_Expenses_Using_ARC]    Script Date: 2/24/2015 3:08:51 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+/*
 ---------------------------------------------------------------------
 PROGRAM: sp_RePopulate_CAES_Expenses_Using_ARC.SQL
 BY:	Mike Ransom	[8/17/05] Wed
@@ -65,7 +72,7 @@ deallocate MyCursor
 -- Drop and repopulate expenses from Expenses_CAES
 
 --Drop existing rows:
-Select @TSQL = 'DELETE FROM AD419.DBO.Expenses_CAES;
+Select @TSQL = 'DELETE FROM DBO.Expenses_CAES;
 '
 
 --Repopulate:
@@ -78,6 +85,7 @@ INSERT INTO Expenses_CAES
 	Account,
 	SubAccount,
 	ObjConsol,
+	Object,
 	ExpenseSum
 	)
 
@@ -88,6 +96,7 @@ SELECT
 	AccountNum  Account,
 	SubAccount,
 	ConsolidationCode ObjConsol,
+	ObjectCode Object,
 	Sum(Amount) ExpenseSum
 FROM 
 	FISDataMart.dbo.BalanceSummaryView 
@@ -98,13 +107,15 @@ WHERE
 	AND ConsolidationCode Not In (''INC0'', ''BLSH'', ''SB74'')
 	AND AnnualReportCode IN (' + @ARCCodes + ')
 	AND CollegeLevelOrg IN (''AAES'', ''BIOS'')
+	AND AccountNum NOT IN (SELECT Account FROM ArcCodeAccountExclusions WHERE Year = ' + Convert(char(4), @FiscalYear) + ')
 GROUP BY 
 	Chart ,
 	FiscalYear ,
 	OrgCode ,
 	AccountNum ,
 	SubAccount ,
-	ConsolidationCode
+	ConsolidationCode,
+	ObjectCode
 ';
 	
 	if @IsDebug = 1
@@ -196,5 +207,12 @@ Added ARC 440200 for "Air Shuttle Service" per Steve Pesis-he sez this is used f
 
 [09/14/2009] by KJT:
 Added parameter for year, plus query for retrieving ARC Codes, plus use of FISDataMart trans, Organizations, and Accounts tables.
+
+[11/07/2012] by kjt:
+Added Object(Code) because of 2011-2012 Object Consolidation Code mid-year remapping issue. 
+
+2015-02-19 by kjt: Removed [AD419] specific database references so sproc could be used on other databases
+such as AD419_2014, etc.  
+Added logic to exclude accounts in ArcCodeAccountExclusions table.
 
 */

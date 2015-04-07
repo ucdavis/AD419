@@ -7,6 +7,9 @@
 -- or account Principal Investigator Name/project inv1-6.  
 -- The results are then inserted into the 204AcctXProj; those
 -- that remain unmatched requiring manual association to a project.
+-- Modifications:
+--	2015-03-24 by kjt: Revised to populate 3 new columns Org, and OrgR, and AwardNum,
+--	Plus truncate table as opposed to deleting records so that pk sequence is reset to zero.
 -- =============================================
 CREATE PROCEDURE [dbo].[sp_Repopulate_AD419_204] (
 	-- Add the parameters for the stored procedure here
@@ -22,7 +25,7 @@ BEGIN
 	SET NOCOUNT ON;
 	
 	-- Delete all the records from the 204AcctXProj table:
-	Select @TSQL = 'DELETE from [204AcctXProj];'
+	Select @TSQL = '	TRUNCATE TABLE [204AcctXProj];'
 	
 	IF @IsDebug = 1
 		BEGIN
@@ -44,7 +47,9 @@ BEGIN
 		Accession,
 		Is219,
 		CSREES_ContractNo,
-		IsCurrentProject
+		IsCurrentProject,
+		OrgR,
+		Org
 	)
 	SELECT     
 		Expenses_CAES.Chart, 
@@ -54,8 +59,9 @@ BEGIN
 		Project.Accession,
 		null as Is219,
 		null as CSREES_ContractNo,
-		IsCurrentAD419Project as IsCurrentProject
-		
+		IsCurrentAD419Project as IsCurrentProject,
+		Expenses_CAES.Org_R OrgR,
+		A.Org	
 	FROM Expenses_CAES 
 	INNER JOIN Acct_SFN ON Expenses_CAES.Account = Acct_SFN.acct_id 
 		AND Expenses_CAES.Chart = Acct_SFN.chart 
@@ -63,7 +69,11 @@ BEGIN
 		AND Expenses_CAES.Account = A.Account 
 		AND A.Year = ' + Convert(char(4),@FiscalYear) + '
 		AND A.Period = ''--''
-	LEFT OUTER JOIN AllProjects Project ON A.AwardNum = Project.CSREES_ContractNo
+	LEFT OUTER JOIN FISDatamart.dbo.OPFund t3 ON A.OpFundNum = t3.FundNum AND A.Year = t3.Year and A.Chart = t3.chart and A.Period = t3.Period
+	LEFT OUTER JOIN [dbo].[AllProjects] Project ON 
+		A.AwardNum = Project.CSREES_ContractNo OR -- First match by account award number
+		t3.AwardNum = Project.CSREES_ContractNo OR -- then by OP Fund Award Number
+		Project.CSREES_ContractNo LIKE ''%'' + A.AwardNum -- lastly by a missing "20" at the beginning of the award number.
 	WHERE Acct_SFN.SFN = ''204''
 		AND A.AwardNum NOT IN  --Remove 204s in Exclusions by award num
 		(
@@ -73,7 +83,9 @@ BEGIN
 		Expenses_CAES.Chart, 
 		Expenses_CAES.Account, 
 		Project.Accession,
-		IsCurrentAD419Project
+		IsCurrentAD419Project,
+		Expenses_CAES.Org_R,
+		A.Org
 	HAVING      
 		Expenses_CAES.Chart = ''3''
 		;'
@@ -106,6 +118,13 @@ BEGIN
 			ELSE 
 				REPLACE(REPLACE(REPLACE(SUBSTRING(Name, 13,50),''GRAD '', ''''), ''#'', ''''), '' MCA UCR'', '''')
             END
+		WHEN NAME LIKE ''%NATIONAL INSTITUTE FOR%'' THEN
+		  CASE
+			WHEN CHARINDEX(''-'',REPLACE(REPLACE(REPLACE(SUBSTRING(Name, 25,50),''GRAD '', ''''), ''#'', ''''), '' MCA UCR'', ''''),1) = 3 then
+				''20'' + REPLACE(REPLACE(REPLACE(SUBSTRING(Name, 25,50),''GRAD '', ''''), ''#'', ''''), '' MCA UCR'', '''')
+			ELSE 
+				REPLACE(REPLACE(REPLACE(SUBSTRING(Name, 25,50),''GRAD '', ''''), ''#'', ''''), '' MCA UCR'', '''')
+            END
 		ELSE
 			Name
      END as CSRESS_ContractNo
@@ -115,7 +134,8 @@ BEGIN
 	and OPFundNumbers.Chart = accounts.Chart and OPFundNumbers.Year = accounts .Year 
 	and (
 		Name like ''%USDA%CSREES%'' 
-	 or Name like ''%USDA%NIFA%'' )
+	 or Name like ''%USDA%NIFA%''
+	 or Name like ''%NATIONAL INSTITUTE FOR%'' )
   where accounts.Year = ' + Convert(char(4),@FiscalYear) + ' 
 	and Period = ''--'' and accounts.Chart = ''3''
 	and Account in (
@@ -179,10 +199,11 @@ BEGIN
  -- Now update the table with the corrected contract numbers:
  
   update [204AcctXProj]
-  set CSREES_ContractNo = (
-	select CSREES_ContractNo 
-	from @MyCSREESTable 
-	where AccountID = Account) 
+  set 
+	CSREES_ContractNo = t1.CSREES_ContractNo,
+	AwardNum = t1.AwardNum
+  FROM @MyCSREESTable t1
+  INNER JOIN [204AcctXProj] t2 ON t1.Account = t2.AccountID
   '
   IF @IsDebug = 1
 		BEGIN
@@ -226,8 +247,11 @@ BEGIN
 			EXEC(@TSQL)
 		END
 -----------------------------------------------------------------------------------------------------
+-- 2015-03-24 by kjt: This part is no longer used.  We're going to try to manually find the correct
+-- project because this approach is inaccurate as per Shannon Tanguay and Brian McEllot since it is inaccurate.
+--
 -- Assign expenses based on matching PI Names having ''%G'' projects:
-
+/*
 Select @TSQL = '
 declare @MyTable TABLE ([AccountID] varchar(7)
       ,[Expenses] float
@@ -473,7 +497,7 @@ Select @TSQL = '
 		BEGIN
 			EXEC(@TSQL)
 		END
-		
+*/
 --Remove all the 204s that are in the 204 Exclusions table
 /*
 DELETE FROM [204AcctXProj] where AccountID in

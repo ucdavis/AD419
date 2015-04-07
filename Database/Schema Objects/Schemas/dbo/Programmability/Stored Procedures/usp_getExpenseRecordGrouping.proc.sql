@@ -125,15 +125,14 @@ ELSE IF @Grouping = 'Employee'
 	'
 	SELECT 
 		E.Chart,
-		E.EID AS Code, 
-		RTRIM(E.Employee_Name) + '' ('' + ISNULL(S.AD419_Line_Num,''---'') + '')'' AS Description, 
+		E.EID + ''|'' + ISNULL(E.FTE_SFN,''---'') AS Code, 
+		RTRIM(E.Employee_Name) + '' ('' + ISNULL(E.FTE_SFN,''---'') + '')'' AS Description, 
 		SUM(E.Expenses) AS Spent, 
 		SUM(E.FTE) AS FTE, 
 		COUNT(E.Expenses) AS Num, 
 		E.isAssociated
 	FROM Expenses AS E 
-		LEFT OUTER JOIN staff_type AS S ON 
-			E.Staff_Grp_Cd = S.Staff_Type_Short_Name
+		
 	WHERE 
 		E.isAssociable<>0 
 		AND E.OrgR = ''' + @OrgR + '''
@@ -148,8 +147,8 @@ ELSE IF @Grouping = 'Employee'
 	END
 	+
 	'
-	GROUP BY E.Employee_Name, E.Chart, E.EID, S.AD419_Line_Num, E.isAssociated
-	ORDER BY S.AD419_Line_Num, E.Employee_Name, E.Chart
+	GROUP BY E.Employee_Name, E.Chart, E.EID, E.FTE_SFN, E.isAssociated
+	ORDER BY E.FTE_SFN, E.Employee_Name, E.Chart
 	'
 	END
 ----------------------------------
@@ -316,6 +315,10 @@ ELSE IF @Grouping = 'Employee'
 [10/24/06] Tue
 	Getting wrong number with PI grouping.
 		* Query for PI contained join to sub-accounts table, which was not needed and inappropriate.
+[03/08/2012] Thurs
+	Employee grouping is grouped by employee and staff type.  This causes multiple entries for employees
+	with multiple staff types; however, the association expenses are pulled only using employee ID so the
+	percentages and amounts do not correspond. 
 -------------------------------------------------------------------------
 --UNIT TESTING:
 EXEC usp_getExpenseRecordGrouping 'PI', 'AANS', 1, 1

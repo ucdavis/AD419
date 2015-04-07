@@ -1,4 +1,4 @@
-﻿CREATE TABLE [dbo].[FFY_2010_SFN_ENTRIES] (
+﻿/*CREATE TABLE [dbo].[FFY_2010_SFN_ENTRIES] (
     [Year]              INT          NULL,
     [Chart]             VARCHAR (2)  NOT NULL,
     [Org]               CHAR (4)     NOT NULL,
@@ -13,5 +13,5 @@
     [MatchedByAwardNum] BIT          NULL,
     [QuadNum]           VARCHAR (4)  NULL,
     [IsActive]          BIT          NULL
-);
+);*/
 

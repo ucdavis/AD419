@@ -7,6 +7,9 @@
 -- the 4-digit numeric component of the project number
 -- if the association cannot be made using the full 
 -- project/award number.
+-- Modifications:
+--	2015-03-31 by kjt: Removed [AD419] database specific references so this sproc
+-- could be used on another database such as [AD419_2014], etc.
 -- =============================================
 CREATE PROCEDURE [dbo].[sp_GET_QUAD_NUM_WITH_NULL_ACCESSION]
 	-- Add the parameters for the stored procedure here
@@ -32,17 +35,17 @@ BEGIN
 	Select @TSQL = 'declare MyCursor Cursor for 
 
 	SELECT distinct SUBSTRING(AWARDNUM, 10, 4) as QuadNum 
-	FROM [AD419].[dbo].[' + @TableName + ']
+	FROM [dbo].[' + @TableName + ']
 	where accession is null and CONVERT(int, SUBSTRING(AWARDNUM, 10, 4)) > 0 
  
 	UNION
   
 	SELECT distinct SUBSTRING(AWARDNUM, 11, 4) as QuadNum 
-	FROM [AD419].[dbo].[' + @TableName + ']
+	FROM [dbo].[' + @TableName + ']
 	where accession is null and SUBSTRING(AWARDNUM, 10, 4) NOT IN 
 		(
 			SELECT distinct SUBSTRING(AWARDNUM, 10, 4) as QuadNum
-			FROM [AD419].[dbo].[' + @TableName + ']
+			FROM [dbo].[' + @TableName + ']
 			where accession is null and CONVERT(int, SUBSTRING(AWARDNUM, 10, 4)) > 0 
 		)
 	order by 1
@@ -88,7 +91,7 @@ BEGIN
 			ELSE SUBSTRING(PROJECT, 10, 4)
 		 END) as QuadNum
 	INTO AD419.DBO.' + @OutputTableName + '
-	from [AD419].[dbo].' + @InputTableName + '
+	from [dbo].' + @InputTableName + '
 	' + @QuadNums;
 
 	IF @IsDebug = 1 

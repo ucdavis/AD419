@@ -1,4 +1,5 @@
 ﻿CREATE TABLE [dbo].[ProjectsRaw] (
+    [Id]           INT            IDENTITY (100, 1) NOT NULL,
     [Accession]    NVARCHAR (255) NULL,
     [Project]      NVARCHAR (255) NULL,
     [Station]      NVARCHAR (255) NULL,
@@ -17,6 +18,12 @@
     [ProgressTerm] NVARCHAR (255) NULL,
     [ProjType]     NVARCHAR (255) NULL,
     [TermDate]     DATETIME       NULL,
-    [BeginDate]    DATETIME       NULL
+    [BeginDate]    DATETIME       NULL,
+    [Field2]       VARCHAR (255)  NULL,
+    [CrisDate]     DATETIME       NULL,
+    [ChangeDate]   DATETIME       NULL,
+    [CoopDepts]    VARCHAR (50)   NULL
 );
+
+
 

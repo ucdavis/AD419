@@ -3,8 +3,8 @@
     [Project]               VARCHAR (24)  NOT NULL,
     [isInterdepartmental]   TINYINT       NULL,
     [isValid]               TINYINT       NULL,
-    [BeginDate]             DATETIME      NULL,
-    [TermDate]              DATETIME      NULL,
+    [BeginDate]             DATETIME2 (7) NULL,
+    [TermDate]              DATETIME2 (7) NULL,
     [ProjTypeCd]            CHAR (1)      NULL,
     [RegionalProjNum]       VARCHAR (9)   NULL,
     [CRIS_DeptID]           CHAR (4)      NULL,
@@ -12,7 +12,7 @@
     [CSREES_ContractNo]     VARCHAR (20)  NULL,
     [StatusCd]              CHAR (1)      NULL,
     [Title]                 VARCHAR (200) NULL,
-    [UpdateDate]            DATETIME      NULL,
+    [UpdateDate]            DATETIME2 (7) NULL,
     [inv1]                  VARCHAR (30)  NULL,
     [inv2]                  VARCHAR (30)  NULL,
     [inv3]                  VARCHAR (30)  NULL,
@@ -22,6 +22,8 @@
     [idProject]             INT           IDENTITY (1, 1) NOT NULL,
     [IsCurrentAD419Project] BIT           NULL
 );
+
+
 
 
 GO

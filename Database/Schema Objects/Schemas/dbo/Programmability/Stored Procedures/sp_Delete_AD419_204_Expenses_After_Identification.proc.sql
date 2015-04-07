@@ -7,6 +7,8 @@
 -- Modifications:
 --
 -- [12/17/2010] by kjt: Revised to use AllExpenses, table (formerly Expenses) instead of new Expenses view.
+-- [11/05/2012] by kjt: Fixed a hardcoded year value to use the FiscalYear param that was passed in. 
+-- [11/09/2012] by kjt: Revised logic not to delete expenses for 204 projects, only projects. 
 --
 -- =============================================
 CREATE PROCEDURE [dbo].[sp_Delete_AD419_204_Expenses_After_Identification]
@@ -35,7 +37,7 @@ BEGIN
 	delete from Associations where ExpenseID 
 	in (select ExpenseID from Expenses where Exp_SFN = ''204'')
 
-	delete from AllExpenses where Exp_SFN = ''204''
+	--delete from AllExpenses where Exp_SFN = ''204''
 
 	IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N''[dbo].[Projects_204]'') AND type in (N''U''))
 		BEGIN
@@ -102,7 +104,7 @@ BEGIN
 
 	truncate table [204AcctXProj]
 
-	delete from FFY_2010_SFN_ENTRIES 
+	delete from FFY_' + CONVERT(varchar(4), @FiscalYear) + '_SFN_ENTRIES 
 	where SFN like ''204''
 	'
 	

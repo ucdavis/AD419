@@ -3,6 +3,12 @@
 -- Create date: 2009-10-22
 -- Description:	Creates a view for the year provided with Annual Reporting Codes
 -- that are fetched from the FISDataMart.ARCCodes view.
+--
+-- Modifications:
+--	20121107 by kjt: Added logic to remap Obj Consol codes to prior year's equiv to
+--		handle mid-year obj consol code re-mapping.
+--	20121109 by kjt: Revised logic to use AnnualReportCode IN (SELECT ArcCode FROM FISDataMart.dbo.ArcCodes) Vs.
+--		build a list manually.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_Create_Raw_FIS_JV_Expenses]
 	-- Add the parameters for the stored procedure here
@@ -24,34 +30,36 @@ IF EXISTS (SELECT * FROM sysobjects WHERE name = 'Raw_FIS_JV_Expenses' AND type 
 	-- SET NOCOUNT ON added to prevent extra result sets from
 	-- interfering with SELECT statements.
 	--SET NOCOUNT ON;
+
+	DECLARE @TSQL varchar(MAX) = null;
 	
-	-- Build the list of Annual Report Codes from the ARCCodes view of the 
--- ARC_Codes table
-declare @TSQL varchar(MAX) = null;
+	-- ARC codes list replaced by ...AnnualReportCode IN (SELECT ArcCode FROM FISDataMart.dbo.ArcCodes)
+--	-- Build the list of Annual Report Codes from the ARCCodes view of the 
+---- ARC_Codes table
 
-declare @ARCCodes varchar(max) = '';
-declare @temp varchar(20) = '';
+--declare @ARCCodes varchar(max) = '';
+--declare @temp varchar(20) = '';
 
-declare MyCursor Cursor for select ARCCode from [FISDataMart].[dbo].[ARCCodes] for READ ONLY
+--declare MyCursor Cursor for select ARCCode from [FISDataMart].[dbo].[ARCCodes] for READ ONLY
 
-open MyCursor
+--open MyCursor
 
-fetch next from MyCursor into @temp
+--fetch next from MyCursor into @temp
 
-while @@FETCH_STATUS = 0
-begin
-	select @ARCCodes +=  '''' + @temp + '''' 
-	FETCH NEXT FROM MyCursor
-    INTO @temp
+--while @@FETCH_STATUS = 0
+--begin
+--	select @ARCCodes +=  '''' + @temp + '''' 
+--	FETCH NEXT FROM MyCursor
+--    INTO @temp
     
-    if @@FETCH_STATUS = 0
-    Begin
-		select @ARCCodes += ', ' 
-    End
-end
+--    if @@FETCH_STATUS = 0
+--    Begin
+--		select @ARCCodes += ', ' 
+--    End
+--end
 
-close MyCursor
-deallocate MyCursor
+--close MyCursor
+--deallocate MyCursor
 
  -----------------------------------------------------------------
 	select @TSQL = '
@@ -61,16 +69,17 @@ SELECT
 	OrgCode AS Org, 
 	AccountNum Account, 
 	SubAccount, 
-	ConsolidationCode AS ObjConsol, 
+	CASE WHEN OCR.ObjConsol IS NULL THEN BSV.ConsolidationCode ELSE OCR.ObjConsol END AS ObjConsol, 
 	SUM(Amount) AS Expenses
 FROM    
-	FISDataMart.dbo.BalanceSummaryView 
+	FISDataMart.dbo.BalanceSummaryView BSV
+LEFT OUTER JOIN [AD419].[dbo].[ObjConsolRemap] OCR ON BSV.ObjectCode = OCR.Object AND BSV.ConsolidationCode = OldObjConsol
 WHERE 
 	Chart = ''3''
 	AND FiscalYear = ' + @FiscalYear + ' 
 	AND TransBalanceType = ''AC''
 	AND ConsolidationCode Not In (''INC0'', ''BLSH'', ''SB74'')
-	AND AnnualReportCode IN (' + @ARCCodes + ') 
+	AND AnnualReportCode IN (SELECT ArcCode FROM FISDataMart.dbo.ArcCodes) 
 	AND CollegeLevelOrg IN (''AAES'', ''BIOS'')
 	AND TransDocType like ''JV''
 GROUP BY 
@@ -78,7 +87,8 @@ GROUP BY
 	OrgCode, 
 	AccountNum, 
 	SubAccount, 
-	ConsolidationCode
+	ConsolidationCode,
+	ObjConsol
 '
  -----------------------------------------------------------------
 	if @IsDebug = 1

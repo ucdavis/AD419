@@ -43,8 +43,8 @@ IF @BeginDate = ''
 		Select @BeginDate = Convert(char(4),(@FiscalYear - 1)) + '.07.01'
 	END
 
-print 'Clear current PPS TOE records...'
-select @TSQL= 'DELETE FROM Raw_PPS_Expenses'
+print '--Clear current PPS TOE records...'
+select @TSQL= 'TRUNCATE TABLE Raw_PPS_Expenses'
 	if @IsDebug = 1
 		begin
 			Print @TSQL
@@ -54,52 +54,68 @@ select @TSQL= 'DELETE FROM Raw_PPS_Expenses'
 			EXEC(@TSQL)
 		end
 --print 'Insert new records extracted from ETHTOE_V_FY_' + @FiscalYear + '...'
-print 'Insert new records extracted from ETHTOE_V_FY_' + Convert(Varchar(4),@FiscalYear) + '...'
+--print 'Insert new records extracted from ETHTOE_V_FY_' + Convert(Varchar(4),@FiscalYear) + '...'
 select @TSQL = 'Insert into Raw_PPS_Expenses (TOE_Name, EID, Org, Account, SubAcct, ObjConsol, TitleCd, FTE, Salary, Benefits)
-SELECT * FROM OPENQUERY
-	(pay_pers_extr, ''
-	SELECT DISTINCT 
-		Max(TOE.TOE_NAME)  TOE_NAME, 
-		TOE.TOE_EMPLOYEE_ID  EID, 
-		TOE.TOE_FAU_ORG_CD Org, 
-		TOE.TOE_FAU_ACCT  Account, 
-		TOE.TOE_FAU_SUBACCT  SubAcct, 
-		TOE.TOE_FAU_OBJ_CONSOLDTN  ObjConsol, 
-		TOE.TOE_TITLE  TitleCd, 
-		Sum
-			(DECODE	/* normalize to percent time for both salaried and hourly employees */
-				(TOE_RATE_TYPE,
-					''''%'''', (TOE.TOE_TIME / 100),  /* Salaried employees */
-					''''H'''', (TOE.TOE_TIME / 173.86),	/* hourly employees (avg hours per month for full-time) */
-					0
-				)
-			) / 12 FTE, 
-		Sum(TOE.TOE_ORIG_GROSS_ERN)  Salary, 
-		Sum(TOE.BEN_TOTAL)  Benefits
-	FROM 
-		ETHTOE_V_FY_' + Convert(Varchar(4),@FiscalYear) + '  TOE		/* A new table/view is created each year, so this needs to be edited each year */
-	WHERE 
-		TOE.FISCAL_YEAR=' + Convert(Varchar(4),@FiscalYear) + '
-		AND TOE.TOE_FAU_CHART=''''3''''
-		AND TOE.TOE_FAU_HIGH_ED_FUNC_CD in (''''ORES'''',''''ACAD'''')
-		AND TOE.TOE_FAU_OBJ_CONSOLDTN  IN (''''SB01'''',''''SB02'''',''''SB03'''',''''SB05'''',''''SB06'''',''''SB07'''',''''SUBS'''',''''SUBG'''')
-		AND ABS(DECODE
-			(TOE_RATE_TYPE,
-				''''%'''', TOE_RATE,
-				''''H'''', TOE_RATE*173.86,
-				0
-			)) > 800	/* Dont know reason for this, and may not be necessary--it was in original code by Ken Paulson */
-		AND TOE.TOE_TRANS_END_DATE >= TO_DATE(''''' + @BeginDate  + ''''' ,''''yyyy.mm.dd'''') /* cuts out retroactive pay actions effective before reporting year */
-	GROUP BY 
-		TOE.TOE_EMPLOYEE_ID, 
-		TOE.TOE_TITLE,
-		TOE.TOE_FAU_ORG_CD, 
-		TOE.TOE_FAU_ACCT, 
-		TOE.TOE_FAU_SUBACCT, 
-		TOE.TOE_FAU_OBJ_CONSOLDTN
-	ORDER BY 
-		Max(TOE.TOE_NAME)
-	''	)'
+SELECT 
+	   [TOE_Name]
+      ,[EID]
+      ,[Org]
+      ,[Account]
+      ,[SubAcct]
+      ,[ObjConsol]
+      ,[TitleCd]
+	  ,SUM(FTE) FTE 
+	  ,SUM(Amount) Salary
+	  ,0 Benefits
+FROM
+(
+	SELECT [TOE_Name]
+      ,[EID]
+      ,[Org]
+      ,[Account]
+      ,[SubAcct]
+      ,CASE WHEN OCR.ObjConsol IS NULL THEN LT.ObjConsol ELSE OCR.ObjConsol END AS [ObjConsol]
+      ,[TitleCd]
+	  ,CASE WHEN [FinanceDocTypeCd] = ''PAY'' AND 
+			LT.ObjConsol NOT IN (''SB28'', ''SUB6'') AND 
+			[PayRate] <> 0 AND 
+			LT.DosCd IN (SELECT DOS_Code FROM dbo.DOSCodes)
+		THEN (SUM(Amount) / [PayRate] /
+		(CASE WHEN [RateTypeCd] = ''H'' THEN 173.86 ELSE 1 END )) / 12  ELSE 0 END AS FTE
+	  ,SUM(Amount) Amount
+  FROM [dbo].[LaborTransactions] LT
+  LEFT OUTER JOIN [dbo].[ObjConsolRemap] OCR ON LT.Object = OCR.Object AND LT.ObjConsol = OldObjConsol
+  GROUP BY 
+   [TOE_Name],
+	EID,
+	ORG,
+	Account,
+	SubAcct,
+	LT.ObjConsol,
+	OCR.ObjConsol,
+	TitleCd
+	,[FinanceDocTypeCd]
+	,[DOSCd]
+    ,[RateTypeCd]
+    ,[PayRate]
+) T1
+GROUP BY
+	[TOE_Name],
+	EID,
+	ORG,
+	Account,
+	SubAcct,
+	ObjConsol,
+	TitleCd 
+ORDER BY 
+	[TOE_Name],
+	EID,
+	ORG,
+	Account,
+	SubAcct,
+	ObjConsol,
+	TitleCd
+'
 	
 	if @IsDebug = 1
 		begin
@@ -156,4 +172,11 @@ Run today after editing date and FY values for 05-06 cycle.  A veritable miracle
 
 [9/10/2009] by KJT:
 Revised to use new FISDataMart database.
+[11/5/2012] by kjt:
+	Revised to use the new LaborTransactions table.
+[11/09/2012] by kjt:
+	Revised to use DOS Codes to figure out which records to exclude from FTE calculations.
+2015-02-19 by kjt: 
+	Removed [AD419] specific database references so sproc could be used on other databases
+	such as AD419_2014, etc.
 */

@@ -1,9 +1,13 @@
 ﻿-- =============================================
 -- Author:		Scott Kirkland
 -- Create date: 9/18/06
--- Description:	
+-- Description:	Returns a list of 204 projects for the Org provided;
+-- or for all orgs if 'All' is provided.
+-- Modifications:
+--	2015-03-25 by kjt: Modified to use [204AcctXProj] and AllProjects tables Vs. Project and 
+-- ProjXOrgR since the CG, OG and SG proijects will no longer be present in the Project table.
 -- =============================================
-create PROCEDURE [dbo].[usp_get204ProjectsByDept] 
+CREATE PROCEDURE [dbo].[usp_get204ProjectsByDept] 
 	-- Add the parameters for the stored procedure here
 	@OrgR varchar(4)
 
@@ -18,9 +22,16 @@ BEGIN
 	SET @OrgR = '%'
 END
 
+--SELECT     P.Project, P.Accession
+--FROM         Project P INNER JOIN
+--                      ProjXOrgR ON P.Accession = ProjXOrgR.Accession
+--WHERE     (ProjXOrgR.OrgR LIKE @OrgR)
+--AND (P.Project NOT LIKE '%-H' AND P.Project NOT LIKE '%-RR' AND P.Project NOT LIKE '%-AH')
+--ORDER BY P.Project
+
 SELECT     P.Project, P.Accession
-FROM         Project P INNER JOIN
-                      ProjXOrgR ON P.Accession = ProjXOrgR.Accession
+FROM         AllProjects P INNER JOIN
+                      [204AcctXProj] ProjXOrgR ON P.Accession = ProjXOrgR.Accession
 WHERE     (ProjXOrgR.OrgR LIKE @OrgR)
 AND (P.Project NOT LIKE '%-H' AND P.Project NOT LIKE '%-RR' AND P.Project NOT LIKE '%-AH')
 ORDER BY P.Project

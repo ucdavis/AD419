@@ -1,4 +1,4 @@
-﻿CREATE TABLE [dbo].[AD419_Non-Admin_WithProratedAmounts_bak] (
+﻿/*CREATE TABLE [dbo].[AD419_Non-Admin_WithProratedAmounts_bak] (
     [loc]             CHAR (2)        NULL,
     [dept]            CHAR (3)        NULL,
     [proj]            CHAR (4)        NULL,
@@ -53,5 +53,5 @@
     [f244_prorate]    DECIMAL (16, 2) NULL,
     [f244_plus_admin] DECIMAL (16, 2) NULL,
     [f350]            DECIMAL (16, 2) NULL
-);
+);*/
 

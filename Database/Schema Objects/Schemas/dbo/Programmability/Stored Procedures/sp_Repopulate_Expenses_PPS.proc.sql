@@ -36,7 +36,7 @@ BEGIN
 
 --Drop:
 print '--Deleting all records from Expenses_PPS...'
-Select @TSQL = 'DELETE FROM Expenses_PPS;
+Select @TSQL = 'TRUNCATE TABLE dbo.Expenses_PPS;
 '
 --(18539 row(s) affected)
 
@@ -79,17 +79,9 @@ SELECT
 	TOE.FTE
 FROM 
 	Raw_PPS_Expenses AS TOE 
-	LEFT JOIN FISDataMart.dbo.Accounts AS A ON TOE.Account = A.Account
-	AND A.Year = ' + CONVERT(char(4), @FiscalYear) + '
-	AND A.Period = ''--''
-	LEFT JOIN OrgXOrgR AS OrgR ON A.Org = OrgR.Org 
-	LEFT JOIN [FISDataMart].[dbo].[ARCCodes] AS ARCs ON A.AnnualReportCode = ARCs.[ARCCode]
+	LEFT JOIN OrgXOrgR AS OrgR ON TOE.Org = OrgR.Org 
 WHERE 
-	A.Chart = ''3''
-	AND OrgR.Chart = ''3''
-	AND A.Year = ' + Convert(char(4), @FiscalYear) + '
-	AND A.Period = ''--''
-	--AND ARCs.isAES<>0 -- No longer need this because I am using a view that only gets the isAES <> 0 records.
+	OrgR.Chart = ''3''
 	;'
 	--(8650 row(s) affected)
 	
@@ -102,98 +94,109 @@ WHERE
 			EXEC(@TSQL)
 		end
 		
---Benefits...
-print '--Adding benefits expenses...'
+--No longer needed because benefit and salary expenses have now been lumped together using Labor Transactions table.
+----Benefits...
+--print '--Adding benefits expenses...'
 
-select @TSQL = 'INSERT INTO Expenses_PPS
-	(
-	Org_R,
-	Employee_ID,
-	TOE_NAME,
-	TitleCd,
-	Account,
-	SubAcct,
-	ObjConsol,
-	Expenses,
-	FTE
-	)
-SELECT 
-	OrgR.OrgR Org_R,
-	TOE.EID,
-	TOE.TOE_NAME,
-	TOE.TitleCd,
-	TOE.Account,
-	TOE.SubAcct,
-	''SUB6'' as ObjConsol,
-	TOE.Benefits as Expenses,
-	null as FTE
-FROM 
-	Raw_PPS_Expenses AS TOE 
-	LEFT JOIN FISDataMart.dbo.Accounts AS A ON TOE.Account = A.Account 
-	AND A.Year = ' + CONVERT(char(4), @FiscalYear) + '
-	AND A.Period = ''--''
-	LEFT JOIN OrgXOrgR AS OrgR ON A.Org = OrgR.Org 
-	LEFT JOIN [FISDataMart].dbo.ARCCodes AS ARCs ON A.AnnualReportCode = ARCs.ARCCode
-WHERE 
-	A.Chart = ''3''
-	AND OrgR.Chart = ''3''
-	AND A.Year = ' + Convert(char(4), @FiscalYear) + '
-	AND A.Period = ''--''
-	--AND ARCs.isAES<>0 -- No longer need this because I am using a view that only gets the isAES <> 0 records.
-	;'
+--select @TSQL = 'INSERT INTO Expenses_PPS
+--	(
+--	Org_R,
+--	Employee_ID,
+--	TOE_NAME,
+--	TitleCd,
+--	Account,
+--	SubAcct,
+--	ObjConsol,
+--	Expenses,
+--	FTE
+--	)
+--SELECT 
+--	OrgR.OrgR Org_R,
+--	TOE.EID,
+--	TOE.TOE_NAME,
+--	TOE.TitleCd,
+--	TOE.Account,
+--	TOE.SubAcct,
+--	''SUB6'' as ObjConsol,
+--	TOE.Benefits as Expenses,
+--	null as FTE
+--FROM 
+--	Raw_PPS_Expenses AS TOE 
+--	LEFT JOIN FISDataMart.dbo.Accounts AS A ON TOE.Account = A.Account 
+--	AND A.Year = ' + CONVERT(char(4), @FiscalYear) + '
+--	AND A.Period = ''--''
+--	LEFT JOIN OrgXOrgR AS OrgR ON A.Org = OrgR.Org 
+--	LEFT JOIN [FISDataMart].dbo.ARCCodes AS ARCs ON A.AnnualReportCode = ARCs.ARCCode
+--WHERE 
+--	A.Chart = ''3''
+--	AND OrgR.Chart = ''3''
+--	AND A.Year = ' + Convert(char(4), @FiscalYear) + '
+--	AND A.Period = ''--''
+--	--AND ARCs.isAES<>0 -- No longer need this because I am using a view that only gets the isAES <> 0 records.
+--	;'
 	
-	--(8650 row(s) affected)
+--	--(8650 row(s) affected)
 	
-	if @IsDebug = 1
-		begin
-			Print @TSQL
-		end
-	else
-		begin
-			EXEC(@TSQL)
-		end
+--	if @IsDebug = 1
+--		begin
+--			Print @TSQL
+--		end
+--	else
+--		begin
+--			EXEC(@TSQL)
+--		end
 
 -------------------------------------------------------------------------
--- Create the new Raw_FIS_JV_Expenses, which the Expenses_FIS_JV uses:
-print '--Executing the [dbo].[usp_Create_Raw_FIS_JV_Expenses] script...
-'
-select @TSQL = 'EXEC usp_Create_Raw_FIS_JV_Expenses @FiscalYear = ''' + CONVERT(char(4), @FiscalYear) + ''' '
-	if @IsDebug = 1
-		begin
-			Print @TSQL
-		end
-	else
-		begin
-			EXEC(@TSQL)
-		end
--------------------------------------------------------------------------
--- Insert Journal Voucher ("JV") expenses:
-print '--Inserting Journal Voucher ("JV") expenses into Expenses_PPS from FIS extract...'
-select @TSQL = 'INSERT INTO Expenses_PPS
-SELECT 
-	Org_R,
-	''JV Expn'',
-	'' JV Employee Expenses'' as Name,
-	''Unkn'' as TitleCd,
-	Account,
-	SubAccount,
-	ObjConsol,
-	Expenses,
-	null as FTE
-FROM 
-	Expenses_FIS_JV(' + Convert(char(4), @FiscalYear) + ')
-	;'
+---- Create the new Raw_FIS_JV_Expenses, which the Expenses_FIS_JV uses:
+--print '--Executing the [dbo].[usp_Create_Raw_FIS_JV_Expenses] script...
+--'
+--select @TSQL = 'EXEC usp_Create_Raw_FIS_JV_Expenses @FiscalYear = ''' + CONVERT(char(4), @FiscalYear) + ''' '
+--	if @IsDebug = 1
+--		begin
+--			Print @TSQL
+--		end
+--	else
+--		begin
+--			EXEC(@TSQL)
+--		end
+---------------------------------------------------------------------------
+---- Insert Journal Voucher ("JV") expenses:
+--print '--Inserting Journal Voucher ("JV") expenses into Expenses_PPS from FIS extract...'
+--select @TSQL = 'INSERT INTO Expenses_PPS (
+--	   [Org_R]
+--      ,[Employee_ID]
+--      ,[TOE_Name]
+--      ,[TitleCd]
+--      ,[Account]
+--      ,[SubAcct]
+--      ,[ObjConsol]
+--      ,[Expenses]
+--      ,[FTE]
+--)
+--SELECT 
+--	Org_R,
+--	''JV Expn'',
+--	'' JV Employee Expenses'' as Name,
+--	''Unkn'' as TitleCd,
+--	Account,
+--	SubAccount,
+--	ObjConsol,
+--	Expenses,
+--	null as FTE
+--FROM 
+--	Expenses_FIS_JV(' + Convert(char(4), @FiscalYear) + ')
+--	;'
 
 	--(278 row(s) affected)
 
-	if @IsDebug = 1
-		begin
-			Print @TSQL
-		end
-	else
-		begin
-			EXEC(@TSQL)
-		end
+	--if @IsDebug = 1
+	--	begin
+	--		Print @TSQL
+	--	end
+	--else
+	--	begin
+	--		EXEC(@TSQL)
+	--	end
 		
 -------------------------------------------------------------------------
 --Delete all expenses with negative EID subtotals:
@@ -234,5 +237,11 @@ MODIFICATIONS:
 
 [10/26/05] Wed
 Re-run after modifying sp_Extract_Raw_PPS_Expenses to go by Obj_Consol instead of DOS codes. 9193 row(s) now.
+[11/05/2012] Monday by kjt:
+	Revised to use the take into account that none of the benefit fields are populated with a value other than null,
+	since we are pulling from values in the labor_transactions table vs the TOE table for PPS expenses.
+[11/16/2012] Friday by kjt:
+	Revised to not add JV expenses altogether because we're not adjusting salary expenses because we're using new
+	labor transactions table for labor expenses.
 
 */

@@ -6,6 +6,8 @@
 -- Modifications: 
 -- [12/17/2010] by kjt: Revised to use AllExpenses, table (formerly Expenses) instead of new Expenses view.
 --
+-- [2013-11-21] by kjt: Revised so that would not attemppt to insert a record into ProjXOrgR 
+-- where OrgR = 'AINT' and record already present in ProjXOrgR. 
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_insert22FProjectExpense] 
 	-- Add the parameters for the stored procedure here
@@ -28,7 +30,7 @@ BEGIN
 select @ProjXOrgRCount = (SELECT COUNT(*)
 FROM         ProjXOrgR INNER JOIN
                       ReportingOrg ON ProjXOrgR.OrgR = ReportingOrg.OrgR
-WHERE     (ProjXOrgR.Accession = @Accession) AND (ProjXOrgR.OrgR = @OrgR) AND (ReportingOrg.IsActive = 1))
+WHERE     (ProjXOrgR.Accession = @Accession) AND (ProjXOrgR.OrgR = @OrgR) AND (ReportingOrg.IsActive = 1 OR ReportingOrg.OrgR = 'AINT'))
 
 If @ProjXOrgRCount = 0 
 	Begin

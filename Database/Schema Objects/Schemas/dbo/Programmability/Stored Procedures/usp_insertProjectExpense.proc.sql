@@ -6,6 +6,8 @@
 -- by Ken Taylor:
 -- Removed 201t and 201p logic as Steve said they're all only 201's now.
 -- Added changeable DataSource so this proc could also be used with 22F expenses from the UI.
+--	2013-11-21 by kjt: Revised to bypass adding entry to ProjXOrgR for AINT if accession 
+--	already present.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_insertProjectExpense] 
 	-- Add the parameters for the stored procedure here
@@ -26,7 +28,7 @@ declare @IsAIND bit = 0
 select @ProjXOrgRCount = (SELECT COUNT(*)
 FROM         ProjXOrgR INNER JOIN
                       ReportingOrg ON ProjXOrgR.OrgR = ReportingOrg.OrgR
-WHERE     (ProjXOrgR.Accession = @Accession) AND (ProjXOrgR.OrgR = @OrgR) AND (ReportingOrg.IsActive = 1))
+WHERE     (ProjXOrgR.Accession = @Accession) AND (ProjXOrgR.OrgR = @OrgR) AND (ReportingOrg.IsActive = 1 OR ReportingOrg.OrgR = 'AINT'))
 
 If @ProjXOrgRCount = 0 
 	Begin

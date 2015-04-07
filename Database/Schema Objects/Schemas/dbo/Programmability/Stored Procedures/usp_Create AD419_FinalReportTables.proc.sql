@@ -33,6 +33,8 @@ MODIFICATIONS:
 	to account for some projects having just "D" as a location and not "D*".
 2011-12-14 by kjt: Added logic to exclude cluster expenses.
 2012-01-05 by kjt: Revised to allow revised prorating scheme to handle cluster expenses.
+2014-12-17 by kjt: Removed database specific database references so it sp can be run against
+	another AD419 database, i.e. AD419_2014, etc.
 */
 -------------------------------------------------------------------------
 CREATE PROCEDURE [dbo].[usp_Create AD419_FinalReportTables]
@@ -94,19 +96,19 @@ IF @ReportType = 0
 			BEGIN --Else tables exist
 				
 				select @AdminUnitForReport + ' Unassociated Totals Report: ' as 'Report Name:'
-				EXEC ('select * from [AD419].[dbo].[' + @AdminUnitForReport + '_' + @UnassociatedTotalsTableName + '];')
+				EXEC ('select * from [dbo].[' + @AdminUnitForReport + '_' + @UnassociatedTotalsTableName + '];')
 				
 				-- Output the AD419_Non-Admin Report:
 				Select @AdminUnitForReport +' Non-Admin Report (from [' + @NonAdminTableName +'] table): ' as 'Report Name:' 
-				EXEC ('select * from [AD419].[dbo].[' + @NonAdminTableName + '];')
+				EXEC ('select * from [dbo].[' + @NonAdminTableName + '];')
 					
 				-- Output the AD419_Non-Admin_WithProratedAmounts table:
 				select @AdminUnitForReport + ' Non-Admin Report with Prorated Amounts (from [' + @AdminUnitForReport + '_' + @NonAdminWithProratedAmountsTableName + '] table: ' as 'Report Name:'
-				EXEC ('select * from [AD419].[dbo].[' + @AdminUnitForReport + '_' + @NonAdminWithProratedAmountsTableName + '];')
+				EXEC ('select * from [dbo].[' + @AdminUnitForReport + '_' + @NonAdminWithProratedAmountsTableName + '];')
 					
 				-- Output the AD419_Admin Report:
 				select @AdminUnitForReport + ' Admin Report (from [' + @AdminUnitForReport + '_' + @AdminTableName + '] table (already has prorated amounts added to appropriate SFNs)): ' as 'Report Name:'
-				EXEC ('select * from [AD419].[dbo].[' + @AdminUnitForReport + '_' + @AdminTableName + '];')
+				EXEC ('select * from [dbo].[' + @AdminUnitForReport + '_' + @AdminTableName + '];')
 			END --Else tables exist
 	END --IF @ReportType = 0
 ELSE
@@ -116,7 +118,7 @@ ELSE
 		DECLARE @OrgRExclusions  TABLE (OrgR char(4))
 		INSERT INTO @OrgRExclusions VALUES ('ADNO');
 		-- This will get any additional admin clusters like ACL1-ACL5:
-		INSERT INTO @OrgRExclusions SELECT [AdminClusterOrgR] FROM [AD419].[dbo].[ReportingOrg] WHERE [IsAdminCluster] = 1 AND [IsActive] = 1;
+		INSERT INTO @OrgRExclusions SELECT [AdminClusterOrgR] FROM [dbo].[ReportingOrg] WHERE [IsAdminCluster] = 1 AND [IsActive] = 1;
 
 		DECLARE @Unassociated_Non_CAES_Expenses TABLE (OrgR varchar(4), Spent float, FTE float)
 
@@ -152,27 +154,27 @@ ELSE
 				-- Create, Re-create the Non-Admin Report Table
 				-- *This will be used for the Final Non-Admin report
 				IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[' + @NonAdminTableName + ']') AND type in (N'U'))
-					EXEC('drop table [AD419].[dbo].[' + @NonAdminTableName + ']')
+					EXEC('drop table [dbo].[' + @NonAdminTableName + ']')
 				-- Save the Non-Admin report to the database:
 				EXEC('
-				select * into [AD419].[dbo].[' + @NonAdminTableName + '] from [AD419].[dbo].[ReportsList] order by dept, proj')
+				select * into [dbo].[' + @NonAdminTableName + '] from [dbo].[ReportsList] order by dept, proj')
 				IF @IsDebug = 1 PRINT 'Completed creating Non-Admin table'
 				
 				-- Create, Re-create the Admin Report Table -- Basically the non-admin table with the admin amounts 
 				-- pro-rated across the various projects' SFNs as appropriate.
 				-- This is a template table used as a starting place for the individual admin units' admin reports
 				IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[' + @AdminTableName + '_temp]') AND type in (N'U'))
-					EXEC('drop table [AD419].[dbo].[' + @AdminTableName + '_temp]')
+					EXEC('drop table [dbo].[' + @AdminTableName + '_temp]')
 				-- Save the Admin report to the database:
-				EXEC('select * into [AD419].[dbo].[' + @AdminTableName + '_temp] from [AD419].[dbo].[' + @NonAdminTableName + ']')
+				EXEC('select * into [dbo].[' + @AdminTableName + '_temp] from [dbo].[' + @NonAdminTableName + ']')
 				IF @IsDebug = 1 PRINT 'Completed creating Admin temp table'
 				
 				-- Drop and re-create AdminTotalsTable to keep track of running totals:
 				-- *This will be used for the Final Admin Report 
 				IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + ']') AND type in (N'U'))
-					EXEC('drop table [AD419].[dbo].[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + ']')
+					EXEC('drop table [dbo].[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + ']')
 				-- This is where we store the running totals for the admin expenses
-				EXEC('SELECT * INTO AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + '] FROM [AD419].[dbo].[' + @AdminTableName + '_temp]')
+				EXEC('SELECT * INTO dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + '] FROM [dbo].[' + @AdminTableName + '_temp]')
 				IF @IsDebug = 1 PRINT 'Completed creating AdminTotalsTable table'
 				
 				-- Create, Re-create the AdminWithProratedAmountsTemp Table
@@ -195,16 +197,16 @@ ELSE
 				-- Drop and re-create NonAdminWithProRatesTotalsTable to keep track of running totals:
 				-- *This will be used for the final Non-Admin with Prorated Amounts report.
 				IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + ']') AND type in (N'U'))
-					EXEC('drop table [AD419].[dbo].[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + ']')
-				EXEC('SELECT * INTO AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + '] FROM [dbo].[' + @NonAdminWithProratedAmountsTableName + '_temp]')
+					EXEC('drop table [dbo].[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + ']')
+				EXEC('SELECT * INTO dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + '] FROM [dbo].[' + @NonAdminWithProratedAmountsTableName + '_temp]')
 				
 				-- This is a table variable containing '' for all admin units, plus ADNO.  It is then populated from the 
-				-- [AD419].[dbo].[ReportingOrg] table WHERE IsAdminCluster = 1 for the remaining admin clusters
+				-- [dbo].[ReportingOrg] table WHERE IsAdminCluster = 1 for the remaining admin clusters
 				DECLARE @AdminUnits TABLE (AdminUnit varchar(5))
 				
 				INSERT INTO @AdminUnits VALUES (@AllTableNamePrefix), ('ADNO')  -- '' is for ALL admin unit expenses, i.e. ADNO, ACL1-ACl5; ADNO is for the Dean's Office expenses.
 				-- These are for the remaining admin clusters, currently ACL1-ACL5
-				INSERT INTO @AdminUnits SELECT OrgR FROM [AD419].[dbo].[ReportingOrg] WHERE IsAdminCluster = 1
+				INSERT INTO @AdminUnits SELECT OrgR FROM [dbo].[ReportingOrg] WHERE IsAdminCluster = 1
 				
 				DECLARE AdminUnitCursor Cursor for select AdminUnit from @AdminUnits for READ ONLY
 				open AdminUnitCursor
@@ -250,11 +252,11 @@ ELSE
 				-- in the Admin totals table:
 				
 				SELECT @TSQL = '
-				Update AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + '] set f231 = (f201 + f202 + f203 + f204 + f205)
-				Update AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + '] set f332 = (f219 + f209 + f310 + f308 + f311 + f316 + f312 + f313 + f314 + f315 + f318)
-				Update AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + '] set f233 = (f220 + f22F + f221 + f222 + f223)
-				Update AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + '] set f234 = (f231 + f332 + f233)
-				Update AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + '] set f350 = (f241 + f242 + f243 + f244)
+				Update dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + '] set f231 = (f201 + f202 + f203 + f204 + f205)
+				Update dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + '] set f332 = (f219 + f209 + f310 + f308 + f311 + f316 + f312 + f313 + f314 + f315 + f318)
+				Update dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + '] set f233 = (f220 + f22F + f221 + f222 + f223)
+				Update dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + '] set f234 = (f231 + f332 + f233)
+				Update dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + '] set f350 = (f241 + f242 + f243 + f244)
 			'
 				if @IsDebug = 1
 					Print @TSQL
@@ -266,11 +268,11 @@ ELSE
 				-- Note that this uses totals from the Admin totals table, so it must have already been updated, as in the previous step.
 				 
 				SELECT @TSQL = '
-				Update AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + '] set f231 = (f201 + f202 + f203 + f204 + f205)
-				Update AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + '] set f332 = (select f332 from AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + '] t2 where t2.accession = AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + '].accession) 
-				Update AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + '] set f233 = (select f233 from AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + '] t2 where t2.accession = AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + '].accession)
-				Update AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + '] set f234 = (select f234 from AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + '] t2 where t2.accession = AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + '].accession)
-				Update AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + '] set f350 = (select f350 from AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + '] t2 where t2.accession = AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + '].accession)
+				Update dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + '] set f231 = (f201 + f202 + f203 + f204 + f205)
+				Update dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + '] set f332 = (select f332 from dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + '] t2 where t2.accession = dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + '].accession) 
+				Update dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + '] set f233 = (select f233 from dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + '] t2 where t2.accession = dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + '].accession)
+				Update dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + '] set f234 = (select f234 from dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + '] t2 where t2.accession = dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + '].accession)
+				Update dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + '] set f350 = (select f350 from dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + '] t2 where t2.accession = dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + '].accession)
 			'
 				if @IsDebug = 1
 					Print @TSQL
@@ -279,9 +281,9 @@ ELSE
 				
 				IF @IsDebug = 1 
 					BEGIN
-						EXEC('SELECT * FROM AD419.dbo.[' + @NonAdminTableName + ']')
-						EXEC('SELECT * FROM AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + ']')
-						EXEC('SELECT * FROM AD419.dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + ']')
+						EXEC('SELECT * FROM dbo.[' + @NonAdminTableName + ']')
+						EXEC('SELECT * FROM dbo.[' + @FinalReportTablesNamePrefix + '_' + @NonAdminWithProratedAmountsTableName + ']')
+						EXEC('SELECT * FROM dbo.[' + @FinalReportTablesNamePrefix + '_' + @AdminTableName + ']')
 					END
 										
 				--- Create the finalized Non-Admin with prorated amounts "flat" table used for the "AD419 Non-Admin with Prorate Amounts report"
@@ -293,8 +295,8 @@ ELSE
 					@IsVerboseDebug = @IsVerboseDebug;
 					
 				-- Drop the temp tables:					
-				EXEC('DROP TABLE [AD419].[dbo].[' + @AdminTableName + '_temp]');
-				EXEC('DROP TABLE [AD419].[dbo].[' + @NonAdminWithProratedAmountsTableName + '_temp]'); 
+				EXEC('DROP TABLE [dbo].[' + @AdminTableName + '_temp]');
+				EXEC('DROP TABLE [dbo].[' + @NonAdminWithProratedAmountsTableName + '_temp]'); 
 				
 				-- Create the AD419_UnassociatedTotals view, that is really just a view of the All_UnassociatedTotals table.
 				DECLARE @MyFinalReportTablesNamePrefix varchar(255) = (SELECT @FinalReportTablesNamePrefix + '_' )

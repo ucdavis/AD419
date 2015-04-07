@@ -5,8 +5,11 @@
 -- for both unassociated monetary and FTE amounts. 
 -- Usages:
 -- EXEC usp_ProrateAdminExpenses @AdminUnit = '' or 'ADNO' or 'ACL1' thru 'ACL5'.
+-- Modifications:
+-- 2014-12-17 by kjt: Removed database specific database references so it sp can be run against
+--	another AD419 database, i.e. AD419_2014, etc.
 -- =============================================
-CREATE PROCEDURE usp_ProrateAdminExpenses 
+CREATE PROCEDURE [dbo].[usp_ProrateAdminExpenses] 
 	-- Add the parameters for the stored procedure here
 	@AdminUnit varchar(4) = '', --'' is representative of "ALL" unassociated admin expenses.
 	@AdminTotalsTableName varchar(255) = 'AdminTotalsTable', --The table name for the Final Admin Report.
@@ -49,8 +52,8 @@ BEGIN
 	INSERT INTO @NonAdminTable SELECT * from [' + @NonAdminTableName + '] 
 				
 	DECLARE @SFN_UnassociatedTotal AS SFN_UnassociatedTotalsType
-	SELECT TOP 0 * INTO [AD419].[dbo].[' + @AdminUnit + '_' + @UnassociatedTotalsTableName + '] FROM @SFN_UnassociatedTotal 
-	INSERT INTO [AD419].[dbo].[' + @AdminUnit + '_' + @UnassociatedTotalsTableName + '] EXEC usp_GetSFN_UnassociatedTotals @NonAdminTable, ''' + @AdminUnit + ''', ''' + @AllTableNamePrefix + '''
+	SELECT TOP 0 * INTO [dbo].[' + @AdminUnit + '_' + @UnassociatedTotalsTableName + '] FROM @SFN_UnassociatedTotal 
+	INSERT INTO [dbo].[' + @AdminUnit + '_' + @UnassociatedTotalsTableName + '] EXEC usp_GetSFN_UnassociatedTotals @NonAdminTable, ''' + @AdminUnit + ''', ''' + @AllTableNamePrefix + '''
 	'
 
 	IF @IsDebug = 1
@@ -62,17 +65,17 @@ BEGIN
 
 	-- Delete and load the Admin Unit's unassociated totals to a table variable
 	DELETE FROM @SFN_UnassociatedTotal	
-	INSERT INTO @SFN_UnassociatedTotal EXEC('SELECT * FROM [AD419].[dbo].[' + @AdminUnit + '_' + @UnassociatedTotalsTableName + ']');
+	INSERT INTO @SFN_UnassociatedTotal EXEC('SELECT * FROM [dbo].[' + @AdminUnit + '_' + @UnassociatedTotalsTableName + ']');
 
 	-- Create a new copy from AdminTemp table for the particular admin unit
 	IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].['+ @AdminUnit + '_' + @AdminTableName + ']') AND type in (N'U'))
-		EXEC('drop table [AD419].[dbo].[' + @AdminUnit + '_' + @AdminTableName + ']')
-		EXEC('SELECT * INTO [AD419].[dbo].[' + @AdminUnit + '_' + @AdminTableName+ '] FROM [dbo].[' + @AdminTableName + '_temp]')
+		EXEC('drop table [dbo].[' + @AdminUnit + '_' + @AdminTableName + ']')
+		EXEC('SELECT * INTO [dbo].[' + @AdminUnit + '_' + @AdminTableName+ '] FROM [dbo].[' + @AdminTableName + '_temp]')
 
 	-- Create a new copy of NonAdminWithProratedAmounts from NonAdminWithProratedAmounts_temp for the particular admin unit
 	IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].['+ @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + ']') AND type in (N'U'))
-		EXEC('drop table [AD419].[dbo].[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName +']')
-		EXEC('SELECT * INTO [AD419].[dbo].[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] FROM [dbo].[' + @NonAdminWithProratedAmountsTableName + '_temp]')
+		EXEC('drop table [dbo].[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName +']')
+		EXEC('SELECT * INTO [dbo].[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] FROM [dbo].[' + @NonAdminWithProratedAmountsTableName + '_temp]')
 
 	IF @IsDebug = 1
 		BEGIN
@@ -100,23 +103,23 @@ BEGIN
 				if @MySFN not in ('241','242','243','244')
 					begin  --if @MySFN not in ('241','242','243','244')
 						select @TSQL = 
-						'update AD419.dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f' + @MySFN + '_prorate    = (f' + @MySFN + ') / (' + CONVERT(varchar(50), @ProjectsTotal) + ') * ' + CONVERT(varchar(50), @MyUnassociatedTotal) 
+						'update dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f' + @MySFN + '_prorate    = (f' + @MySFN + ') / (' + CONVERT(varchar(50), @ProjectsTotal) + ') * ' + CONVERT(varchar(50), @MyUnassociatedTotal) 
 						
 						IF @AdminUnit IS NULL OR @AdminUnit LIKE '' OR @AdminUnit LIKE @AllTableNamePrefix OR @AdminUnit LIKE 'ADNO' 
 							SELECT @TSQL += ';
 '  
-						ELSE SELECT @TSQL +=  ' WHERE dept IN (SELECT OrgCd3Char FROM [AD419].[dbo].[ReportingOrg] WHERE AdminClusterOrgR = ''' + @AdminUnit + ''');
+						ELSE SELECT @TSQL +=  ' WHERE dept IN (SELECT OrgCd3Char FROM [dbo].[ReportingOrg] WHERE AdminClusterOrgR = ''' + @AdminUnit + ''');
 '
-						select @TSQL += 'update AD419.dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f' + @MySFN + '_plus_admin = (f' + @MySFN + ') + (f' + @MySFN + '_prorate)'
+						select @TSQL += 'update dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f' + @MySFN + '_plus_admin = (f' + @MySFN + ') + (f' + @MySFN + '_prorate)'
 						IF @AdminUnit IS NULL OR @AdminUnit LIKE '' OR @AdminUnit LIKE @AllTableNamePrefix OR @AdminUnit LIKE 'ADNO' 
 							SELECT @TSQL += ';
 '   
-						ELSE SELECT @TSQL +=  ' WHERE dept IN (SELECT OrgCd3Char FROM [AD419].[dbo].[ReportingOrg] WHERE AdminClusterOrgR = ''' + @AdminUnit + ''');
+						ELSE SELECT @TSQL +=  ' WHERE dept IN (SELECT OrgCd3Char FROM [dbo].[ReportingOrg] WHERE AdminClusterOrgR = ''' + @AdminUnit + ''');
 '
-						select @TSQL += 'update AD419.dbo.[' + @AdminUnit + '_' + @AdminTableName + '] set f' + @MySFN +  '= (f' + @MySFN + ') + ((f' + @MySFN + ') / (' + CONVERT(varchar(50), @ProjectsTotal) + ') * ' + CONVERT(varchar(50), @MyUnassociatedTotal) + ')'
+						select @TSQL += 'update dbo.[' + @AdminUnit + '_' + @AdminTableName + '] set f' + @MySFN +  '= (f' + @MySFN + ') + ((f' + @MySFN + ') / (' + CONVERT(varchar(50), @ProjectsTotal) + ') * ' + CONVERT(varchar(50), @MyUnassociatedTotal) + ')'
 						IF @AdminUnit IS NULL OR @AdminUnit LIKE '' OR @AdminUnit LIKE @AllTableNamePrefix OR @AdminUnit LIKE 'ADNO' 
 							SELECT @TSQL += ';'   
-						ELSE SELECT @TSQL +=  ' WHERE dept IN (SELECT OrgCd3Char FROM [AD419].[dbo].[ReportingOrg] WHERE AdminClusterOrgR = ''' + @AdminUnit + ''');'
+						ELSE SELECT @TSQL +=  ' WHERE dept IN (SELECT OrgCd3Char FROM [dbo].[ReportingOrg] WHERE AdminClusterOrgR = ''' + @AdminUnit + ''');'
 							
 						if @IsDebug = 1
 							print @TSQL
@@ -129,23 +132,23 @@ BEGIN
 							select 'Now updating SFN: ' + @MySFN
 							
 						select @TSQL = '
-						update AD419.dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f' + @MySFN + '_prorate = ROUND((f' + @MySFN + ') / (' + CONVERT(varchar(50), @ProjectsTotal) + ') * ' + CONVERT(varchar(20), @MyUnassociatedTotal) + ',1)'
+						update dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f' + @MySFN + '_prorate = ROUND((f' + @MySFN + ') / (' + CONVERT(varchar(50), @ProjectsTotal) + ') * ' + CONVERT(varchar(20), @MyUnassociatedTotal) + ',1)'
 						IF @AdminUnit IS NULL OR @AdminUnit LIKE '' OR @AdminUnit LIKE @AllTableNamePrefix OR @AdminUnit LIKE 'ADNO' 
 							SELECT @TSQL += ';
 '   
-						ELSE SELECT @TSQL +=  ' WHERE dept IN (SELECT OrgCd3Char FROM [AD419].[dbo].[ReportingOrg] WHERE AdminClusterOrgR = ''' + @AdminUnit + ''');
+						ELSE SELECT @TSQL +=  ' WHERE dept IN (SELECT OrgCd3Char FROM [dbo].[ReportingOrg] WHERE AdminClusterOrgR = ''' + @AdminUnit + ''');
 '
-						select @TSQL += 'update AD419.dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f' + @MySFN + '_plus_admin = (f' + @MySFN + ') + (f' + @MySFN + '_prorate)'
+						select @TSQL += 'update dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f' + @MySFN + '_plus_admin = (f' + @MySFN + ') + (f' + @MySFN + '_prorate)'
 						IF @AdminUnit IS NULL OR @AdminUnit LIKE '' OR @AdminUnit LIKE @AllTableNamePrefix OR @AdminUnit LIKE 'ADNO' 
 							SELECT @TSQL += ';
 '   
-						ELSE SELECT @TSQL +=  ' WHERE dept IN (SELECT OrgCd3Char FROM [AD419].[dbo].[ReportingOrg] WHERE AdminClusterOrgR = ''' + @AdminUnit + ''');
+						ELSE SELECT @TSQL +=  ' WHERE dept IN (SELECT OrgCd3Char FROM [dbo].[ReportingOrg] WHERE AdminClusterOrgR = ''' + @AdminUnit + ''');
 '
-						select @TSQL += 'update AD419.dbo.[' + @AdminUnit + '_' + @AdminTableName + '] set f' + @MySFN +  '= (f' + @MySFN + ') +             ROUND((f' + @MySFN + ') / (' + CONVERT(varchar(50), @ProjectsTotal) + ') * ' + CONVERT(varchar(20), @MyUnassociatedTotal) + ',1)'
+						select @TSQL += 'update dbo.[' + @AdminUnit + '_' + @AdminTableName + '] set f' + @MySFN +  '= (f' + @MySFN + ') +             ROUND((f' + @MySFN + ') / (' + CONVERT(varchar(50), @ProjectsTotal) + ') * ' + CONVERT(varchar(20), @MyUnassociatedTotal) + ',1)'
 						IF @AdminUnit IS NULL OR @AdminUnit LIKE '' OR @AdminUnit LIKE @AllTableNamePrefix OR @AdminUnit LIKE 'ADNO' 
 							SELECT @TSQL += ';
 '   
-						ELSE SELECT @TSQL +=  ' WHERE dept IN (SELECT OrgCd3Char FROM [AD419].[dbo].[ReportingOrg] WHERE AdminClusterOrgR = ''' + @AdminUnit + ''');
+						ELSE SELECT @TSQL +=  ' WHERE dept IN (SELECT OrgCd3Char FROM [dbo].[ReportingOrg] WHERE AdminClusterOrgR = ''' + @AdminUnit + ''');
 '
 						if @IsDebug = 1
 							print @TSQL
@@ -153,17 +156,17 @@ BEGIN
 						EXEC (@TSQL)
 						
 						IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[TableValuesToProrate]') AND type in (N'U'))
-							Drop TABLE [AD419].[dbo].[TableValuesToProrate];
+							Drop TABLE [dbo].[TableValuesToProrate];
 							
-						create TABLE [AD419].[dbo].[TableValuesToProrate] (accession varchar(7), amt decimal(16,2), prorate decimal(16,2))
+						create TABLE [dbo].[TableValuesToProrate] (accession varchar(7), amt decimal(16,2), prorate decimal(16,2))
 					 
 						select @TSQL = '
-						select accession, f' + @MySFN + ', f' + @MySFN + '_prorate as prorate from AD419.dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] where f' + @MySFN + ' > 0'
+						select accession, f' + @MySFN + ', f' + @MySFN + '_prorate as prorate from dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] where f' + @MySFN + ' > 0'
 						IF @AdminUnit IS NULL OR @AdminUnit LIKE '' OR @AdminUnit LIKE @AllTableNamePrefix OR @AdminUnit LIKE 'ADNO'
 							SELECT @TSQL +=  '
 ' 
 						ELSE 
-							select @TSQL += ' AND dept IN (SELECT OrgCd3Char FROM [AD419].[dbo].[ReportingOrg] WHERE AdminClusterOrgR = ''' + @AdminUnit + ''')
+							select @TSQL += ' AND dept IN (SELECT OrgCd3Char FROM [dbo].[ReportingOrg] WHERE AdminClusterOrgR = ''' + @AdminUnit + ''')
 '
 						SELECT @TSQL +=  ' order by f' + @MySFN + ' desc;
 '
@@ -218,10 +221,10 @@ BEGIN
 								END
 				
 							Select @TSQL = '	
-							update AD419.dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f' + @MySFN + '_prorate = ' + Convert(varchar(50), @NewProrateAmount)
+							update dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f' + @MySFN + '_prorate = ' + Convert(varchar(50), @NewProrateAmount)
 							+ ', f' + @MySFN + '_plus_admin = ' + Convert(varchar(50), @NewProrateAmount + @amt) + ' where accession = ' + Convert(varchar(7), @accession) + ';
 						
-							update AD419.dbo.[' + @AdminUnit + '_' + @AdminTableName + '] set f' + @MySFN + ' = ' + Convert(varchar(50), @NewProrateAmount + @amt) + ' where accession = ' + Convert(varchar(7), @accession) + ';
+							update dbo.[' + @AdminUnit + '_' + @AdminTableName + '] set f' + @MySFN + ' = ' + Convert(varchar(50), @NewProrateAmount + @amt) + ' where accession = ' + Convert(varchar(7), @accession) + ';
 '
 							if @IsDebug = 1
 								Print @TSQL
@@ -237,7 +240,7 @@ BEGIN
 							
 							fetch next from MyCursor2 into @accession, @amt, @prorate
 						end --while have outstanding unassociated amount to prorate for the given SFN
-					drop TABLE [AD419].[dbo].[TableValuesToProrate]
+					drop TABLE [dbo].[TableValuesToProrate]
 					
 					if @IsDebug = 1
 						select 'Final Amount: ' + CONVERT(varchar(50), @MySum) + '; Amount Applied: ' + CONVERT(varchar(50), @AmountApplied)
@@ -257,11 +260,11 @@ BEGIN
 		-- in the AD419_Admin and AD419_Non-Admin tables:
 		
 		SELECT @TSQL = '
-		Update AD419.dbo.[' + @AdminUnit + '_' + @AdminTableName + '] set f231 = (f201 + f202 + f203 + f204 + f205)
-		Update AD419.dbo.[' + @AdminUnit + '_' + @AdminTableName + '] set f332 = (f219 + f209 + f310 + f308 + f311 + f316 + f312 + f313 + f314 + f315 + f318)
-		Update AD419.dbo.[' + @AdminUnit + '_' + @AdminTableName + '] set f233 = (f220 + f22F + f221 + f222 + f223)
-		Update AD419.dbo.[' + @AdminUnit + '_' + @AdminTableName + '] set f234 = (f231 + f332 + f233)
-		Update AD419.dbo.[' + @AdminUnit + '_' + @AdminTableName + '] set f350 = (f241 + f242 + f243 + f244)
+		Update dbo.[' + @AdminUnit + '_' + @AdminTableName + '] set f231 = (f201 + f202 + f203 + f204 + f205)
+		Update dbo.[' + @AdminUnit + '_' + @AdminTableName + '] set f332 = (f219 + f209 + f310 + f308 + f311 + f316 + f312 + f313 + f314 + f315 + f318)
+		Update dbo.[' + @AdminUnit + '_' + @AdminTableName + '] set f233 = (f220 + f22F + f221 + f222 + f223)
+		Update dbo.[' + @AdminUnit + '_' + @AdminTableName + '] set f234 = (f231 + f332 + f233)
+		Update dbo.[' + @AdminUnit + '_' + @AdminTableName + '] set f350 = (f241 + f242 + f243 + f244)
 '
 		if @IsDebug = 1
 			Print @TSQL
@@ -269,11 +272,11 @@ BEGIN
 		EXEC(@TSQL)
 		 
 		SELECT @TSQL = '
-		Update AD419.dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f231 = (f201 + f202 + f203 + f204 + f205)
-		Update AD419.dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f332 = (select f332 from AD419.dbo.[' + @AdminUnit + '_' + @AdminTableName + '] t2 where t2.accession = AD419.dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '].accession) 
-		Update AD419.dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f233 = (select f233 from AD419.dbo.[' + @AdminUnit + '_' + @AdminTableName + '] t2 where t2.accession = AD419.dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '].accession)
-		Update AD419.dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f234 = (select f234 from AD419.dbo.[' + @AdminUnit + '_' + @AdminTableName + '] t2 where t2.accession = AD419.dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '].accession)
-		Update AD419.dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f350 = (select f350 from AD419.dbo.[' + @AdminUnit + '_' + @AdminTableName + '] t2 where t2.accession = AD419.dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '].accession)
+		Update dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f231 = (f201 + f202 + f203 + f204 + f205)
+		Update dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f332 = (select f332 from dbo.[' + @AdminUnit + '_' + @AdminTableName + '] t2 where t2.accession = dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '].accession) 
+		Update dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f233 = (select f233 from dbo.[' + @AdminUnit + '_' + @AdminTableName + '] t2 where t2.accession = dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '].accession)
+		Update dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f234 = (select f234 from dbo.[' + @AdminUnit + '_' + @AdminTableName + '] t2 where t2.accession = dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '].accession)
+		Update dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f350 = (select f350 from dbo.[' + @AdminUnit + '_' + @AdminTableName + '] t2 where t2.accession = dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '].accession)
 '
 		if @IsDebug = 1
 			Print @TSQL
@@ -282,8 +285,8 @@ BEGIN
 		
 		IF @IsDebug = 1 
 			BEGIN
-				SELECT @TSQL = 'SELECT * FROM AD419.dbo.[' + @AdminUnit + '_' + @AdminTableName + ']
-				SELECT * FROM AD419.dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + ']
+				SELECT @TSQL = 'SELECT * FROM dbo.[' + @AdminUnit + '_' + @AdminTableName + ']
+				SELECT * FROM dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + ']
 '
 				EXEC(@TSQL)
 			END
@@ -303,9 +306,9 @@ BEGIN
 				while @@FETCH_STATUS <> -1
 					BEGIN --while have more SFN amounts to total:
 						SELECT @TSQL += '
-						Update AD419.dbo.[' + @NonAdminWithProRatesTotalsTableName + '] set f' + @MyNonAdminWithProratedAmountsSFN + '_prorate = f' + @MyNonAdminWithProratedAmountsSFN + '_prorate + (SELECT f' + @MyNonAdminWithProratedAmountsSFN + '_prorate FROM AD419.dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] t2 WHERE t2.Accession = AD419.dbo.[' + @NonAdminWithProRatesTotalsTableName + '].Accession)
-						Update AD419.dbo.[' + @NonAdminWithProRatesTotalsTableName + '] set f' + @MyNonAdminWithProratedAmountsSFN + '_plus_admin = (f' + @MyNonAdminWithProratedAmountsSFN + ' + f' + @MyNonAdminWithProratedAmountsSFN + '_prorate)
-						Update AD419.dbo.[' + @AdminTotalsTableName + '] set f' + @MyNonAdminWithProratedAmountsSFN + ' = (f' + @MyNonAdminWithProratedAmountsSFN + ') + (SELECT f' + @MyNonAdminWithProratedAmountsSFN + '_prorate FROM AD419.dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] t2 WHERE t2.Accession = AD419.dbo.[' + @AdminTotalsTableName + '].Accession)
+						Update dbo.[' + @NonAdminWithProRatesTotalsTableName + '] set f' + @MyNonAdminWithProratedAmountsSFN + '_prorate = f' + @MyNonAdminWithProratedAmountsSFN + '_prorate + (SELECT f' + @MyNonAdminWithProratedAmountsSFN + '_prorate FROM dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] t2 WHERE t2.Accession = dbo.[' + @NonAdminWithProRatesTotalsTableName + '].Accession)
+						Update dbo.[' + @NonAdminWithProRatesTotalsTableName + '] set f' + @MyNonAdminWithProratedAmountsSFN + '_plus_admin = (f' + @MyNonAdminWithProratedAmountsSFN + ' + f' + @MyNonAdminWithProratedAmountsSFN + '_prorate)
+						Update dbo.[' + @AdminTotalsTableName + '] set f' + @MyNonAdminWithProratedAmountsSFN + ' = (f' + @MyNonAdminWithProratedAmountsSFN + ') + (SELECT f' + @MyNonAdminWithProratedAmountsSFN + '_prorate FROM dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] t2 WHERE t2.Accession = dbo.[' + @AdminTotalsTableName + '].Accession)
 '
 						fetch next from MySFNCursor into @MyNonAdminWithProratedAmountsSFN
 					END --while have more SFN amounts to total.

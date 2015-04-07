@@ -234,8 +234,43 @@ BEGIN
 		
     -- Get back out the Expense ID from the expenses table
     -- Scope_Identity function pulls the last identity value generated within this context (script)
-    SELECT @ExpenseID = @@Identity
-    print @ExpenseID
+	--IF @@Identity IS NULL
+ --   BEGIN
+	--	Print 'Identity is NULL!
+	--	-------------------------------------------------------------------------------------------------------';
+	--	Print + ISNULL(@DataSource,'No DataSource') 
+	--	+ ''', ''' 
+	--	+ ISNULL(@OrgR, 'No OrgR') +''', ''' 
+	--	+ ISNULL(@Chart, 'No Chart') +''', ''' 
+	--	+ ISNULL(@Account, 'No Account') + ''', ' 
+	--	+ ( CASE  WHEN @SubAccount IS NULL THEN  'NULL'
+	--			  ELSE  '''' + Convert(varchar(5),@SubAccount) + '''' END ) 
+	--	+', ''' + ISNULL(REPLACE(@PI_Name, '''', ''''''), 'No PI Name') + ''', ' 
+	--	+ ( CASE  WHEN @Org IS NULL THEN  'NULL'
+	--			  ELSE '''' + @Org + '''' END )
+	--	+ ', ''' + ISNULL(@EID, 'No EID') + ''', ''' 
+	--	+ ISNULL(REPLACE(@EmployeeName, '''', ''''''), 'No Employee Name') 
+	--	+ ''', ''' + ISNULL(@TitleCd, 'No TitleCd')
+	--	+ ''', ''' + ISNULL(@TitleCdName, 'No TitleCdName')
+ --       + ''', ''' + ISNULL(@ExpSFN , 'No ExpSFN')
+ --       + ''', ' + ISNULL(Convert(varchar(20), @Expenses), 'No Expenses')
+ --       + ', ''' + ISNULL(@FTESFN, 'No FTESFN') 
+ --       + ''', ' + ISNULL(Convert(varchar(20), @FTE), 'No FTE')
+ --       + ', ' + Convert(varchar(5),@isAssociated) 
+ --       + ', ' + Convert(varchar(5),@isAssociable) 
+ --       + ', ' + Convert(varchar(5),@isNonEmpExp) 
+ --       + ', NULL, ''' 
+ --       + @StaffGrpCd 
+ --       + ''');'
+	--	Print '		-------------------------------------------------------------------------------------------------------';
+	--END
+	--ELSE
+	--BEGIN
+	--	SELECT @ExpenseID = @@Identity;
+	--END
+	SELECT @ExpenseID = @@Identity;
+    print '-- @ExpenseID: ' + ISNULL(CONVERT(varchar(30), @ExpenseID), 'Error - No ID returned!') + '
+	';
 
     -- Insert the values into the associations table
     Select @TSQL = 'Insert into Associations (ExpenseID, OrgR, Accession, Expenses, FTE)

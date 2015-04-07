@@ -4,8 +4,7 @@
 <asp:Content ID="Content1" ContentPlaceHolderID="ContentHeader" runat="Server">
 </asp:Content>
 <asp:Content ID="Content2" ContentPlaceHolderID="ContentBody" runat="Server">
-    <Ajax:ScriptManager ID="ScriptManager" runat="server" EnablePartialRendering="true">
-    </Ajax:ScriptManager>
+<Ajax:ScriptManager ID="ScriptManager" runat="server" EnablePartialRendering="true"></Ajax:ScriptManager>
     <div id="wrapper2" style="font-size: 12px;">
 
         <script type="text/javascript" language="javascript">
@@ -363,10 +362,10 @@
                                         <strong>Expense Record Grouping:</strong> &nbsp;
                                         <asp:DropDownList ID="dlistRecordGrouping" runat="server" AutoPostBack="True" OnSelectedIndexChanged="dlistRecordGrouping_SelectedIndexChanged">
                                             <asp:ListItem Text="Organization"></asp:ListItem>
-                                            <asp:ListItem>Sub-Account</asp:ListItem>
                                             <asp:ListItem Value="PI">Principle Investigator</asp:ListItem>
                                             <asp:ListItem>Account</asp:ListItem>
                                             <asp:ListItem>Employee</asp:ListItem>
+                                            <asp:ListItem>Sub-Account</asp:ListItem>
                                             <asp:ListItem Value="None">No Grouping</asp:ListItem>
                                         </asp:DropDownList>
                                         <%--

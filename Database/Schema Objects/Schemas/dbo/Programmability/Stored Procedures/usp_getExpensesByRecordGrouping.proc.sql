@@ -2,6 +2,8 @@
 -- Author:		Scott Kirkland
 -- Create date: 11/15/06
 -- Description:	
+-- Modifications:
+-- 2012-03-08 by kjt: Revised Employee branch to handle staff type.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_getExpensesByRecordGrouping] 
 	-- Add the parameters for the stored procedure here
@@ -77,7 +79,7 @@ SET @txtSQL =
 				WHEN 1 THEN
 					' AND ( E.EID IS NULL )'
 				WHEN 0 THEN
-					' AND ( E.EID = ''' +@Criterion + ''')'
+					' AND ( E.EID + ''|'' + E.FTE_SFN = ''' + @Criterion + ''')'
 			END
 		WHEN 'None' THEN
 			CASE @CriterionNull

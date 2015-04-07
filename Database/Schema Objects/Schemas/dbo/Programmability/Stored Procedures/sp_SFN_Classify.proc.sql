@@ -19,7 +19,7 @@ DEPENDENCIES:
 	Run sp_Repopulate_Acct_SFN at beginning of reporting cycle to populate with all the latest FIS accounts.
 -------------------------------------------------------------------------
 */
-CREATE procedure [dbo].[sp_SFN_Classify]
+CREATE PROCEDURE [dbo].[sp_SFN_Classify]
 	@FiscalYear int = 2009,
 	@IsDebug bit = 0
 AS
@@ -279,7 +279,7 @@ Select @TSQL = 'Execute Classify ''203'', ''left(OpFundNum,5) in (''''21007'''',
 Select @TSQL = 'Execute Classify ''204'', ''left(OpFundGroupCode,4) in (''''4061'''',''''4062'''',''''4063'''') and FederalAgencyCode=''''01'''' and SponsorCode in (''''0450'''',''''0334'''') 
 		AND [OpFundNum] in (
 				SELECT OPFundNum FROM [FISDataMart].[dbo].[OPFundNumbers] where Name like ''''%USDA%CSREES%'''' OR Name like ''''%USDA%NIFA%''''
-				OR Name like ''''%USDA%-%-%'''' OR Name like ''''%-%-%''''
+				OR Name like ''''%USDA%-%-%'''' OR Name like ''''%NATIONAL INSTITUTE FOR%-%-%'''' OR Name like ''''%-%-%''''
 				
 			) 
 		AND left(OpFundNum,5) not in (''''21003'''',''''21004'''',''''21005'''',''''21006'''',''''21007'''',''''21008'''',''''21009'''',''''21010'''', ''''21013'''',''''21014'''',''''21015'''',''''21016'''')	
@@ -322,4 +322,8 @@ MODIFICATIONS:
 	
 [9/10/2009] by KJT:
 	Modified to use new [FISDataMart].[dbo].[OPFundNumbers].
+
+[3/23/2015] by KJT:
+	REvised to also include 204 accounts baginning with "NATIONAL INSTITUTE FOR".
+
 */

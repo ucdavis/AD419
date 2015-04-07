@@ -4,8 +4,13 @@
 -- Description:	Given a copy of the non-admin table, and the orgR
 -- return the SFN unassociated totals table for the orgR provided. 
 -- Usage: INSERT INTO @SFN_UnassociatedTotal EXEC usp_GetSFN_UnassociatedTotals @NonAdminTable, @OrgR
+-- Modifications: 
+-- 2014-12-17 by kjt: Removed specific references to AD419 database so SP can be used against other AD419 
+--	databases like AD419_2014, etc.
+-- 2015-01-13 by kjt: Modified SQL statements returning count(*) to COUNT(Distinct Accession) because
+-- interdepartmental projects were being counted multiple times, i.e., once for each participating org.
 -- =============================================
-CREATE PROCEDURE usp_GetSFN_UnassociatedTotals 
+CREATE PROCEDURE [dbo].[usp_GetSFN_UnassociatedTotals] 
 	-- Add the parameters for the stored procedure here
 	@NonAdminTable NonAdminTableType READONLY,
 	@OrgR varchar(4) = '',
@@ -27,10 +32,10 @@ BEGIN
 				SELECT 
 					SFN.SFN
 					, (CASE WHEN @OrgR IS NULL OR @OrgR LIKE '' OR @OrgR LIKE @AllTableNamePrefix OR @OrgR LIKE 'ADNO' THEN
-							(SELECT COUNT(*) FROM [AD419].[dbo].[ProjectSFN] AS PSFN WHERE PSFN.SFN = SFN.SFN AND PSFN.Amt > 0)
+							(SELECT COUNT(DISTINCT Accession) FROM [dbo].[ProjectSFN] AS PSFN WHERE PSFN.SFN = SFN.SFN AND PSFN.Amt > 0)
 						ELSE 
-							(SELECT COUNT(*) FROM [AD419].[dbo].[ProjectSFN] AS PSFN WHERE PSFN.SFN = SFN.SFN AND PSFN.Amt > 0 
-							AND PSFN.OrgR IN (SELECT OrgR FROM [AD419].[dbo].[ReportingOrg] WHERE AdminClusterOrgR = @OrgR))
+							(SELECT COUNT(DISTINCT Accession) FROM [dbo].[ProjectSFN] AS PSFN WHERE PSFN.SFN = SFN.SFN AND PSFN.Amt > 0 
+							AND PSFN.OrgR IN (SELECT OrgR FROM [dbo].[ReportingOrg] WHERE AdminClusterOrgR = @OrgR))
 						END						
 					) as ProjCount
 					, (
@@ -54,10 +59,10 @@ BEGIN
 				SELECT 
 					SFN.SFN
 					, (CASE WHEN @OrgR IS NULL OR @OrgR LIKE '' OR @OrgR LIKE @AllTableNamePrefix OR @OrgR LIKE 'ADNO' THEN
-							(SELECT COUNT(*) FROM [AD419].[dbo].[ProjectSFN] AS PSFN WHERE PSFN.SFN = SFN.SFN AND PSFN.Amt > 0)
+							(SELECT COUNT(DISTINCT Accession) FROM [dbo].[ProjectSFN] AS PSFN WHERE PSFN.SFN = SFN.SFN AND PSFN.Amt > 0)
 						ELSE 
-							(SELECT COUNT(*) FROM [AD419].[dbo].[ProjectSFN] AS PSFN WHERE PSFN.SFN = SFN.SFN AND PSFN.Amt > 0 
-							AND PSFN.OrgR IN (SELECT OrgR FROM [AD419].[dbo].[ReportingOrg] WHERE AdminClusterOrgR = @OrgR))
+							(SELECT COUNT(DISTINCT Accession) FROM [dbo].[ProjectSFN] AS PSFN WHERE PSFN.SFN = SFN.SFN AND PSFN.Amt > 0 
+							AND PSFN.OrgR IN (SELECT OrgR FROM [dbo].[ReportingOrg] WHERE AdminClusterOrgR = @OrgR))
 						END						
 					) as ProjCount
 					, (
@@ -96,7 +101,7 @@ BEGIN
 						ELSE
 							SELECT @Statement = '
 								SELECT @ProjectsTotal_OUT = (
-									select ISNULL(SUM([f' + @SFN + ']),0) from @NonAdminTable WHERE dept IN (SELECT OrgCd3Char FROM [AD419].[dbo].[ReportingOrg] WHERE AdminClusterOrgR = ''' + @OrgR + '''))
+									select ISNULL(SUM([f' + @SFN + ']),0) from @NonAdminTable WHERE dept IN (SELECT OrgCd3Char FROM [dbo].[ReportingOrg] WHERE AdminClusterOrgR = ''' + @OrgR + '''))
 '		
 						IF @IsVerboseDebug = 1 PRINT @Statement;
 							

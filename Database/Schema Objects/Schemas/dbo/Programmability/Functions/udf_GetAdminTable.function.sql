@@ -11,8 +11,11 @@
 -- select * from udf_GetAdminTable('ADNO')
 -- select * from udf_GetAdminTable('All')
 -- select * from udf_GetAdminTable('') --AD419
+-- Modifications:
+-- 2014-12-17 by kjt: Removed database specific database references so it sp can be run against
+--	another AD419 database, i.e. AD419_2014, etc.
 -- =============================================
-CREATE FUNCTION udf_GetAdminTable
+CREATE FUNCTION [dbo].[udf_GetAdminTable]
 (
 	-- Add the parameters for the function here
 	@AdminUnit varchar(10) =  ''
@@ -60,21 +63,21 @@ BEGIN
 	-- Fill the table variable with the rows for your result set
 	
 	IF  @AdminUnit LIKE 'All'  
-		INSERT INTO @Retval SELECT * FROM [AD419].[dbo].[All_Admin]
+		INSERT INTO @Retval SELECT * FROM [dbo].[All_Admin]
 	ELSE IF @AdminUnit LIKE 'ADNO'  
-		INSERT INTO @Retval SELECT * FROM [AD419].[dbo].[ADNO_Admin]
+		INSERT INTO @Retval SELECT * FROM [dbo].[ADNO_Admin]
 	ELSE IF @AdminUnit LIKE 'ACL1'  
-		INSERT INTO @Retval SELECT * FROM [AD419].[dbo].[ACL1_Admin]
+		INSERT INTO @Retval SELECT * FROM [dbo].[ACL1_Admin]
 	ELSE IF @AdminUnit LIKE 'ACL2'  
-		INSERT INTO @Retval SELECT * FROM [AD419].[dbo].[ACL2_Admin]
+		INSERT INTO @Retval SELECT * FROM [dbo].[ACL2_Admin]
 	ELSE IF @AdminUnit LIKE 'ACL3'  
-		INSERT INTO @Retval SELECT * FROM [AD419].[dbo].[ACL3_Admin]
+		INSERT INTO @Retval SELECT * FROM [dbo].[ACL3_Admin]
 	ELSE IF @AdminUnit LIKE 'ACL4'  
-		INSERT INTO @Retval SELECT * FROM [AD419].[dbo].[ACL4_Admin]
+		INSERT INTO @Retval SELECT * FROM [dbo].[ACL4_Admin]
 	ELSE IF @AdminUnit LIKE 'ACL5'  
-		INSERT INTO @Retval SELECT * FROM [AD419].[dbo].[ACL5_Admin]
+		INSERT INTO @Retval SELECT * FROM [dbo].[ACL5_Admin]
 	ELSE
-		INSERT INTO @Retval SELECT * FROM [AD419].[dbo].[AD419_Admin] 
+		INSERT INTO @Retval SELECT * FROM [dbo].[AD419_Admin] 
 
 	RETURN 
 END

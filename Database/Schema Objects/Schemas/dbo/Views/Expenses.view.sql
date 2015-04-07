@@ -1,10 +1,25 @@
-﻿CREATE VIEW [dbo].[Expenses]
+﻿CREATE VIEW Expenses
 AS
 SELECT        ExpenseID, DataSource, 
-                         (CASE [OrgR] WHEN 'AEVE' THEN 'BEVE' WHEN 'AMCB' THEN 'BMCB' WHEN 'AMIC' THEN 'BMIC' WHEN 'ANPB' THEN 'BNPB' WHEN 'APLB' THEN 'BPLB' WHEN 'ACTR'
-                          THEN 'ADNO' ELSE OrgR END) AS OrgR, Chart, Account, SubAcct, PI_Name, Org, EID, Employee_Name, TitleCd, Title_Code_Name, Exp_SFN, Expenses, FTE_SFN, 
-                         FTE, isAssociated, isAssociable, isNonEmpExp, Sub_Exp_SFN, Staff_Grp_Cd
+                         (CASE [OrgR] 
+							WHEN 'AEVE' THEN 'BEVE' 
+							WHEN 'BCPB' THEN 'BEVE' 
+							WHEN 'AMCB' THEN 'BMCB' 
+							WHEN 'BGEN' THEN 'BMCB' 
+							WHEN 'AMIC' THEN 'BMIC' 
+							WHEN 'ANPB' THEN 'BNPB' 
+							WHEN 'APLB' THEN 'BPLB' 
+							WHEN 'CABA' THEN 'ADNO' 
+							WHEN 'ACTR' THEN 'ADNO' 
+							ELSE OrgR END) AS OrgR, Chart, Account, SubAcct, PI_Name, 
+                         Org, EID, Employee_Name, TitleCd, Title_Code_Name, Exp_SFN, Expenses, FTE_SFN, FTE, isAssociated, isAssociable, isNonEmpExp, Sub_Exp_SFN, 
+                         Staff_Grp_Cd
 FROM            dbo.AllExpenses
+WHERE        (Account NOT IN
+                             (SELECT        Account
+                               FROM            dbo.ArcCodeAccountExclusions
+                               WHERE        (Year = 2014) AND (Chart = '3'))) OR
+                         (Account IS NULL)
 
 GO
 EXECUTE sp_addextendedproperty @name = N'MS_DiagramPaneCount', @value = 1, @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'Expenses';

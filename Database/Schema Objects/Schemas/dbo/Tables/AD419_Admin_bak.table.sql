@@ -1,4 +1,4 @@
-﻿CREATE TABLE [dbo].[AD419_Admin_bak] (
+﻿/*CREATE TABLE [dbo].[AD419_Admin_bak] (
     [loc]       CHAR (2)        NULL,
     [dept]      CHAR (3)        NULL,
     [proj]      CHAR (4)        NULL,
@@ -35,5 +35,5 @@
     [f243]      DECIMAL (16, 2) NULL,
     [f244]      DECIMAL (16, 2) NULL,
     [f350]      DECIMAL (16, 2) NULL
-);
+);*/
 

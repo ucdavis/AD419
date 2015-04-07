@@ -82,29 +82,14 @@ BEGIN TRANSACTION
 	Select @TSQL = 'INSERT INTO AllExpenses
 		(DataSource, Chart, OrgR, Account, Expenses, isNonEmpExp, isAssociated, isAssociable, Org, Exp_SFN)
 		(
-		SELECT distinct ''204'' DataSource, E.Chart, O.OrgR, E.AccountID, sum(E.DividedAmount) Expenses, 1, 1, 0, A.Org, ''204'' Exp_SFN
+		SELECT distinct ''204'' DataSource, Chart, OrgR, AccountID Account, sum(E.DividedAmount) Expenses, 1 isNonEmpExp, 1 isAssociated, 0 isAssociable, Org, ''204'' Exp_SFN
 		FROM [204AcctXProj] E
-			LEFT JOIN FISDataMart.dbo.Accounts A ON 
-				E.AccountID = A.Account
-				AND A.Year = ' + Convert(char(4), @FiscalYear) + '
-				AND A.Period = ''--''
-				AND E.Chart = A.Chart
-			LEFT JOIN Acct_SFN as SFN ON
-				A.Account = SFN.Acct_ID
-				AND  A.Chart = SFN.Chart
-				AND SFN.SFN = ''204''
-				AND A.Year = ' + Convert(char(4), @FiscalYear) + '
-				AND A.Period = ''--''
-			LEFT JOIN OrgXOrgR O ON
-				A.Org = O.Org
-				AND A.Chart = O.Chart
-				AND A.Year = ' + Convert(char(4), @FiscalYear) + '
-				AND A.Period = ''--''
-		WHERE E.Accession IS NOT NULL AND IsCurrentProject = 1 AND (Is219 is null or Is219 = 0) 
-		GROUP BY E.Chart, O.OrgR, E.AccountID, A.Org
-		HAVING sum(E.DividedAmount) <> 0
+		WHERE E.Accession IS NOT NULL AND (Is219 is null or Is219 = 0) 
+		GROUP BY Chart, OrgR, AccountID, Org
+		HAVING sum(DividedAmount) > 0
 		)
 		;'
+
 		IF @IsDebug = 1
 		BEGIN
 			Print @TSQL
@@ -223,5 +208,8 @@ MODIFICATIONS:
 
 --USAGE:	
 	EXECUTE sp_Repopulate_AD419_204_Expenses
+
+[03/24/2015]
+	Revised to use columns present in [204AcctXProj]
 
 */

@@ -7,6 +7,7 @@ EXEC usp_getAssociationsByGrouping 'AANS', 'Organization', '3', 'ASGI'
 EXEC usp_getAssociationsByGrouping 'AANS', 'PI', 'L', '----'
 
 */
+-- Modifications: 2012-03-08 by kjt: Modified Employee branch to handle FTE_SFN.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_getAssociationsByGrouping] 
 	-- Add the parameters for the stored procedure here
@@ -135,7 +136,7 @@ SET @txtSQL =
 				WHEN 1 THEN
 					' AND (Expenses.EID IS NULL) '
 				WHEN 0 THEN
-					' AND (Expenses.EID = '''+@Criterion+''') '
+					' AND (Expenses.EID + ''|'' + Expenses.FTE_SFN = '''+@Criterion+''') '
 			END
 		WHEN 'None' THEN
 			'

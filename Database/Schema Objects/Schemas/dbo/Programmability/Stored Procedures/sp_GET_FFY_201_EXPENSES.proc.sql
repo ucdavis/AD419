@@ -8,6 +8,10 @@
 -- if the association cannot be made using the full 
 -- project/award number.
 -- ran in 3:54
+-- Modifications:
+--	2015-03-20 by kjt:
+-- Revised to use Expenses_CAES table, which now only holds FFY expense data.
+--   also modified project number matching to match more projects.
 -- =============================================
 CREATE PROCEDURE [dbo].[sp_GET_FFY_201_EXPENSES] 
 	-- Add the parameters for the stored procedure here
@@ -27,17 +31,17 @@ DROP TABLE [dbo].[FFY_' + Convert(char(4), @FiscalYear) + '_SFN_ENTRIES]
 '
     -- Insert statements for procedure here
 Select @TSQL += 'SELECT 
-	Convert(int, FiscalYear) [Year],
-	Chart,
-	OrgCode Org,
-	AccountNum Account,
+	Convert(int, FYr) [Year],
+	t1.Chart,
+	t1.Org,
+	t1.Account,
 	SubAccount,
-	ConsolidationCode ObjConsol,
-	AccountAwardNumber AwardNum,
-	Convert(Money, Sum(Amount)) ExpenseSum,
+	ObjConsol,
+	t2.AwardNum,
+	Convert(Money, Sum(ExpenseSum)) ExpenseSum,
 	''201''  as SFN,
-	(case DepartmentLevelOrg when ''none'' then OrgCode
-	else DepartmentLevelOrg END) OrgR,
+	(case Org_R when ''none'' then t1.Org
+	else Org_R END) OrgR,
 	Convert(varchar(50), Accession) Accession,
 	Convert(bit,(CASE 
 		WHEN Accession is null then 0
@@ -45,45 +49,39 @@ Select @TSQL += 'SELECT
 	END)) AS MatchedByAwardNum,
 	Convert(varchar(4), null)as QuadNum,
 	Convert(bit, null) as IsActive
-INTO AD419.dbo.FFY_' + Convert(char(4), @FiscalYear) + '_SFN_ENTRIES
+INTO dbo.FFY_' + Convert(char(4), @FiscalYear) + '_SFN_ENTRIES
 FROM 
-	FISDataMart.dbo.BalanceSummaryView 
-	LEFT OUTER JOIN [AD419].[dbo].[Project] Project
-		ON AccountAwardNumber = Project.[Project]
+	[dbo].[Expenses_CAES] t1 
+	left outer join FISDatamart.dbo.accounts t2 on t1.account = t2.account and t1.chart = t2.chart and year = 9999 and period = ''--''
+	left outer join FISDatamart.dbo.OPFund t3 ON t2.OpFundNum = t3.FundNum AND  t2.Year = t3.Year and t2.Chart = t3.chart and t2.Period = t3.Period
+	left outer join [dbo].[Project] t4 ON 
+		t2.AwardNum = t4.CSREES_ContractNo OR -- First match by account award number
+		t3.AwardNum = t4.CSREES_ContractNo OR -- then by OP Fund Award Number
+		t4.CSREES_ContractNo LIKE ''%'' + t2.AwardNum -- lastly by a missing "20" at the beginning of the award number.
+		OR t2.AwardNum = t4.Project
+		OR t4.Project LIKE REPLACE(t2.AwardNum, ''*'', ''%'')
 WHERE 
-	(
-		Chart = ''3''
-		AND (
-				(FiscalYear  =  ' + Convert(char(4), @FiscalYear) + '  AND FiscalPeriod in (''04'', ''05'', ''06'',''07'', ''08'', ''09'',''10'', ''11'', ''12'', ''13'' ))
-			OR
-				(FiscalYear =  ' + Convert(char(4), @FiscalYear + 1) + ' AND FiscalPeriod in (''01'',''02'',''03''))
-			)
-	)
-	
-	AND (TransBalanceType = ''AC'' )
-	AND ConsolidationCode  Not In (''INC0'', ''BLSH'', ''SB74'')
-	AND AccountNum  like ''A%''
-	AND CollegeLevelOrg  IN (''AAES'', ''BIOS'')
-	AND OPFund  in (''21005'', ''21006'', ''21009'', ''21010'')
+	t1.Account like ''A%'' AND
+	OpFundNum in (''21005'', ''21006'', ''21009'', ''21010'')
 GROUP BY 
-	Chart  ,
-	FiscalYear ,
-	OrgCode  ,
-	AccountNum ,
+	t1.Chart  ,
+	FYr ,
+	t1.Org  ,
+	t1.Account ,
 	SubAccount  ,
-	ConsolidationCode ,
-	AccountAwardNumber,
-	DepartmentLevelOrg ,
+	ObjConsol ,
+	t2.AwardNum,
+	Org_R ,
 	Accession
 ORDER BY 
-	AccountAwardNumber,
-	AccountNum,
+	t2.AwardNum,
+	t1.Account,
 	SubAccount ,
-	ConsolidationCode,
-	OrgCode ,
-	FiscalYear ,
-	Chart,
-	DepartmentLevelOrg ,
+	ObjConsol,
+	Org ,
+	FYr ,
+	t1.Chart,
+	Org_R ,
 	Accession
 '		
 	IF @IsDebug = 1 

@@ -2,6 +2,8 @@
 -- Author:		Scott Kirkland
 -- Create date: 9/15/06
 -- Description:	
+-- Modifications:
+--	2013-11-21 by kjt: Added SQL to also include AINT entries.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_getProjectExpenses] 
 	-- Add the parameters for the stored procedure here
@@ -31,7 +33,7 @@ FROM         Expenses INNER JOIN
                       Associations ON Expenses.ExpenseID = Associations.ExpenseID INNER JOIN
                       Project ON Associations.Accession = Project.Accession INNER JOIN
                       ReportingOrg ON Expenses.OrgR = ReportingOrg.OrgR
-WHERE     (Expenses.Sub_Exp_SFN LIKE @SFN) AND (Expenses.OrgR LIKE @OrgR) AND (ReportingOrg.IsActive = 1) AND (Expenses.Sub_Exp_SFN IN ('201', '202', '205', '22F') )
+WHERE     (Expenses.Sub_Exp_SFN LIKE @SFN) AND (Expenses.OrgR LIKE @OrgR) AND (ReportingOrg.IsActive = 1 OR ReportingOrg.OrgR = 'AINT') AND (Expenses.Sub_Exp_SFN IN ('201', '202', '205', '22F') )
 
 /*
 SELECT DISTINCT 

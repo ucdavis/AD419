@@ -83,42 +83,43 @@ Select @TSQL = 'INSERT INTO AllExpenses
 	Staff_Grp_Cd
 	)
 	(
-	SELECT 
+	SELECT
 		''PPS''	DataSource, 
 		''3''	Chart,
 		E.Org_R	OrgR, 
 		E.Account, 
-		E.SubAccount	SubAcct, 
+		E.SubAcct	SubAcct, 
 		E.Employee_ID	EID, 
 		E.TOE_Name	Employee_Name, 
 		E.TitleCd	TitleCd, 
 		left(T.Name,3)	Title_Code_Name,
-		sum(E.PPS_Expense)	Expenses, 
+		sum(E.Expenses)	Expenses, 
 		0	isNonEmpExp,
 		0	isAssociated,
 		1	isAssociable,
 		A.Org,
-		E.fte_sfn, 
+		st.AD419_Line_Num AS fte_sfn, 
 		sum(E.FTE) FTE,
 		A.PrincipalInvestigatorName PI_Name,
 		left(SFN.SFN,3) Exp_SFN,
-		E.Staff_Type
-	FROM Expenses_PPS_Adjusted E	/* view */
+		st.Staff_Type_Short_Name AS Staff_Type
+	FROM dbo.Expenses_PPS E
 		LEFT JOIN FISDataMart.dbo.Accounts A ON 
 			E.Account = A.Account
 			AND A.Chart =''3''
-			AND A.Year = ' + Convert(char(4), @FiscalYear) + '
+			AND A.Year = ' + Convert(varchar(4), @FiscalYear) + '
 			AND A.Period = ''--''
 		LEFT JOIN Acct_SFN SFN ON
 			A.Account = SFN.Acct_ID
 			AND SFN.Chart = ''3''
-			AND A.Year = ' + Convert(char(4), @FiscalYear) + '
+			AND A.Year = ' + Convert(varchar(4), @FiscalYear) + '
 			AND A.Period = ''--''
 		LEFT JOIN PPSDataMart.dbo.Titles T ON 
 			E.TitleCd = T.TitleCode
+		LEFT JOIN dbo.staff_type st ON T.StaffType = st.Staff_Type_Code
 	GROUP BY 
-		Org_R, E.Account, SubAccount, Employee_ID, TOE_Name, E.TitleCd, A.Org, fte_sfn, PrincipalInvestigatorName, left(SFN.SFN,3), T.Name, E.Staff_Type
-	HAVING  sum(PPS_Expense) <> 0
+		Org_R, E.Account, SubAcct, Employee_ID, TOE_Name, E.TitleCd, A.Org, st.AD419_Line_Num, PrincipalInvestigatorName, left(SFN.SFN,3), T.Name, st.Staff_Type_Short_Name
+	HAVING  sum(E.Expenses) <> 0 OR sum(E.FTE) <> 0
 	)'
 	if @IsDebug = 1
 		begin
@@ -194,6 +195,16 @@ MODIFICATIONS:
 	
 [12/17/2010] by kjt:
 	Revised to use AllExpenses, table (formerly Expenses) instead of new Expenses view.
+
+[11/16/2012] by kjt:
+	Revised to use Expenses_PPS table and not perform any salary reversals whatsoever.
+
+[12/10/2013] by kjt:
+	Fixed bug that had hard coded dates instead of using fiscal year param as intended.
+
+ 2015-02-19 by kjt: 
+	Removed [AD419] specific database references so sproc could be used on other databases
+	such as AD419_2014, etc.
  
 --USAGE:	
 	EXECUTE sp_Repopulate_AD419_PPS_Expenses

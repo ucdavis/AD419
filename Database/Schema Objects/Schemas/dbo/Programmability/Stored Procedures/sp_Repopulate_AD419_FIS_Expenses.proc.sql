@@ -29,7 +29,7 @@ TODO:
 		[11/6/06] Mon Think we decided no, which was a change from previous (Ken's algorythm). What really matters is that we don't report a negative expense at the OrgR x Project x SFN level.
 
 --USAGE:	
-	EXECUTE sp_Repopulate_AD419_FIS_Expenses
+	EXECUTE sp_Repopulate_AD419_FIS_Expenses @FiscalYear = 2013
 
 MODIFICATIONS: see bottom
 */
@@ -47,7 +47,7 @@ declare @TSQL varchar(MAX) = null
 BEGIN TRANSACTION
 -------------------------------------------------------------------------
 	--Delete all FIS-sourced expense records:
-	PRINT 'DELETE FROM AllExpenses WHERE DataSource = ''FIS''...'
+	PRINT '--DELETE FROM AllExpenses WHERE DataSource = ''FIS''...'
 	Select @TSQL = 'DELETE FROM AllExpenses WHERE DataSource = ''FIS''; '
 	
 	IF @IsDebug = 1
@@ -61,7 +61,7 @@ BEGIN TRANSACTION
 -------------------------------------------------------------------------
 	--Insert adjusted expenses from FIS.  (from udf_Adjusted_FIS_Expenses())
 		-- udf_Adjusted_FIS_Expenses() produces a dataset that's a UNION of FIS expenses + FIS Reversals.  The sign of the "reversal" amounts are changed in the UDF so that they can be SUMmed here.
-	PRINT 'Inserting adjusted FIS expenses...'
+	PRINT '--Inserting adjusted FIS expenses...'
 	
 	Select @TSQL= 'INSERT INTO AllExpenses
 		(
@@ -85,10 +85,10 @@ BEGIN TRANSACTION
 		SELECT 
 			''FIS'',
 			E.Chart,
-			Org_R,
+			O.OrgR Org_R,
 			E.Account,
 			SubAccount,
-			sum(Expend)	Expenses,
+			sum(ExpenseSum)	Expenses,
 			1	isNonEmpExp,
 			NULL	EID,
 			NULL	Employee_Name,
@@ -98,21 +98,22 @@ BEGIN TRANSACTION
 			A.Org,
 			LEFT(SFN.SFN,3) Exp_SFN	,
 			SFN.SFN	Sub_Exp_SFN
-		FROM udf_Adjusted_FIS_Expenses() E
+		FROM FIS_NonSalaryExpenses E
 			LEFT JOIN FISDataMart.dbo.Accounts A ON 
 				E.Account = A.Account
-				AND A.Year = ' + CONVERT(char(4), @FiscalYear) + '
+				AND A.Year = ' + CONVERT(varchar(4), @FiscalYear) + '
 				AND A.Period = ''--''
 				AND E.Chart = A.Chart
 			LEFT JOIN Acct_SFN as SFN ON
 				E.Account = SFN.Acct_ID
 				AND E.Chart = SFN.Chart
-				AND A.Year = ' + CONVERT(char(4), @FiscalYear) + '
+				AND A.Year = ' + CONVERT(varchar(4), @FiscalYear) + '
 				AND A.Period = ''--''
+			LEFT JOIN OrgXOrgR O ON A.Org = O.Org AND O.Chart = ''3''
 		WHERE 
 			LEFT(SFN.SFN,3) NOT IN (''201'',''202'',''203'',''204'',''205'')
-		GROUP BY E.chart, Org_R, E.Account, SubAccount, PrincipalInvestigatorName, A.Org, LEFT(SFN.SFN,3), SFN.SFN
-		HAVING sum(Expend) <> 0
+		GROUP BY E.chart, OrgR, E.Account, SubAccount, PrincipalInvestigatorName, A.Org, LEFT(SFN.SFN,3), SFN.SFN
+		HAVING sum(ExpenseSum) <> 0
 		)
 		
 DELETE FROM AllExpenses
@@ -133,6 +134,7 @@ WHERE     (Staff_Grp_Cd IS NULL) AND DataSource = ''FIS''
 
 	IF @IsDebug = 1
 		BEGIN
+			SET NOCOUNT ON
 			Print @TSQL
 		END
 	ELSE
@@ -156,6 +158,10 @@ MODIFICATIONS:
 	
 [12/17/2010] by kjt:
 	Revised to use AllExpenses, table (formerly Expenses) instead of new Expenses view.
+[11/16/2012] by kjt: 
+	Revised to use new FIS_NonSalaryExpenses table as data source.
+[11/20/2013] by kjt: 
+	Fixed bug that had hard-coded fiscal year instead of using @FiscalYear param.
 
 -------------------------------------------------------------------------
 --USAGE:	

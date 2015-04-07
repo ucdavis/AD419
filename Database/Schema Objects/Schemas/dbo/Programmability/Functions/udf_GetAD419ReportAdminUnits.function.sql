@@ -2,8 +2,10 @@
 -- Author:		Ken Taylor
 -- Create date: January 13, 2012
 -- Description:	Return the list of possible AD419 report admin units
+-- 2014-12-17 by kjt: Removed database specific database references so it sp can be run against
+--	another AD419 database, i.e. AD419_2014, etc.
 -- =============================================
-CREATE FUNCTION udf_GetAD419ReportAdminUnits 
+CREATE FUNCTION [dbo].[udf_GetAD419ReportAdminUnits] 
 (
 	-- Add the parameters for the function here
 )
@@ -19,13 +21,13 @@ BEGIN
 	INSERT INTO @AdminUnitsTable
 	
 	SELECT [ParamValue]  AS AdminUnit
- 	FROM [AD419].[dbo].[ParamNameAndValue]
+ 	FROM [dbo].[ParamNameAndValue]
 	WHERE [ParamName] = 'FinalReportTablesNamePrefix'
 	  
 	UNION ALL
 	  
 	SELECT [ParamValue]
-	FROM [AD419].[dbo].[ParamNameAndValue] AS AdminUnit
+	FROM [dbo].[ParamNameAndValue] AS AdminUnit
 	WHERE [ParamName] = 'AllTableNamePrefix'
 	  
 	UNION ALL
@@ -35,7 +37,7 @@ BEGIN
 	UNION ALL
 	    
 	SELECT [OrgR] AS AdminUnit
-	FROM [AD419].[dbo].ReportingOrg
+	FROM [dbo].ReportingOrg
 	WHERE [IsAdminCluster] = 1 AND [IsActive] = 1
 	
 	RETURN 

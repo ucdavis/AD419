@@ -31,7 +31,16 @@ select @txtSQL =
 WHERE (Acct_ID + Chart + Org) IN
 	(SELECT distinct (Account + Chart + Org)
 	FROM [FISDataMart].[dbo].[Accounts] Accounts
-	WHERE ' + @Filter + ' AND Accounts.Year = ' + Convert(char(4), @FiscalYear) + ' AND Accounts.Period = ''--'')'  
+	WHERE ' + @Filter + ' AND (
+		(Accounts.Year = ' + Convert(char(4), @FiscalYear) + ' AND Accounts.Period = ''--'')'
+
+	IF @SFN IN ('201', '202', '203', '204', '205') 
+		select @txtSQL += ' OR
+		(Accounts.Year = ' + Convert(char(4), @FiscalYear + 1)+ ' AND Accounts.Period IN (''01'',''02'',''03''))'
+	
+	select @txtSQL += '
+	  )
+	)'  
 
 	IF @IsDebug = 1
 		BEGIN
@@ -44,8 +53,6 @@ WHERE (Acct_ID + Chart + Org) IN
 			print 'SFN ' + @SFN + ': ' + convert(varchar,@@RowCount)  + ' records.'
 		END
 
-
-
 -------------------------------------------------------------------------
 /*
 MODIFICATIONS:
@@ -54,5 +61,8 @@ MODIFICATIONS:
 Inclusion of Org code is not needed, as Account is uniquely determined by Chart + Account (per S. Pesis). Actually, using only Cht + Acct is essential, as the value entered in the Accounts table for Org code is inconsistent--I believe that often it's not the org but the org3, and sometimes not entered (?).
 [9/10/2009] by KJT
 Changed to use new [FISDataMart].[dbo].[Accounts]
+
+[3/19/2015] by kjt:
+Modified to allow detection of FFY SFNs, and include the first 3 periods of the next fiscal year.
 
 */

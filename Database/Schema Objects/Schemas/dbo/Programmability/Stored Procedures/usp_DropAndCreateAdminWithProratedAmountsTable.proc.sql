@@ -3,8 +3,13 @@
 -- Create date: 2011-12-23
 -- Description:	Builds the SQL to create a AD419 admin table with pro-rated amounts table, 
 -- and then executes the SQL to drop and create the table
+-- Modifications:
+-- 2014-12-17 by kjt: Removed database specific database references so it sp can be run against
+--	  another AD419 database, i.e. AD419_2014, etc.
+-- 2015-01-15 by kjt: Uncommented statements relating to f223 as we were unable to 
+-- ascertain why this SFN was removed in the first place.
 -- =============================================
-CREATE PROCEDURE  usp_DropAndCreateAdminWithProratedAmountsTable 
+CREATE PROCEDURE  [dbo].[usp_DropAndCreateAdminWithProratedAmountsTable] 
 	-- Add the parameters for the stored procedure here
 	@OutputTableName varchar(255) = 'NonAdminWithProratedAmountsTemp', -- Output table name
 	@NonAdminTableName varchar(255) = 'NonAdminTable', -- Input table name
@@ -22,7 +27,7 @@ INSERT INTO @SFN_order VALUES ('f219'), ('f209'), ('f310'), ('f308'), ('f311'), 
 ('f220'),('f22F'), ('f221'), ('f222'),('f223'), ('f233'), ('f234'),
 ('f241'), ('f242'), ('f243'),('f244'), ('f350');
 
-Declare @CreateTableSQL varchar(MAX) = 'CREATE TABLE [AD419].[dbo].[' + @OutputTableName + '] (
+Declare @CreateTableSQL varchar(MAX) = 'CREATE TABLE [dbo].[' + @OutputTableName + '] (
 				--rownum int IDENTITY(1,1) Primary key not null,
 				loc char(2),
 				dept char(3),
@@ -116,7 +121,7 @@ Declare @CreateTableSQL varchar(MAX) = 'CREATE TABLE [AD419].[dbo].[' + @OutputT
 					f22F,
 					f221,
 					f222,
-					--f223,
+					f223,
 					f241,
 					f242,
 					f243,
@@ -150,7 +155,7 @@ Declare @CreateTableSQL varchar(MAX) = 'CREATE TABLE [AD419].[dbo].[' + @OutputT
 					f22F,
 					f221,
 					f222,
-					--f223,
+					f223,
 					f241,
 					f242,
 					f243,

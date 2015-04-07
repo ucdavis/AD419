@@ -6,8 +6,11 @@
     [Account]        CHAR (7)     NOT NULL,
     [SubAcct]        VARCHAR (5)  NULL,
     [ObjConsol]      CHAR (4)     NULL,
+    [Object]         CHAR (4)     NULL,
     [Expenses]       MONEY        NULL,
     [FTE]            REAL         NULL,
     [idExpenses_PPS] INT          IDENTITY (1, 1) NOT NULL
 );
+
+
 

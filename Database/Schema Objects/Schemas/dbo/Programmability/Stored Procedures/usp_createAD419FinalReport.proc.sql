@@ -5,6 +5,8 @@
 -- showing the expense/FTE distribution across all
 -- SFNs.  This includes processing the prorated admin
 -- report
+-- Modifications: 
+--	2015-01-13 by kjt: Added ACL1-ACL5 to OrgRExclusions.
 -- ============================================= 
 
 CREATE PROCEDURE [dbo].[usp_createAD419FinalReport]
@@ -15,12 +17,12 @@ BEGIN
 
 -- First we need to check to see that all non-excluded expenses have
 -- been associated
-DECLARE @OrgRExclusions varchar(16)
-SET @OrgRExclusions = 'ADNO'
+DECLARE @OrgRExclusions TABLE (OrgR varchar(4))
+INSERT INTO @OrgRExclusions VALUES ('ADNO'), ('ACL1'), ('ACL2'), ('ACL3'), ('ACL4'), ('ACL5')
 
 SELECT     OrgR, SUM(Expenses) AS Spent, SUM(FTE) AS FTE
 FROM         Expenses
-WHERE     (isAssociated = 0) AND ( OrgR NOT IN (@OrgRExclusions) )
+WHERE     (isAssociated = 0) AND ( OrgR NOT IN (SELECT * FROM @OrgRExclusions) )
 GROUP BY OrgR
 ORDER BY OrgR
 

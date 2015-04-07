@@ -1,4 +1,5 @@
-﻿-- =============================================
+﻿
+-- =============================================
 -- Author:		Ken Taylor
 -- Create date: Novenber 23, 2009
 -- Description:	Automate inserting of the 201, 202, and 205 expense sums
@@ -11,6 +12,7 @@
 -- Lastly, this procedure selects a list of the rows that were not successfully inserted.
 --
 -- [12/17/2010] by kjt: Revised to use AllExpenses, table (formerly Expenses) instead of new Expenses view.
+-- [10/29/2014] by kjt: Revised to handle passing of account numbers so that AD-Hoc reports would work properly.
 --
 -- =============================================
 CREATE PROCEDURE [dbo].[sp_INSERT_20x_EXPENSE_SUMS_INTO_EXPENSES] 
@@ -24,8 +26,17 @@ declare @TableName varchar(50) = 'dbo.FFY_' + Convert(char(4), @FiscalYear) + '_
 declare @TSQL varchar(MAX) = null
 
 -- Delete any existing 201, 202 or 205 associations and expenses first:
-delete from Associations where ExpenseID in (select ExpenseID from Expenses where DataSource = '20x')
-delete from AllExpenses where DataSource = '20x'
+SELECT @TSQL = 'delete from Associations where ExpenseID in (select ExpenseID from Expenses where DataSource = ''20x'')
+delete from AllExpenses where DataSource = ''20x''
+'
+
+	IF @IsDebug = 1
+		Print @TSQL
+	ELSE
+		BEGIN
+			Print @TSQL
+			EXEC (@TSQL)
+		END
 
 	-- SET NOCOUNT ON added to prevent extra result sets from
 	-- interfering with SELECT statements.
@@ -40,15 +51,17 @@ declare @Import table(
 	Accession char(7),
 	SFN varchar(4),
 	OrgR char(4),
+	Account varchar(7),
     Expenses decimal(16,2)
     )
     '
     
 Select @TSQL += '
-insert into @Import (Accession, SFN, OrgR, Expenses)
+insert into @Import (Accession, SFN, OrgR, Account, Expenses)
 SELECT	 [Accession]
 		,[SFN]
 		,[OrgR]
+		,[Account]
 		,(CASE WHEN Sum(ExpenseSum) < 0 THEN 0
 		 ELSE 
 			Sum(ExpenseSum)
@@ -59,15 +72,17 @@ group by
 	[Accession]
     ,[SFN]
     ,OrgR
+	,Account
 order by 
 	 [Accession]
     ,[SFN]
     ,OrgR
+	,Account
 ;
 '
 
 Select @TSQL += '
-declare @Proc varchar(255) = ''usp_InsertProjectExpense''
+declare @Proc varchar(255) = ''usp_insertProjectExpenseWithAccount''
 declare @RowCount int = 1
 declare @MaxRows int
 declare @IsDebug bit = ' + CONVERT(char(1), @IsDebug)+ '
@@ -77,7 +92,7 @@ select @MaxRows = count(*) from @Import
 while @RowCount <= @MaxRows
 	begin
 		select @TSQL = ''
-		EXEC '' + @Proc + '' '''''' + Convert(varchar(4), SFN) + '''''', '''''' + Convert(char(4),OrgR) + '''''', '''''' + Convert(char(7),Accession) + '''''', '' + Convert(varchar(20),Expenses) + '' '' from @Import where rownum = @RowCount 
+		EXEC '' + @Proc + '' '''''' + Convert(varchar(4), SFN) + '''''', '''''' + Convert(char(4),OrgR) + '''''', '''''' +  Convert(varchar(7),Account) + '''''', '''''' + Convert(char(7),Accession) + '''''', '' + Convert(varchar(20),Expenses) + '' '' from @Import where rownum = @RowCount 
 		
 		If @IsDebug = 1
 			print @TSQL
@@ -94,7 +109,7 @@ while @RowCount <= @MaxRows
 		select accession from Associations where ExpenseID in (
 			select ExpenseID from Expenses where DataSource = ''20x''))
 	'
-	
 	Print @TSQL
 	EXEC (@TSQL)
+	
 END

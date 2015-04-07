@@ -7,8 +7,13 @@
     [pk]                INT          IDENTITY (1, 1) NOT NULL,
     [Is219]             BIT          NULL,
     [CSREES_ContractNo] VARCHAR (20) NULL,
-    [IsCurrentProject]  BIT          NULL
+    [AwardNum]          VARCHAR (20) NULL,
+    [IsCurrentProject]  BIT          NULL,
+    [Org]               VARCHAR (4)  NULL,
+    [OrgR]              VARCHAR (4)  NULL
 );
+
+
 
 
 GO

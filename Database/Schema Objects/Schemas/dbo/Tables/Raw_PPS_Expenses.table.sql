@@ -5,10 +5,13 @@
     [Account]       CHAR (7)      NULL,
     [SubAcct]       CHAR (5)      NULL,
     [ObjConsol]     CHAR (4)      NULL,
+    [Object]        CHAR (4)      NULL,
     [TitleCd]       CHAR (4)      NULL,
     [Salary]        REAL          NULL,
     [Benefits]      REAL          NULL,
     [FTE]           REAL          NULL,
     [idPPS_TOE_Raw] INT           IDENTITY (1, 1) NOT NULL
 );
+
+
 
