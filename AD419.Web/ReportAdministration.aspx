@@ -15,7 +15,7 @@
            <asp:Panel ID="pnlProjectAssociations" runat="server" Width="100%">
         <ul class="InfoList">
         <li></li><li>Reporting Org: <asp:DropDownList ID="dlistAssocationsReportingOrg" runat="server" DataSourceID="AD419DataReportingOrg" DataTextField="Org-Dept" DataValueField="OrgR" AutoPostBack="True" AppendDataBoundItems="True">
-            <asp:ListItem Value="None">-- Pick A Department --</asp:ListItem>
+            <asp:ListItem Value="All">-- Pick A Department --</asp:ListItem>
         </asp:DropDownList></li></ul>
     <div class="xxxstyle"> 
         <asp:GridView ID="gViewProjectAssociations" runat="server" AutoGenerateColumns="False" CellPadding="4" DataSourceID="AD419DataAssociations" ForeColor="#333333" GridLines="None" AllowSorting="True" CellSpacing="1" DataKeyNames="AccountID" EmptyDataText="No Associable Accounts Found" OnRowUpdating="gViewProjectAssociations_RowUpdating">
