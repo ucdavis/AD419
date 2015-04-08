@@ -10,8 +10,10 @@
 -- Modifications:
 --	2015-03-24 by kjt: Revised to populate 3 new columns Org, and OrgR, and AwardNum,
 --	Plus truncate table as opposed to deleting records so that pk sequence is reset to zero.
+--	2015-04-08 by kjt: Added statement to handle updating joint UC Santa Cruz project that will
+--	still be active in 2015 reporting year
 -- =============================================
-CREATE PROCEDURE [dbo].[sp_Repopulate_AD419_204] (
+ALTER PROCEDURE [dbo].[sp_Repopulate_AD419_204] (
 	-- Add the parameters for the stored procedure here
 	@FiscalYear int = 2009,
 	@IsDebug bit = 0
@@ -238,6 +240,24 @@ BEGIN
   close MyCursor
   deallocate MyCursor
   '
+  IF @IsDebug = 1
+		BEGIN
+			Print @TSQL
+		END
+	ELSE
+		BEGIN
+			EXEC(@TSQL)
+		END
+-----------------------------------------------------------------------------------------------------
+-- 2015-04-08 by kjt: Added statement to handle updating joint UC Santa Cruz project that will
+-- still be active in 2015 reporting year
+
+  SELECT @TSQL = '
+  UPDATE [dbo].[204AcctXProj]
+  SET [Accession] = ''0226309'', [IsCurrentProject] = 0
+  WHERE [AccountID] = ''KMKASD1''
+  '
+
   IF @IsDebug = 1
 		BEGIN
 			Print @TSQL
