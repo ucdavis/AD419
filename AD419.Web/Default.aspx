@@ -13,7 +13,7 @@
     
     <asp:HyperLink ID="hlinkReportingModule" runat="server" NavigateUrl="~/reportingModule.aspx">Reporting Module</asp:HyperLink>
     <br /><br />
-    <asp:HyperLink ID="hlinkInstructions" runat="server" NavigateUrl="~/AD419Instructions.pdf" Target="_blank">Instructions (PDF)</asp:HyperLink>
+    <asp:HyperLink ID="hlinkInstructions" runat="server" NavigateUrl="" Target="_blank">Instructions (PDF)</asp:HyperLink>
     <br /><br />
     <asp:HyperLink ID="hlinkEmulation" runat="server" NavigateUrl="~/Emulation.aspx">Emulation<br /><br /></asp:HyperLink>
     
