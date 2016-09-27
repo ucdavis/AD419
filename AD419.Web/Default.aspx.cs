@@ -35,6 +35,8 @@ namespace CAESDO
             {
                hLinkUserAdministration.Visible = false;
             }
+
+            hlinkInstructions.Attributes.Add("href", ConfigurationManager.AppSettings["Ad419InstructionServer"]);
         }
 
         protected void lbtnResetUser_Click(object sender, EventArgs e)
