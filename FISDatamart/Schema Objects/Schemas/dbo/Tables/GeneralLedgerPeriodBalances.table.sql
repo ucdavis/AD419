@@ -17,8 +17,11 @@
     [SubFundGroupType]                       CHAR (2)        NULL,
     [YearFinancialBeginningBalance]          DECIMAL (15, 5) NULL,
     [YearContractsAndGrantsBeginningBalance] DECIMAL (15, 2) NULL,
-    [LastUpdateDate]                         DATETIME        NULL
+    [LastUpdateDate]                         DATETIME        NULL,
+    CONSTRAINT [PK_GeneralLedgerPeriodBalances] PRIMARY KEY CLUSTERED ([Year] ASC, [Period] ASC, [Chart] ASC, [Account] ASC, [SubAccount] ASC, [ObjectType] ASC, [Object] ASC, [SubObject] ASC, [BalType] ASC)
 );
+
+
 
 
 GO
@@ -42,7 +45,9 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Account Num
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Sub Account Number: Organization chosen identifier used to subdivide accounts for more detailed analysis and reporting.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'GeneralLedgerPeriodBalances', @level2type = N'COLUMN', @level2name = N'SubAccount';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Sub Account Number: Organization chosen identifier used to subdivide accounts for more detailed analysis and reporting. ', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'GeneralLedgerPeriodBalances', @level2type = N'COLUMN', @level2name = N'SubAccount';
+
+
 
 
 GO
@@ -86,15 +91,21 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Balance Typ
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Sub Fund Group Type Code: Used to group balances by like sub funds. For example, Federal Contracts would be a sub fund group type with a number of associated sub fund groups. Types ''B'', ''C'', ''F'', ''H'', ''J'', ''L'', ''P'', ''S'' (and Charts ''P'', ''N'' and ''M'') identify balances which use the CG Beginning Balance amount in addition to the Financial Beginning Balance amount for the FISCAL_PERIOD_BEGIN_BAL.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'GeneralLedgerPeriodBalances', @level2type = N'COLUMN', @level2name = N'SubFundGroupType';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Sub Fund Group Type Code: Used to group balances by like sub funds. For example, Federal Contracts would be a sub fund group type with a number of associated sub fund groups. Types ''B'', ''C'', ''F'', ''H'', ''J'', ''L'', ''P'', ''S'' (and Charts ''P'', ''N'' and ''M'') identify balances which use the CG Beginning Balance amount in addition to the Financial Beginning Balance amount for the FISCAL_PERIOD_BEGIN_BAL. ', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'GeneralLedgerPeriodBalances', @level2type = N'COLUMN', @level2name = N'SubFundGroupType';
+
+
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Fiscal Period Financial Beginning Balance Amount: The amount calculated as the FISCAL_YEAR_BEGIN_BAL (see the GENERAL_LEDGER_BAL_ALL_PERIOD table) plus all previous FISCAL_PERIOD_TRANS_TOTAL_AMTs.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'GeneralLedgerPeriodBalances', @level2type = N'COLUMN', @level2name = N'YearFinancialBeginningBalance';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Fiscal Period Financial Beginning Balance Amount: The amount calculated as the FISCAL_YEAR_BEGIN_BAL (see the GENERAL_LEDGER_BAL_ALL_PERIOD table) plus all previous FISCAL_PERIOD_TRANS_TOTAL_AMTs. ', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'GeneralLedgerPeriodBalances', @level2type = N'COLUMN', @level2name = N'YearFinancialBeginningBalance';
+
+
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Fiscal Year Contracts and Grants Beginning Balance Amount: The amount calculated as the CONTRACTS_AND_GRANTS_BEGIN_BAL (see the GENERAL_LEDGER_BAL_ALL_PERIOD table) plus the FISCAL_YEAR_BEGIN_BAL vfor the year plus all previous FISCAL_PERIOD_TRANS_TOTAL_AMTs.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'GeneralLedgerPeriodBalances', @level2type = N'COLUMN', @level2name = N'YearContractsAndGrantsBeginningBalance';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Fiscal Year Contracts and Grants Beginning Balance Amount: The amount calculated as the CONTRACTS_AND_GRANTS_BEGIN_BAL (see the GENERAL_LEDGER_BAL_ALL_PERIOD table) plus the FISCAL_YEAR_BEGIN_BAL vfor the year plus all previous FISCAL_PERIOD_TRANS_TOTAL_AMTs. ', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'GeneralLedgerPeriodBalances', @level2type = N'COLUMN', @level2name = N'YearContractsAndGrantsBeginningBalance';
+
+
 
 
 GO

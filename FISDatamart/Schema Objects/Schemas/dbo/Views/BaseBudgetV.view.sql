@@ -1,4 +1,4 @@
-﻿CREATE VIEW [dbo].[BaseBudgetV]
+﻿CREATE VIEW dbo.BaseBudgetV
 AS
 SELECT        dbo.TransV.Year, dbo.TransV.Period, dbo.TransV.Chart, dbo.Accounts.Org AS OrgID, dbo.TransV.Account, dbo.TransV.SubAccount, dbo.TransV.Object, 
                          dbo.TransV.SubObject, dbo.TransV.BalType, dbo.TransV.DocType, dbo.TransV.DocOrigin, dbo.TransV.DocNum, dbo.TransV.DocTrackNum, dbo.TransV.InitrID, 
@@ -80,7 +80,7 @@ Begin DesignProperties =
    End
    Begin DiagramPane = 
       Begin Origin = 
-         Top = 0
+         Top = -96
          Left = 0
       End
       Begin Tables = 
@@ -150,7 +150,10 @@ Begin DesignProperties =
          Or = 1350
       End
    End
-End', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'BaseBudgetV';
+End
+', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'BaseBudgetV';
+
+
 
 
 GO

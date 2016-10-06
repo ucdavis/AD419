@@ -7,6 +7,10 @@ Modifications:
 		@Exclude9999FiscalYear.
 	2011-03-04 by kjt:
 		Added logic to pass a destination table name; otherwise defaults to OPFund.
+	2015-03-12 by kjt:
+		Added 2 new columns PromaryPIUserName, and ProjectTitle to load script.
+	2016-03-15 by kjt:
+		Added 1 new column CFDANum  to load script.
 */
 CREATE Procedure [dbo].[usp_DownloadOPFund]
 (
@@ -54,7 +58,7 @@ DECLARE @WhereClause varchar(MAX) = '' -- Holds the T-SQL for the where clause.
 	CLOSE MyCursor
 	DEALLOCATE MyCursor
 	
-	IF @IsDebug = 1 PRINT '@NumFiscalYearsToDownload: ' + Convert(varchar(20), @NumFiscalYearsToDownload) 
+	IF @IsDebug = 1 PRINT '--@NumFiscalYearsToDownload: ' + Convert(varchar(20), @NumFiscalYearsToDownload) 
 	
 -------------------------------------------------------------------------------------	
 -- Build the Where clause based on the dates provided:
@@ -119,7 +123,10 @@ SELECT
 	award_amt,
 	LAST_UPDATE_DATE,
 	OP_Fund_PK,
-	sub_fund_group_FK
+	sub_fund_group_FK,
+	PRIMARY_PI_USER_NAME, 
+	PROJECT_TITLE,
+	CFDA_NUM
  FROM OPENQUERY(FIS_DS, 
 	''SELECT 
     fiscal_year,
@@ -133,6 +140,9 @@ SELECT
 	award_num,
 	award_type_code,
 	award_year_num,
+	PRIMARY_PI_USER_NAME, 
+	PROJECT_TITLE,
+	CFDA_NUM,
 	TO_CHAR(award_begin_date, ''''yyyy-mm-dd hh:mm:ss.sssss'''') award_begin_date,
 	TO_CHAR(award_end_date, ''''yyyy-mm-dd hh:mm:ss.sssss'''') award_end_date,
 	award_amt,
@@ -159,6 +169,9 @@ WHEN MATCHED THEN UPDATE set
       ,[AwardAmount] = award_amt
       ,[LastUpdateDate] = Convert(smalldatetime, LAST_UPDATE_DATE, 120)
       ,[SubFundGroupFK] = sub_fund_group_FK
+	  ,PrimaryPIUserName = PRIMARY_PI_USER_NAME
+	  ,ProjectTitle = PROJECT_TITLE
+	  ,CFDANum	=	CFDA_NUM
      
 WHEN NOT MATCHED BY TARGET THEN INSERT VALUES 
 (
@@ -178,7 +191,10 @@ WHEN NOT MATCHED BY TARGET THEN INSERT VALUES
 	award_amt,
 	Convert(smalldatetime, LAST_UPDATE_DATE, 120),
 	OP_Fund_PK,
-	sub_fund_group_FK
+	sub_fund_group_FK,
+	PRIMARY_PI_USER_NAME, 
+	PROJECT_TITLE,
+	CFDA_NUM
 )
 
 --WHEN NOT MATCHED BY SOURCE THEN DELETE

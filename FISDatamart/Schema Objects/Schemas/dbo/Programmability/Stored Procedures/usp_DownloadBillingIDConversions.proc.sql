@@ -75,7 +75,7 @@ SELECT
 						(ORG_ID_LEVEL_1 = ''''BIOS'''')
 						
 						OR 
-						(CHART_NUM_LEVEL_4 = ''''3'''' AND ORG_ID_LEVEL_4 = ''''AAES'''')
+						(CHART_NUM_LEVEL_4 IN (''''3'''', ''''L'''') AND ORG_ID_LEVEL_4 = ''''AAES'''')
 						OR
 						(CHART_NUM_LEVEL_5 = ''''L'''' AND ORG_ID_LEVEL_5 = ''''AAES'''')
 						

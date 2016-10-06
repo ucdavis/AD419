@@ -265,7 +265,10 @@ EXECUTE sp_addextendedproperty @name = N'MS_DiagramPane2', @value = N'layFlags =
          Or = 1350
       End
    End
-End', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'TransactionLogLeftOuterJoinV';
+End
+', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'TransactionLogLeftOuterJoinV';
+
+
 
 
 GO

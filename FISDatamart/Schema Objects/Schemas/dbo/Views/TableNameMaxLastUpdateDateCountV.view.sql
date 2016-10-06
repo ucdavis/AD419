@@ -1,4 +1,4 @@
-﻿CREATE VIEW [dbo].[TableNameMaxLastUpdateDateCountV]
+﻿CREATE VIEW dbo.TableNameMaxLastUpdateDateCountV
 AS
 SELECT     'Accounts' TableName, MAX(LastUpdateDate) LastUpdateDate, Count(*) Count, 'D' TableType, 'A' UpdateMethod
 FROM         dbo.Accounts
@@ -51,6 +51,9 @@ UNION
 SELECT     'Organizations' TableName, MAX(LastUpdateDate) LastUpdateDate, Count(*) Count, 'D' TableType, 'A' UpdateMethod
 FROM         dbo.Organizations
 UNION
+SELECT     'Projects' TableName, MAX(LastUpdateDate) LastUpdateDate, Count(*) Count, 'D' TableType, 'A' UpdateMethod
+FROM         dbo.Projects
+UNION
 SELECT     'SubAccounts' TableName, MAX(LastUpdateDate) LastUpdateDate, Count(*) Count, 'D' TableType, 'A' UpdateMethod
 FROM         dbo.SubAccounts
 UNION
@@ -78,7 +81,7 @@ Begin DesignProperties =
    Begin PaneConfigurations = 
       Begin PaneConfiguration = 0
          NumPanes = 4
-         Configuration = "(H (1[24] 4[3] 2[49] 3) )"
+         Configuration = "(H (1[40] 4[20] 2[20] 3) )"
       End
       Begin PaneConfiguration = 1
          NumPanes = 3
@@ -140,7 +143,7 @@ Begin DesignProperties =
    End
    Begin DiagramPane = 
       Begin Origin = 
-         Top = -192
+         Top = 0
          Left = 0
       End
       Begin Tables = 
@@ -150,17 +153,6 @@ Begin DesignProperties =
    End
    Begin DataPane = 
       Begin ParameterDefaults = ""
-      End
-      Begin ColumnWidths = 9
-         Width = 284
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
       End
    End
    Begin CriteriaPane = 
@@ -180,7 +172,10 @@ Begin DesignProperties =
          Or = 1350
       End
    End
-End', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'TableNameMaxLastUpdateDateCountV';
+End
+', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'TableNameMaxLastUpdateDateCountV';
+
+
 
 
 GO

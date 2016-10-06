@@ -9,8 +9,11 @@
     [ActiveInd]      CHAR (1)      NULL,
     [Description]    TEXT          NULL,
     [LastUpdateDate] SMALLDATETIME NULL,
-    [ProjectsPK]     VARCHAR (21)  NULL
+    [ProjectsPK]     VARCHAR (21)  NULL,
+    CONSTRAINT [PK_Projects] PRIMARY KEY CLUSTERED ([Year] ASC, [Period] ASC, [Number] ASC, [Chart] ASC)
 );
+
+
 
 
 GO
@@ -54,7 +57,9 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Project Des
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Last TP Update Date: Last update date of the project in TP', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Projects', @level2type = N'COLUMN', @level2name = N'LastUpdateDate';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Last TP Update Date: Last update date of the project in TP ', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Projects', @level2type = N'COLUMN', @level2name = N'LastUpdateDate';
+
+
 
 
 GO

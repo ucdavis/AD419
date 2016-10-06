@@ -5,7 +5,7 @@ USAGE/TEST:
 EXEC	[dbo].[usp_Create AD419_FinalReportTables]
 		@ReportType = 0, -- 0 for select * from various tables once tables have been created
 						 -- 1 for create tables after all projects have been associated.  Note 
-							this "report" must be run first before running option 0.
+						 -- this "report" must be run first before running option 0.
 		@IsDebug = 0
 
 DESCRIPTION: 

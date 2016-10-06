@@ -33,7 +33,7 @@ FROM         Expenses INNER JOIN
                       Associations ON Expenses.ExpenseID = Associations.ExpenseID INNER JOIN
                       Project ON Associations.Accession = Project.Accession INNER JOIN
                       ReportingOrg ON Expenses.OrgR = ReportingOrg.OrgR
-WHERE     (Expenses.Sub_Exp_SFN LIKE @SFN) AND (Expenses.OrgR LIKE @OrgR) AND (ReportingOrg.IsActive = 1 OR ReportingOrg.OrgR = 'AINT') AND (Expenses.Sub_Exp_SFN IN ('201', '202', '205', '22F') )
+WHERE     (Expenses.Sub_Exp_SFN LIKE @SFN) AND (Expenses.OrgR LIKE @OrgR) AND (ReportingOrg.IsActive = 1 OR ReportingOrg.OrgR IN ('AINT', 'XXXX')) AND (Expenses.Sub_Exp_SFN IN ('201', '202', '205', '22F') )
 
 /*
 SELECT DISTINCT 

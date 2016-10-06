@@ -54,7 +54,7 @@ FROM
 				A.ORG_ID = O.ORG_ID
 		WHERE (
 				(
-					A.FISCAL_YEAR >= 2009 AND A.FISCAL_PERIOD = ''--''
+					A.FISCAL_YEAR >= 2013 AND A.FISCAL_PERIOD = ''--''
 				)	
 				AND (
 						(A.CHART_NUM, A.ORG_ID) IN 
@@ -71,7 +71,7 @@ FROM
 								(ORG_ID_LEVEL_1 = ''BIOS'')
 								
 								OR 
-								(CHART_NUM_LEVEL_4 = ''3'' AND ORG_ID_LEVEL_4 = ''AAES'')
+								(CHART_NUM_LEVEL_4 IN (''3'', ''L'') AND ORG_ID_LEVEL_4 = ''AAES'')
 								OR
 								(CHART_NUM_LEVEL_5 = ''L'' AND ORG_ID_LEVEL_5 = ''AAES'')
 								
@@ -80,7 +80,7 @@ FROM
 							)
 							AND
 							(
-								FISCAL_YEAR >= 2009
+								FISCAL_YEAR >= 2013
 							)
 						)
 				)

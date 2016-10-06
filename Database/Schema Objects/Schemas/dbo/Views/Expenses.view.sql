@@ -1,25 +1,14 @@
-﻿CREATE VIEW Expenses
+﻿CREATE VIEW dbo.Expenses
 AS
-SELECT        ExpenseID, DataSource, 
-                         (CASE [OrgR] 
-							WHEN 'AEVE' THEN 'BEVE' 
-							WHEN 'BCPB' THEN 'BEVE' 
-							WHEN 'AMCB' THEN 'BMCB' 
-							WHEN 'BGEN' THEN 'BMCB' 
-							WHEN 'AMIC' THEN 'BMIC' 
-							WHEN 'ANPB' THEN 'BNPB' 
-							WHEN 'APLB' THEN 'BPLB' 
-							WHEN 'CABA' THEN 'ADNO' 
-							WHEN 'ACTR' THEN 'ADNO' 
-							ELSE OrgR END) AS OrgR, Chart, Account, SubAcct, PI_Name, 
-                         Org, EID, Employee_Name, TitleCd, Title_Code_Name, Exp_SFN, Expenses, FTE_SFN, FTE, isAssociated, isAssociable, isNonEmpExp, Sub_Exp_SFN, 
-                         Staff_Grp_Cd
-FROM            dbo.AllExpenses
-WHERE        (Account NOT IN
-                             (SELECT        Account
-                               FROM            dbo.ArcCodeAccountExclusions
-                               WHERE        (Year = 2014) AND (Chart = '3'))) OR
-                         (Account IS NULL)
+SELECT        t1.ExpenseID, t1.DataSource, COALESCE (t2.AD419OrgR, t1.OrgR) AS OrgR, t1.Chart, t1.Account, t1.SubAcct, t1.PI_Name, t1.Org, t1.EID, t1.Employee_Name, 
+                         t1.TitleCd, t1.Title_Code_Name, t1.Exp_SFN, t1.Expenses, t1.FTE_SFN, t1.FTE, t1.isAssociated, t1.isAssociable, t1.isNonEmpExp, t1.Sub_Exp_SFN, 
+                         t1.Staff_Grp_Cd
+FROM            dbo.AllExpenses AS t1 LEFT OUTER JOIN
+                         dbo.ExpenseOrgR_X_AD419OrgR AS t2 ON t1.Chart = t2.Chart AND t1.OrgR = t2.ExpenseOrgR
+WHERE        ((t1.Chart + t1.Account) NOT IN
+                             (SELECT        Chart + Account AS Expr1
+                               FROM            dbo.ARCCodeAccountExclusionsV)) OR
+                         (t1.Account IS NULL)
 
 GO
 EXECUTE sp_addextendedproperty @name = N'MS_DiagramPaneCount', @value = 1, @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'Expenses';

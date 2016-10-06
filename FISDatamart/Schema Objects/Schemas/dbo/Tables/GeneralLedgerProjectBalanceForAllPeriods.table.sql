@@ -7,7 +7,7 @@
     [SubAccount]                         CHAR (5)        NOT NULL,
     [ObjectConsolidatnNum]               CHAR (4)        NULL,
     [Object]                             CHAR (4)        NOT NULL,
-    [SubObject]                          VARCHAR (6)     NOT NULL,
+    [SubObject]                          VARCHAR (5)     NOT NULL,
     [Project]                            VARCHAR (10)    NOT NULL,
     [BalType]                            CHAR (2)        NOT NULL,
     [BalTypeName]                        VARCHAR (40)    NULL,
@@ -30,8 +30,11 @@
     [MayTransactionsTotalAmount]         DECIMAL (15, 2) NULL,
     [JuneTransactionsTotalAmount]        DECIMAL (15, 2) NULL,
     [Month13TransactionsTotalAmount]     DECIMAL (15, 2) NULL,
-    [LastUpdateDate]                     DATETIME        NULL
+    [LastUpdateDate]                     DATETIME        NULL,
+    CONSTRAINT [PK_GeneralLedgerProjectBalanceForAllPeriods] PRIMARY KEY CLUSTERED ([Year] ASC, [Chart] ASC, [OrgID] ASC, [Account] ASC, [SubAccount] ASC, [Object] ASC, [SubObject] ASC, [Project] ASC, [BalType] ASC, [ObjectType] ASC)
 );
+
+
 
 
 GO
@@ -59,7 +62,9 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Account Num
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Sub Account Number: Organization chosen identifier used to subdivide accounts for more detailed analysis and reporting.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'GeneralLedgerProjectBalanceForAllPeriods', @level2type = N'COLUMN', @level2name = N'SubAccount';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Sub Account Number: Organization chosen identifier used to subdivide accounts for more detailed analysis and reporting. ', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'GeneralLedgerProjectBalanceForAllPeriods', @level2type = N'COLUMN', @level2name = N'SubAccount';
+
+
 
 
 GO
@@ -75,7 +80,9 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Sub_Object 
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Project Number:', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'GeneralLedgerProjectBalanceForAllPeriods', @level2type = N'COLUMN', @level2name = N'Project';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Project Number: ', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'GeneralLedgerProjectBalanceForAllPeriods', @level2type = N'COLUMN', @level2name = N'Project';
+
+
 
 
 GO
@@ -164,4 +171,10 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Month13 Tra
 
 GO
 EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'DS Last Update Date: The date-time-stamp of the last update of this record. (system provided)', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'GeneralLedgerProjectBalanceForAllPeriods', @level2type = N'COLUMN', @level2name = N'LastUpdateDate';
+
+
+GO
+CREATE NONCLUSTERED INDEX [GLProjectBalanceForAllPeriods_YearChartBalType_IDX]
+    ON [dbo].[GeneralLedgerProjectBalanceForAllPeriods]([Year] ASC, [Chart] ASC, [BalType] ASC)
+    INCLUDE([Account], [Object], [FiscalYearBeginningBalance]);
 

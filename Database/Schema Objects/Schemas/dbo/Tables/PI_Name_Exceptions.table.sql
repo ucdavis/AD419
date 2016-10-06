@@ -6,10 +6,14 @@
     [LastName]               VARCHAR (100) NULL,
     [FirstMiddle]            VARCHAR (50)  NULL,
     [FirstInitial]           VARCHAR (50)  NULL,
+    [FirstName]              VARCHAR (50)  NULL,
     [MiddleInitial]          VARCHAR (50)  NULL,
     [FirstPortionOfLastName] VARCHAR (50)  NULL,
-    [ModifiedPIName]         VARCHAR (200) NULL
+    [ModifiedPIName]         VARCHAR (200) NULL,
+    [ModifiedPiName2]        VARCHAR (200) NULL
 );
+
+
 
 
 

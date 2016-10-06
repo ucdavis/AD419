@@ -9,7 +9,21 @@
 -- Notes: This procedure also zeros out and negative sums AND
 -- deletes any 22F associations and expenses with a datasource of '22F'.
 -- Lastly, this procedure selects a list of the rows that were not successfully inserted.
---
+-- Usage:
+/*
+	USE AD419
+	GO
+
+	DECLARE @return_value int, @FiscalYear int = 2015, @IsDebug bit = 0 
+	EXEC	@return_value = [dbo].[sp_INSERT_22F_EXPENSES_INTO_EXPENSES]
+			@FiscalYear = @FiscalYear,
+			@IsDebug = @IsDebug
+
+	SELECT	'Return Value' = @return_value
+	GO
+
+*/
+-- Modifications:
 --[12/17/2010] by kjt: Revised to use AllExpenses, table (formerly Expenses) instead of new Expenses view.
 --
 --[2011-11-23] by kjt: Revised to to use square brackets around PI's name so that punctuation could

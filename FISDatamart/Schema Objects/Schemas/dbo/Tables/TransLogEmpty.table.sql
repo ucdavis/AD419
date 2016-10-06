@@ -27,6 +27,9 @@
     [AccountAwardAmount]     DECIMAL (15, 2) NULL,
     [AccountAwardEndDate]    DATETIME        NULL,
     [HigherEdFunctionCode]   CHAR (4)        NULL,
+    [FringeBenefitIndicator] CHAR (1)        NULL,
+    [FringeBenefitChart]     VARCHAR (2)     NULL,
+    [FringeBenefitAccount]   CHAR (7)        NULL,
     [AccountFunctionCode]    CHAR (2)        NULL,
     [OPAccount]              CHAR (7)        NULL,
     [OPFund]                 CHAR (6)        NULL,
@@ -89,5 +92,63 @@
     [IsPendingTrans]         BIT             NULL,
     [IsCAESTrans]            TINYINT         NULL,
     [PartitionColumn]        AS              ([FiscalYear]%([FiscalYear]/(4))+(1)) PERSISTED
-) ON [MyPartitionScheme] ([PartitionColumn]);
+);
+
+
+
+
+
+
+GO
+CREATE NONCLUSTERED INDEX [TransLogEmpty_FringeBenefitChartFringeBenefitAccount_IDX]
+    ON [dbo].[TransLogEmpty]([FringeBenefitChart] ASC, [FringeBenefitAccount] ASC)
+    ON [MyPartitionScheme] ([PartitionColumn]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [TransLogEmpty_FiscalYearChartOPFundIsCAESTransObjectCodeConsolidationCodeTransBalanceType_CVINDX]
+    ON [dbo].[TransLogEmpty]([FiscalYear] ASC, [Chart] ASC, [OPFund] ASC, [IsCAESTrans] ASC, [ObjectCode] ASC, [ConsolidationCode] ASC, [TransBalanceType] ASC)
+    INCLUDE([AccountNum], [HigherEdFunctionCode], [OPAccount], [SubAccount], [SubObject], [ProjectCode], [TransLineAmount])
+    ON [MyPartitionScheme] ([PartitionColumn]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [TransLogEmpty_FiscalYearChartOPFundIsCAESTransObjectCodeConsolidationCodeTransBalanceType]
+    ON [dbo].[TransLogEmpty]([FiscalYear] ASC, [Chart] ASC, [OPFund] ASC, [IsCAESTrans] ASC, [ObjectCode] ASC, [ConsolidationCode] ASC, [TransBalanceType] ASC)
+    INCLUDE([AccountNum], [HigherEdFunctionCode], [OPAccount], [SubAccount], [SubObject], [ProjectCode], [TransLineAmount])
+    ON [MyPartitionScheme] ([PartitionColumn]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [TransLogEmpty_ChartOPFundIsCAESTransFiscalYearObjectCodeConsolidationCodeTransBalanceType_CVINDX]
+    ON [dbo].[TransLogEmpty]([Chart] ASC, [OPFund] ASC, [IsCAESTrans] ASC, [FiscalYear] ASC, [ObjectCode] ASC, [ConsolidationCode] ASC, [TransBalanceType] ASC)
+    INCLUDE([Level3_OrgCode], [AccountNum], [TransLineAmount])
+    ON [MyPartitionScheme] ([PartitionColumn]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [TransLogEmpty_ChartOPFundIsCAESTransFiscalYearObjectCodeConsolidationCodeTransBalanceType_CVIDX]
+    ON [dbo].[TransLogEmpty]([Chart] ASC, [OPFund] ASC, [IsCAESTrans] ASC, [FiscalYear] ASC, [ObjectCode] ASC, [ConsolidationCode] ASC, [TransBalanceType] ASC)
+    INCLUDE([Level3_OrgCode], [AccountNum], [TransLineAmount])
+    ON [MyPartitionScheme] ([PartitionColumn]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [TransLogEmpty_ChartOPFundIsCAESTransFiscalYearAccountNumObjectCodeConsolidationCodeTransBalanceType_CVIDX]
+    ON [dbo].[TransLogEmpty]([Chart] ASC, [OPFund] ASC, [IsCAESTrans] ASC, [FiscalYear] ASC, [AccountNum] ASC, [ObjectCode] ASC, [ConsolidationCode] ASC, [TransBalanceType] ASC)
+    INCLUDE([Level3_OrgCode], [TransLineAmount])
+    ON [MyPartitionScheme] ([PartitionColumn]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [TransLogEmpty_ChartOPFundIsCAESTransFiscalYearAccountNumObjectCodeConsolidationCodeTransBalanceType]
+    ON [dbo].[TransLogEmpty]([Chart] ASC, [OPFund] ASC, [IsCAESTrans] ASC, [FiscalYear] ASC, [AccountNum] ASC, [ObjectCode] ASC, [ConsolidationCode] ASC, [TransBalanceType] ASC)
+    ON [MyPartitionScheme] ([PartitionColumn]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [TransLogEmpty_ChartOPFundIsCAESTransFiscalYearAccountNumConsolidationCodeTransBalanceType_CVIDX]
+    ON [dbo].[TransLogEmpty]([Chart] ASC, [OPFund] ASC, [IsCAESTrans] ASC, [FiscalYear] ASC, [AccountNum] ASC, [ConsolidationCode] ASC, [TransBalanceType] ASC)
+    INCLUDE([ObjectCode])
+    ON [MyPartitionScheme] ([PartitionColumn]);
 

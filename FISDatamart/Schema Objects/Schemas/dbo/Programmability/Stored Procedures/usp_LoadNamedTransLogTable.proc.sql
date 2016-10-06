@@ -14,7 +14,9 @@
 -- Modifications:
 --	2011-03-04 by kjt:
 --		Added logic to pass a destination table name; otherwise defaults to TransLog.
---
+--	2011-06-15 by kjt:
+--		Added logic to populate new FringeBenefit fields required by Steve Pesis.
+-- 
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_LoadNamedTransLogTable] 
 	@FirstDateString varchar(16) = null,
@@ -149,6 +151,9 @@ INSERT INTO ' + @TableName + '
       ,[AccountAwardAmount]
       ,[AccountAwardEndDate]
       ,[HigherEdFunctionCode]
+      ,[FringeBenefitIndicator]
+	  ,[FringeBenefitChart]
+	  ,[FringeBenefitAccount]
       ,[AccountFunctionCode]
       ,[OPAccount]
       ,[OPFund]
@@ -241,6 +246,9 @@ INSERT INTO ' + @TableName + '
       ,[AccountAwardAmount]
       ,[AccountAwardEndDate]
       ,[HigherEdFunctionCode]
+      ,[FringeBenefitIndicator]
+	  ,[FringeBenefitChart]
+	  ,[FringeBenefitAccount]
       ,[AccountFunctionCode]
       ,[OPAccount]
       ,[OPFund]

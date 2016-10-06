@@ -4,6 +4,8 @@
 -- Description:	Inserts a single entry for a PI
 --	into CESList, and a single entry per project
 --	association into CESXProject
+-- Modifications:
+--	2016-08-01 by kjt: Added Chart and Account
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_insertCES]
 
@@ -14,8 +16,10 @@ CREATE PROCEDURE [dbo].[usp_insertCES]
         @OrgR char(4),
         @PctEffort float,
         @CESSalaryExpenses float,
-        @PctFTE tinyint
-
+        @PctFTE tinyint,
+		@Chart varchar(2) = null,
+		@Account varchar(7) = null,
+		@SubAccount varchar(5) = null
 AS
 BEGIN
 	-- SET NOCOUNT ON added to prevent extra result sets from
@@ -28,7 +32,7 @@ IF NOT EXISTS ( SELECT * FROM CESList WHERE EID = @EID )
                           (EID, AccountPIName, Title_Code)
     VALUES     (@EID,@AccountPIName,@Title_Code)
 
-INSERT INTO CESXProjects (EID, Accession, OrgR, PctEffort, CESSalaryExpenses, PctFTE)
-VALUES (@EID, @Accession, @OrgR, @PctEffort, @CESSalaryExpenses, @PctFTE)
+INSERT INTO CESXProjects (EID, Accession, OrgR, PctEffort, CESSalaryExpenses, PctFTE, Chart, Account, SubAccount)
+VALUES (@EID, @Accession, @OrgR, @PctEffort, @CESSalaryExpenses, @PctFTE, @Chart, @Account, @SubAccount)
 
 END

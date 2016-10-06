@@ -236,7 +236,7 @@ AS
 							
 		SELECT @TSQL += '
 						OR 
-						(O.CHART_NUM_LEVEL_4 = ''''3'''' AND O.ORG_ID_LEVEL_4 = ''''' + @CollegeOrg +''''') 
+						(O.CHART_NUM_LEVEL_4 IN (''''3'''', ''''L'''') AND O.ORG_ID_LEVEL_4 = ''''' + @CollegeOrg +''''') 
 						OR 
 					'
 							IF @CollegeOrg = @BIOS

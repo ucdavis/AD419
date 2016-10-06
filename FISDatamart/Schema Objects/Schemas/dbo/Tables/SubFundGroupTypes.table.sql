@@ -8,8 +8,11 @@
     [AwardOwnershipCodeRequiredFlag] CHAR (1)     NULL,
     [FundEndDateRequiredFlag]        CHAR (1)     NULL,
     [PaymentMediumCodeRequiredFlag]  CHAR (1)     NULL,
-    [CostTransferRequiredFlag]       CHAR (1)     NULL
+    [CostTransferRequiredFlag]       CHAR (1)     NULL,
+    CONSTRAINT [PK_SubFundGroupTypes_1] PRIMARY KEY CLUSTERED ([SubFundGroupType] ASC)
 );
+
+
 
 
 GO
@@ -29,7 +32,9 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Contracts a
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Sponsored Fund Flag:', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'SubFundGroupTypes', @level2type = N'COLUMN', @level2name = N'SponsoredFundFlag';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Sponsored Fund Flag: ', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'SubFundGroupTypes', @level2type = N'COLUMN', @level2name = N'SponsoredFundFlag';
+
+
 
 
 GO

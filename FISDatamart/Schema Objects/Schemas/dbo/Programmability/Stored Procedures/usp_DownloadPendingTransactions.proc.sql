@@ -15,6 +15,8 @@ Modifications:
 		Added timing print outs.
 	20111209 by kjt:
 		Added logic to handle missing Object (numbers) in PK and replace then with '----'.
+	2015-10-08 by kjt: Modifications to take into account removing DANR as level 4 ORG for chart L, and moving
+		AANS up to level 4 org position.  AAES is now at Level 4 for both Chart 'L' and Chart '3' as of FY 2016. 
 */
 CREATE Procedure [dbo].[usp_DownloadPendingTransactions]
 (
@@ -203,7 +205,7 @@ AS
 							OR 
 							(O.CHART_NUM_LEVEL_2 = ''''L'''' AND O.ORG_ID_LEVEL_2 = ''''AAES'''') 
 							OR 
-							(O.CHART_NUM_LEVEL_4 = ''''3'''' AND O.ORG_ID_LEVEL_4 = ''''AAES'''') 
+							(O.CHART_NUM_LEVEL_4 IN (''''3'''', ''''L'''') AND O.ORG_ID_LEVEL_4 = ''''AAES'''') 
 							OR 
 							(O.CHART_NUM_LEVEL_5 = ''''L'''' AND O.ORG_ID_LEVEL_5 = ''''AAES'''') 
 							OR
