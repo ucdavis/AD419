@@ -1,12 +1,17 @@
 ﻿CREATE TABLE [dbo].[AccountType] (
     [AccountType]     CHAR (2)     NOT NULL,
     [AccountTypeName] VARCHAR (50) NULL,
-    [LastUpdateDate]  DATETIME     NOT NULL
+    [LastUpdateDate]  DATETIME     NOT NULL,
+    CONSTRAINT [PK_AccountType] PRIMARY KEY CLUSTERED ([AccountType] ASC)
 );
 
 
+
+
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'This table lists the various account types defined in DaFIS.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'AccountType';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Financial Account Types: This table lists the various account types defined in DaFIS.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'AccountType';
+
+
 
 
 GO

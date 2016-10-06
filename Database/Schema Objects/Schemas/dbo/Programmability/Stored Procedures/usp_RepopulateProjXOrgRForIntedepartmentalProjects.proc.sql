@@ -2,9 +2,9 @@
 -- Author:		Ken Taylor
 -- Create date: November 12, 2013
 -- Description:	Replaces manual association of Interdepartmental projects 
--- to departments in ProgXOrgR using CoopDepts in AllProjects table.
+-- to departments in ProgXOrgR using InterdepartmentProjectsImport table.
 --
--- NOTE: Make sure to update CoopDepts field prior to running!!!!!
+-- NOTE: Make load InterdepartmentProjectsImport table prior to running!!!!!
 --
 -- Usage:
 /*
@@ -15,7 +15,7 @@ GO
 DECLARE	@return_value int
 
 EXEC	@return_value = [dbo].[usp_RepopulateProjXOrgRForIntedepartmentalProjects]
-		@DeleteExistingInterdepartmentalProjectsFromProjXOrgR = 1,  --1 to emulate deleting existing records; 0 to show SQL that would actually be run in non-debug mode.
+		@FiscalYear = 2015, @DeleteExistingInterdepartmentalProjectsFromProjXOrgR = 1,  --1 to emulate deleting existing records; 0 to show SQL that would actually be run in non-debug mode.
 		@IsDebug = 1
 
 SELECT	'Return Value' = @return_value
@@ -29,7 +29,7 @@ GO
 DECLARE	@return_value int
 
 EXEC	@return_value = [dbo].[usp_RepopulateProjXOrgRForIntedepartmentalProjects]
-		@DeleteExistingInterdepartmentalProjectsFromProjXOrgR = 1,
+		@FiscalYear = 2015, @DeleteExistingInterdepartmentalProjectsFromProjXOrgR = 1,
 		@IsDebug = 0
 
 SELECT	'Return Value' = @return_value
@@ -37,11 +37,15 @@ SELECT	'Return Value' = @return_value
 GO
 */
 -- Modifications:
--- 2015-03-31 by kjt: Removed any [AD419] database specific references so that this sproc can be used with other databases
---		such as [AD419_2014], etc. 
+--	2015-03-31 by kjt: Removed any [AD419] database specific references so that this sproc can be used with other databases
+--		such as [AD419_2014], etc.
+--	2016-08-04 by kjt: Revised to use InterdepartmentProjectsImport table. 
+--	2016-08-13 by kjt: Added sanity check to make sure all interdepartmental projects had their OrgRs identified.
+--	2016-08-18 by kjt: Revised to use ProjectV
+--	2016-08-20 by kjt: Revised to use udf_AD419ProjectsForFiscalYear as ProjectV was excluding 23 valid projects.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_RepopulateProjXOrgRForIntedepartmentalProjects] 
-	-- Add the parameters for the stored procedure here
+	@FiscalYear int = 2015, -- This is the current AD-419 Reporting Period.
 	@DeleteExistingInterdepartmentalProjectsFromProjXOrgR bit = 1, --Set to 0 to keep existing ID ProgXOrgR records.
 	@IsDebug bit = 0  --Set to 1 to print SQL only.
 AS
@@ -56,7 +60,7 @@ BEGIN
 	DELETE FROM [dbo].[ProjXOrgR]
 	WHERE Accession IN (
 		SELECT DISTINCT Accession 
-		FROM [AD419].[dbo].[Project]
+		FROM [dbo].udf_AD419ProjectsForFiscalYear(' + CONVERT(varchar(4), @FiscalYear) + ')
 		WHERE IsInterdepartmental = 1
 	)
 '
@@ -68,18 +72,22 @@ BEGIN
 			EXEC(@TSQL)
 	END
 
-	DECLARE @CoopDeptsTable TABLE (Accession varchar(50) ,Project varchar(50), CRIS_DeptID varchar(50), CoopDepts varchar(50), NumDepts int)
+	DECLARE @CoopDeptsTable TABLE (Accession varchar(50), Project varchar(50), NumDepts int, OrgR varchar(4))
 
 	INSERT INTO @CoopDeptsTable
-	SELECT 
-		Accession, 
+	SELECT t1.Accession, Project, NumDepts, t2.OrgR
+	FROM ( 
+	SELECT	
+		t1.Accession, 
 		Project,
-		CRIS_DeptID,
-		CoopDepts, 
-		CASE WHEN (LEN(CoopDepts) % 4 = 0) THEN LEN(CoopDepts)/4 ELSE 0 END NumDepts
-	FROM dbo.AllProjects 
-	WHERE IsCurrentAD419Project = 1 
-		AND isInterdepartmental = 1 
+		COUNT(*) NumDepts
+	FROM [dbo].udf_AD419ProjectsForFiscalYear(@FiscalYear) t1
+	LEFT OUTER JOIN InterdepartmentalProjectsImport t2 ON t1.Accession = t2.AccessionNumber
+	WHERE isInterdepartmental = 1 
+	GROUP BY t1.Accession, Project) t1
+	INNER JOIN dbo.InterdepartmentalProjectsImport t2 ON t1.Accession = t2.AccessionNumber WHERE Year = @FiscalYear
+	GROUP BY t1.Accession, T1.Project, T1.NumDepts, t2.OrgR
+	ORDER BY t1.Accession, T1.Project, T1.NumDepts, t2.OrgR
 
 	IF @DeleteExistingInterdepartmentalProjectsFromProjXOrgR = 0
 		DELETE FROM @CoopDeptsTable WHERE Accession IN (SELECT DISTINCT Accession FROM dbo.ProjXOrgR)
@@ -88,35 +96,42 @@ BEGIN
 	SELECT * FROM @CoopDeptsTable
 
 	DECLARE @return_value int = 0
-	DECLARE @CoopDept varchar(4), @DeptNum int, @StartPosn int, @OrgR varchar(4), @Name varchar(100)
-	DECLARE @Accession varchar(50), @Project varchar(50), @CRIS_DeptID varchar(50), @CoopDepts varchar(50), @NumDepts int
-	DECLARE myCursor CURSOR FOR 
-		SELECT Accession, Project, CRIS_DeptID, CoopDepts, NumDepts
+	DECLARE @OrgR varchar(4)
+	DECLARE @Accession varchar(50), @Project varchar(50), @NumDepts int, @DeptNum int, @StartPosn int, @CoopDept varchar(4), @Name varchar(50)
+	DECLARE MyCursor CURSOR FOR
+		SELECT DISTINCT Accession, Project, NumDepts
 		FROM @CoopDeptsTable
-		ORDER BY Accession
+		GROUP BY Accession, Project, NumDepts
+		ORDER BY Accession, Project, NumDepts
 
 	OPEN myCursor
-	FETCH NEXT FROM myCursor INTO @Accession, @Project, @CRIS_DeptID, @CoopDepts, @NumDepts
+	FETCH NEXT FROM myCursor INTO @Accession, @Project, @NumDepts
 	WHILE @@FETCH_STATUS <> -1
 	BEGIN
 		IF @IsDebug = 1
-			PRINT  'Accession: ' + @Accession + ', Project: '+  @Project+ ', CRIS_DeptID: '+   @CRIS_DeptID+ ', CoopDepts: '+   @CoopDepts+ ', NumDepts: '+  CONVERT(varchar(5), @NumDepts)
-
-		SELECT @DeptNum = 1
-		SELECT @StartPosn = 1
-		WHILE @DeptNum <= @NumDepts
+			PRINT  '--Accession: ' + @Accession + ', Project: '+  @Project+ ', NumDepts: '+  CONVERT(varchar(5), @NumDepts)
+			
+        SELECT @DeptNum = 0
+		DECLARE OrgCursor CURSOR FOR 
+			SELECT OrgR
+			FROM @CoopDeptsTable
+			WHERE Accession = @Accession
+			ORDER BY OrgR
+		OPEN OrgCursor
+		FETCH NEXT FROM OrgCursor INTO @OrgR
+		WHILE @@FETCH_STATUS <> -1
 		BEGIN
-			SELECT @CoopDept = SUBSTRING(@CoopDepts, @StartPosn, 4)
-			IF @IsDebug = 1
-				PRINT 'Coop Dept(' + CONVERT(varchar(5), @DeptNum)+ '): ' +  @CoopDept + '
-	'
-			SELECT @OrgR = (SELECT OrgR FROM dbo.ReportingOrg WHERE CRISDeptCd = @CoopDept )
-			SELECT @Name = (SELECT OrgShortName FROM dbo.ReportingOrg WHERE CRISDeptCd = @CoopDept ) 
+			SELECT @DeptNum = @DeptNum + 1
 
 			IF @IsDebug = 1
-				PRINT @Project +', ' + @Accession + ': OrgR: ' + @OrgR + '; ' + @Name + '
+				PRINT '--Coop Dept(' + CONVERT(varchar(5), @DeptNum) + '): ' +  @OrgR + '
 	'
-			SELECT @TSQL = '	EXEC [dbo].[usp_insertSecondaryDepartments] @Accession = ' + QUOTENAME(@Accession,'''') + ', @CRISDeptCd = ' + QUOTENAME(@CoopDept,'''') + ''
+			SELECT @Name = (SELECT OrgShortName FROM dbo.ReportingOrg WHERE OrgR = @OrgR ) 
+
+			IF @IsDebug = 1
+				PRINT '--' + CONVERT(varchar(5), @DeptNum) + ': ' + @Project +', ' + @Accession + ': OrgR: ' + @OrgR + '; ' + @Name + '
+	'
+			SELECT @TSQL = '	EXEC [dbo].[usp_insertSecondaryDepartments] @Accession = ' + QUOTENAME(@Accession,'''') + ', @OrgR = ' + QUOTENAME(@OrgR,'''') + ''
 			IF @IsDebug = 1
 				PRINT @TSQL
 			ELSE
@@ -126,14 +141,25 @@ BEGIN
 				PRINT	'Return Value = ' + CONVERT(varchar(5), @return_value)
 			END
 
-			SELECT @DeptNum = @DeptNum + 1
-			SELECT @StartPosn = (1 + (@DeptNum - 1) * 4)
+			FETCH NEXT FROM OrgCursor INTO @OrgR
 		END 
-		FETCH NEXT FROM myCursor INTO @Accession, @Project, @CRIS_DeptID, @CoopDepts, @NumDepts
+		CLOSE OrgCursor
+		DEALLOCATE OrgCursor
+		FETCH NEXT FROM myCursor INTO @Accession, @Project, @NumDepts
 
 		PRINT '
 	'
 	END
 	CLOSE myCursor
 	DEALLOCATE myCursor
+
+	-- sanity check to make sure all interdepartmental orgs have their orgs identified.
+	SELECT 'There should be zero rows below; otherwise, not all projects have departments assigned:' AS Message
+	SELECT accession from udf_AD419ProjectsForFiscalYear(@FiscalYear) where isInterdepartmental = 1
+	EXCEPT
+	SELECT DISTINCT Accession FROM ProjXOrgR WHERE Accession IN (
+	SELECT DISTINCT Accession 
+		FROM [dbo].udf_AD419ProjectsForFiscalYear(@FiscalYear)
+		WHERE IsInterdepartmental = 1
+	)
 END

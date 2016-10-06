@@ -9,8 +9,11 @@
     [AccountManagerRoutingIndicator]    VARCHAR (1)  NULL,
     [ReviewHierarchyRoutingIndicator]   VARCHAR (1)  NULL,
     [SpecialConditionsRoutingIndicator] VARCHAR (1)  NULL,
-    [LastUpdateDate]                    DATETIME     NULL
+    [LastUpdateDate]                    DATETIME     NULL,
+    CONSTRAINT [PK_DocumentTypes] PRIMARY KEY CLUSTERED ([DocumentType] ASC)
 );
+
+
 
 
 GO
@@ -26,7 +29,9 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'FIS Documen
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Document Type Group Code: Identifies the group of document types within an FIS subsystem that the Document is acssociated with. E.G. Financial Documents, Reference Table Maintenance, Purchasing Documents, Accounts Receivable Maintenance, AP Documents.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'DocumentTypes', @level2type = N'COLUMN', @level2name = N'DocumentGroupCode';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Document Type Group Code: Identifies the group of document types within an FIS subsystem that the Document is acssociated with. E.G. Financial Documents, Reference Table Maintenance, Purchasing Documents, Accounts Receivable Maintenance, AP Documents. ', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'DocumentTypes', @level2type = N'COLUMN', @level2name = N'DocumentGroupCode';
+
+
 
 
 GO

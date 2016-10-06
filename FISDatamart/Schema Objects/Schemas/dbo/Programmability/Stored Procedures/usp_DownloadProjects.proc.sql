@@ -12,6 +12,8 @@ Modifications:
 		Changed erroneous table name from Objects to Projects.
 	2011-03-04 by kjt:
 		Added logic to pass a destination table name; otherwise defaults to Projects.
+	2015-10-08 by kjt: Modifications to take into account removing DANR as level 4 ORG for chart L, and moving
+		AANS up to level 4 org position.  AAES is now at Level 4 for both Chart 'L' and Chart '3' as of FY 2016.
 */
 CREATE Procedure [dbo].[usp_DownloadProjects]
 (
@@ -90,7 +92,7 @@ SELECT @WhereClause += '
 								(ORG_ID_LEVEL_1 = ''''BIOS'''')
 								
 								OR 
-								(CHART_NUM_LEVEL_4 = ''''3'''' AND ORG_ID_LEVEL_4 = ''''AAES'''')
+								(CHART_NUM_LEVEL_4 IN (''''3'''', ''''L'''') AND ORG_ID_LEVEL_4 = ''''AAES'''')
 								OR
 								(CHART_NUM_LEVEL_5=''''L'''' AND ORG_ID_LEVEL_5 = ''''AAES'''')
 								

@@ -4,12 +4,15 @@
     [OrgShortName]                    VARCHAR (20) NULL,
     [CRISDeptCd]                      CHAR (4)     NULL,
     [OrgCd3Char]                      CHAR (3)     NULL,
-    [IsLocked]                        TINYINT      NULL,
-    [IsActive]                        TINYINT      NULL,
+    [IsLocked]                        BIT          NULL,
+    [IsActive]                        BIT          NULL,
     [SecondAndThirdAcctNumCharacters] VARCHAR (2)  NULL,
     [IsAdminCluster]                  BIT          NULL,
-    [AdminClusterOrgR]                VARCHAR (4)  NULL
+    [AdminClusterOrgR]                VARCHAR (4)  NULL,
+    CONSTRAINT [PK_ReportingOrg] PRIMARY KEY CLUSTERED ([OrgR] ASC)
 );
+
+
 
 
 GO

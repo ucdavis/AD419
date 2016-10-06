@@ -27,6 +27,9 @@
     [AccountAwardAmount]     DECIMAL (15, 2) NULL,
     [AccountAwardEndDate]    DATETIME        NULL,
     [HigherEdFunctionCode]   CHAR (4)        NULL,
+    [FringeBenefitIndicator] CHAR (1)        NULL,
+    [FringeBenefitChart]     VARCHAR (2)     NULL,
+    [FringeBenefitAccount]   CHAR (7)        NULL,
     [AccountFunctionCode]    CHAR (2)        NULL,
     [OPAccount]              CHAR (7)        NULL,
     [OPFund]                 CHAR (6)        NULL,
@@ -89,5 +92,70 @@
     [IsPendingTrans]         BIT             NULL,
     [IsCAESTrans]            TINYINT         NULL,
     [PartitionColumn]        AS              ([FiscalYear]%([FiscalYear]/(4))+(1)) PERSISTED
-) ON [MyPartitionScheme] ([PartitionColumn]);
+);
+
+
+
+
+
+
+GO
+CREATE NONCLUSTERED INDEX [TransLogMain_FYChartArcCodeConsolidationCodeTransBalType_IDX]
+    ON [dbo].[TransLog]([FiscalYear] ASC, [Chart] ASC, [AnnualReportCode] ASC, [ConsolidationCode] ASC, [TransBalanceType] ASC)
+    INCLUDE([ObjectCode], [ExpendAmount])
+    ON [MyPartitionScheme] ([PartitionColumn]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [TransLogMain_FringeBenefitChartFringeBenefitAccount_IDX]
+    ON [dbo].[TransLog]([FringeBenefitChart] ASC, [FringeBenefitAccount] ASC)
+    ON [MyPartitionScheme] ([PartitionColumn]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [TransLogMain_FiscalYearChartOPFundIsCAESTransObjectCodeConsolidationCodeTransBalanceType_CVINDX]
+    ON [dbo].[TransLog]([FiscalYear] ASC, [Chart] ASC, [OPFund] ASC, [IsCAESTrans] ASC, [ObjectCode] ASC, [ConsolidationCode] ASC, [TransBalanceType] ASC)
+    INCLUDE([AccountNum], [HigherEdFunctionCode], [OPAccount], [SubAccount], [SubObject], [ProjectCode], [TransLineAmount])
+    ON [MyPartitionScheme] ([PartitionColumn]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [TransLogMain_FiscalYearChartOPFundIsCAESTransObjectCodeConsolidationCodeTransBalanceType]
+    ON [dbo].[TransLog]([FiscalYear] ASC, [Chart] ASC, [OPFund] ASC, [IsCAESTrans] ASC, [ObjectCode] ASC, [ConsolidationCode] ASC, [TransBalanceType] ASC)
+    INCLUDE([AccountNum], [HigherEdFunctionCode], [OPAccount], [SubAccount], [SubObject], [ProjectCode], [TransLineAmount])
+    ON [MyPartitionScheme] ([PartitionColumn]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [TransLogMain_ChartOPFundIsCAESTransFiscalYearObjectCodeConsolidationCodeTransBalanceType_CVINDX]
+    ON [dbo].[TransLog]([Chart] ASC, [OPFund] ASC, [IsCAESTrans] ASC, [FiscalYear] ASC, [ObjectCode] ASC, [ConsolidationCode] ASC, [TransBalanceType] ASC)
+    INCLUDE([Level3_OrgCode], [AccountNum], [TransLineAmount])
+    ON [MyPartitionScheme] ([PartitionColumn]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [TransLogMain_ChartOPFundIsCAESTransFiscalYearObjectCodeConsolidationCodeTransBalanceType_CVIDX]
+    ON [dbo].[TransLog]([Chart] ASC, [OPFund] ASC, [IsCAESTrans] ASC, [FiscalYear] ASC, [ObjectCode] ASC, [ConsolidationCode] ASC, [TransBalanceType] ASC)
+    INCLUDE([Level3_OrgCode], [AccountNum], [TransLineAmount])
+    ON [MyPartitionScheme] ([PartitionColumn]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [TransLogMain_ChartOPFundIsCAESTransFiscalYearAccountNumObjectCodeConsolidationCodeTransBalanceType_CVIDX]
+    ON [dbo].[TransLog]([Chart] ASC, [OPFund] ASC, [IsCAESTrans] ASC, [FiscalYear] ASC, [AccountNum] ASC, [ObjectCode] ASC, [ConsolidationCode] ASC, [TransBalanceType] ASC)
+    INCLUDE([Level3_OrgCode], [TransLineAmount])
+    ON [MyPartitionScheme] ([PartitionColumn]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [TransLogMain_ChartOPFundIsCAESTransFiscalYearAccountNumObjectCodeConsolidationCodeTransBalanceType]
+    ON [dbo].[TransLog]([Chart] ASC, [OPFund] ASC, [IsCAESTrans] ASC, [FiscalYear] ASC, [AccountNum] ASC, [ObjectCode] ASC, [ConsolidationCode] ASC, [TransBalanceType] ASC)
+    ON [MyPartitionScheme] ([PartitionColumn]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [TransLogMain_ChartOPFundIsCAESTransFiscalYearAccountNumConsolidationCodeTransBalanceType_CVIDX]
+    ON [dbo].[TransLog]([Chart] ASC, [OPFund] ASC, [IsCAESTrans] ASC, [FiscalYear] ASC, [AccountNum] ASC, [ConsolidationCode] ASC, [TransBalanceType] ASC)
+    INCLUDE([ObjectCode])
+    ON [MyPartitionScheme] ([PartitionColumn]);
 

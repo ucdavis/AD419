@@ -1,18 +1,18 @@
-﻿CREATE VIEW dbo.ReportNamePrefix
+﻿CREATE VIEW ReportNamePrefix
 AS
-SELECT     [ParamValue] AS AdminUnit
-FROM         [dbo].[ParamNameAndValue]
-WHERE     [ParamName] = 'FinalReportTablesNamePrefix'
+SELECT        [ParamValue] AS AdminUnit
+FROM            [dbo].[ParamNameAndValue]
+WHERE        [ParamName] = 'FinalReportTablesNamePrefix'
 UNION ALL
-SELECT     [ParamValue]
-FROM         [dbo].[ParamNameAndValue] AS AdminUnit
-WHERE     [ParamName] = 'AllTableNamePrefix'
+SELECT        [ParamValue]
+FROM            [dbo].[ParamNameAndValue] AS AdminUnit
+WHERE        [ParamName] = 'AllTableNamePrefix'
 UNION ALL
-SELECT     'ADNO' AS AdminUnit
+SELECT        'ADNO' AS AdminUnit
 UNION ALL
-SELECT     [OrgR] AS AdminUnit
-FROM         [dbo].ReportingOrg
-WHERE     [IsAdminCluster] = 1 AND [IsActive] = 1
+SELECT        [OrgR] AS AdminUnit
+FROM            [dbo].ReportingOrg
+WHERE        [IsAdminCluster] = 1 AND [IsActive] = 1
 
 GO
 EXECUTE sp_addextendedproperty @name = N'MS_DiagramPane1', @value = N'[0E232FF0-B466-11cf-A24F-00AA00A3EFFF, 1.00]

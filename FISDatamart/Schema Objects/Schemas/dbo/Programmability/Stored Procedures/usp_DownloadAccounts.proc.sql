@@ -17,6 +17,8 @@ Modifications:
 	2011-08-19 by kjt:
 		Added 4 new fields relating to Account Manager Id, Account Reviewer Id, Principal Investigator Id, plus
 		Account Reviewer Name as per Scott K. required for the new Purchasing app.
+	2015-10-08 by kjt: Modifications to take into account removing DANR as level 4 ORG for chart L, and moving
+		AANS up to level 4 org position.  AAES is now at Level 4 for both Chart 'L' and Chart '3' as of FY 2016. 
 */
 CREATE Procedure [dbo].[usp_DownloadAccounts]
 (
@@ -98,7 +100,7 @@ SELECT @WhereClause += '
 								(ORG_ID_LEVEL_1 = ''''BIOS'''')
 								
 								OR 
-								(CHART_NUM_LEVEL_4 = ''''3'''' AND ORG_ID_LEVEL_4 = ''''AAES'''')
+								(CHART_NUM_LEVEL_4 IN (''''3'''', ''''L'''') AND ORG_ID_LEVEL_4 = ''''AAES'''')
 								OR
 								(CHART_NUM_LEVEL_5 = ''''L'''' AND ORG_ID_LEVEL_5 = ''''AAES'''')
 								

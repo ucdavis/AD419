@@ -23,6 +23,8 @@
 --  as well as empty, initial database loads.
 -- 20110425 by kjt:
 --	Changed call to usp_DownloadGeneralLedgerProjectBalancesForAllPeriods to pass @TruncateTables param.
+-- 20160623 by kjt: 
+--	Removed call to usp_DownloadProjects as there is an issue with corrupted data in the table that causes the whole sproc to fail. 
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_DownloadFISDataMart] 
 	-- Add the parameters for the stored procedure here
@@ -56,7 +58,7 @@ BEGIN
 	INSERT INTO @TablesNamesAndDownloadSprocNames VALUES ('Objects', 'usp_DownloadObjects', @true, @TruncateTables, @false, @false)
 	INSERT INTO @TablesNamesAndDownloadSprocNames VALUES ('OPFund', 'usp_DownloadOPFund', @true, @TruncateTables, @false, @false)
 	INSERT INTO @TablesNamesAndDownloadSprocNames VALUES ('Organizations', 'usp_DownloadOrganizations', @true, @false, @false, @false)
-	INSERT INTO @TablesNamesAndDownloadSprocNames VALUES ('Projects', 'usp_DownloadProjects', @true, @TruncateTables, @false, @false)	
+	--INSERT INTO @TablesNamesAndDownloadSprocNames VALUES ('Projects', 'usp_DownloadProjects', @true, @TruncateTables, @false, @false)	
 	INSERT INTO @TablesNamesAndDownloadSprocNames VALUES ('SubAccounts', 'usp_DownloadSubAccount', @true, @TruncateTables, @false, @false)	
 	INSERT INTO @TablesNamesAndDownloadSprocNames VALUES ('SubFundGroups', 'usp_DownloadSubFundGroups', @true, @TruncateTables, @false, @false)	
 	INSERT INTO @TablesNamesAndDownloadSprocNames VALUES ('SubObjects', 'usp_DownloadSubObjects', @true, @TruncateTables, @false, @false)	

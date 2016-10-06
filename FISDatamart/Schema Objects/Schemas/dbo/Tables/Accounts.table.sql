@@ -53,12 +53,22 @@
     [OrgFK]                     CHAR (14)       NULL,
     [FunctionCodeID]            SMALLINT        NULL,
     [OPFundFK]                  VARCHAR (17)    NULL,
-    [IsCAES]                    TINYINT         NULL
+    [IsCAES]                    TINYINT         NULL,
+    CONSTRAINT [PK_Accounts] PRIMARY KEY CLUSTERED ([Year] ASC, [Period] ASC, [Chart] ASC, [Account] ASC),
+    CONSTRAINT [FK_Accounts_Organizations] FOREIGN KEY ([Year], [Period], [Org], [Chart]) REFERENCES [dbo].[Organizations] ([Year], [Period], [Org], [Chart]) NOT FOR REPLICATION
 );
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Contains the data about an account and the related organization', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Accounts';
+ALTER TABLE [dbo].[Accounts] NOCHECK CONSTRAINT [FK_Accounts_Organizations];
+
+
+
+
+GO
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Organizational Accounts: Contains the data about an account and the related organization', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Accounts';
+
+
 
 
 GO
@@ -78,7 +88,9 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Account Num
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Organization Identifier: Identifies the organization to which the account belongs.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Accounts', @level2type = N'COLUMN', @level2name = N'Org';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Organization Identifier: Identifies the organization to which the account belongs. ', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Accounts', @level2type = N'COLUMN', @level2name = N'Org';
+
+
 
 
 GO
@@ -158,7 +170,9 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Award Numbe
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Award Type Code: Identifies an award as a contract or grant. ''1'' = Cooperative Agreement; ''2'' = Contract; ''3'' = Grant; and ''4'' = Gift', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Accounts', @level2type = N'COLUMN', @level2name = N'AwardTypeCode';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Award Type Code: Identifies an award as a contract or grant. ''1'' = Cooperative Agreement; ''2'' = Contract; ''3'' = Grant; and ''4'' = Gift  	', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Accounts', @level2type = N'COLUMN', @level2name = N'AwardTypeCode';
+
+
 
 
 GO
@@ -242,5 +256,63 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Organizatio
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Function Code ID: FK to FunctionCode table if account is classified as CE, OR or IR', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Accounts', @level2type = N'COLUMN', @level2name = N'FunctionCodeID';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Function Code ID: FK to FunctionCode table if account is classified as CE, OR or IR ', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Accounts', @level2type = N'COLUMN', @level2name = N'FunctionCodeID';
+
+
+
+
+GO
+CREATE NONCLUSTERED INDEX [Accounts_FundGroupCode_CVIDX]
+    ON [dbo].[Accounts]([FundGroupCode] ASC)
+    INCLUDE([Account], [Org], [AnnualReportCode], [AccountPK], [OrgFK], [OPFundFK]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [Accounts_FringeBenefitChartFringeBenefitAccount]
+    ON [dbo].[Accounts]([FringeBenefitChart] ASC, [FringeBenefitAccount] ASC);
+
+
+GO
+CREATE NONCLUSTERED INDEX [Accounts_ChartYearExpirationDate_CVIDX]
+    ON [dbo].[Accounts]([Chart] ASC, [Year] ASC, [ExpirationDate] ASC)
+    INCLUDE([Account], [MgrId], [MgrName]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [Accounts_ChartOpFundNumYearExpirationDate_CVIDX]
+    ON [dbo].[Accounts]([Chart] ASC, [OpFundNum] ASC, [Year] ASC, [ExpirationDate] ASC)
+    INCLUDE([Period], [Account], [Org], [HigherEdFuncCode], [A11AcctNum], [MgrId], [MgrName]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [Accounts_Chart,Year,Account,ExpirationDate_IDX]
+    ON [dbo].[Accounts]([Chart] ASC, [Year] ASC, [Account] ASC, [ExpirationDate] ASC);
+
+
+GO
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Account Reviewer Name: Name of an individual who is interested in the activity of an account, but who is not responsible for inputting transactions.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Accounts', @level2type = N'COLUMN', @level2name = N'ReviewerName';
+
+
+GO
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Account Reviewer Id: Identifies the user ID of the account reviewer for the account. The account reviewer is an individual who is interested in the activity of an account on an ongoing basis but who is not responsible for the fiscal activity of the account.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Accounts', @level2type = N'COLUMN', @level2name = N'ReviewerId';
+
+
+GO
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Principal Investigator Id: Identifies the user ID of the principal investigator of the contract or grant for whom the account has been set up.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Accounts', @level2type = N'COLUMN', @level2name = N'PrincipalInvestigatorId';
+
+
+GO
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Account Manager Id: The user id of the person responsible for an organization; specifically for the financial operations of the organization.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Accounts', @level2type = N'COLUMN', @level2name = N'MgrId';
+
+
+GO
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Fringe Benefit Indicator: Identifies if this account can receive fringe benefit costs', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Accounts', @level2type = N'COLUMN', @level2name = N'FringeBenefitIndicator';
+
+
+GO
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Fringe Benefit Chart Number: The GENFND chart number to which the FEDAPP benefits costs are charged against', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Accounts', @level2type = N'COLUMN', @level2name = N'FringeBenefitChart';
+
+
+GO
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Fringe Benefit Account Number: The GENFND account number to which the FEDAPP benefits costs are charged against', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Accounts', @level2type = N'COLUMN', @level2name = N'FringeBenefitAccount';
 

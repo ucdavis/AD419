@@ -1,4 +1,4 @@
-﻿CREATE VIEW [dbo].[BalanceSummaryView]
+﻿CREATE VIEW dbo.BalanceSummaryView
 AS
 SELECT        PKTrans, FiscalYear, FiscalPeriod, Chart, Level1_OrgCode AS CollegeLevelOrg, Level2_OrgCode AS DivisionLevelOrg, Level3_OrgCode AS DepartmentLevelOrg, 
                          OrgCode, Account, AccountName, AccountAwardNumber, AccountAwardAmount, CONVERT(varchar(5), OPFund) AS OPFund, OPFundName, SubAccount, 
@@ -7,10 +7,10 @@ SELECT        PKTrans, FiscalYear, FiscalPeriod, Chart, Level1_OrgCode AS Colleg
                          TransSourceTableCode, IsPendingTrans, TransLineAmount AS Amount, AppropAmount AS Approp, ExpendAmount AS Expend, EncumbAmount AS Encumb, 
                          HigherEdFunctionCode, OPAccount, OPFundGroup, OPFundGroupName, PrincipalInvestigator, AccountNum, SubFundGroupType, SubFundGroupTypeName, OrgName,
                           OrgLevel, OrgType, Level1_OrgName, Level2_OrgName, Level3_OrgName, AccountManager, AccountType, AccountPurpose, FederalAgencyCode, 
-                         AccountAwardType, AccountAwardEndDate, AccountFunctionCode, AccountFundGroup, AccountFundGroupName, AnnualReportCode, ObjectCode, ObjectName, 
-                         ObjectShortName, BudgetAggregationCode, ObjectType, ObjectTypeName, ObjectLevelName, ObjectLevelShortName, ObjectLevelCode, ObjectSubType, 
-                         ObjectSubTypeName, ConsolidationShortName, SubObject, ProjectManager, ProjectDescription, TransDocType, TransDocTypeName, TransDocOrigin, 
-                         TransDocInitiator, TransInitDate, TransDescription, TransPostDate
+                         AccountAwardType, AccountAwardEndDate, AccountFunctionCode, AccountFundGroup, AccountFundGroupName, AnnualReportCode, FringeBenefitIndicator, 
+                         FringeBenefitChart, FringeBenefitAccount, ObjectCode, ObjectName, ObjectShortName, BudgetAggregationCode, ObjectType, ObjectTypeName, ObjectLevelName, 
+                         ObjectLevelShortName, ObjectLevelCode, ObjectSubType, ObjectSubTypeName, ConsolidationShortName, SubObject, ProjectManager, ProjectDescription, 
+                         TransDocType, TransDocTypeName, TransDocOrigin, TransDocInitiator, TransInitDate, TransDescription, TransPostDate
 FROM            dbo.TransactionLogV
 WHERE        (((TransBalanceType IN ('CB', 'AC', 'EX', 'IE')) AND (ConsolidationCode NOT IN ('LIEN', 'BLSH')) OR
                          (TransBalanceType IN ('CB', 'AC', 'EX', 'IE')) AND (ConsolidationCode = 'BLSH') AND (ObjectCode NOT IN ('0054', '9998', 'HIST'))))
@@ -22,10 +22,10 @@ SELECT        PKTrans, FiscalYear, FiscalPeriod, Chart, Level1_OrgCode AS Colleg
                          TransSourceTableCode, IsPendingTrans, TransLineAmount AS Amount, AppropAmount AS Approp, ExpendAmount AS Expend, EncumbAmount AS Encumb, 
                          HigherEdFunctionCode, OPAccount, OPFundGroup, OPFundGroupName, PrincipalInvestigator, AccountNum, SubFundGroupType, SubFundGroupTypeName, OrgName,
                           OrgLevel, OrgType, Level1_OrgName, Level2_OrgName, Level3_OrgName, AccountManager, AccountType, AccountPurpose, FederalAgencyCode, 
-                         AccountAwardType, AccountAwardEndDate, AccountFunctionCode, AccountFundGroup, AccountFundGroupName, AnnualReportCode, ObjectCode, ObjectName, 
-                         ObjectShortName, BudgetAggregationCode, ObjectType, ObjectTypeName, ObjectLevelName, ObjectLevelShortName, ObjectLevelCode, ObjectSubType, 
-                         ObjectSubTypeName, ConsolidationShortName, SubObject, ProjectManager, ProjectDescription, TransDocType, TransDocTypeName, TransDocOrigin, 
-                         TransDocInitiator, TransInitDate, TransDescription, TransPostDate
+                         AccountAwardType, AccountAwardEndDate, AccountFunctionCode, AccountFundGroup, AccountFundGroupName, AnnualReportCode, FringeBenefitIndicator, 
+                         FringeBenefitChart, FringeBenefitAccount, ObjectCode, ObjectName, ObjectShortName, BudgetAggregationCode, ObjectType, ObjectTypeName, ObjectLevelName, 
+                         ObjectLevelShortName, ObjectLevelCode, ObjectSubType, ObjectSubTypeName, ConsolidationShortName, SubObject, ProjectManager, ProjectDescription, 
+                         TransDocType, TransDocTypeName, TransDocOrigin, TransDocInitiator, TransInitDate, TransDescription, TransPostDate
 FROM            dbo.GeneralLedgerBeginningBalancesView
 WHERE        (((TransBalanceType IN ('CB', 'AC', 'EX', 'IE')) AND (ConsolidationCode NOT IN ('LIEN', 'BLSH')) OR
                          (TransBalanceType IN ('CB', 'AC', 'EX', 'IE')) AND (ConsolidationCode = 'BLSH') AND (ObjectCode NOT IN ('0054', '9998', 'HIST'))))
@@ -102,7 +102,7 @@ Begin DesignProperties =
    End
    Begin DiagramPane = 
       Begin Origin = 
-         Top = -3072
+         Top = -2784
          Left = 0
       End
       Begin Tables = 
@@ -142,7 +142,10 @@ Begin DesignProperties =
          Or = 1350
       End
    End
-End', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'BalanceSummaryView';
+End
+', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'BalanceSummaryView';
+
+
 
 
 GO

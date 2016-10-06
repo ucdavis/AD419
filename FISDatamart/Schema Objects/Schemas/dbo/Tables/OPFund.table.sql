@@ -1,22 +1,28 @@
 ﻿CREATE TABLE [dbo].[OPFund] (
-    [Year]            INT             NOT NULL,
-    [Period]          CHAR (2)        NOT NULL,
-    [Chart]           VARCHAR (2)     NOT NULL,
-    [FundNum]         VARCHAR (6)     NOT NULL,
-    [FundName]        VARCHAR (40)    NULL,
-    [FundGroupCode]   VARCHAR (6)     NULL,
-    [FundGroupName]   VARCHAR (40)    NULL,
-    [SubFundGroupNum] VARCHAR (6)     NULL,
-    [AwardNum]        VARCHAR (20)    NULL,
-    [AwardType]       VARCHAR (1)     NULL,
-    [AwardYearNum]    VARCHAR (2)     NULL,
-    [AwardBeginDate]  VARCHAR (30)    NULL,
-    [AwardEndDate]    VARCHAR (30)    NULL,
-    [AwardAmount]     NUMERIC (15, 2) NULL,
-    [LastUpdateDate]  SMALLDATETIME   NULL,
-    [OPFundPK]        VARCHAR (17)    NULL,
-    [SubFundGroupFK]  VARCHAR (14)    NULL
+    [Year]              INT             NOT NULL,
+    [Period]            CHAR (2)        NOT NULL,
+    [Chart]             VARCHAR (2)     NOT NULL,
+    [FundNum]           VARCHAR (6)     NOT NULL,
+    [FundName]          VARCHAR (40)    NULL,
+    [FundGroupCode]     VARCHAR (6)     NULL,
+    [FundGroupName]     VARCHAR (40)    NULL,
+    [SubFundGroupNum]   VARCHAR (6)     NULL,
+    [AwardNum]          VARCHAR (20)    NULL,
+    [AwardType]         VARCHAR (1)     NULL,
+    [AwardYearNum]      VARCHAR (2)     NULL,
+    [AwardBeginDate]    VARCHAR (30)    NULL,
+    [AwardEndDate]      VARCHAR (30)    NULL,
+    [AwardAmount]       NUMERIC (15, 2) NULL,
+    [LastUpdateDate]    SMALLDATETIME   NULL,
+    [OPFundPK]          VARCHAR (17)    NULL,
+    [SubFundGroupFK]    VARCHAR (14)    NULL,
+    [PrimaryPIUserName] VARCHAR (50)    NULL,
+    [ProjectTitle]      VARCHAR (256)   NULL,
+    [CFDANum]           VARCHAR (6)     NULL,
+    CONSTRAINT [PK_OPFund_1] PRIMARY KEY CLUSTERED ([Year] ASC, [Period] ASC, [Chart] ASC, [FundNum] ASC)
 );
+
+
 
 
 GO

@@ -1,4 +1,5 @@
-﻿CREATE VIEW [dbo].[TransV]
+﻿
+CREATE VIEW [dbo].[TransV]
 AS
 SELECT        PKTrans, Year, Period, Chart, OrgID, Account, SubAccount, Object, SubObject, BalType, DocType, DocOrigin, DocNum, DocTrackNum, InitrID, InitDate, 
                          LineSquenceNumber, LineDesc, LineAmount, Project, OrgRefNum, PriorDocTypeNum, PriorDocOriginCd, PriorDocNum, EncumUpdtCd, CreationDate, PostDate, 
@@ -161,7 +162,10 @@ Begin DesignProperties =
          Or = 1350
       End
    End
-End', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'TransV';
+End
+', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'TransV';
+
+
 
 
 GO

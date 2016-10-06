@@ -9,7 +9,7 @@
     [SubAccount]        CHAR (5)        NOT NULL,
     [ObjectTypeCode]    CHAR (2)        NULL,
     [Object]            CHAR (4)        NOT NULL,
-    [SubObject]         CHAR (5)        NOT NULL,
+    [SubObject]         VARCHAR (5)     NOT NULL,
     [BalType]           CHAR (2)        NOT NULL,
     [DocType]           CHAR (4)        NOT NULL,
     [DocOrigin]         CHAR (2)        NOT NULL,
@@ -37,8 +37,11 @@
     [SubObjectFK]       VARCHAR (28)    NULL,
     [SubAccountFK]      VARCHAR (23)    NULL,
     [ProjectFK]         VARCHAR (21)    NULL,
-    [IsCAES]            TINYINT         NULL
+    [IsCAES]            TINYINT         NULL,
+    CONSTRAINT [PK_Trans] PRIMARY KEY CLUSTERED ([Year] ASC, [Period] ASC, [Chart] ASC, [Account] ASC, [SubAccount] ASC, [Object] ASC, [SubObject] ASC, [BalType] ASC, [DocType] ASC, [DocOrigin] ASC, [DocNum] ASC, [LineSquenceNumber] ASC, [PostDate] ASC)
 );
+
+
 
 
 GO
@@ -102,7 +105,9 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'DaFIS Docum
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'DaFIS Document Number: System (either TP or service unit feeder) assigned unique FIS document number.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Trans', @level2type = N'COLUMN', @level2name = N'DocNum';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'DaFIS Document Number: System (either TP or service unit feeder) assigned unique FIS document number. ', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Trans', @level2type = N'COLUMN', @level2name = N'DocNum';
+
+
 
 
 GO
@@ -195,4 +200,28 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Sub Account
 
 GO
 EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Is Trans Record CA&ES?: Flag to easily indicate if a record "belongs" to CA&ES for base budget purposes, etc.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Trans', @level2type = N'COLUMN', @level2name = N'IsCAES';
+
+
+GO
+CREATE NONCLUSTERED INDEX [Trans_YearChartObjectBalType_CVIDX]
+    ON [dbo].[Trans]([Year] ASC, [Chart] ASC, [Object] ASC, [BalType] ASC)
+    INCLUDE([PKTrans], [Period], [OrgID], [Account], [SubAccount], [SubObject], [DocType], [DocOrigin], [DocNum], [DocTrackNum], [InitrID], [InitDate], [LineSquenceNumber], [LineDesc], [LineAmount], [Project], [OrgRefNum], [PriorDocTypeNum], [PriorDocOriginCd], [PriorDocNum], [EncumUpdtCd], [CreationDate], [PostDate], [ReversalDate], [ChangeDate], [SrcTblCd], [OrganizationFK], [AccountsFK], [ObjectsFK], [SubObjectFK], [SubAccountFK], [ProjectFK], [IsCAES]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [Trans_ChartObjectBalType_CVINDX]
+    ON [dbo].[Trans]([Chart] ASC, [Object] ASC, [BalType] ASC)
+    INCLUDE([Year], [Account], [LineAmount]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [Trans_ChartIsCAESYearObjectBalType_CVIDX]
+    ON [dbo].[Trans]([Chart] ASC, [IsCAES] ASC, [Year] ASC, [Object] ASC, [BalType] ASC)
+    INCLUDE([Account], [SubAccount], [SubObject], [LineAmount], [Project], [AccountsFK], [ObjectsFK]);
+
+
+GO
+CREATE NONCLUSTERED INDEX [Trans_ChartBalType_CVIDX]
+    ON [dbo].[Trans]([Chart] ASC, [BalType] ASC)
+    INCLUDE([PKTrans], [Year], [Period], [OrgID], [Account], [SubAccount], [Object], [SubObject], [DocType], [DocOrigin], [DocNum], [DocTrackNum], [InitrID], [InitDate], [LineSquenceNumber], [LineDesc], [LineAmount], [Project], [OrgRefNum], [PriorDocTypeNum], [PriorDocOriginCd], [PriorDocNum], [EncumUpdtCd], [CreationDate], [PostDate], [ReversalDate], [ChangeDate], [SrcTblCd], [OrganizationFK], [AccountsFK], [ObjectsFK], [SubObjectFK], [SubAccountFK], [ProjectFK], [IsCAES]);
 

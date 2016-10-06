@@ -1,8 +1,11 @@
 ﻿CREATE TABLE [dbo].[ObjectSubTypes] (
     [ObjectSubType]     VARCHAR (2)  NOT NULL,
     [ObjectSubTypeName] VARCHAR (40) NULL,
-    [LastUpdateDate]    DATETIME     NULL
+    [LastUpdateDate]    DATETIME     NULL,
+    CONSTRAINT [PK_ObjectSubType] PRIMARY KEY CLUSTERED ([ObjectSubType] ASC)
 );
+
+
 
 
 GO
@@ -10,7 +13,9 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Object Sub 
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Object Sub Type Code: Identifies an object as an asset, liability, expenditure, fund balance,', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'ObjectSubTypes', @level2type = N'COLUMN', @level2name = N'ObjectSubType';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Object Sub Type Code: Identifies an object as an asset, liability, expenditure, fund balance, ', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'ObjectSubTypes', @level2type = N'COLUMN', @level2name = N'ObjectSubType';
+
+
 
 
 GO
