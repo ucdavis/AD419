@@ -6,6 +6,8 @@
 -- Modifications:
 --	2015-03-25 by kjt: Modified to use [204AcctXProj] and AllProjects tables Vs. Project and 
 -- ProjXOrgR since the CG, OG and SG proijects will no longer be present in the Project table.
+--  2015-10-29 by kjt: Revised back to use ProjXOrgR since 204 projects are now being included, plus also 
+-- added DISTINCT so only single occurances will be returned.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_get204ProjectsByDept] 
 	-- Add the parameters for the stored procedure here
@@ -22,16 +24,9 @@ BEGIN
 	SET @OrgR = '%'
 END
 
---SELECT     P.Project, P.Accession
---FROM         Project P INNER JOIN
---                      ProjXOrgR ON P.Accession = ProjXOrgR.Accession
---WHERE     (ProjXOrgR.OrgR LIKE @OrgR)
---AND (P.Project NOT LIKE '%-H' AND P.Project NOT LIKE '%-RR' AND P.Project NOT LIKE '%-AH')
---ORDER BY P.Project
-
-SELECT     P.Project, P.Accession
-FROM         AllProjects P INNER JOIN
-                      [204AcctXProj] ProjXOrgR ON P.Accession = ProjXOrgR.Accession
+SELECT  DISTINCT   P.Project, P.Accession
+FROM         Project P INNER JOIN
+                      ProjXOrgR ON P.Accession = ProjXOrgR.Accession
 WHERE     (ProjXOrgR.OrgR LIKE @OrgR)
 AND (P.Project NOT LIKE '%-H' AND P.Project NOT LIKE '%-RR' AND P.Project NOT LIKE '%-AH')
 ORDER BY P.Project

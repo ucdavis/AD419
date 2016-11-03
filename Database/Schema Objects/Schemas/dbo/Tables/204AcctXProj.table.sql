@@ -1,17 +1,25 @@
 ﻿CREATE TABLE [dbo].[204AcctXProj] (
-    [AccountID]         CHAR (7)     NOT NULL,
-    [Expenses]          FLOAT        NOT NULL,
-    [DividedAmount]     FLOAT        NULL,
-    [Accession]         CHAR (7)     NULL,
-    [Chart]             CHAR (1)     NULL,
-    [pk]                INT          IDENTITY (1, 1) NOT NULL,
-    [Is219]             BIT          NULL,
-    [CSREES_ContractNo] VARCHAR (20) NULL,
-    [AwardNum]          VARCHAR (20) NULL,
-    [IsCurrentProject]  BIT          NULL,
-    [Org]               VARCHAR (4)  NULL,
-    [OrgR]              VARCHAR (4)  NULL
+    [AccountID]         CHAR (7)      NOT NULL,
+    [Expenses]          FLOAT (53)    NOT NULL,
+    [DividedAmount]     FLOAT (53)    NULL,
+    [FTE]               FLOAT (53)    NULL,
+    [Accession]         CHAR (7)      NULL,
+    [ProjectNumber]     VARCHAR (24)  NULL,
+    [Chart]             CHAR (1)      NULL,
+    [pk]                INT           IDENTITY (1, 1) NOT NULL,
+    [Is219]             BIT           NULL,
+    [CSREES_ContractNo] VARCHAR (20)  NULL,
+    [AwardNum]          VARCHAR (50)  NULL,
+    [OpFundNum]         VARCHAR (6)   NULL,
+    [ProjectEndDate]    DATETIME2 (7) NULL,
+    [IsCurrentProject]  BIT           NULL,
+    [Org]               VARCHAR (4)   NULL,
+    [OrgR]              VARCHAR (4)   NULL,
+    [IsExcludedExpense] BIT           NULL,
+    CONSTRAINT [PK_204AcctXProj] PRIMARY KEY CLUSTERED ([pk] ASC)
 );
+
+
 
 
 

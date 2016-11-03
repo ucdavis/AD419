@@ -1,0 +1,3 @@
+﻿CREATE LOGIN [AESDEAN\agdean66$]
+    FROM WINDOWS WITH DEFAULT_LANGUAGE = [us_english];
+
