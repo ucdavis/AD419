@@ -18,8 +18,11 @@ EXEC	@return_value = [dbo].[usp_DropAndReCreateExpensesViewForFiscalYear]
 SELECT	'Return Value' = @return_value
 GO
 */
+-- Modifications:
+-- 2014-04-03 by kjt: Executed DROP and SET statments separately because
+-- CREATE VIEW must be first statement in a query batch.
 -- =============================================
-CREATE PROCEDURE usp_DropAndReCreateExpensesViewForFiscalYear 
+CREATE PROCEDURE [dbo].[usp_DropAndReCreateExpensesViewForFiscalYear] 
 	@FiscalYear varchar(4) = '2014', --Fiscal Year for the AD-419 reporting period.
 	@IsDebug bit = 0 -- Set to 1 to print generated SQL only.
 AS
@@ -41,8 +44,14 @@ SET ANSI_NULLS ON
 
 SET QUOTED_IDENTIFIER ON
 '
+	IF @IsDebug = 1
+		BEGIN
+			PRINT @TSQL
+		END
+		ELSE
+			EXEC(@TSQL)
 
-	SELECT @TSQL += '
+	SELECT @TSQL = '
 CREATE VIEW [dbo].[Expenses]
 AS
 SELECT        ExpenseID, 
@@ -85,7 +94,9 @@ WHERE	(Account NOT IN
 			 (Account IS NULL)         
 '
 	IF @IsDebug = 1
+	BEGIN
 		PRINT @TSQL
+	END
 	ELSE
 		EXEC(@TSQL)
 END

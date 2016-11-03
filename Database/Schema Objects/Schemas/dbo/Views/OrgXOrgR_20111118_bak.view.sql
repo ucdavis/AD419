@@ -1,9 +1,4 @@
-﻿CREATE VIEW [dbo].[OrgXOrgR_20111118_bak]
-AS
-SELECT        Chart, Org, (CASE WHEN Org = 'CABA' THEN 'CABA' WHEN Org IN ('AADM', 'ACWU', 'AADM', 'AGAD', 'APRV') OR
-                         OrgR IN ('AHIS', 'AWRD', 'GRCP') 
-                         THEN 'ADNO' WHEN Org = 'APSC' THEN 'APLS' WHEN OrgR = 'ALAR' THEN 'AEDS' WHEN OrgR = 'AHCH' THEN 'AHCD' ELSE OrgR END) AS OrgR
-FROM            dbo.AllOrgXOrgR
+﻿
 
 GO
 EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'OrgXOrgR: Changes some of the OrgRs so that their expenses can can be grouped together under similar orgRs for association purposes.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'OrgXOrgR_20111118_bak';

@@ -1,0 +1,3 @@
+﻿CREATE LOGIN [AESDEAN\sutaylor]
+    FROM WINDOWS WITH DEFAULT_LANGUAGE = [us_english];
+

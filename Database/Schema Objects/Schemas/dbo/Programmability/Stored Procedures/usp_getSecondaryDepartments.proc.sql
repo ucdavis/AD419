@@ -1,7 +1,15 @@
 ﻿-- =============================================
 -- Author:		Scott Kirkland
 -- Create date: 9/15/06
--- Description:	
+-- Description:	Return a list of cooperating OrgRs, i.e. Departments, participating
+--		in an Interdepartmental project.
+-- Usage:
+/*
+	EXEC [dbo].[usp_getSecondaryDepartments]  @Accession = '1007628'
+*/
+--
+-- Modifications:
+--	20160815 by kjt: Added Usage and description comments--
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_getSecondaryDepartments] 
 	-- Add the parameters for the stored procedure here
@@ -17,8 +25,9 @@ BEGIN
 
 SELECT     Project.Accession, ReportingOrg.CRISDeptCd, ReportingOrg.OrgName AS deptname, ReportingOrg.IsActive
 FROM         Project INNER JOIN
-                      ProjXOrgR ON Project.Accession = ProjXOrgR.Accession INNER JOIN
-                      ReportingOrg ON ProjXOrgR.OrgR = ReportingOrg.OrgR
+						ProjXOrgR ON Project.Accession = ProjXOrgR.Accession 
+                     INNER JOIN 
+						ReportingOrg ON ProjXOrgR.OrgR = ReportingOrg.OrgR
 WHERE     (Project.Accession = @Accession) AND (ReportingOrg.IsActive = 1)
 
 END

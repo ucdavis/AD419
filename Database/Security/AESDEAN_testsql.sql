@@ -1,0 +1,3 @@
+﻿CREATE LOGIN [AESDEAN\testsql]
+    FROM WINDOWS WITH DEFAULT_LANGUAGE = [us_english];
+

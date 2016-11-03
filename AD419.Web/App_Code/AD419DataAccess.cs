@@ -810,6 +810,26 @@ namespace CAESDO
         }
 
         /// <summary>
+        /// Gets the current fiscal year for the AD-419 Reporting Period from the AD-419
+        /// database instead of the web.config file, allowing the application to use the value 
+        /// set by the user in the AD-419 Data Helper application.
+        /// </summary>
+        /// <returns>Current Fiscal Year string</returns>
+        public string getCurrentFiscalYear()
+        {
+            dops.ResetDops();
+            dops.Sproc = "usp_GetCurrentFiscalYear";
+            
+            dops.SetParameter("@CurrentFiscalYear", 0, "output");
+           
+            dops.Execute_Sql();
+
+            var fiscalYear = (int)dops.GetOutputVariable("@CurrentFiscalYear");
+            
+            return fiscalYear.ToString();
+        }
+
+        /// <summary>
         /// Returns the object as a string or string.empty if it is null
         /// </summary>
         private string GetNullSafeString(object obj)

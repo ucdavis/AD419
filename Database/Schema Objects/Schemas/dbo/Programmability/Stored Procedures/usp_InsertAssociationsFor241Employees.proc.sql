@@ -3,6 +3,14 @@
 -- Create date: November 26, 2014
 -- Description:	Insert associations for all 241 employees 
 -- using the Expenses, PI_Match and PI_Names tables.
+--
+-- Usage:
+/*
+	EXEC [dbo].[usp_InsertAssociationsFor241Employees]  @IsDebug = 0
+*/
+-- Modifications:
+--	20160815 by kjt: Added check to make sure all PI have either been matched or had the
+-- IsProrated flag set to 1.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_InsertAssociationsFor241Employees] 
 	@IsDebug bit = 0 -- Set this to 1 to print SQL statements created by procedure only.
@@ -11,6 +19,22 @@ BEGIN
 	-- SET NOCOUNT ON added to prevent extra result sets from
 	-- interfering with SELECT statements.
 	SET NOCOUNT ON;
+	
+	BEGIN
+		DECLARE @Count int = (
+			SELECT Count(*) FROM PI_Match WHERE PI_MATCH IS NULL AND 
+			(IsProrated = 0 OR IsProrated IS NULL)
+		)
+		IF @Count > 0
+		BEGIN
+			PRINT '-- Not all project PIs have been matched or have had their IsProrated flag set to true.
+-- Please match Project PIs to the corresponding Employee or set PI''s IsProrated to true when the PI does not
+-- have a project in the corresponding OrgR.
+'			
+			IF @IsDebug = 0
+				RETURN 
+		END
+	END
 
   --DECLARE @IsDebug bit = 0
   -- Preparation for Step 1:

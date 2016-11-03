@@ -1,9 +1,4 @@
-﻿CREATE VIEW [dbo].[Project]
-AS
-SELECT        Accession, Project, isInterdepartmental, isValid, BeginDate, TermDate, ProjTypeCd, RegionalProjNum, CRIS_DeptID, CSREES_ContractNo, StatusCd, Title, 
-                         UpdateDate, inv1, inv2, inv3, inv4, inv5, inv6, idProject
-FROM            dbo.AllProjects
-WHERE        (IsCurrentAD419Project = 1)
+﻿
 
 GO
 EXECUTE sp_addextendedproperty @name = N'MS_DiagramPane1', @value = N'[0E232FF0-B466-11cf-A24F-00AA00A3EFFF, 1.00]

@@ -55,6 +55,8 @@ namespace CAESDO
                 lblProjectsExpired.Text = projectStatusDictionary["Expired"];
                 lblProjectsTotal.Text = projectStatusDictionary["Total"];
 
+                lblFiscalYear.Text = da.getCurrentFiscalYear();
+
                 gv_TotalExpensesByDept.DataSource = ds;
                 gv_TotalExpensesByDept.DataBind();
             }
