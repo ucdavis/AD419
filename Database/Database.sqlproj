@@ -236,9 +236,6 @@
     <Build Include="Schema Objects\Schemas\dbo\Tables\Keys\PK_Expenses.pkey.sql">
       <SubType>Code</SubType>
     </Build>
-    <Build Include="Schema Objects\Schemas\dbo\Tables\Keys\PK_TableName_1.pkey.sql">
-      <SubType>Code</SubType>
-    </Build>
     <Build Include="Schema Objects\Schemas\dbo\Tables\Keys\PK_ProjXOrgR.pkey.sql">
       <SubType>Code</SubType>
     </Build>
@@ -938,9 +935,6 @@
     <Build Include="Schema Objects\Schemas\dbo\Programmability\Types\User Defined Table Types\NonAdminTableType.udtt.sql">
       <SubType>Code</SubType>
     </Build>
-    <Build Include="Schema Objects\Schemas\dbo\Tables\Keys\PK_ExpiredProjectCrossReference.pkey.sql">
-      <SubType>Code</SubType>
-    </Build>
     <Build Include="Schema Objects\Schemas\dbo\Programmability\Stored Procedures\usp_RepopulateProjXOrgRForIntedepartmentalProjects.proc.sql">
       <SubType>Code</SubType>
       <AnsiNulls>On</AnsiNulls>
@@ -1588,6 +1582,28 @@
       <QuotedIdentifier>On</QuotedIdentifier>
     </Build>
     <Build Include="dbo\Stored Procedures\usp_GetCurrentFiscalYear.sql" />
+    <Build Include="dbo\Stored Procedures\udf_RollbackAndReloadExpenses.sql" />
+    <Build Include="dbo\Tables\SfnClassificationLogic.sql">
+      <AnsiNulls>On</AnsiNulls>
+      <QuotedIdentifier>On</QuotedIdentifier>
+    </Build>
+    <Build Include="dbo\Tables\CaesTitles.sql">
+      <AnsiNulls>On</AnsiNulls>
+      <QuotedIdentifier>On</QuotedIdentifier>
+    </Build>
+    <Build Include="dbo\Tables\AllCfdaNumbers.sql">
+      <AnsiNulls>On</AnsiNulls>
+      <QuotedIdentifier>On</QuotedIdentifier>
+    </Build>
+    <Build Include="dbo\Stored Procedures\usp_RollbackAndReloadExpenses.sql">
+      <AnsiNulls>On</AnsiNulls>
+      <QuotedIdentifier>On</QuotedIdentifier>
+    </Build>
+    <Build Include="dbo\Stored Procedures\usp_GenerateNewAccountSfnCaseStatement.sql">
+      <AnsiNulls>On</AnsiNulls>
+      <QuotedIdentifier>On</QuotedIdentifier>
+    </Build>
+    <Build Include="Security\Permissions.sql" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\FISDatamart\FISDatamart.sqlproj">

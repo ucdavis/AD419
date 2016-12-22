@@ -16,10 +16,12 @@
 --	20160907 by kjt: Adding error raising so that the error reason could be returned
 --	and displayed on the web page. 
 --	20160914 by kjt: Revised raise error logic to set an error message and use a single throw block. 
+--	20161215 by kjt: Revised logic to handle projects with NULL expense sums as these were not being 
+--		handled properly due to their expense totals being NULL instead of zero (0).
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_PerformPostProcessingAndCreateFinalReports] 
 	-- Add the parameters for the stored procedure here
-	@FiscalYear int = 2015, 
+	@FiscalYear int = 2016, 
 	@IsDebug bit = 0
 AS
 BEGIN
@@ -62,7 +64,7 @@ BEGIN
 		SELECT AccessionNumber 
 		FROM   FFY_SFN_Entries
 		WHERE IsExpired = 0 AND SFN = ''204''
-		GROUP BY AccessionNumber HAVING SUM(Expenses) <= 100
+		GROUP BY AccessionNumber HAVING ISNULL(SUM(Expenses),0) <= 100
 	)
 
 	TRUNCATE TABLE Project

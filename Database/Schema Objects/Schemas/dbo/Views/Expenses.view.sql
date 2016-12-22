@@ -86,12 +86,22 @@ Begin DesignProperties =
          Left = 0
       End
       Begin Tables = 
-         Begin Table = "AllExpenses"
+         Begin Table = "t1"
             Begin Extent = 
                Top = 6
                Left = 38
                Bottom = 135
                Right = 220
+            End
+            DisplayFlags = 280
+            TopColumn = 0
+         End
+         Begin Table = "t2"
+            Begin Extent = 
+               Top = 6
+               Left = 258
+               Bottom = 118
+               Right = 428
             End
             DisplayFlags = 280
             TopColumn = 0
@@ -132,5 +142,8 @@ Begin DesignProperties =
          Or = 1350
       End
    End
-End', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'Expenses';
+End
+', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'Expenses';
+
+
 

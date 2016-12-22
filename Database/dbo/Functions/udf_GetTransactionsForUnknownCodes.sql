@@ -21,6 +21,7 @@
 -- Modifications:
 --	20160919 by kjt: Added inner join to trans doc types statement that excludes Obj Consol Codes not
 --		used in FTE calculations to limit the number of rows returned.
+--	20161109 by kjt: Corrected issue: The select list for the INSERT statement contains more items than the insert list.
 -- =============================================
 CREATE FUNCTION [dbo].[udf_GetTransactionsForUnknownCodes] 
 (
@@ -79,7 +80,26 @@ BEGIN
 		  ,[ExcludedByAccount]
 		  ,[ExcludedByObjConsol]
 	  )
-		SELECT t1.* FROM [AnotherLaborTransactions]  t1
+		SELECT [Chart]
+		  ,[Account]
+		  ,[SubAccount]
+		  ,[Org]
+		  ,t1.[ObjConsol]
+		  ,[FinanceDocTypeCd]
+		  ,[DosCd]
+		  ,[EmployeeID]
+		  ,[EmployeeName]
+		  ,[TitleCd]
+		  ,[RateTypeCd]
+		  ,[Payrate]
+		  ,[Amount]
+		  ,[PayPeriodEndDate]
+		  ,[FringeBenefitSalaryCd]
+		  ,[AnnualReportCode]
+		  ,[ExcludedByARC]
+		  ,[ExcludedByOrg]
+		  ,[ExcludedByAccount]
+		  ,[ExcludedByObjConsol] FROM [AnotherLaborTransactions]  t1
 		INNER JOIN (
 		select distinct ObjConsol from [AnotherLaborTransactions] 
 		EXCEPT 
@@ -90,7 +110,26 @@ BEGIN
 		UNION
 
 		-- Add any non-expired, UC Davis 204 accounts
-		SELECT t1.* FROM [AnotherLaborTransactions]  t1
+		SELECT t1.[Chart]
+		  ,t1.[Account]
+		  ,[SubAccount]
+		  ,t1.[Org]
+		  ,t1.[ObjConsol]
+		  ,[FinanceDocTypeCd]
+		  ,[DosCd]
+		  ,[EmployeeID]
+		  ,[EmployeeName]
+		  ,[TitleCd]
+		  ,[RateTypeCd]
+		  ,[Payrate]
+		  ,[Amount]
+		  ,[PayPeriodEndDate]
+		  ,[FringeBenefitSalaryCd]
+		  ,t1.[AnnualReportCode]
+		  ,t1.[ExcludedByARC]
+		  ,t1.[ExcludedByOrg]
+		  ,t1.[ExcludedByAccount]
+		  ,[ExcludedByObjConsol] FROM [AnotherLaborTransactions]  t1
 		INNER JOIN (
 		select distinct ObjConsol from [AnotherLaborTransactions] 
 		EXCEPT 
@@ -126,8 +165,46 @@ BEGIN
 		  ,[ExcludedByAccount]
 		  ,[ExcludedByObjConsol]
 	  )
-	  SELECT t1.* FROM (
-		select t1.* from [AnotherLaborTransactions] t1 
+	  SELECT [Chart]
+		  ,[Account]
+		  ,[SubAccount]
+		  ,[Org]
+		  ,[ObjConsol]
+		  ,[FinanceDocTypeCd]
+		  ,[DosCd]
+		  ,[EmployeeID]
+		  ,[EmployeeName]
+		  ,[TitleCd]
+		  ,[RateTypeCd]
+		  ,[Payrate]
+		  ,[Amount]
+		  ,[PayPeriodEndDate]
+		  ,[FringeBenefitSalaryCd]
+		  ,[AnnualReportCode]
+		  ,[ExcludedByARC]
+		  ,[ExcludedByOrg]
+		  ,[ExcludedByAccount]
+		  ,[ExcludedByObjConsol] FROM (
+		select [Chart]
+		  ,[Account]
+		  ,[SubAccount]
+		  ,[Org]
+		  ,[ObjConsol]
+		  ,t1.[FinanceDocTypeCd]
+		  ,[DosCd]
+		  ,[EmployeeID]
+		  ,[EmployeeName]
+		  ,[TitleCd]
+		  ,[RateTypeCd]
+		  ,[Payrate]
+		  ,[Amount]
+		  ,[PayPeriodEndDate]
+		  ,[FringeBenefitSalaryCd]
+		  ,[AnnualReportCode]
+		  ,[ExcludedByARC]
+		  ,[ExcludedByOrg]
+		  ,[ExcludedByAccount]
+		  ,[ExcludedByObjConsol] from [AnotherLaborTransactions] t1 
 		INNER JOIN (
 			select distinct FinanceDocTypeCd from [AnotherLaborTransactions] 
 			EXCEPT 
@@ -138,7 +215,26 @@ BEGIN
 		UNION
 
 		-- Add any non-expired, UC Davis 204 accounts
-		SELECT t1.* FROM [AnotherLaborTransactions]  t1
+		SELECT t1.[Chart]
+		  ,t1.[Account]
+		  ,[SubAccount]
+		  ,t1.[Org]
+		  ,[ObjConsol]
+		  ,t1.[FinanceDocTypeCd]
+		  ,[DosCd]
+		  ,[EmployeeID]
+		  ,[EmployeeName]
+		  ,[TitleCd]
+		  ,[RateTypeCd]
+		  ,[Payrate]
+		  ,[Amount]
+		  ,[PayPeriodEndDate]
+		  ,[FringeBenefitSalaryCd]
+		  ,t1.[AnnualReportCode]
+		  ,t1.[ExcludedByARC]
+		  ,t1.[ExcludedByOrg]
+		  ,t1.[ExcludedByAccount]
+		  ,[ExcludedByObjConsol] FROM [AnotherLaborTransactions]  t1
 		INNER JOIN (
 			select distinct FinanceDocTypeCd from [AnotherLaborTransactions] 
 			EXCEPT 
@@ -177,7 +273,26 @@ BEGIN
 		  ,[ExcludedByAccount]
 		  ,[ExcludedByObjConsol]
 	  )
-		select t1.* from [AnotherLaborTransactions]  t1
+		select  [Chart]
+		  ,[Account]
+		  ,[SubAccount]
+		  ,[Org]
+		  ,[ObjConsol]
+		  ,[FinanceDocTypeCd]
+		  ,t1.[DosCd]
+		  ,[EmployeeID]
+		  ,[EmployeeName]
+		  ,[TitleCd]
+		  ,[RateTypeCd]
+		  ,[Payrate]
+		  ,[Amount]
+		  ,[PayPeriodEndDate]
+		  ,[FringeBenefitSalaryCd]
+		  ,[AnnualReportCode]
+		  ,[ExcludedByARC]
+		  ,[ExcludedByOrg]
+		  ,[ExcludedByAccount]
+		  ,[ExcludedByObjConsol] from [AnotherLaborTransactions]  t1
 		INNER JOIN ConsolCodesForFTECalc t2 ON t1.ObjConsol = t2.Obj_Consolidatn_Num  -- Only include transactions we use for labor calculations.
 		INNER JOIN (
 			select distinct DosCd from [AnotherLaborTransactions] 
@@ -189,7 +304,26 @@ BEGIN
 		UNION
 
 		-- Add any non-expired, UC Davis 204 accounts
-		select t1.* from [AnotherLaborTransactions]  t1
+		select  t1.[Chart]
+		  ,t1.[Account]
+		  ,[SubAccount]
+		  ,t1.[Org]
+		  ,[ObjConsol]
+		  ,[FinanceDocTypeCd]
+		  ,[DosCd]
+		  ,[EmployeeID]
+		  ,[EmployeeName]
+		  ,[TitleCd]
+		  ,[RateTypeCd]
+		  ,[Payrate]
+		  ,[Amount]
+		  ,[PayPeriodEndDate]
+		  ,[FringeBenefitSalaryCd]
+		  ,t1.[AnnualReportCode]
+		  ,t1.[ExcludedByARC]
+		  ,t1.[ExcludedByOrg]
+		  ,t1.[ExcludedByAccount]
+		  ,[ExcludedByObjConsol] from [AnotherLaborTransactions]  t1
 		INNER JOIN ConsolCodesForFTECalc t2 ON t1.ObjConsol = t2.Obj_Consolidatn_Num
 		INNER JOIN AllAccountsFor204Projects t3 ON t1.Chart = t3.Chart AND
 			t1.Account = t3.Account AND t3.ExcludedByAccount = 0 AND t3.IsUCD = 1 AND

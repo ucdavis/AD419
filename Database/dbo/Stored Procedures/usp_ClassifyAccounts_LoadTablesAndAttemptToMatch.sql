@@ -26,10 +26,12 @@
 --	2016-09-20 by kjt: Added RAISE ERROR statements to return user-generated exceptions back to caller.
 --	2016-09-22 by kjt: Commented out manual update of IsExpired and OrgR for interdepartmental projects as
 --		this is nowww done in ProjectImportService c# code.
+--	2016-11-07 by kjt: Revised to pass FiscalYear to usp_RepopulateProjXOrgR.
+--	2016-12-16 by kjt: Fixed issue for handling setting project's IsIgnored flag for projects with NULL expenses totals.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_ClassifyAccounts_LoadTablesAndAttemptToMatch] 
 	-- Add the parameters for the stored procedure here
-	@FiscalYear int = 2015, 
+	@FiscalYear int = 2016, 
 	@IsDebug bit = 0
 AS
 BEGIN
@@ -149,7 +151,7 @@ BEGIN
 		SELECT AccessionNumber 
 		FROM   FFY_SFN_Entries
 		WHERE IsExpired = 0 AND SFN = ''204''
-		GROUP BY AccessionNumber HAVING SUM(Expenses) <= 100
+		GROUP BY AccessionNumber HAVING ISNULL(SUM(Expenses),0) <= 100
 	)
 
 	-- Load Project using udf_AD419ProjectsForFiscalYear from AllProjectsNew:
@@ -158,7 +160,7 @@ BEGIN
 	SELECT * FROM [dbo].udf_AD419ProjectsForFiscalYear(' + CONVERT(varchar(4), @FiscalYear) + ')
 
 	-- Repopulate ProjXOrgR:
-	EXEC [dbo].[usp_RepopulateProjXOrgR] @IsDebug = ' + CONVERT(varchar(1), @IsDebug) + '
+	EXEC [dbo].[usp_RepopulateProjXOrgR] @FiscalYear = ' + CONVERT(varchar(4), @FiscalYear) + ', @IsDebug = ' + CONVERT(varchar(1), @IsDebug) + '
 
 	-- Repopulate ProjXOrgR for interdepartmental projects:
 	EXEC [dbo].[usp_RepopulateProjXOrgRForIntedepartmentalProjects]

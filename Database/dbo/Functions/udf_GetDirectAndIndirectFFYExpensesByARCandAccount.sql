@@ -16,6 +16,7 @@
 */
 -- Modifications:
 --  20160922 by kjt: Revised to use udf_GetDirectAndIndirectExpensesByARCandAccount
+--  20161115 by kjt: Added SFN as per Shannon.
 -- =============================================
 CREATE FUNCTION [dbo].[udf_GetDirectAndIndirectFFYExpensesByARCandAccount] 
 (
@@ -30,7 +31,9 @@ RETURNS
 	ConsolidationCode varchar(4),
 	DirectTotal money,
 	IndirectTotal money,
-	Total money
+	Total money,
+	SFN varchar(5),
+	OpFundNum varchar(6)
 )
 AS
 BEGIN

@@ -7,9 +7,9 @@
 --
 -- Usage: 
 /*
-	SELECT * FROM udf_GetDirectAndIndirectExpensesByARCandAccount(2015, 0) -- FFY
+	SELECT * FROM udf_GetDirectAndIndirectExpensesByARCandAccount(2016, 0) -- FFY
 
-	SELECT * FROM udf_GetDirectAndIndirectExpensesByARCandAccount(2015, 1) -- SFY
+	SELECT * FROM udf_GetDirectAndIndirectExpensesByARCandAccount(2016, 1) -- SFY
 
 -- This function is also used to populate the FFY_Expenses_ByARC table:
 	TRUNCATE TABLE FFY_ExpensesByARC
@@ -23,6 +23,7 @@
 --		beforehand in DaFIS_AccountByARC.
 -- 20160921 by kjt: Revised to allow passing of parameter for SFY so same procedure can be used
 -- for both FFY and SFY Expenses by ARC.
+-- 20161115 by kjt: Added SFN as per Shannon.
 -- =============================================
 CREATE FUNCTION [dbo].[udf_GetDirectAndIndirectExpensesByARCandAccount] 
 (
@@ -38,7 +39,9 @@ RETURNS
 	ConsolidationCode varchar(4),
 	DirectTotal money,
 	IndirectTotal money,
-	Total money
+	Total money,
+	SFN varchar(5),
+	OpFundNum varchar(6)
 )
 AS
 BEGIN
@@ -60,6 +63,7 @@ BEGIN
 	-- Get all the direct expenses with sums <> 0
 	IF @UseStateFiscalYear = 0
 	BEGIN
+	-- FFY:
 		INSERT INTO @DirectAndIndirectExpenses
 		select 
 		ARCCode AnnualReportCode,
@@ -68,7 +72,9 @@ BEGIN
 		ConsolidationCode,
 		sum(Expend) DirectTotal,
 		0 AS IndirectTotal,
-		0 AS Total
+		0 AS Total,
+		NULL AS SFN,
+		NULL AS OpFundNum
 		from 
 			FISDatamart.dbo.BalanceSummaryV e inner join 
 			DaFIS_AccountsByARC --@ArcCodes
@@ -93,6 +99,7 @@ BEGIN
 	END
 	ELSE
 	BEGIN
+	-- State Fiscal Year:
 		INSERT INTO @DirectAndIndirectExpenses
 		select 
 		ARCCode AnnualReportCode,
@@ -101,7 +108,9 @@ BEGIN
 		ConsolidationCode,
 		sum(Expend) DirectTotal,
 		0 AS IndirectTotal,
-		0 AS Total
+		0 AS Total,
+		NULL AS SFN,
+		NULL AS OpFundNum
 		from 
 			FISDatamart.dbo.BalanceSummaryV e inner join 
 			DaFIS_AccountsByARC --@ArcCodes
@@ -132,12 +141,15 @@ BEGIN
 		ConsolidationCode varchar(4),
 		DirectTotal money,
 		IndirectTotal money,
-		Total money
+		Total money,
+		SFN varchar(5),
+		OpFundNum varchar(6)
 	)
 
 	-- Get all the indirect expenses with expenses <> 0 
 	IF @UseStateFiscalYear = 0
 	BEGIN
+	-- FFY:
 		INSERT INTO @IndirectExpenses 
 		select 
 			ARCCode AnnualReportCode,
@@ -146,7 +158,9 @@ BEGIN
 			ConsolidationCode,
 			0 AS DirectTotal,
 			sum(Expend) IndirectTotal,
-			0 AS Total 
+			0 AS Total,
+			NULL AS SFN,
+			NULL AS OpFundNum
 		from 
 			FISDatamart.dbo.BalanceSummaryV e
 			INNER JOIN DaFIS_AccountsByARC AC ON e.Chart = AC.Chart AND e.accountNum = AC.Account 
@@ -168,6 +182,7 @@ BEGIN
 	END
 	ELSE
 	BEGIN
+	-- State Fiscal Year:
 	INSERT INTO @IndirectExpenses 
 		select 
 			ARCCode AnnualReportCode,
@@ -176,7 +191,9 @@ BEGIN
 			ConsolidationCode,
 			0 AS DirectTotal,
 			sum(Expend) IndirectTotal,
-			0 AS Total 
+			0 AS Total,
+			NULL AS SFN,
+			NULL AS OpFundNum
 		from 
 			FISDatamart.dbo.BalanceSummaryV e
 			INNER JOIN DaFIS_AccountsByARC AC ON e.Chart = AC.Chart AND e.accountNum = AC.Account 
@@ -214,7 +231,9 @@ BEGIN
 		t2.ConsolidationCode,
 		0 AS DirectTotal,
 		t2.IndirectTotal,
-		0 AS Total 
+		0 AS Total,
+		NULL AS SFN,
+		NULL AS OpFundNum
 	FROM @IndirectExpenses t2
 	INNER JOIN (
 	SELECT 
@@ -237,5 +256,16 @@ BEGIN
 	UPDATE @DirectAndIndirectExpenses 
 	SET Total = DirectTotal + IndirectTotal
 
+	-- Logic for populating the SFN:
+	UPDATE @DirectAndIndirectExpenses
+	SET SFN = t2.SFN, 
+	OpFundNum = t2.OpFundNum
+	FROM @DirectAndIndirectExpenses t1
+	INNER JOIN 
+	( 
+		SELECT DISTINCT Chart, Account, SFN, OpFundNum
+		FROM NewAccountSFN 
+	) t2 ON t1.Chart = t2.Chart AND t1.Account = t2.Account
+	
 	RETURN 
 END
