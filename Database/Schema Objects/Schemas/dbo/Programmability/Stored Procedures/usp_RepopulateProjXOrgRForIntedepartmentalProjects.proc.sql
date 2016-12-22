@@ -15,7 +15,7 @@ GO
 DECLARE	@return_value int
 
 EXEC	@return_value = [dbo].[usp_RepopulateProjXOrgRForIntedepartmentalProjects]
-		@FiscalYear = 2015, @DeleteExistingInterdepartmentalProjectsFromProjXOrgR = 1,  --1 to emulate deleting existing records; 0 to show SQL that would actually be run in non-debug mode.
+		@FiscalYear = 2016, @DeleteExistingInterdepartmentalProjectsFromProjXOrgR = 1,  --1 to emulate deleting existing records; 0 to show SQL that would actually be run in non-debug mode.
 		@IsDebug = 1
 
 SELECT	'Return Value' = @return_value
@@ -43,6 +43,7 @@ GO
 --	2016-08-13 by kjt: Added sanity check to make sure all interdepartmental projects had their OrgRs identified.
 --	2016-08-18 by kjt: Revised to use ProjectV
 --	2016-08-20 by kjt: Revised to use udf_AD419ProjectsForFiscalYear as ProjectV was excluding 23 valid projects.
+--	2016-11-07 by kjt: Added leading zero padding of accession number join against import table.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_RepopulateProjXOrgRForIntedepartmentalProjects] 
 	@FiscalYear int = 2015, -- This is the current AD-419 Reporting Period.
@@ -82,10 +83,10 @@ BEGIN
 		Project,
 		COUNT(*) NumDepts
 	FROM [dbo].udf_AD419ProjectsForFiscalYear(@FiscalYear) t1
-	LEFT OUTER JOIN InterdepartmentalProjectsImport t2 ON t1.Accession = t2.AccessionNumber
+	LEFT OUTER JOIN InterdepartmentalProjectsImport t2 ON t1.Accession = RIGHT('0000000' + t2.AccessionNumber, 7)
 	WHERE isInterdepartmental = 1 
 	GROUP BY t1.Accession, Project) t1
-	INNER JOIN dbo.InterdepartmentalProjectsImport t2 ON t1.Accession = t2.AccessionNumber WHERE Year = @FiscalYear
+	INNER JOIN dbo.InterdepartmentalProjectsImport t2 ON t1.Accession = RIGHT('0000000' + t2.AccessionNumber, 7) WHERE Year = @FiscalYear
 	GROUP BY t1.Accession, T1.Project, T1.NumDepts, t2.OrgR
 	ORDER BY t1.Accession, T1.Project, T1.NumDepts, t2.OrgR
 

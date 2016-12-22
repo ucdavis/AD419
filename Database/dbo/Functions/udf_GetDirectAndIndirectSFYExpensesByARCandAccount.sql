@@ -10,7 +10,7 @@
 	SELECT * FROM udf_GetDirectAndIndirectSFYExpensesByARCandAccount(2015) 
 */
 -- Modifications:
--- 
+--  20161115 by kjt: Added SFN as per Shannon.
 -- =============================================
 CREATE FUNCTION [dbo].[udf_GetDirectAndIndirectSFYExpensesByARCandAccount] 
 (
@@ -25,7 +25,9 @@ RETURNS
 	ConsolidationCode varchar(4),
 	DirectTotal money,
 	IndirectTotal money,
-	Total money
+	Total money,
+	SFN varchar(5),
+	OpFundNum varchar(6)
 )
 AS
 BEGIN

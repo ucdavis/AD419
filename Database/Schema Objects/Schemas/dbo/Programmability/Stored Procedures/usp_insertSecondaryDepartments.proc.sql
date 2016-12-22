@@ -23,8 +23,11 @@ BEGIN
 						  )
 
 	IF @ProjXOrgCount <> 0
+	BEGIN
+		PRINT 'Entry already present for Accession: ' + @Accession + '; OrgR: ' + @OrgR	+ '
+'
 		RETURN -1
-
+	END
 	-- Now insert the entry into the ProjXOrgR table
 	INSERT INTO ProjXOrgR
 						  (Accession, OrgR)

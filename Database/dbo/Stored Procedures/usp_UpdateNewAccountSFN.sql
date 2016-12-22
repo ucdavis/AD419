@@ -10,20 +10,28 @@
 	USE AD419
 	GO
 
-	EXEC usp_UpdateNewAccountSFN
+	EXEC usp_UpdateNewAccountSFN @IsDebug = 0
 	GO
 */
 --
 -- Modifications:
 --	20160818 by kjt: Revised to use the correct project table.
+--	20161118 by kjt: Revised to dynamically generate the case statement based
+--	on entries present in the SfnClassificationLogic table.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_UpdateNewAccountSFN] 
+(
+	@IsDebug bit = 0
+)
 AS
 BEGIN
 	-- SET NOCOUNT ON added to prevent extra result sets from
 	-- interfering with SELECT statements.
 	SET NOCOUNT ON;
 
+	DECLARE @TSQL varchar(MAX) = ''
+
+	SELECT @TSQL = '
 	-- Update the Account and OP Fund Award Numbers:
 	UPDATE [dbo].[NewAccountSFN]
 	SET Accounts_AwardNum = t2.Accounts_AwardNum, OpFund_AwardNum = t2.OpFund_AwardNum
@@ -31,23 +39,66 @@ BEGIN
 	INNER JOIN 
 	(select distinct Accounts.Chart, Account, Accounts.AwardNum Accounts_AwardNum, OPFund.AwardNum OpFund_AwardNum
 	FROM
-		FISDatamart.dbo.Accounts
+		[FISDatamart].[dbo].[Accounts] Accounts
 	INNER JOIN 
-		FISDatamart.dbo.OPFund ON Accounts.Chart = OPFund.Chart AND Accounts.OpFundNum = OPFund.FundNum AND Accounts.Year = OpFund.Year AND Accounts.Period = OPFund.Period
-	WHERE Accounts.Year = 9999 AND Accounts.Period = '--') t2 ON t1.Account = t2.Account AND t1.Chart = t2.Chart
+		[FISDatamart].[dbo].[OPFund] OpFund ON Accounts.Chart = OPFund.Chart AND Accounts.OpFundNum = OPFund.FundNum AND Accounts.Year = OpFund.Year AND Accounts.Period = OPFund.Period
+	WHERE Accounts.Year = 9999 AND Accounts.Period = ''--'') t2 ON t1.Account = t2.Account AND t1.Chart = t2.Chart
+'
+	IF @IsDebug = 1
+		PRINT @TSQL
+	ELSE
+		EXEC (@TSQL)
 
+	SELECT @TSQL = '
 	-- Correct any irregular delimiters within the CFDA numbers:
-    UPDATE NewAccountSFN SET CFDANum = REPLACE(CFDANum, '-','.') WHERE CFDANum IS NOT NULL
+    UPDATE [dbo].[NewAccountSFN]
+	SET CFDANum = REPLACE(CFDANum, ''-'',''.'') 
+	WHERE CFDANum IS NOT NULL
+'
+	IF @IsDebug = 1
+		PRINT @TSQL
+	ELSE
+		EXEC (@TSQL)
 
-	-- Set any of the SFN for any of the accounts we've already identified as 204:
-	UPDATE NewAccountSFN SET SFN = '204'
-	FROM NewAccountSFN t1
+	SELECT @TSQL = '
+	-- Set any of the SFN for any of the accounts we''ve already identified as 204:
+	UPDATE [dbo].[NewAccountSFN]
+	SET SFN = ''204''
+	FROM [dbo].[NewAccountSFN] t1
 	INNER JOIN [dbo].[AllAccountsFor204Projects] t2
 	ON t1.chart = t2.Chart AND t1.Account = t2.Account
+'
+	IF @IsDebug = 1
+		PRINT @TSQL
+	ELSE
+		EXEC (@TSQL)
+
+/*-----------------------------------------------------------------------------------------------------*/
+-- Update statement using automatically generated SQL from SfnClassificationLogic table via usp_GenerateNewAccountSfnCaseStatement
 	
+	DECLARE @CaseStatement varchar(MAX) 
+	EXEC usp_GenerateNewAccountSfnCaseStatement @CaseStatement OUTPUT
+
+	SELECT @TSQL = '
 	-- Set any of the SFNs for NON 204 project accounts or 204 accounts that we not previously classfied
 	-- because they are for 204 accounts that do not belong to projects that were in our college:
-	UPDATE NewAccountSFN
+	UPDATE [dbo].[NewAccountSFN]
+	SET SFN = ' + @CaseStatement + '
+	FROM [dbo].[NewAccountSFN] t1
+	LEFT OUTER JOIN [dbo].[AllProjectsNew] t3 ON 
+		REPLACE(t1.[Accounts_AwardNum], ''-'','''') = REPLACE(t3.AwardNumber, ''-'','''') OR 
+		REPLACE([OPFund_AwardNum], ''-'','''')  = REPLACE(t3.AwardNumber, ''-'','''')
+	WHERE t1.SFN IS NULL OR t1.SFN <> ''204''
+'
+	IF @IsDebug = 1
+		PRINT @TSQL
+	ELSE
+		EXEC (@TSQL)
+	/*------------------------------------------------------------------------------------------ */
+
+	-- Old hardcoded logic retained for reference:
+	/*
+	UPDATE [dbo].[NewAccountSFN]
 	SET SFN =
 		CASE  
 			WHEN left(OpFundNum,5) in ('21005','21006','21009','21010') THEN '201'
@@ -91,20 +142,33 @@ BEGIN
 				THEN '219' 
 			ELSE NULL
 		END
-		FROM NewAccountSFN t1
+		FROM [dbo].[NewAccountSFN] t1
 		LEFT OUTER JOIN [dbo].[AllProjectsNew] t3 ON 
 			REPLACE(t1.[Accounts_AwardNum], '-','') = REPLACE(t3.AwardNumber, '-','') OR 
 			REPLACE([OPFund_AwardNum], '-','')  = REPLACE(t3.AwardNumber, '-','')
 		WHERE t1.SFN IS NULL OR t1.SFN <> '204'
+		*/
 
-		-- Clear the IsAccountInFinancialData flag
-		update [AD419].[dbo].NewAccountSFN
-		set [IsAccountInFinancialData] = 0
+	SELECT @TSQL = '
+	-- Clear the IsAccountInFinancialData flag
+	UPDATE [dbo].[NewAccountSFN]
+	SET [IsAccountInFinancialData] = 0
+'
+	IF @IsDebug = 1
+		PRINT @TSQL
+	ELSE
+		EXEC (@TSQL)
 
-		-- Make sure that [FFY_ExpensesByARC] is loaded first!
-		-- Set the IsAccountInFinancialData flag:
-		update [AD419].[dbo].NewAccountSFN
-		set [IsAccountInFinancialData] = 1
-		from [AD419].[dbo].NewAccountSFN t1
-		INNER JOIN [dbo].[FFY_ExpensesByARC] t2 ON t1.chart = t2.chart and t1.account = t2.account
+	SELECT @TSQL = '
+	-- Make sure that [FFY_ExpensesByARC] is loaded first!
+	-- Set the IsAccountInFinancialData flag:
+	UPDATE [dbo].[NewAccountSFN]
+	SET [IsAccountInFinancialData] = 1
+	FROM [dbo].[NewAccountSFN] t1
+	INNER JOIN [dbo].[FFY_ExpensesByARC] t2 ON t1.chart = t2.chart and t1.account = t2.account
+'
+	IF @IsDebug = 1
+		PRINT @TSQL
+	ELSE
+		EXEC (@TSQL)
 END

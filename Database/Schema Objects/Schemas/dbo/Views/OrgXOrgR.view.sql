@@ -80,12 +80,22 @@ Begin DesignProperties =
          Left = 0
       End
       Begin Tables = 
-         Begin Table = "AllOrgXOrgR"
+         Begin Table = "t1"
             Begin Extent = 
                Top = 6
                Left = 38
                Bottom = 118
                Right = 208
+            End
+            DisplayFlags = 280
+            TopColumn = 0
+         End
+         Begin Table = "t2"
+            Begin Extent = 
+               Top = 6
+               Left = 246
+               Bottom = 135
+               Right = 416
             End
             DisplayFlags = 280
             TopColumn = 0
@@ -126,7 +136,10 @@ Begin DesignProperties =
          Or = 1350
       End
    End
-End', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'OrgXOrgR';
+End
+', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'OrgXOrgR';
+
+
 
 
 GO
