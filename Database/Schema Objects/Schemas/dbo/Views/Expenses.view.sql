@@ -4,7 +4,18 @@ SELECT        t1.ExpenseID, t1.DataSource, COALESCE (t2.AD419OrgR, t1.OrgR) AS O
                          t1.TitleCd, t1.Title_Code_Name, t1.Exp_SFN, t1.Expenses, t1.FTE_SFN, t1.FTE, t1.isAssociated, t1.isAssociable, t1.isNonEmpExp, t1.Sub_Exp_SFN, 
                          t1.Staff_Grp_Cd
 FROM            dbo.AllExpenses AS t1 LEFT OUTER JOIN
-                         dbo.ExpenseOrgR_X_AD419OrgR AS t2 ON t1.Chart = t2.Chart AND t1.OrgR = t2.ExpenseOrgR
+                dbo.ExpenseOrgR_X_AD419OrgR AS t2 ON 
+					t1.Chart = t2.Chart AND 
+					t1.OrgR = t2.ExpenseOrgR AND
+					(
+						-- We want to make sure we include remapping for both those OrgRs where only the OrgR is used to 
+						--   determine which department to map to, meaning All Orgs under a given department:
+						(t2.ExpenseOrg IS NULL) OR
+				
+						-- And those OrgRs, i.e. BGEN, where both OrgR/Org are used to determine which Department to map to, meaning
+						--   BGEN/MICH: BMCB, BGEN/COMA: BLPB, BGEN/DENN: ADNO, etc.
+						(t1.Org = t2.ExpenseOrg)
+					)
 WHERE        ((t1.Chart + t1.Account) NOT IN
                              (SELECT        Chart + Account AS Expr1
                                FROM            dbo.ARCCodeAccountExclusionsV)) OR

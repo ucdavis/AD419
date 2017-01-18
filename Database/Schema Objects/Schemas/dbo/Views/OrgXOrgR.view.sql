@@ -1,9 +1,17 @@
-﻿CREATE VIEW dbo.OrgXOrgR
-AS
-SELECT        t1.Chart, t1.Org, COALESCE (t2.AD419OrgR, t1.OrgR) AS OrgR
-FROM            dbo.AllOrgXOrgR AS t1 LEFT OUTER JOIN
-                         dbo.ExpenseOrgR_X_AD419OrgR AS t2 ON t1.OrgR = t2.ExpenseOrgR AND t1.Chart = t2.Chart
-
+﻿SELECT        t1.Chart, t1.Org, COALESCE (t2.AD419OrgR, t1.OrgR) AS OrgR
+FROM            dbo.AllOrgXOrgR t1 LEFT OUTER JOIN
+                dbo.ExpenseOrgR_X_AD419OrgR AS t2 ON 
+					t1.Chart = t2.Chart AND 
+					t1.OrgR = t2.ExpenseOrgR AND
+					(
+						-- We want to make sure we include remapping for both those OrgRs where only the OrgR is used to 
+						--   determine which department to map to, meaning All Orgs under a given department:
+						(t2.ExpenseOrg IS NULL) OR
+				
+						-- And those OrgRs, i.e. BGEN, where both OrgR/Org are used to determine which Department to map to, meaning
+						--   BGEN/MICH: BMCB, BGEN/COMA: BLPB, BGEN/DENN: ADNO, etc.
+						(t1.Org = t2.ExpenseOrg)
+					)
 GO
 EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'OrgXOrgR: Changes some of the OrgRs so that their expenses can can be grouped together under similar orgRs for association purposes.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'OrgXOrgR';
 

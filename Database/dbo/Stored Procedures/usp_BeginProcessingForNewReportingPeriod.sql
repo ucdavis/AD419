@@ -19,7 +19,7 @@
 --	20161004 by kjt: Fixed name of usp_UpdateAnotherLaborTransactionsMissingEmployeeNames.
 --	20161018 by kjt: Revised ARC Code/Account copying logic to only copy over missing entries as it 
 --	  was attempting to copy over more items that it should have.
---  20161020 by kjt: Added DISTINCT to ARCCodeAccountExclusion copying seqment.
+--  20161020 by kjt: Added DISTINCT to ARCCodeAccountExclusion copying segment.
 CREATE PROCEDURE [dbo].[usp_BeginProcessingForNewReportingPeriod] 
 	-- Add the parameters for the stored procedure here
 	@FiscalYear int = 2015,

@@ -9,7 +9,7 @@
 -- were pulled from FIS by ARC, plus whatever additional 204 expense accounts that were 
 -- outside our ARCs and pulled by OpFundNum 
 --
--- Pre-requsites:
+-- Prerequisites:
 -- 1. The FFY_ExpensesByARC table must have already been loaded
 -- 2. The NewAccountSFN table must have already been loaded
 -- 3. The AllAccountsFor204Projects table must have already been loaded
