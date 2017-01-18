@@ -13,7 +13,7 @@
 
 	EXEC	@return_value = [dbo].[usp_Load_UFY_FFY_FIS_Expenses]
 			@FiscalYear = 2016,
-			@IsDebug = 1
+			@IsDebug = 0
 
 	SELECT	'Return Value' = @return_value
 

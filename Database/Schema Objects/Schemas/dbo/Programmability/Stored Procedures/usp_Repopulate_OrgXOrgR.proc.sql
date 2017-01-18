@@ -35,7 +35,7 @@ Table OrgXOrgR exists to resolve Org + Chart combos into AD419 reporting org (Or
  DEPENDENCIES: 
 -------------------------------------------------------------------------
 */
-ALTER PROCEDURE [dbo].[usp_Repopulate_OrgXOrgR]
+CREATE PROCEDURE [dbo].[usp_Repopulate_OrgXOrgR]
 --PARAMETERS:
 	@FiscalYear int = 2016, -- Fiscal Year: No longer used, but kept for method signature standardization.
 	@IsDebug bit = 0		-- set to 1 to print SQL.

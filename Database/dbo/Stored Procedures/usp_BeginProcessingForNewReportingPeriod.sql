@@ -20,7 +20,8 @@
 --	20161018 by kjt: Revised ARC Code/Account copying logic to only copy over missing entries as it 
 --	  was attempting to copy over more items that it should have.
 --  20161020 by kjt: Added DISTINCT to ARCCodeAccountExclusion copying segment.
-CREATE PROCEDURE [dbo].[usp_BeginProcessingForNewReportingPeriod] 
+--	20170118 by kjt: Removed commented out statement for easier readability.
+ALTER PROCEDURE [dbo].[usp_BeginProcessingForNewReportingPeriod] 
 	-- Add the parameters for the stored procedure here
 	@FiscalYear int = 2015,
 	@IsDebug bit = 0
@@ -39,20 +40,6 @@ BEGIN
 	EXEC [dbo].[usp_TruncateTablesForReload] @FiscalYear = ' + CONVERT(varchar(4), @FiscalYear) + ', 
 		@TruncateImportTables = 1,
 		@IsDebug = ' + CONVERT(varchar(1), @IsDebug) + '
-
-	-- This is now handled as a subsequent step after the reporting Orgs have been reviewed,
-	---- Reload the OrgXOrgR table:
-	--EXEC [dbo].[usp_Repopulate_OrgXOrgR] @FiscalYear = ' + CONVERT(varchar(4), @FiscalYear) + ', 
-	--	@IsDebug = ' + CONVERT(varchar(1), @IsDebug) + '
-	
-	-- This is now handled as a preliminary step so the ARCs can be reviewed prior to
-	-- loading the accounts by ARC, etc.
-	---- Reload the Annual Reporting Codes (ARC):
-	--EXEC [FISDatamart].[dbo].[usp_DownloadArc_Codes] @TableName = ''ARC_Codes'',
-	--	@IsDebug = ' + CONVERT(varchar(1), @IsDebug) + '
-
-	-- Load DaFIS Accounts by ARC:
-	EXEC [dbo].[usp_LoadDaFIS_AccountsByARC]
 
 	-- Copy ARCCodeAccountExclusions from prior year:
 	INSERT INTO [dbo].[ArcCodeAccountExclusions] 
@@ -89,8 +76,6 @@ BEGIN
 	EXEC [dbo].[usp_Load_UFY_FFY_FIS_Expenses] @FiscalYear = ' + CONVERT(varchar(4), @FiscalYear) + ', 
 		@IsDebug = ' + CONVERT(varchar(1), @IsDebug) + '
 
-	--EXEC [dbo].[usp_Load_UFY_FFY_FIS_Expenses] @FiscalYear = ' + CONVERT(varchar(4), @FiscalYear) + '
-
 	-- Reload AnotherLaborTransactions if necessary:
 	DECLARE @NeedsReload bit
 	DECLARE @return_value int
@@ -119,29 +104,4 @@ BEGIN
 	ELSE
 		EXEC(@TSQL)
 
---	SELECT @TSQL = '
---	UPDATE [dbo].[ProcessStatus]
---	SET IsCompleted = 0
-
---	UPDATE [dbo].[ProcessCategory]
---	SET IsCompleted = 0
-
---	UPDATE [dbo].[ProcessStatus]
---	SET IsCompleted = 1
---	WHERE Id = 1;
-
---	UPDATE [dbo].[ProcessCategory]
---	SET IsCompleted = 1
---	WHERE Id = 1;
---'
-
---	IF @IsDebug = 1
---	BEGIN
---		SET NOCOUNT ON
---		PRINT @TSQL
---	END
---	ELSE
---		EXEC(@TSQL)
-
---	SET NOCOUNT OFF
 END
