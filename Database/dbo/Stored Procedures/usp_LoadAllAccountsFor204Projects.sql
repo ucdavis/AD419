@@ -3,7 +3,7 @@
 -- Create date: July 11, 2016
 -- Description:	Loads the "AllAccountsFor204Projects table.
 -- Contains chart, and account for every CA&ES 204 project.  
--- These chart/ccount combinations were determined using OpFundNum, regardless of ARC as some of the accounts
+-- These chart/account combinations were determined using OpFundNum, regardless of ARC as some of the accounts
 -- for 204 projects are outside of our ARCs.
 -- This AllAccountsFor204Projects table is used for matching account AwardNumber or OPFund Award number
 -- its corresponding 204 project.

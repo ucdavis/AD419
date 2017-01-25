@@ -74,7 +74,7 @@ BEGIN
    -- Step 1: 241 PI Expense Associations:
    ----------------------------------------------------------------------------------'
   /*
-  Foreach expense get the projects for the matching EID
+  For each expense get the projects for the matching EID
   divide the expense and FTE by the count per the EID
   and call usp_insertAssociation for the appropriate amount.
   */
@@ -213,7 +213,7 @@ BEGIN
    ----------------------------------------------------------------------------------'
   /*
   This portion handles associating expenses for each non-project PI
-  Foreach Non-PI 241/OrgR expense insert an association for each OrgR project / num OrgR projects 
+  For each Non-PI 241/OrgR expense insert an association for each OrgR project / num OrgR projects 
   meaning loop through and  each expense the number of OrgR project times and associate 1/number of OrgR Projects of the expense for each on the OrgR projects.
   */
 	  DECLARE @OrgR3 varchar(4),@Expenses3 float , @FTE3 float, @EID3 varchar(20), @ExpenseID3 int

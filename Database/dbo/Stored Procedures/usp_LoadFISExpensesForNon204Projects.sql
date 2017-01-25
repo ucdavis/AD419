@@ -7,7 +7,7 @@
 -- that were not already included in the salary expenses 
 -- and load them in the NON 204 FIS expenses table.
 --
--- Prerequsites:
+-- Prerequisites:
 -- The NewAccountSFN table must have been loaded first.
 -- The [dbo].UFY_FFY_FIS_Expenses table must have been loaded.
 --

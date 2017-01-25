@@ -104,7 +104,7 @@ BEGIN
 		WHERE OrgR IS NULL)
 		IF @NumBlankOrgs > 0
 		BEGIN
-			DECLARE @ErrorMessage varchar(200) =  ''Not all FIS Expenses have OrgR assigned.  Assign departments beore proceeding!''
+			DECLARE @ErrorMessage varchar(200) =  ''Not all FIS Expenses have OrgR assigned.  Assign departments before proceeding!''
 			'
 			IF @IsDebug = 1
 				SELECT @TSQL += 'PRINT ''-- '' + @ErrorMessage + ''

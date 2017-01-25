@@ -4,7 +4,7 @@
 -- Description:	Transfers expenses from the intermediate
 -- tables into Expenses, and makes associations as appropriate.
 --
--- Prerequsites:
+-- Prerequisites:
 -- FFY_SFN_Entries must have been loaded,
 -- ProjXOrgR must have been loaded,
 -- FIS_ExpensesFor204Projects must have been loaded,
@@ -19,16 +19,17 @@
 -- Usage:
 /*
 	EXEC [dbo].[usp_TransferExpensesAndAssociate]
-	@FiscalYear = 2015, @IsDebug = 0
+	@FiscalYear = 2016, @IsDebug = 0
 */
 -- Modifications:
 --	20160914 by kjt: Added RAISE ERROR logic to return user generated exceptions back to caller.
 --	20160920 by kjt: Removed calls to load CE Specialists and Field Station Expenses are these now
 --		separate steps.
+--	20170118 by kjt: Removed commented out calls (above).
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_TransferExpensesAndAssociate] 
 	-- Add the parameters for the stored procedure here
-	@FiscalYear int = 2015, 
+	@FiscalYear int = 2016, 
 	@IsDebug bit = 0
 AS
 BEGIN
@@ -113,28 +114,4 @@ BEGIN
 	ELSE
 		EXEC(@TSQL)
 
--- Commented out the following as these are both now separate steps.
---	SELECT @TSQL = '
---	-- Attempt to load CE Specialists if its import table has been loaded:
---	-- Load CE Specialists:
---	EXEC usp_LoadCeSpecialistsAndAssociate
---		@FiscalYear = ' + CONVERT(varchar(4), @FiscalYear) + ',
---		@IsDebug = ' + CONVERT(varchar(1), @IsDebug) + '
---'
---	IF @IsDebug = 1
---		PRINT @TSQL
---	ELSE
---		EXEC(@TSQL)
-
---	SELECT @TSQL = '
---	-- Attempt to Load FieldStation Expenses if its import table has been loaded:
---	-- Note: We usually get these expense last.
---	EXEC usp_LoadFieldStationExpensesIntoExpensesAndAssociate
---		@FiscalYear = ' + CONVERT(varchar(4), @FiscalYear) + ',
---		@IsDebug = ' + CONVERT(varchar(1), @IsDebug) + '
---'
---	IF @IsDebug = 1
---		PRINT @TSQL
---	ELSE
---		EXEC(@TSQL)
 END

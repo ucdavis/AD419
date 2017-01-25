@@ -90,7 +90,7 @@ BEGIN
 	GROUP BY Chart, Account, SFN, Accounts_AwardNum, t4.ProjectNumber 
 	ORDER BY Chart, Account, SFN
 
-	-- Update the entries based on the the project matches
+	-- Update the entries based on the project matches
 	UPDATE FFY_SFN_Entries
 	SET ProjectNumber = t2.ProjectNumber, AccessionNumber = t2.AccessionNumber
 	, ProjectEndDate = t2.ProjectEndDate, IsExpired = CASE WHEN 

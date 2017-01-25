@@ -26,7 +26,7 @@
 -- Modifications:
 --[12/17/2010] by kjt: Revised to use AllExpenses, table (formerly Expenses) instead of new Expenses view.
 --
---[2011-11-23] by kjt: Revised to to use square brackets around PI's name so that punctuation could
+--[2011-11-23] by kjt: Revised to use square brackets around PI's name so that punctuation could
 -- be embedded, i.e. O'Brian, etc. 
 --
 --[2014-11-05] by kjt: Revised the comments to correctly indicate "22F" instead of "20x".   

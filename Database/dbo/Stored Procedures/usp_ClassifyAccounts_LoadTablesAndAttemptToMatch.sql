@@ -19,15 +19,16 @@
 --
 -- Modifications:
 --	2016-08-20 by kjt: Added logic to ignore any 204 projects that have expenses less
---		than $100.  These will beed to "un-ignored" once the departments have
+--		than $100.  These will need to "un-ignored" once the departments have
 --		completed their associations.
 --	2016-08-22 by kjt: Added logic to set XXX project's OrgR to 'AINT'.
 --  2016-09-06 by kjt: Added logic to populate ProcessStatus and ProcessCategory.
 --	2016-09-20 by kjt: Added RAISE ERROR statements to return user-generated exceptions back to caller.
 --	2016-09-22 by kjt: Commented out manual update of IsExpired and OrgR for interdepartmental projects as
---		this is nowww done in ProjectImportService c# code.
+--		this is now done in ProjectImportService c# code.
 --	2016-11-07 by kjt: Revised to pass FiscalYear to usp_RepopulateProjXOrgR.
 --	2016-12-16 by kjt: Fixed issue for handling setting project's IsIgnored flag for projects with NULL expenses totals.
+--	2017-01-18 by kjt: Removed temporary fixes which had been commented out.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_ClassifyAccounts_LoadTablesAndAttemptToMatch] 
 	-- Add the parameters for the stored procedure here
@@ -75,22 +76,8 @@ BEGIN
 	END
 	
 	SELECT @TSQL = '
-	-- Updated ProjectImportService to do this now.
-	---- Temporary fix because IsExpired wasn''t getting set properly during AD419DataHelper''s Project Import:
-	--UPDATE [dbo].[AllProjectsNew] 
-	--SET IsExpired = 1 where ProjectEndDate <= ''' + CONVERT(varchar(4), @FiscalYear-1) + '-09-30''
-
-	--UPDATE [dbo].[AllProjectsNew] 
-	--SET IsExpired = 0 where ProjectEndDate > ''' + CONVERT(varchar(4), @FiscalYear-1) + '-09-30''
-
-	---- Temporary fix because OrgR is being incorrectly set for Interdepartmental projects:
-	---- without this setting the CRIS_DeptID doesn''t get set for interdepartmental projects,
-	---- and the they are excluded from the final reports! 
-	--UPDATE [dbo].[AllProjectsNew]
-	--SET OrgR = ''AINT'' WHERE OrgR = ''XXXX''
-
 	-- LoadAllAccountsFor204Projects:
-	-- This must be loaded prior to loading AllAccountsFor204Projects as it uses it to calc FTE.
+	-- This must be loaded prior to loading AllAccountsFor204Projects as it uses it to calculate FTE.
 	EXEC usp_LoadAllAccountsFor204Projects @FiscalYear = ' + CONVERT(varchar(4), @FiscalYear) + '
 
 	-- Load NewAccountSFN:

@@ -5,7 +5,7 @@
 -- have been loaded, and update FTE_SFN to 241 for various
 -- title codes that should have been classified as scientists.
 --
--- Prerequsites:
+-- Prerequisites:
 -- All expenses have been loaded for FIS, PPS, 204 and 20x, and CE 
 -- Specialists prior to 241 FTE_SFN adjustment
 -- Project and ProjXOrgR has been loaded prior to loading PI_Match. 
@@ -18,7 +18,7 @@
 --
 -- Modifications
 --	20160914 by kjt: Added RAISE ERROR logic to return user generated exceptions back to caller.
---	20161004 by kjt: Addedd a call to execute sp_Associate_AD419_IND_with_AIND, prior to 
+--	20161004 by kjt: Added a call to execute sp_Associate_AD419_IND_with_AIND, prior to 
 --	  PI Name and PI Match loading section.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_Adjust241FTEAndPopulatePiMatch] 

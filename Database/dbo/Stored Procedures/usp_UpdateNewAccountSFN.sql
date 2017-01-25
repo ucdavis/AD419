@@ -96,7 +96,7 @@ BEGIN
 		EXEC (@TSQL)
 	/*------------------------------------------------------------------------------------------ */
 
-	-- Old hardcoded logic retained for reference:
+	-- Old hard-coded logic retained for reference:
 	/*
 	UPDATE [dbo].[NewAccountSFN]
 	SET SFN =

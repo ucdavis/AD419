@@ -11,13 +11,14 @@
 */
 --
 -- Modifications:
---	20160820 by kjt: Added exit statements if prerequsites were not met.
+--	20160820 by kjt: Added exit statements if prerequisites were not met.
 --	20160920 by kjt: Added RAISE ERROR statements so that user-generated exceptions will be returned to caller.
---	20161019 by kjt: Fixed hard-coded fiscal years that were intended to use passed param.
+--	20161019 by kjt: Fixed hard-coded fiscal years that were intended to use passed parameter.
 --		Also added filtering out of any account in ARCCodeAccountExclusionsV
+--	20170118 by kjt: Removed statements that were previously commented out.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_LoadFinancialData] 
-	@FiscalYear int = 2015, 
+	@FiscalYear int = 2016, 
 	@IsDebug bit = 0
 AS
 BEGIN
@@ -88,12 +89,6 @@ BEGIN
 
 	SELECT @TSQL = '
 	-- Load intermediate expense and labor related tables section:
-	--
-	-- This was already done as part of step 3. usp_BeginProcessingForNewReportingPeriod
-	---- Load UFY_FFY_FIS_Expenses:
-	--EXEC [dbo].[usp_Load_UFY_FFY_FIS_Expenses]
-	--		@FiscalYear = ' + CONVERT(varchar(4), @FiscalYear) + ',
-	--		@IsDebug = ' + CONVERT(varchar(1), @IsDebug) + '
 
 	-- Load MissingExpensesFor204Projects:
 	EXEC [dbo].[usp_LoadMissing204AccountExpenses]

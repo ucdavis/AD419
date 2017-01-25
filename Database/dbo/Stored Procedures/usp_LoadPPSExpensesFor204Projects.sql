@@ -2,7 +2,7 @@
 -- Author:		Ken Taylor
 -- Create date: August 2, 2016
 -- Description:	Load the 204 PPS Expenses into the 204 PPS Expenses table.
--- Prerequsites:
+-- Prerequisites:
 --	The [AnotherLaborTransactions] must be loaded first.
 -- Usage:
 /*
@@ -20,9 +20,9 @@ GO
 */
 -- Modifications:
 --	20160810 by kjt: Added PrincipalInvestigator
---	20160820 vy kjt: Revised to use new table schema, plus update Org and OrgR.
+--	20160820 by kjt: Revised to use new table schema, plus update Org and OrgR.
 -- =============================================
-CREATE PROCEDURE [dbo].[usp_LoadPPSExpensesFor204Projects] 
+CRREATE PROCEDURE [dbo].[usp_LoadPPSExpensesFor204Projects] 
 	@IsDebug bit = 0
 AS
 BEGIN
