@@ -1,11 +1,11 @@
 ﻿-- =============================================
 -- Author:		Scott Kirkland
 -- Create date: 9/26/06
--- Description:	Used to programatically insert a project expense.
+-- Description:	Used to programmatically insert a project expense.
 -- Modifications: 
 -- by Ken Taylor:
 -- Removed 201t and 201p logic as Steve said they're all only 201's now.
--- Added changeable DataSource so this proc could also be used with 22F expenses from the UI.
+-- Added changeable DataSource so this procedure could also be used with 22F expenses from the UI.
 --	2013-11-21 by kjt: 
 --		Revised to bypass adding entry to ProjXOrgR for AINT if accession already present.
 --	2014-10-29 bu kjt:
