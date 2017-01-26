@@ -22,7 +22,7 @@ GO
 --	20160810 by kjt: Added PrincipalInvestigator
 --	20160820 by kjt: Revised to use new table schema, plus update Org and OrgR.
 -- =============================================
-CRREATE PROCEDURE [dbo].[usp_LoadPPSExpensesFor204Projects] 
+CREATE PROCEDURE [dbo].[usp_LoadPPSExpensesFor204Projects] 
 	@IsDebug bit = 0
 AS
 BEGIN

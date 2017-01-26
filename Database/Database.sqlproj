@@ -387,11 +387,6 @@
       <AnsiNulls>On</AnsiNulls>
       <QuotedIdentifier>On</QuotedIdentifier>
     </Build>
-    <Build Include="Schema Objects\Schemas\dbo\Programmability\Stored Procedures\sp_GET_FFY_205_EXPENSES.proc.sql">
-      <SubType>Code</SubType>
-      <AnsiNulls>On</AnsiNulls>
-      <QuotedIdentifier>On</QuotedIdentifier>
-    </Build>
     <Build Include="Schema Objects\Schemas\dbo\Programmability\Stored Procedures\usp_deleteProjectExpense.proc.sql">
       <SubType>Code</SubType>
       <AnsiNulls>On</AnsiNulls>
@@ -502,11 +497,6 @@
       <AnsiNulls>On</AnsiNulls>
       <QuotedIdentifier>On</QuotedIdentifier>
     </Build>
-    <Build Include="Schema Objects\Schemas\dbo\Programmability\Stored Procedures\sp_RePopulate_CAES_Expenses_Using_ARC.proc.sql">
-      <SubType>Code</SubType>
-      <AnsiNulls>On</AnsiNulls>
-      <QuotedIdentifier>On</QuotedIdentifier>
-    </Build>
     <Build Include="Schema Objects\Schemas\dbo\Programmability\Stored Procedures\usp_CreateAD419_UnassociatedTotalsView.proc.sql">
       <SubType>Code</SubType>
       <AnsiNulls>On</AnsiNulls>
@@ -588,21 +578,6 @@
       <AnsiNulls>On</AnsiNulls>
       <QuotedIdentifier>On</QuotedIdentifier>
     </Build>
-    <Build Include="Schema Objects\Schemas\dbo\Views\Salary_FIS_by_SubAcct.view.sql">
-      <SubType>Code</SubType>
-      <AnsiNulls>On</AnsiNulls>
-      <QuotedIdentifier>On</QuotedIdentifier>
-    </Build>
-    <Build Include="Schema Objects\Schemas\dbo\Views\Expenses_Salary_Reversals.view.sql">
-      <SubType>Code</SubType>
-      <AnsiNulls>On</AnsiNulls>
-      <QuotedIdentifier>On</QuotedIdentifier>
-    </Build>
-    <Build Include="Schema Objects\Schemas\dbo\Views\Expenses_PPS_Adjusted.view.sql">
-      <SubType>Code</SubType>
-      <AnsiNulls>On</AnsiNulls>
-      <QuotedIdentifier>On</QuotedIdentifier>
-    </Build>
     <Build Include="Schema Objects\Schemas\dbo\Views\AD419_UnassociatedTotals.view.sql">
       <SubType>Code</SubType>
       <AnsiNulls>On</AnsiNulls>
@@ -618,27 +593,7 @@
       <AnsiNulls>On</AnsiNulls>
       <QuotedIdentifier>On</QuotedIdentifier>
     </Build>
-    <Build Include="Schema Objects\Schemas\dbo\Views\Raw_FIS_JV_Expenses.view.sql">
-      <SubType>Code</SubType>
-      <AnsiNulls>On</AnsiNulls>
-      <QuotedIdentifier>On</QuotedIdentifier>
-    </Build>
-    <Build Include="Schema Objects\Schemas\dbo\Views\Project.view.sql">
-      <SubType>Code</SubType>
-      <AnsiNulls>On</AnsiNulls>
-      <QuotedIdentifier>On</QuotedIdentifier>
-    </Build>
-    <Build Include="Schema Objects\Schemas\dbo\Views\Salary_PPS_by_SubAcct.view.sql">
-      <SubType>Code</SubType>
-      <AnsiNulls>On</AnsiNulls>
-      <QuotedIdentifier>On</QuotedIdentifier>
-    </Build>
     <Build Include="Schema Objects\Schemas\dbo\Views\Expenses.view.sql">
-      <SubType>Code</SubType>
-      <AnsiNulls>On</AnsiNulls>
-      <QuotedIdentifier>On</QuotedIdentifier>
-    </Build>
-    <Build Include="Schema Objects\Schemas\dbo\Views\OrgXOrgR_20111118_bak.view.sql">
       <SubType>Code</SubType>
       <AnsiNulls>On</AnsiNulls>
       <QuotedIdentifier>On</QuotedIdentifier>
@@ -854,11 +809,6 @@
       <QuotedIdentifier>On</QuotedIdentifier>
     </Build>
     <Build Include="Schema Objects\Schemas\dbo\Tables\AD419_Non-Admin_WithProratedAmounts_bak.table.sql">
-      <SubType>Code</SubType>
-      <AnsiNulls>On</AnsiNulls>
-      <QuotedIdentifier>On</QuotedIdentifier>
-    </Build>
-    <Build Include="Schema Objects\Schemas\dbo\Tables\AllProjects.table.sql">
       <SubType>Code</SubType>
       <AnsiNulls>On</AnsiNulls>
       <QuotedIdentifier>On</QuotedIdentifier>
@@ -1196,14 +1146,6 @@
       <AnsiNulls>On</AnsiNulls>
       <QuotedIdentifier>On</QuotedIdentifier>
     </Build>
-    <Build Include="dbo\Views\ProjectV_not_working.sql">
-      <AnsiNulls>On</AnsiNulls>
-      <QuotedIdentifier>On</QuotedIdentifier>
-    </Build>
-    <Build Include="dbo\Views\ProjectImportV.sql">
-      <AnsiNulls>On</AnsiNulls>
-      <QuotedIdentifier>On</QuotedIdentifier>
-    </Build>
     <Build Include="dbo\Views\ProcessCategoryAndStatusV.sql">
       <AnsiNulls>On</AnsiNulls>
       <QuotedIdentifier>On</QuotedIdentifier>
@@ -1225,10 +1167,6 @@
       <QuotedIdentifier>On</QuotedIdentifier>
     </Build>
     <Build Include="dbo\Views\Non20xFisExpensesV.sql">
-      <AnsiNulls>On</AnsiNulls>
-      <QuotedIdentifier>On</QuotedIdentifier>
-    </Build>
-    <Build Include="dbo\Views\NewAllProjectsImportV.sql">
       <AnsiNulls>On</AnsiNulls>
       <QuotedIdentifier>On</QuotedIdentifier>
     </Build>
@@ -1577,12 +1515,7 @@
       <AnsiNulls>On</AnsiNulls>
       <QuotedIdentifier>On</QuotedIdentifier>
     </Build>
-    <Build Include="dbo\Stored Procedures\sp_Repopulate_AD419_204.sql">
-      <AnsiNulls>On</AnsiNulls>
-      <QuotedIdentifier>On</QuotedIdentifier>
-    </Build>
     <Build Include="dbo\Stored Procedures\usp_GetCurrentFiscalYear.sql" />
-    <Build Include="dbo\Stored Procedures\udf_RollbackAndReloadExpenses.sql" />
     <Build Include="dbo\Tables\SfnClassificationLogic.sql">
       <AnsiNulls>On</AnsiNulls>
       <QuotedIdentifier>On</QuotedIdentifier>
@@ -1604,37 +1537,63 @@
       <QuotedIdentifier>On</QuotedIdentifier>
     </Build>
     <Build Include="Security\Permissions.sql" />
+    <Build Include="dbo\Functions\udf_GetAccountDetailsForNullOrUnknownDepartments.function.sql" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\FISDatamart\FISDatamart.sqlproj">
-      <Name>FISDataMart</Name>
-      <Project>{1e987a3a-3340-43bf-ad65-8dcff6d534b3}</Project>
+    <ProjectReference Include="..\Catbert3\Catbert3.sqlproj">
+      <Name>Catbert3</Name>
+      <Project>{ee7a8ac9-c0e6-40f5-b172-495d83a54307}</Project>
       <Private>True</Private>
-      <DatabaseVariableLiteralValue>FISDataMart</DatabaseVariableLiteralValue>
+      <SuppressMissingDependenciesErrors>True</SuppressMissingDependenciesErrors>
+      <DatabaseSqlCmdVariable>Catbert3</DatabaseSqlCmdVariable>
     </ProjectReference>
     <ProjectReference Include="..\PPSDataMart\PPSDataMart.sqlproj">
       <Name>PPSDataMart</Name>
       <Project>{9fe0d294-d118-4a3b-8e5c-16e782c912c9}</Project>
       <Private>True</Private>
-      <DatabaseVariableLiteralValue>PPSDataMart</DatabaseVariableLiteralValue>
+      <SuppressMissingDependenciesErrors>True</SuppressMissingDependenciesErrors>
+      <DatabaseSqlCmdVariable>PPSDataMart</DatabaseSqlCmdVariable>
     </ProjectReference>
-    <ProjectReference Include="..\Catbert3\Catbert3.sqlproj">
-      <Name>Catbert3</Name>
-      <Project>{ee7a8ac9-c0e6-40f5-b172-495d83a54307}</Project>
+    <ProjectReference Include="..\FISDatamart\FISDatamart.sqlproj">
+      <Name>FISDatamart</Name>
+      <Project>{1e987a3a-3340-43bf-ad65-8dcff6d534b3}</Project>
       <Private>True</Private>
-      <DatabaseVariableLiteralValue>Catbert3</DatabaseVariableLiteralValue>
+      <SuppressMissingDependenciesErrors>True</SuppressMissingDependenciesErrors>
+      <DatabaseSqlCmdVariable>FISDatamart</DatabaseSqlCmdVariable>
+    </ProjectReference>
+    <ProjectReference Include="..\FISDatamart\FISDataMart.sqlproj">
+      <Name>FISDataMart</Name>
+      <Project>{1e987a3a-3340-43bf-ad65-8dcff6d534b3}</Project>
+      <Private>True</Private>
+      <SuppressMissingDependenciesErrors>True</SuppressMissingDependenciesErrors>
+      <DatabaseSqlCmdVariable>FISDataMart</DatabaseSqlCmdVariable>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <None Include="AD419SchemaComparison.scmp">
       <SubType>NotInBuild</SubType>
     </None>
+    <None Include="Schema Comparisons\AD419SchemaComparison.scmp" />
+    <None Include="Schema Comparisons\AD419SchemaComparison_20170126.scmp" />
+    <None Include="Schema Comparisons\AD419SchemaComparison_20160927092611.scmp" />
   </ItemGroup>
   <ItemGroup>
+    <SqlCmdVariable Include="Catbert3">
+      <DefaultValue>Catbert3</DefaultValue>
+      <Value>$(SqlCmdVar__3)</Value>
+    </SqlCmdVariable>
+    <SqlCmdVariable Include="FISDataMart">
+      <DefaultValue>FISDataMart</DefaultValue>
+      <Value>$(SqlCmdVar__5)</Value>
+    </SqlCmdVariable>
     <SqlCmdVariable Include="Path1">
       <DefaultValue>
       </DefaultValue>
       <Value>$(SqlCmdVar__1)</Value>
+    </SqlCmdVariable>
+    <SqlCmdVariable Include="PPSDataMart">
+      <DefaultValue>PPSDataMart</DefaultValue>
+      <Value>$(SqlCmdVar__4)</Value>
     </SqlCmdVariable>
   </ItemGroup>
   <ItemGroup>

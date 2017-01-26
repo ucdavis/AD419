@@ -4,7 +4,7 @@ SELECT        Chart, Org, OrgR, BeginDate, EndDate
 FROM            (SELECT        Chart, Org, CASE WHEN (TYPE IN ('G', 'N')) THEN NULL WHEN (Org4 = 'BIOS' AND Org5 <> 'CBSD') THEN Chart5 ELSE Chart6 END AS ChartR, 
                                                     CASE WHEN (TYPE IN ('G', 'N')) THEN NULL WHEN (Org4 = 'BIOS' AND Org5 <> 'CBSD') THEN Org5 ELSE Org6 END AS OrgR, CASE WHEN (TYPE IN ('G',
                                                      'N')) THEN NULL WHEN (Org4 = 'BIOS' AND Org5 <> 'CBSD') THEN Name5 ELSE Name6 END AS NameR, BeginDate, EndDate
-                          FROM            FISDataMart.dbo.Organizations
+                          FROM           [$(FISDataMart)].[dbo].[Organizations]
                           WHERE        (Year = '9999') AND (Period = '--') AND (Type NOT IN ('G', 'N', 'S'))) AS t1
 GO
 EXECUTE sp_addextendedproperty @name = N'MS_DiagramPaneCount', @value = 1, @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'UFYOrganizationsOrgR_v';

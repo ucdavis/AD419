@@ -89,5 +89,5 @@
     [IsPendingTrans]         BIT             NULL,
     [IsCAESTrans]            TINYINT         NULL,
     [PartitionColumn]        AS              ([FiscalYear]%([FiscalYear]/(4))+(1)) PERSISTED
-) ON [MyPartitionScheme] ([PartitionColumn]);
+);
 

@@ -1,8 +1,4 @@
-﻿SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
--- =============================================
+﻿-- =============================================
 -- Author:		Ken Taylor
 -- Create date: November 2, 2016
 -- Description:	Returns the Current Fiscal Year for the AD-419 Reporting Year

@@ -35,7 +35,7 @@
 -- 2015-02-25 by kjt: Removed [AD419] specific database references so sproc could be used on other databases
 -- such as AD419_2014, etc.
 -- =============================================
-ALTER PROCEDURE [dbo].[sp_Repopulate_AD419_All] 
+CREATE PROCEDURE [dbo].[sp_Repopulate_AD419_All] 
 ( 
 	@FiscalYear int = 2009,		--This is the FiscalYear of the reporting period to generate.
 	@BeginDate varchar(16) = '',-- The beginning of the fiscal year, i.e. for FY 2009: 2008.07.01, etc.

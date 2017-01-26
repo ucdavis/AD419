@@ -21,7 +21,7 @@
 --	  was attempting to copy over more items that it should have.
 --  20161020 by kjt: Added DISTINCT to ARCCodeAccountExclusion copying segment.
 --	20170118 by kjt: Removed commented out statement for easier readability.
-ALTER PROCEDURE [dbo].[usp_BeginProcessingForNewReportingPeriod] 
+CREATE PROCEDURE [dbo].[usp_BeginProcessingForNewReportingPeriod] 
 	-- Add the parameters for the stored procedure here
 	@FiscalYear int = 2015,
 	@IsDebug bit = 0

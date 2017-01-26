@@ -1,11 +1,4 @@
-﻿USE [AD419]
-GO
-/****** Object:  StoredProcedure [dbo].[sp_Repopulate_AD419_204]    Script Date: 1/18/2017 3:39:14 PM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
--- =============================================
+﻿-- =============================================
 -- Author:		Ken Taylor
 -- Create date: August 13, 2016
 -- Description:	This gets the pre-associated expenses from [dbo].[204AcctXProjV]
@@ -31,7 +24,7 @@ GO
 --	2016-09-09 by kjt: Fixed OrgR, Org column swap.
 --	20160912 by kjt: Added OpFundNum.
 -- =============================================
-ALTER PROCEDURE [dbo].[sp_Repopulate_AD419_204] (
+CREATE PROCEDURE [dbo].[sp_Repopulate_AD419_204] (
 	-- Add the parameters for the stored procedure here
 	@FiscalYear int = 2016,
 	@IsDebug bit = 0
