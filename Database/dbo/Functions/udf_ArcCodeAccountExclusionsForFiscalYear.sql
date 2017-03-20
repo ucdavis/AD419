@@ -7,8 +7,11 @@
 	USE AD419
 	GO
 
-	SELECT * FROM udf_ARCCodeAccountExclusionsForFiscalYear(FiscalYear)
+	SELECT * FROM udf_ARCCodeAccountExclusionsForFiscalYear(2016)
+	ORDER BY Chart, Account
 */
+-- Modifications:
+--	2017-01-18 by kjt: Added filter for fiscal year.
 -- =============================================
 CREATE FUNCTION [udf_ArcCodeAccountExclusionsForFiscalYear] 
 (
@@ -38,6 +41,7 @@ BEGIN
       ,[AwardNumber]
       ,[ProjectNumber]
     FROM [AD419].[dbo].[ArcCodeAccountExclusions]
+	WHERE [Year] = @FiscalYear
 	
 	RETURN 
 END

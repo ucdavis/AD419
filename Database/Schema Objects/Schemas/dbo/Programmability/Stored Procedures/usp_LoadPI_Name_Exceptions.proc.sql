@@ -137,7 +137,7 @@ BEGIN
   UPDATE @Table 
   SET FirstName = FirstMiddle where MiddleInitial IS NULL
 
-  -- Set first names which are now blank because they are a hyphonated first name:
+  -- Set first names which are now blank because they are a hyphenated first name:
   UPDATE @Table
   SET FirstName = CASE WHEN CHARINDEX(' ', FirstMiddle, 0) = 0 THEN FirstMiddle END
   WHERE FirstName = ''

@@ -2,7 +2,7 @@
 AS
 SELECT        ROW_NUMBER() OVER (PARTITION BY Id
 ORDER BY Id) AS InvNum, Id ProjectId, item Name
-FROM            [AD419].[dbo].[AllProjectsNew] CROSS APPLY dbo.SplitVarcharvaluesWithDelimiter(CoProjectDirectors, ';')
+FROM            [dbo].[AllProjectsNew] CROSS APPLY dbo.SplitVarcharvaluesWithDelimiter(CoProjectDirectors, ';')
 GO
 EXECUTE sp_addextendedproperty @name = N'MS_DiagramPaneCount', @value = 1, @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'PrincipalInvestigatorsPerProjectV';
 

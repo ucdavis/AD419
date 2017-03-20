@@ -3,7 +3,7 @@
 -- Create date: August 20, 2016
 -- Description:	Check if OK, and associate 241 employees.
 --
--- Prerequsites:
+-- Prerequisites:
 -- All expenses must be loaded and all PI_Matches must be made or
 -- set to IsProrated.
 --
@@ -15,7 +15,7 @@
 */
 --
 -- Modifications:
---	20160914 by kjy
+--	20160914 by kjt
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_AutoAssociate241Employees] 
 	-- Add the parameters for the stored procedure here

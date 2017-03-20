@@ -3,11 +3,11 @@
 -- Create date: July 11, 2016
 -- Description:	Loads the "AllAccountsFor204Projects table.
 -- Contains chart, and account for every CA&ES 204 project.  
--- These chart/ccount combinations were determined using OpFundNum, regardless of ARC as some of the accounts
+-- These chart/account combinations were determined using OpFundNum, regardless of ARC as some of the accounts
 -- for 204 projects are outside of our ARCs.
 -- This AllAccountsFor204Projects table is used for matching account AwardNumber or OPFund Award number
 -- its corresponding 204 project.
--- Prerequsites:
+-- Prerequisites:
 -- 1. The AllProjectsNew table must have been loaded.
 -- 2. The ARC codes table must have been already loaded.(This is only used to set the the ExcludedByARC flag)
 -- 3. The ARC code/Account exclusions table must have been loaded. (This is only used to set the the ExcludedByAccount flag)
@@ -26,7 +26,7 @@
 --	20160820 by kjt: Revised comments to reflect that AnotherLaborTransactions must be loaded first.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_LoadAllAccountsFor204Projects] 
-	@FiscalYear int = 2015
+	@FiscalYear int = 2016
 AS
 BEGIN
 	-- SET NOCOUNT ON added to prevent extra result sets from

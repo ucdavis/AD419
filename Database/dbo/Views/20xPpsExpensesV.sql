@@ -25,7 +25,7 @@ FROM            (SELECT        t2.ProjectNumber AS Project, t2.AccessionNumber A
                           GROUP BY t1.Chart, t1.Account, t1.SubAccount, t1.PrincipalInvestigator, t1.OrgR, t1.Org, t1.EmployeeID, t1.EmployeeName, t1.TitleCd, t1.SFN, t2.IsExpired, 
                                                    t3.ToAccession, t2.AccessionNumber, t4.ProjectNumber
                           HAVING        (SUM(t1.Amount) > 0)) AS t1_1 LEFT OUTER JOIN
-                         PPSDataMart.dbo.Titles AS t3 ON t1_1.TitleCd = t3.TitleCode LEFT OUTER JOIN
+                         [$(PPSDataMart)].dbo.Titles AS t3 ON t1_1.TitleCd = t3.TitleCode LEFT OUTER JOIN
                          dbo.staff_type AS t4 ON t3.StaffType = t4.Staff_Type_Code
 GROUP BY t1_1.Chart, t1_1.Account, t1_1.SubAcct, t1_1.PI_Name, t1_1.OrgR, t1_1.Org, t1_1.EID, t1_1.Employee_Name, t1_1.TitleCd, t3.AbbreviatedName, t1_1.Exp_SFN, 
                          t1_1.Accession, t1_1.Project, t1_1.IsExpired, t4.AD419_Line_Num, t4.Staff_Type_Short_Name

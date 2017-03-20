@@ -16,7 +16,7 @@
 /*
 	EXEC usp_RollbackAndReloadExpenses @FiscalYear = 2016, @IsDebug = 1 --*
 
--- *Note the the 2 parameters are just place holders and need not be provided.
+-- *Note that the 2 parameters are just place holders and need not be provided.
 */
 -- Modifications:
 -- =============================================

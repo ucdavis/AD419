@@ -3,6 +3,8 @@
     [ARC_Name]            VARCHAR (40)  NULL,
     [OP_Func_Name]        VARCHAR (40)  NULL,
     [DS_Last_Update_Date] SMALLDATETIME NULL,
+	[ARC_Category_Cd]	  VARCHAR (3)   NULL,
+	[ARC_Sub_Category_Cd] VARCHAR (3)   NULL,
     [isAES]               BIT           NULL
 );
 

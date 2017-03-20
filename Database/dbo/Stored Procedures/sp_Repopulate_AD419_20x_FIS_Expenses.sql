@@ -71,7 +71,7 @@
 -- =============================================
 CREATE PROCEDURE [dbo].[sp_Repopulate_AD419_20x_FIS_Expenses] 
 	-- Add the parameters for the stored procedure here
-	@FiscalYear int = 2015,  -- Not used by kept here for consistancy in parameter signature with other sprocs 
+	@FiscalYear int = 2015,  -- Not used by kept here for consistency in parameter signature with other sprocs 
 	@IsDebug bit = 0,
 	@TableName varchar(100) = 'AllExpenses',
 	@DataSource varchar(5) = '204' -- This needs to be either '204' or '20x'
@@ -104,7 +104,7 @@ BEGIN
 		WHERE OrgR IS NULL)
 		IF @NumBlankOrgs > 0
 		BEGIN
-			DECLARE @ErrorMessage varchar(200) =  ''Not all FIS Expenses have OrgR assigned.  Assign departments beore proceeding!''
+			DECLARE @ErrorMessage varchar(200) =  ''Not all FIS Expenses have OrgR assigned.  Assign departments before proceeding!''
 			'
 			IF @IsDebug = 1
 				SELECT @TSQL += 'PRINT ''-- '' + @ErrorMessage + ''

@@ -4,7 +4,7 @@
 -- Description:	Load the FIS_ExpensesFor204Projects table
 -- This will take the portion of the PPS expenses that were not already 
 --	included in the salary expenses and load them in the 204 FIS expenses table.
--- Prerequsites:
+-- Prerequisites:
 --	The UFY_FFY_FIS_Expenses table should already been loaded.
 --	The AllAccountsFor204Projects table should already been loaded.
 --	The Missing204AccountExpenses table should already been loaded.

@@ -9,7 +9,7 @@
 -- a previous step.
 --
 -- This is one of the final tables to load.
--- Pre-requsites:
+-- Prerequisites:
 -- 1. The AllProjectsImport table must have already been loaded.
 -- 2. The ARC codes table must have already been loaded.
 -- 3. The ARCcodeAccountExclusions must have already been loaded.
@@ -90,7 +90,7 @@ BEGIN
 	GROUP BY Chart, Account, SFN, Accounts_AwardNum, t4.ProjectNumber 
 	ORDER BY Chart, Account, SFN
 
-	-- Update the entries based on the the project matches
+	-- Update the entries based on the project matches
 	UPDATE FFY_SFN_Entries
 	SET ProjectNumber = t2.ProjectNumber, AccessionNumber = t2.AccessionNumber
 	, ProjectEndDate = t2.ProjectEndDate, IsExpired = CASE WHEN 
@@ -111,7 +111,7 @@ BEGIN
 
 
 	-- This was just a check to look for any matches that were excluded intentionally:
-	SELECT 'This is a list of 204 and 20x projects that were either exluded or could not be matched:' AS Title
+	SELECT 'This is a list of 204 and 20x projects that were either excluded or could not be matched:' AS Title
 	select t1.*, t2.ProjectNumber from FFY_SFN_Entries t1
 	LEFT OUTER JOIN ARCCodeAccountExclusions t2 ON t1.Chart = t2.Chart And t1.Account = t2.Account AND Year = @FiscalYear
 	where SFN BETWEEN '201' AND '205'

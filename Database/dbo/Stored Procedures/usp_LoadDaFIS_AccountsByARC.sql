@@ -26,7 +26,7 @@
 --	20160928 by kjt: Added @FiscalYear to method signature so it can be called by Ad419DataHelper app.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_LoadDaFIS_AccountsByARC]
-(	@FiscalYear int = 2015, -- Not needed by provided for method signature consistancy.
+(	@FiscalYear int = 2015, -- Not needed by provided for method signature consistency.
 	@IsDebug bit = 0)
 AS
 BEGIN

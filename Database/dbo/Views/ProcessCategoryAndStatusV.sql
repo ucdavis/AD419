@@ -1,16 +1,16 @@
-﻿CREATE VIEW dbo.ProcessCategoryAndStatusV
+﻿CREATE VIEW [dbo].[ProcessCategoryAndStatusV]
 AS
-SELECT        TOP (100) PERCENT c.SequenceOrder AS CategoryOrder, c.Name, c.Notes, c.IsCompleted, c.StoredProcedureName, s.SequenceOrder, s.Name AS Expr1, 
-                         s.IsCompleted AS Expr2, s.CategoryId, s.Notes AS Expr3, s.CompletePriorToCategory, s.NoProcessingRequired, s.Hyperlink
-FROM            dbo.ProcessCategory AS c LEFT OUTER JOIN
+SELECT        TOP (100) PERCENT c.SequenceOrder AS CategoryOrder, ISNULL(s.SequenceOrder, 1) AS SequenceOrder, c.Name AS CategoryName, c.Notes AS CategoryNotes, 
+                         c.StoredProcedureName, c.IsCompleted AS IsCategoryCompleted, s.Name AS SequenceName, s.Notes AS SequenceNotes, s.IsCompleted AS IsSequenceCompleted, 
+                         s.CompletePriorToCategory, ISNULL(s.NoProcessingRequired, CASE WHEN StoredProcedureName IS NULL THEN 1 ELSE 0 END) AS NoProcessingRequired, 
+                         s.Hyperlink, c.Id AS CategoryId, s.Id AS SequenceId
+FROM            dbo.ProcessCategory AS c FULL OUTER JOIN
                          dbo.ProcessStatus AS s ON c.Id = s.CategoryId
-ORDER BY CategoryOrder, s.SequenceOrder
-GO
-EXECUTE sp_addextendedproperty @name = N'MS_DiagramPaneCount', @value = 1, @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'ProcessCategoryAndStatusV';
-
+ORDER BY CategoryOrder, SequenceOrder
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_DiagramPane1', @value = N'[0E232FF0-B466-11cf-A24F-00AA00A3EFFF, 1.00]
+
+EXEC sys.sp_addextendedproperty @name=N'MS_DiagramPane1', @value=N'[0E232FF0-B466-11cf-A24F-00AA00A3EFFF, 1.00]
 Begin DesignProperties = 
    Begin PaneConfigurations = 
       Begin PaneConfiguration = 0
@@ -138,5 +138,8 @@ Begin DesignProperties =
       End
    End
 End
-', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'ProcessCategoryAndStatusV';
+' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'VIEW',@level1name=N'ProcessCategoryAndStatusV'
+GO
 
+EXEC sys.sp_addextendedproperty @name=N'MS_DiagramPaneCount', @value=1 , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'VIEW',@level1name=N'ProcessCategoryAndStatusV'
+GO

@@ -1,7 +1,7 @@
 ﻿CREATE VIEW [dbo].[Users_V]
 AS
 SELECT     UserID, FirstName, LastName, EmployeeID, StudentID, UserImage, Inactive, LoginID, Email
-FROM         Catbert3.dbo.Users
+FROM         [$(Catbert3)].dbo.Users
 
 GO
 EXECUTE sp_addextendedproperty @name = N'MS_DiagramPane1', @value = N'[0E232FF0-B466-11cf-A24F-00AA00A3EFFF, 1.00]

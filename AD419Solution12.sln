@@ -30,6 +30,7 @@ Project("{E24C65DC-7377-472B-9ABA-BC803B73C61A}") = "AD419.Web", "AD419.Web\", "
 		Release.AspNetCompiler.FixedNames = "false"
 		Release.AspNetCompiler.Debug = "False"
 		VWDPort = "3381"
+		SlnRelativePath = "AD419.Web\"
 	EndProjectSection
 EndProject
 Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "AD419_Setup", "AD419.Setup\AD419_Setup.vdproj", "{6016D790-8B23-4911-BD3D-F9833383FC22}"
@@ -40,7 +41,7 @@ Project("{00D1A9C2-B5F0-4AF3-8072-F6C62B433612}") = "Database", "Database\Databa
 EndProject
 Project("{00D1A9C2-B5F0-4AF3-8072-F6C62B433612}") = "Catbert3", "Catbert3\Catbert3.sqlproj", "{EE7A8AC9-C0E6-40F5-B172-495D83A54307}"
 EndProject
-Project("{00D1A9C2-B5F0-4AF3-8072-F6C62B433612}") = "FISDatamart", "FISDatamart\FISDatamart.sqlproj", "{1E987A3A-3340-43BF-AD65-8DCFF6D534B3}"
+Project("{00D1A9C2-B5F0-4AF3-8072-F6C62B433612}") = "FISDataMart", "FISDatamart\FISDataMart.sqlproj", "{1E987A3A-3340-43BF-AD65-8DCFF6D534B3}"
 EndProject
 Project("{00D1A9C2-B5F0-4AF3-8072-F6C62B433612}") = "PPSDataMart", "PPSDataMart\PPSDataMart.sqlproj", "{9FE0D294-D118-4A3B-8E5C-16E782C912C9}"
 EndProject

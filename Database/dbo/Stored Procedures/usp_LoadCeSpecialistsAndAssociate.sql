@@ -3,7 +3,7 @@
 -- Create date: August 20, 2016
 -- Description:	Check if OK, and load CE Specialists and Associate.
 --
--- Prerequsites:
+-- Prerequisites:
 -- 1. CESListImport loaded (count(*) > 1
 -- 2. Project count(*) > 1
 -- 3. ProjXOrgR count(*) > 1

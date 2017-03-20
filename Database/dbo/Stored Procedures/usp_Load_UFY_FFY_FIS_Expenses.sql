@@ -12,8 +12,8 @@
 	DECLARE	@return_value int
 
 	EXEC	@return_value = [dbo].[usp_Load_UFY_FFY_FIS_Expenses]
-			@FiscalYear = 2015,
-			@IsDebug = 1
+			@FiscalYear = 2016,
+			@IsDebug = 0
 
 	SELECT	'Return Value' = @return_value
 
@@ -25,9 +25,11 @@
 --	20160810 by kjt: Added update of Org and OrgR where OrgR was null due to Org changes during fiscal year.
 --  20160810 by kjt: Revised to use new table DaFIS_AccountsByARC
 --  20160818 by kjt: Revised to use INNER JOIN FISDataMart.dbo.ARCCodes,
+--	20170110 by kjt: Removed section that update blank Orgs and OrgRs as there should no longer be none,
+--	  since we're using the same join in the INSERT/SELECT statement as was in the UPDATE statement.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_Load_UFY_FFY_FIS_Expenses] 
-	@FiscalYear int = 2015, 
+	@FiscalYear int = 2016, 
 	@IsDebug bit = 0
 AS
 BEGIN
@@ -35,7 +37,7 @@ BEGIN
 	-- interfering with SELECT statements.
 	SET NOCOUNT ON;
 
-	--DECLARE @FiscalYear int = 2015
+	--DECLARE @FiscalYear int = 2016
 	DECLARE @TSQL varchar(MAX) = ''
 
 	SELECT @TSQL = '
@@ -87,35 +89,6 @@ BEGIN
 		, t4.Org, t5.OrgR HAVING SUM(Expend) <> 0
 	ORDER By t1.Chart, AccountNum, SubAccount, PrincipalInvestigatorName, ARCCode, 
 		AC.OpFundNum, ConsolidationCode, t4.Org, t5.OrgR
-'
-	IF @IsDebug = 1
-		PRINT @TSQL
-	ELSE
-		EXEC(@TSQL)
-
-	-- Update the Org and OrgR for any Orgs that changed during the fiscal year and 
-	-- whose OrgR couldn't be matched by Org in the initial join above.
-
-	SELECT @TSQL = '
-	UPDATE UFY_FFY_FIS_Expenses
-	SET Org = t2.Org
-	FROM
-	UFY_FFY_FIS_Expenses t1
-	INNER JOIN 
-	(
-		SELECT Chart, Account, MAX(Org) Org
-		FROM FISDataMart.dbo.Accounts 
-		WHERE Year in ('+ CONVERT(varchar(4), @FiscalYear) +', ' +  CONVERT(varchar(4), @FiscalYear + 1) + ', 9999)
-		GROUP BY Chart, Account
-	) t2 ON t1.Chart = t2.Chart AND t1.Account = t2.Account
-	WHERE t1.OrgR IS NULL
-
-	UPDATE UFY_FFY_FIS_Expenses
-	SET OrgR = t2.OrgR
-	FROM UFY_FFY_FIS_Expenses t1
-	INNER JOIN OrgXorgR t2 ON t1.Chart = t2.Chart AND t1.Org = t2.Org
-	WHERE t1.OrgR IS NULL
-
 '
 	IF @IsDebug = 1
 		PRINT @TSQL
