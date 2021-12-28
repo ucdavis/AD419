@@ -1,8 +1,23 @@
-﻿-- =============================================
+﻿
+-- =============================================
 -- Author:		Ken Taylor
 -- Create date: April 13, 2010
 -- Description:	Update the Accounts.FunctionCodeID according to their corresponding transactions
 -- BalType, SubFundGroupNum, HigherEdFuncCode or A11AcctNum(aka OP Acct Num)
+-- Usage: 
+/*
+	USE FISDataMart
+	GO
+
+	EXEC [dbo].[usp_UpdateAccountsFunctionCodeID] 
+	@IsDebug = 1
+
+	GO
+
+*/
+--
+-- Modifications:
+--	2021-04-08 by kjt: Added Usage section to comments
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_UpdateAccountsFunctionCodeID] 
 	-- Add the parameters for the stored procedure here

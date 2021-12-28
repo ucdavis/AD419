@@ -22,3 +22,11 @@
     CONSTRAINT [PK_AllProjectsNew_1] PRIMARY KEY CLUSTERED ([Id] ASC)
 );
 
+
+
+
+GO
+CREATE NONCLUSTERED INDEX [AllProjectsNew_IsUCDIs204_AccessionStartDateStatus_CVIDX]
+    ON [dbo].[AllProjectsNew]([IsUCD] ASC, [IsExpired] ASC, [Is204] ASC)
+    INCLUDE([AccessionNumber], [ProjectStartDate], [ProjectEndDate], [ProjectStatus]);
+

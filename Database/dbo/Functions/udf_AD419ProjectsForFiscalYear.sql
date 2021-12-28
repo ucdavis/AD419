@@ -13,9 +13,10 @@
 */
 --
 -- Modifications:
---
+--	20171026 by kjt: Revised to use ProjectStatus table for determining which projects to include
+--		instead of hard coding.
 -- =============================================
-CREATE FUNCTION udf_AD419ProjectsForFiscalYear 
+CREATE FUNCTION [dbo].[udf_AD419ProjectsForFiscalYear] 
 (
 	@FiscalYear int = 2015
 )
@@ -95,8 +96,11 @@ select
 	 (t1.IsUCD = 1) AND (t1.IsExpired = 0) AND 
 	 (t1.AccessionNumber NOT LIKE '0000000') AND
 	 (t1.IsIgnored = 0 OR t1.IsIgnored IS NULL) AND 
-	 (RTRIM(t1.ProjectStatus) NOT LIKE 'Draft') AND 
-	 (RTRIM(t1.ProjectStatus) NOT LIKE 'Unknown')
+	 (RTRIM(t1.ProjectStatus) NOT IN (
+		SELECT [Status]
+		FROM [dbo].[ProjectStatus]
+		WHERE IsExcluded = 1)
+	 )
 
  -- Populate the various Inv_ from data present in the CoProjectDirectors column:
  update @Table_Var

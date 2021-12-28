@@ -1,8 +1,26 @@
-﻿/*
+﻿
+/*
+Author: Ken Taylor
+Created On:
+Description: Loads the transaction for FIS Campus Data Warehouse.  Assumes that our FISDataMart trans table
+				is empty or has been recently truncated.
+Usage:
+	
+	USE [FISDataMart]
+	GO
+
+	EXEC [dbo].[usp_DownloadTransactions]
+		@FirstDate = '2019-10-01',
+		@LastDate = '2021-09-30',
+		@IsDebug = 1
+
 Modifications:
 	20110129 by kjt:
 		Analyzed the org level and chart mapping and found that it need to be revised
 		because a few of the chart L BIOS orgs were being excluded.
+	2021-05-05 by kjt: Expanded filtering to also included VETM Orgs as they are required
+		for Animal Health reports.  Also modified setting of IsCAES so that null would be the
+		default setting to allow VETM to have a null value.
 */
 CREATE Procedure [dbo].[usp_DownloadTransactions]
 (
@@ -48,6 +66,7 @@ AS
 	declare @AAES char(4) = 'AAES'
 	declare @BIOS char(4) = 'BIOS' 
 	declare @ACBS char(4) = 'ACBS'
+	declare @VETM char(4) = 'VETM'
 	
 	--TESTING
 	--set @firstDate = '10/10/06'
@@ -57,7 +76,7 @@ AS
 			SELECT @CollegeOrg = 'AAES'
 			SELECT @IsCAES = 1
 		END
-	else
+	else if @CollegeOrg = 'BIOS'
 		BEGIN
 			SELECT @IsCAES = 0
 		END	
@@ -199,7 +218,7 @@ AS
 							select @TSQL += '	CASE WHEN A.ORG_ID IN (Select DISTINCT ORG_ID from FINANCE.ORGANIZATION_HIERARCHY where (ORG_ID_LEVEL_2 = ''''ACBS'''' OR ORG_ID_LEVEL_5 = ''''ACBS'''') AND FISCAL_YEAR = 9999 AND FISCAL_PERIOD = ''''--'''') THEN 2
 							ELSE 1 END AS Is_CAES'
 						END
-			ELSE
+			ELSE IF @CollegeOrg = @BIOS
 				BEGIN
 					select @TSQL += '0 AS Is_CAES'
 				END
@@ -236,7 +255,7 @@ AS
 							
 		SELECT @TSQL += '
 						OR 
-						(O.CHART_NUM_LEVEL_4 = ''''3'''' AND O.ORG_ID_LEVEL_4 = ''''' + @CollegeOrg +''''') 
+						(O.CHART_NUM_LEVEL_4 IN (''''3'''', ''''L'''') AND O.ORG_ID_LEVEL_4 = ''''' + @CollegeOrg +''''') 
 						OR 
 					'
 							IF @CollegeOrg = @BIOS

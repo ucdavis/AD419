@@ -1,4 +1,6 @@
-﻿-- =============================================
+﻿
+
+-- =============================================
 -- Author:		Ken Taylor
 -- Create date: November 26, 2014
 -- Description:	Truncate the AD419 database tables to allow reloading of expenses and making associations.
@@ -16,6 +18,9 @@
 -- Modifications:
 --	 20160818 by kjt: Added TruncateImportTables feature.  Fixed missing "--" in front of comment.
 --	 20160820 by kjt: Removed truncate of labor transactions.
+--   20191119 by kjt: Removed truncate CFDANumImport as it needs to be done from the DataHelper UI in order to 
+--		add the 10.00 dummy CFDA number at the top of the list.  Also added statement to truncate table 
+--		NifaProjectAccessionNumberImport to be consistant with truncating other project tables. 
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_TruncateTablesForReload] 
 	@FiscalYear int = 2015, -- The later portion of the AD-419 reporting year, i.e. 2014 for 2013-2014, etc.
@@ -34,10 +39,18 @@ BEGIN
 		SELECT @TSQL = '
 USE AD419
 
-truncate table CFDANumImport
+--2019-11-19 by kjt: Commented out truncate CFDANumImport because the 10.000 CFDA number is not added unless
+-- the delete is performed from the DataHelper UI.
+-- truncate table CFDANumImport
+--
+
 --truncate table AllProjectsImport -- No longer used.  Projects are imported directly into AllProjectsNew
 truncate table AllProjectsNew
 truncate table Project
+
+--  2019-11-19 by kjt: Added statement to truncate NifaProjectAccessionNumberImport
+truncate table  NifaProjectAccessionNumberImport
+--
 truncate table InterdepartmentalProjectsImport
 truncate table CesListImport
 truncate table FieldStationExpenseListImport
@@ -80,7 +93,8 @@ truncate table [dbo].[PPS_ExpensesForNon204Projects] -- auto-truncate upon reloa
 
 truncate table ProjXOrgR -- yes; repopulate after all projects and interdepartmental project have been loaded
 
---truncate table [dbo].[AnotherLaborTransactions] -- Auto truncate upon reload
+--truncate table [dbo].[AnotherLaborTransactions] -- Auto truncate upon reload, but only if present year is not
+												--	is not current year.
 --truncate table Raw_PPS_Expenses --Table no longer used
 
 truncate table FFY_SFN_Entries --Auto-truncate upon load

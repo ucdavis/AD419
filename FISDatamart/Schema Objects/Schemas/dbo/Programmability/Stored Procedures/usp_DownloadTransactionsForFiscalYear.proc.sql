@@ -1,4 +1,17 @@
-﻿/*
+﻿
+
+/*
+Usage:
+	
+	USE [FISDataMart]
+	GO
+
+	EXEC [dbo].[usp_DownloadTransactionsForFiscalYear]
+		@FirstDateString = '2018-10-01',
+		@LastDateString = '2021-09-30',
+		@GetUpdatesOnly = 0,
+		@IsDebug = 1
+
 Modifications:
 	20110129 by kjt:
 		Analyzed the org level and chart mapping and found that it need to be revised
@@ -15,9 +28,14 @@ Modifications:
 		Revised IsCAES setting portion to use a subsequent update as opposed to an inner join.
 	20110426 by kjt:
 		Revised to use concatenated Chart + Account key IN statement instead of multi-column IN
-		statement
+		statement.
+	2015-10-08 by kjt: Modifications to take into account removing DANR as level 4 ORG for chart L, and moving
+		AANS up to level 4 org position.  AAES is now at Level 4 for both Chart 'L' and Chart '3' as of FY 2016.
+	2021-05-05 by kjt: Expanded filtering to also included VETM Orgs as they are required
+		for Animal Health reports.  Also modified setting of IsCAES so that null would be the
+		default setting to allow VETM to have a null value.
 */
-CREATE Procedure [dbo].[usp_DownloadTransactionsForFiscalYear]
+CREATE PROCEDURE [dbo].[usp_DownloadTransactionsForFiscalYear]
 (
 	--PARAMETERS:
 	@FirstDateString varchar(16) = null,
@@ -64,6 +82,7 @@ AS
 	declare @AAES char(4) = 'AAES'
 	declare @BIOS char(4) = 'BIOS' 
 	declare @ACBS char(4) = 'ACBS'
+	declare @VETM char(4) = 'VETM'
 	
 	-----------------------------------------------------------------------------
 	--local:
@@ -231,12 +250,16 @@ using
 									(ORG_ID_LEVEL_1 = ''''BIOS'''')
 									
 									OR 
-									(CHART_NUM_LEVEL_4 = ''''3'''' AND ORG_ID_LEVEL_4 = ''''AAES'''')
+									(CHART_NUM_LEVEL_4 IN (''''3'''', ''''L'''') AND ORG_ID_LEVEL_4 = ''''AAES'''')
 									OR
 									(CHART_NUM_LEVEL_5 = ''''L'''' AND ORG_ID_LEVEL_5 = ''''AAES'''')
 									
 									OR
 									(ORG_ID_LEVEL_4 = ''''BIOS'''')
+
+								-- 2021-05-04 by kjt: Added VETM orgs for Animal Health Reports. 
+									OR 
+									(CHART_NUM_LEVEL_4 IN (''''3'''', ''''L'''') AND ORG_ID_LEVEL_4 = ''''VETM'''')
 								)
 								AND
 								(
@@ -326,13 +349,32 @@ WHEN NOT MATCHED BY TARGET THEN INSERT VALUES
 
 --WHEN NOT MATCHED BY SOURCE THEN DELETE
 ;
+'
 
+if @IsDebug = 1
+		BEGIN
+			--used for testing
+			PRINT @TSQL	
+		END
+	else
+		BEGIN
+			--Execute the command:
+			EXEC(@TSQL)
+		END
+
+-------------------------------------------------------------------------
+
+	SELECT @TSQL = '
 UPDATE trans
 SET IsCAES = CASE
 	  WHEN  (chart = ''3'' and account in (select distinct account from accounts a where year = ' +  CONVERT(char(4), @BeginningFiscalYear) + ' AND chart = ''3'' and IsCAES = 0))
             OR
             (chart = ''L'' and account in (select distinct account from accounts a where year = ' +  CONVERT(char(4), @BeginningFiscalYear) + ' AND chart = ''L'' and IsCAES = 0))
       THEN 0
+	  WHEN  (chart = ''3'' and account in (select distinct account from accounts a where year = ' +  CONVERT(char(4), @BeginningFiscalYear) + ' AND chart = ''3'' and IsCAES = 1))
+            OR
+            (chart = ''L'' and account in (select distinct account from accounts a where year = ' +  CONVERT(char(4), @BeginningFiscalYear) + ' AND chart = ''L'' and IsCAES = 1))
+      THEN 1
       WHEN  (chart = ''3'' and account in (select distinct account from accounts a where year = ' +  CONVERT(char(4), @BeginningFiscalYear) + ' AND chart = ''3'' and IsCAES = 2))
             OR
             (chart = ''L'' and account in (select distinct account from accounts a where year = ' +  CONVERT(char(4), @BeginningFiscalYear) + ' AND chart = ''L'' and IsCAES = 2))

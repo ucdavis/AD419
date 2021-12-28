@@ -1,4 +1,5 @@
-﻿-- =============================================
+﻿
+-- =============================================
 -- Author:		Ken Taylor
 -- Create date: August 20, 2016
 -- Description:	Check if all necessary tables have
@@ -8,7 +9,7 @@
 --
 --Usage:
 /*
-	EXEC usp_PerformPostProcessingAndCreateFinalReports @FiscalYear = 2015, @IsDebug = 1
+	EXEC usp_PerformPostProcessingAndCreateFinalReports @FiscalYear = 2016, @IsDebug = 1
 */
 --
 -- Modifications:
@@ -18,6 +19,9 @@
 --	20160914 by kjt: Revised raise error logic to set an error message and use a single throw block. 
 --	20161215 by kjt: Revised logic to handle projects with NULL expense sums as these were not being 
 --		handled properly due to their expense totals being NULL instead of zero (0).
+--	20171005 by kjt: Revised project hiding from <= 100 to < 100 as per AD-419 reporting instructions.
+--	20181210 by kjt: Revised setting of setting of IsIgnored flag to also handle projects with zero
+--		expense accounts. 
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_PerformPostProcessingAndCreateFinalReports] 
 	-- Add the parameters for the stored procedure here
@@ -62,9 +66,7 @@ BEGIN
 	SET IsIgnored = 0 
 	WHERE AccessionNumber IN (
 		SELECT AccessionNumber 
-		FROM   FFY_SFN_Entries
-		WHERE IsExpired = 0 AND SFN = ''204''
-		GROUP BY AccessionNumber HAVING ISNULL(SUM(Expenses),0) <= 100
+		FROM [dbo].[204ProjectsToBeExcludedFromDepartmentAssociationV]
 	)
 
 	TRUNCATE TABLE Project

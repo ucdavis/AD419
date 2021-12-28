@@ -1,8 +1,8 @@
-﻿-- =============================================
+﻿
+-- =============================================
 -- Author:		Ken Taylor
 -- Create date: August 19, 2016
--- Description:	Load Project table, ProgXOrgR, 
--- AllAccountsFor204Projects, and NewAccountSFN.  
+-- Description:	Load AllAccountsFor204Projects, and NewAccountSFN.  
 -- Classify Accounts with their corresponding SFNs, 
 -- and AD419Accounts.
 -- Load FFY_SFN_Entries, and attempt to automatically
@@ -14,7 +14,7 @@
 --
 -- Usage:
 /*
-	EXEC usp_ClassifyAccounts_LoadTablesAndAttemptToMatch @FiscalYear = 2015, @IsDebug = 0
+	EXEC usp_ClassifyAccounts_LoadTablesAndAttemptToMatch @FiscalYear = 2016, @IsDebug = 0
 */
 --
 -- Modifications:
@@ -29,6 +29,12 @@
 --	2016-11-07 by kjt: Revised to pass FiscalYear to usp_RepopulateProjXOrgR.
 --	2016-12-16 by kjt: Fixed issue for handling setting project's IsIgnored flag for projects with NULL expenses totals.
 --	2017-01-18 by kjt: Removed temporary fixes which had been commented out.
+--	2017-09-10 by kjt: Commented out the logic to load the ProjXorgR table, and this now needs
+--		to be done after the Expenses have been loaded because we're programatically determining
+--		the interdepartmental projects.
+--	2017-08-17 by kjt: Removed ProjXOrgR and project adjustment and reloading logic.
+--	2017-09-26 by kjt: Revised logic to set null expenses totals to 0.
+--	2019-10-11 by kjt: Added call to reload OrgR_lookup table prior to reloading AllEmployeeFTE.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_ClassifyAccounts_LoadTablesAndAttemptToMatch] 
 	-- Add the parameters for the stored procedure here
@@ -44,24 +50,15 @@ BEGIN
 	DECLARE @ErrorMessage varchar(1024) = ''
 
 	DECLARE @AllProjectsCount int = 0
-	DECLARE @InterdepartmentalProjectsCount int = 0
-
+	
 	-- First check to see if the AllProjectsNew table has bee loaded:
 	SELECT @AllProjectsCount = (
 		SELECT Count(*)
 		FROM [dbo].[AllProjectsNew]
 	)
 
-	-- Next, check if interdepartmental projects were loaded:
-	SELECT @InterdepartmentalProjectsCount = (
-		SELECT Count(*)
-		FROM [dbo].[InterdepartmentalProjectsImport]
-	)
-
 	IF @AllProjectsCount = 0
 		SELECT @ErrorMessage = 'Unable to complete this step because projects have yet to be loaded.  Please load projects and try again.'
-	ELSE IF @InterdepartmentalProjectsCount = 0
-		SELECT @ErrorMessage = 'Unable to complete this step because Interdepartmental Projects have yet to be loaded.  Please load Interdepartmental Projects and try again.'
 
 	IF @ErrorMessage IS NOT NULL AND @ErrorMessage NOT LIKE ''
 	BEGIN
@@ -110,7 +107,7 @@ BEGIN
 
 	-- Update the FFY_SFN_Entries'' Expenses column so we can use it below for setting the IsIgnored column.
 	UPDATE [dbo].[FFY_SFN_Entries] 
-	SET [Expenses] = t2.Expenses
+	SET [Expenses] = ISNULL(t2.Expenses, 0)
 	FROM [dbo].[FFY_SFN_Entries] t1
 	INNER JOIN [dbo].[AD419Accounts] t2 ON t1.Chart = t2.Chart AND t1.Account = t2.Account
 
@@ -118,41 +115,20 @@ BEGIN
 	-- reload AD-419 application''s 204AcctXProj project:
 	EXEC [dbo].[sp_Repopulate_AD419_204] @FiscalYear = ' + CONVERT(varchar(4), @FiscalYear) + ', @IsDebug = ' + CONVERT(varchar(1), @IsDebug) + '
 
+	--------------------------------------------------------------------------------------------
+	--20191011 by kjt: Added call to reload OrgR_lookup table prior to reloading AllEmployeeFTE,
+	-- since the reload OrgR_lookup table is used as a data source for AllEmployeeFTE_v.
+	
+	EXEC [dbo].[usp_LoadOrgR_Lookup]
+
+	-------------------------------------------------------------------------------------------- 
+	-- End Added call to reload OrgR_lookup table.
+
 	-- Load the table used as a datasource for the All Employee FTE Report:
 	TRUNCATE TABLE AllEmployeeFTE 
 
 	INSERT INTO AllEmployeeFTE
 	SELECT * FROM AllEmployeeFTE_v
-
-	-------------------------------------------------------------------------------------------------------
-	-- Project section:
-	--
-	-- The following project related procedures could either be done here or in a separate stored procedure:
-	-- Prior to populating the project table from the ProjectV,
-	-- We must temporarily set the AllProjectsNew "isIgnored" flag to true
-	-- for any non-expired 204 project with a total expense amount less than
-	-- or equal to $100.
-	UPDATE AllProjectsNew
-	SET IsIgnored = 1 
-	WHERE AccessionNumber IN (
-		SELECT AccessionNumber 
-		FROM   FFY_SFN_Entries
-		WHERE IsExpired = 0 AND SFN = ''204''
-		GROUP BY AccessionNumber HAVING ISNULL(SUM(Expenses),0) <= 100
-	)
-
-	-- Load Project using udf_AD419ProjectsForFiscalYear from AllProjectsNew:
-	TRUNCATE TABLE [dbo].[Project]
-	INSERT INTO [dbo].[Project]
-	SELECT * FROM [dbo].udf_AD419ProjectsForFiscalYear(' + CONVERT(varchar(4), @FiscalYear) + ')
-
-	-- Repopulate ProjXOrgR:
-	EXEC [dbo].[usp_RepopulateProjXOrgR] @FiscalYear = ' + CONVERT(varchar(4), @FiscalYear) + ', @IsDebug = ' + CONVERT(varchar(1), @IsDebug) + '
-
-	-- Repopulate ProjXOrgR for interdepartmental projects:
-	EXEC [dbo].[usp_RepopulateProjXOrgRForIntedepartmentalProjects]
-		@FiscalYear = ' + CONVERT(varchar(4), @FiscalYear) + ', @DeleteExistingInterdepartmentalProjectsFromProjXOrgR = 1,
-		@IsDebug = ' + CONVERT(varchar(1), @IsDebug) + '	
 '
 
 	IF @IsDebug = 1

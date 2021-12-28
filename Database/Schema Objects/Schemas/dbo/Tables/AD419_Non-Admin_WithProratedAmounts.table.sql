@@ -4,7 +4,7 @@
     [proj]            CHAR (4)        NULL,
     [project]         VARCHAR (24)    NULL,
     [accession]       CHAR (7)        NULL,
-    [PI]              VARCHAR (30)    NULL,
+    [PI]              VARCHAR (50)    NULL,
     [f201]            DECIMAL (16, 2) NULL,
     [f202]            DECIMAL (16, 2) NULL,
     [f203]            DECIMAL (16, 2) NULL,
@@ -54,4 +54,6 @@
     [f244_plus_admin] DECIMAL (16, 2) NULL,
     [f350]            DECIMAL (16, 2) NULL
 );
+
+
 

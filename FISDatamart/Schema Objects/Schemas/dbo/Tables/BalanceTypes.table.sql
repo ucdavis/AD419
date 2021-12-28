@@ -4,12 +4,17 @@
     [BalanceCategoryCode]      VARCHAR (2)  NULL,
     [BalanceCategoryName]      VARCHAR (40) NULL,
     [BalanceReportingTypeCode] CHAR (2)     NULL,
-    [LastUpdateDate]           DATETIME     NOT NULL
+    [LastUpdateDate]           DATETIME     NOT NULL,
+    CONSTRAINT [PK_Ballance_Type] PRIMARY KEY CLUSTERED ([BalanceTypeCode] ASC)
 );
 
 
+
+
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Identifies the types of reporting to which given values of Balance type belong.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'BalanceTypes';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N' Identifies the types of reporting to which given values of Balance type belong.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'BalanceTypes';
+
+
 
 
 GO

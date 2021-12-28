@@ -19,6 +19,9 @@
 -- *Note that the 2 parameters are just place holders and need not be provided.
 */
 -- Modifications:
+--	2017-09-21 by kjt: Added new calls for additional stored procedures.
+--	2017-10-05 by kjt: Changed <= 100 to < 100 as per AD-419 reporting instructions. 
+--	2017-11-15 by kjt: Update procedures called to match those called by DataHelper.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_RollbackAndReloadExpenses]
 	@FiscalYear int = 2016, 
@@ -40,7 +43,7 @@ BEGIN
 		SELECT AccessionNumber 
 		FROM   FFY_SFN_Entries
 		WHERE IsExpired = 0 AND SFN = ''204''
-		GROUP BY AccessionNumber HAVING ISNULL(SUM(Expenses),0) <= 100
+		GROUP BY AccessionNumber HAVING ISNULL(SUM(Expenses),0) < 100
 	)
 
 	-- Reload the project table used by AD419 UI so that hidden projects will not be included:
@@ -140,12 +143,28 @@ BEGIN
 	ELSE
 		EXEC(@TSQL)
 
+	-- Change OrgR for Associate Deans section:
+
+	SELECT @TSQL = '
+	-- Change the OrgR for Associate Deans to ADNO to allow automatic proration across all 
+	-- College''s projects and to hide corresponding expenses for AD-419 reporting module:
+	DECLARE	@return_value3 int '
+	SELECT @TSQL += '
+	EXEC	@return_value3 = [dbo].[usp_RemapAssociateDeansExpenseDepartmentsToADNO] @IsDebug = ' + CONVERT(varchar(1), @IsDebug) + '
+			
+	SELECT	''Return Value'' = @return_value3
+'
+	IF @IsDebug = 1
+		PRINT @TSQL
+	ELSE
+		EXEC(@TSQL)
+
 	-- Auto-Associate 241 Employees:
 	SELECT @TSQL = '
 	-- Auto-Associate 241 Employees:
 	DECLARE	@return_value5 int
 	
-	EXEC @return_value5 = [dbo].[usp_InsertAssociationsFor241Employees] @IsDebug = 0
+	EXEC @return_value5 = [dbo].[usp_InsertAssociationsFor241Expenses] @IsDebug = 0
 			
 	SELECT	''Return Value'' = @return_value5
 '

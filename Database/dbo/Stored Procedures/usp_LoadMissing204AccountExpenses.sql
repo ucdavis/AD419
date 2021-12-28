@@ -1,4 +1,5 @@
-﻿-- =============================================
+﻿
+-- =============================================
 -- Author:		Ken Taylor
 -- Create date: August 2, 2016
 -- Description:	Loads the Missing204AccountExpenses table
@@ -15,7 +16,7 @@ GO
 DECLARE	@return_value int
 
 EXEC	@return_value = [dbo].[usp_LoadMissing204AccountExpenses]
-		@FIscalYear = 2015,
+		@FIscalYear = 2021,
 		@IsDebug = 0
 
 SELECT	'Return Value' = @return_value
@@ -25,9 +26,14 @@ GO
 -- Modifications
 --	20160810 by kjt: Added PrincipalInvestigator, SubAccount, and IsExpired. 
 --	20160818 by kjt: Added t1.HigherEdFunctionCode to exclusion list.
+--	20171002 by kjt: Added "SUB9" to the object exclusion list as per discussion with Shannon Tanguay 2017-10-02.
+--	20161016 by kjt: Removed OrgXOrgR join because OrgR had already been populated in AllAccountsFor204Projects,
+--		and was coming back with some NULL OrgRs. 
+--	20211113 by kjt: Added ObjectCode to field list for later filtering.
+--
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_LoadMissing204AccountExpenses] 
-	@FIscalYear int = 2015, 
+	@FIscalYear int = 2021, 
 	@IsDebug bit = 0
 AS
 BEGIN
@@ -41,7 +47,7 @@ BEGIN
 	TRUNCATE TABLE Missing204AccountExpenses
 	INSERT INTO Missing204AccountExpenses
 	SELECT t1.Chart, t1.AccountNum Account, t1.SubAccount, t3.PrincipalInvestigatorName PrincipalInvestigator, t3.AnnualReportCode, t3.OpFundNum, 
-		ConsolidationCode, TransDocType, t4.OrgR, t3.Org, SUM(EXPEND) Expenses, t5.IsExpired, t5.IsUCD 
+		ConsolidationCode, ObjectCode, TransDocType, t5.OrgR, t3.Org, SUM(EXPEND) Expenses, t5.IsExpired, t5.IsUCD 
 	FROM
 		FISDataMart.dbo.BalanceSummaryV t1
 	INNER JOIN 
@@ -61,19 +67,19 @@ BEGIN
 	  ) t2 ON T1.CHART = t2.Chart AND t1.AccountNum = t2.Account AND t1.AnnualReportCode = t2.AnnualReportCode
 	  INNER JOIN FisDataMart.dbo.Accounts t3 ON t2.Chart = t3.Chart AND t2.Account = t3.Account AND t2.AnnualReportCode = t3.AnnualReportCode AND t3.Year = 9999 and t3.Period = ''--''
 	  INNER JOIN AllAccountsFor204Projects t5 ON t2.Chart = t5.Chart AND t2.Account = t5.Account AND t2.AnnualReportCode = t5.AnnualReportCode
-	  LEFT OUTER JOIN OrgXOrgR t4 ON t3.Org = t4.Org and t3.Chart = t4.Chart
+	  --LEFT OUTER JOIN OrgXOrgR t4 ON t3.Org = t4.Org and t3.Chart = t4.Chart
 	  WHERE 
 	  ((t1.FiscalYear = ' + CONVERT(varchar(4), @FiscalYear) + ' AND t1.FiscalPeriod BETWEEN ''04'' AND ''13'') OR 
 			 (t1.FiscalYear = ' + CONVERT(varchar(4), @FiscalYear + 1) + ' AND t1.FiscalPeriod BETWEEN ''01'' AND ''03''))
 			AND TransBalanceType IN (''AC'')
-			AND ConsolidationCode NOT IN (''INC0'', ''BLSH'', ''SB74'')
+			AND ConsolidationCode NOT IN (''INC0'', ''BLSH'', ''SB74'', ''SUB9'')
 			and t1.Chart+AccountNum NOT IN (
 				SELECT DISTINCT Chart+Account 
 				FROM dbo.udf_ArcCodeAccountExclusionsForFiscalYear(' + CONVERT(varchar(4), @FiscalYear) + ')
 			)  
 			AND t1.HigherEdFunctionCode not like ''PROV'' -- Exclude the PROV accounts.
 	  group by t1.Chart, T1.AccountNum, t1.SubAccount, t3.PrincipalInvestigatorName, t3.AnnualReportCode, 
-	   t3.OpFundNum, ConsolidationCode, TransDocType, t4.OrgR, t3.Org, t5.IsExpired, t5.IsUCD having SUM(EXPEND) <> 0
+	   t3.OpFundNum, ConsolidationCode, ObjectCode, TransDocType, t5.OrgR, t3.Org, t5.IsExpired, t5.IsUCD having SUM(EXPEND) <> 0
 '
 	IF @IsDebug = 1
 		PRINT @TSQL

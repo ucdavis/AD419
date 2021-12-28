@@ -1,4 +1,13 @@
-﻿/*
+﻿
+/*
+Usage:
+	
+	USE [FISDataMart]
+	GO
+
+	EXEC [dbo].[usp_DownloadPendingTransactions]
+		@IsDebug = 0
+
 Modifications:
 	20100722 by KJT: I added these because Steve Pesis' said that there are now orgs in 
 		AAES that belong to BIOS, and BIOS orgs that are outside of BIOS; therefore, 
@@ -15,6 +24,11 @@ Modifications:
 		Added timing print outs.
 	20111209 by kjt:
 		Added logic to handle missing Object (numbers) in PK and replace then with '----'.
+	2015-10-08 by kjt: Modifications to take into account removing DANR as level 4 ORG for chart L, and moving
+		AANS up to level 4 org position.  AAES is now at Level 4 for both Chart 'L' and Chart '3' as of FY 2016.
+	2021-05-05 by kjt: Expanded filtering to also included VETM Orgs as they are required
+		for Animal Health reports.  Also modified setting of IsCAES so that null would be the
+		default setting to allow VETM to have a null value.
 */
 CREATE Procedure [dbo].[usp_DownloadPendingTransactions]
 (
@@ -178,9 +192,26 @@ AS
 			P.TRANS_ENCUMBRANCE_UPDATE_CODE Encum_Updt_Cd, 
 			P.TRANS_REVERSAL_DATE Reversal_Date,
 			''''P'''' SrcTblCd,
-			CASE WHEN O.ORG_ID IN (Select DISTINCT ORG_ID from FINANCE.ORGANIZATION_HIERARCHY where (ORG_ID_LEVEL_2 = ''''ACBS'''' OR ORG_ID_LEVEL_5 = ''''ACBS'''') AND FISCAL_YEAR = 9999 AND FISCAL_PERIOD = ''''--'''') THEN 2
-				     WHEN O.ORG_ID IN (Select DISTINCT ORG_ID from FINANCE.ORGANIZATION_HIERARCHY where (ORG_ID_LEVEL_1 = ''''BIOS'''' OR ORG_ID_LEVEL_4 = ''''BIOS'''') AND FISCAL_YEAR = 9999 AND FISCAL_PERIOD = ''''--'''') THEN 0
-					 ELSE 1 END AS Is_CAES		
+			CASE WHEN O.ORG_ID IN (	
+					Select DISTINCT ORG_ID 
+					from FINANCE.ORGANIZATION_HIERARCHY 
+					where (ORG_ID_LEVEL_1 = ''''BIOS'''' OR ORG_ID_LEVEL_4 = ''''BIOS'''') AND 
+					FISCAL_YEAR = 9999 AND FISCAL_PERIOD = ''''--''''
+			) THEN 0
+			WHEN O.ORG_ID IN (	
+					Select DISTINCT ORG_ID 
+					from FINANCE.ORGANIZATION_HIERARCHY 
+					where (ORG_ID_LEVEL_1 = ''''AAES'''' OR ORG_ID_LEVEL_4 = ''''AAES'''') AND 
+					FISCAL_YEAR = 9999 AND FISCAL_PERIOD = ''''--'''' 
+			) THEN 1
+				WHEN O.ORG_ID IN (
+					Select DISTINCT ORG_ID 
+					from FINANCE.ORGANIZATION_HIERARCHY 
+					where (ORG_ID_LEVEL_2 = ''''ACBS'''' OR ORG_ID_LEVEL_5 = ''''ACBS'''') AND 
+					FISCAL_YEAR = 9999 AND FISCAL_PERIOD = ''''--''''
+			) THEN 2
+			ELSE NULL -- We will use a NULL value for VETM for the time being. 
+			END AS Is_CAES		
 		FROM 
 			FINANCE.GL_PENDING_TRANSACTIONS P
 			INNER JOIN FINANCE.ORGANIZATION_ACCOUNT A ON P.FISCAL_YEAR = A.FISCAL_YEAR AND P.FISCAL_PERIOD = A.FISCAL_PERIOD AND P.CHART_NUM = A.CHART_NUM AND P.ACCT_NUM = A.ACCT_NUM
@@ -203,7 +234,7 @@ AS
 							OR 
 							(O.CHART_NUM_LEVEL_2 = ''''L'''' AND O.ORG_ID_LEVEL_2 = ''''AAES'''') 
 							OR 
-							(O.CHART_NUM_LEVEL_4 = ''''3'''' AND O.ORG_ID_LEVEL_4 = ''''AAES'''') 
+							(O.CHART_NUM_LEVEL_4 IN (''''3'''', ''''L'''') AND O.ORG_ID_LEVEL_4 = ''''AAES'''') 
 							OR 
 							(O.CHART_NUM_LEVEL_5 = ''''L'''' AND O.ORG_ID_LEVEL_5 = ''''AAES'''') 
 							OR
@@ -214,6 +245,8 @@ AS
 							(O.CHART_NUM_LEVEL_4 = ''''3'''' AND O.ORG_ID_LEVEL_4 = ''''BIOS'''') 
 							OR 
 							(O.CHART_NUM_LEVEL_4 = ''''L'''' AND O.ORG_ID_LEVEL_4 = ''''BIOS'''') 
+							OR 
+							(O.CHART_NUM_LEVEL_4 IN (''''3'''', ''''L'''') AND O.ORG_ID_LEVEL_4 = ''''VETM'''') 
 						)					
 				)
 			)

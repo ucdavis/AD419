@@ -1,160 +1,82 @@
-﻿CREATE VIEW dbo.AD419CurrentProjectListV
+﻿
+
+
+CREATE VIEW [dbo].[AD419CurrentProjectListV]
 AS
-SELECT        ProjectNew.AccessionNumber, ProjectNew.ProjectNumber, ProjectNew.ProposalNumber, ProjectNew.AwardNumber, ProjectNew.Title, ProjectNew.OrganizationName, 
-                         ProjectNew.OrgR, ProjectNew.Department, ProjectNew.ProjectDirector, ProjectNew.CoProjectDirectors, ProjectNew.FundingSource, ProjectNew.ProjectStartDate, 
-                         ProjectNew.ProjectEndDate, ProjectNew.ProjectStatus, ProjectNew.IsInterdepartmental, CONVERT(bit, ISNULL(ProjectNew.IsIgnored ^ 1, 1)) AS IsAssociable
-FROM            dbo.AllProjectsNew AS ProjectNew INNER JOIN
-                         dbo.CurrentFiscalYear AS t2 ON ProjectNew.ProjectEndDate >= CONVERT(DateTime, CONVERT(varchar(4), t2.FiscalYear - 1) + '-03-01 00:00:00.000') AND 
-                         ProjectNew.ProjectStartDate < CONVERT(DateTime, CONVERT(varchar(4), t2.FiscalYear) + '-10-01 00:00:00.000') LEFT OUTER JOIN
-                         dbo.ReportingOrg AS t8 ON ProjectNew.OrgR = t8.OrgR AND (t8.IsActive = 1 OR
-                         t8.OrgR IN ('XXXX', 'AINT'))
-WHERE        (ProjectNew.IsUCD = 1) AND (ProjectNew.IsExpired = 0) AND (ProjectNew.AccessionNumber NOT LIKE '0000000') AND (RTRIM(ProjectNew.ProjectStatus) 
-                         NOT IN
-                             (SELECT        Status
-                               FROM            dbo.ProjectStatus
-                               WHERE        (IsExcluded = 1)))
+/*
+    Author: Ken Taylor
+    Created: 2018-11-05
+    Description: Returns a proposed list of projects that we will be reporting on
+        based on the following criteria:
+        1. The project start date is less than the reporting period end date.
+`       2. The project end date is greater than the reporting period begin date, i.e., 2017-10-01.  Note greater than as opposed to grater than or
+            -- equal to because some end dated are entered as 10-01-(yyyy-1) when they really should have been entered 09-30-(yyyy-1), and 
+            -- and these projects we getting picked up in the current list when they should have been excluded.
+        3. The project is UCD, i.e., SAES - UNIVERSITY OF CALIFORNIA AT DAVIS.
+        4. The project is not expired, i.e., the end date is greater then the beginning of the current reporting period.
+        5. A valid accession number has been assigned, i.e., is not like '0000000'.
+        6. The project status is one of those we consider to be viable, i.e., Completed, Completed without Final Report, Active, etc.
+            -- This list is maintained in the data helper, and resides in the ProjectStatus table.
+     Note that the FiscalYear is selected from the dbo.CurrentFiscalYear table.
+     Usage:
+
+     USE [AD419]
+     GO
+
+     SELECT * FROM [dbo].[AD419CurrentProjectListV]
+     
+    GO
+
+    Modifications:
+    2018-11-05 by kjt: Added comments section, revised ProjectEndDate filter to be greater than (yyyy-1)-10-01 to filter out
+        ProjectEndDates that were entered incorrectly, i.e. 10-01-yyyy instead of 09-30-yyyy.
+*/
+
+SELECT
+	ProjectNew.Id,
+	ProjectNew.AccessionNumber,
+	ProjectNew.ProjectNumber,
+	ProjectNew.ProposalNumber,
+	ProjectNew.AwardNumber,
+	ProjectNew.Title,
+	ProjectNew.OrganizationName,
+	ProjectNew.OrgR,
+	ProjectNew.Department,
+	ProjectNew.ProjectDirector,
+	ProjectNew.CoProjectDirectors,
+	ProjectNew.FundingSource,
+	ProjectNew.ProjectStartDate,
+	ProjectNew.ProjectEndDate,
+	ProjectNew.ProjectStatus,
+	ProjectNew.IsInterdepartmental,
+	ProjectNew.Is204,
+	CONVERT(BIT, ISNULL(ProjectNew.IsIgnored ^ 1, 1)) AS IsAssociable 
+FROM
+	dbo.AllProjectsNew AS ProjectNew 
+INNER JOIN dbo.CurrentFiscalYear AS t2 ON 
+    ProjectNew.ProjectEndDate > CONVERT(DateTime, CONVERT(VARCHAR(4), t2.FiscalYear - 1) + '-10-01 00:00:00.000') AND
+    ProjectNew.ProjectStartDate < CONVERT(DateTime, CONVERT(VARCHAR(4), t2.FiscalYear) + '-10-01 00:00:00.000') 
+LEFT OUTER JOIN dbo.ReportingOrg AS t8 ON 
+    ProjectNew.OrgR = t8.OrgR AND
+	(t8.IsActive = 1 OR t8.OrgR IN ('XXXX', 'AINT')) 
+WHERE
+	(ProjectNew.IsUCD = 1) AND
+	(ProjectNew.IsExpired = 0) AND
+	(ProjectNew.AccessionNumber NOT LIKE '0000000') AND
+	(
+        RTRIM(ProjectNew.ProjectStatus) NOT IN 
+        (	SELECT
+                Status 
+            FROM
+                dbo.ProjectStatus 
+            WHERE
+                IsExcluded = 1
+        )
+    )
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_DiagramPaneCount', @value = 1, @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'AD419CurrentProjectListV';
 
 
+
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_DiagramPane1', @value = N'[0E232FF0-B466-11cf-A24F-00AA00A3EFFF, 1.00]
-Begin DesignProperties = 
-   Begin PaneConfigurations = 
-      Begin PaneConfiguration = 0
-         NumPanes = 4
-         Configuration = "(H (1[40] 4[20] 2[20] 3) )"
-      End
-      Begin PaneConfiguration = 1
-         NumPanes = 3
-         Configuration = "(H (1 [50] 4 [25] 3))"
-      End
-      Begin PaneConfiguration = 2
-         NumPanes = 3
-         Configuration = "(H (1 [50] 2 [25] 3))"
-      End
-      Begin PaneConfiguration = 3
-         NumPanes = 3
-         Configuration = "(H (4 [30] 2 [40] 3))"
-      End
-      Begin PaneConfiguration = 4
-         NumPanes = 2
-         Configuration = "(H (1 [56] 3))"
-      End
-      Begin PaneConfiguration = 5
-         NumPanes = 2
-         Configuration = "(H (2 [66] 3))"
-      End
-      Begin PaneConfiguration = 6
-         NumPanes = 2
-         Configuration = "(H (4 [50] 3))"
-      End
-      Begin PaneConfiguration = 7
-         NumPanes = 1
-         Configuration = "(V (3))"
-      End
-      Begin PaneConfiguration = 8
-         NumPanes = 3
-         Configuration = "(H (1[56] 4[18] 2) )"
-      End
-      Begin PaneConfiguration = 9
-         NumPanes = 2
-         Configuration = "(H (1 [75] 4))"
-      End
-      Begin PaneConfiguration = 10
-         NumPanes = 2
-         Configuration = "(H (1[66] 2) )"
-      End
-      Begin PaneConfiguration = 11
-         NumPanes = 2
-         Configuration = "(H (4 [60] 2))"
-      End
-      Begin PaneConfiguration = 12
-         NumPanes = 1
-         Configuration = "(H (1) )"
-      End
-      Begin PaneConfiguration = 13
-         NumPanes = 1
-         Configuration = "(V (4))"
-      End
-      Begin PaneConfiguration = 14
-         NumPanes = 1
-         Configuration = "(V (2))"
-      End
-      ActivePaneConfig = 0
-   End
-   Begin DiagramPane = 
-      Begin Origin = 
-         Top = 0
-         Left = 0
-      End
-      Begin Tables = 
-         Begin Table = "ProjectNew"
-            Begin Extent = 
-               Top = 6
-               Left = 38
-               Bottom = 135
-               Right = 230
-            End
-            DisplayFlags = 280
-            TopColumn = 0
-         End
-         Begin Table = "t2"
-            Begin Extent = 
-               Top = 6
-               Left = 268
-               Bottom = 84
-               Right = 438
-            End
-            DisplayFlags = 280
-            TopColumn = 0
-         End
-         Begin Table = "t8"
-            Begin Extent = 
-               Top = 6
-               Left = 476
-               Bottom = 135
-               Right = 761
-            End
-            DisplayFlags = 280
-            TopColumn = 0
-         End
-      End
-   End
-   Begin SQLPane = 
-   End
-   Begin DataPane = 
-      Begin ParameterDefaults = ""
-      End
-      Begin ColumnWidths = 9
-         Width = 284
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-         Width = 1500
-      End
-   End
-   Begin CriteriaPane = 
-      Begin ColumnWidths = 11
-         Column = 1440
-         Alias = 900
-         Table = 1170
-         Output = 720
-         Append = 1400
-         NewValue = 1170
-         SortType = 1350
-         SortOrder = 1410
-         GroupBy = 1350
-         Filter = 1350
-         Or = 1350
-         Or = 1350
-         Or = 1350
-      End
-   End
-End
-', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'AD419CurrentProjectListV';
+
 

@@ -1,24 +1,26 @@
 ﻿CREATE VIEW dbo.ProjectSFN
 AS
-				-- Populate with all non-zero expense data
-				SELECT     Project.Project, Project.Accession, Associations.OrgR, Project.inv1, Expenses.Exp_SFN SFN, ISNULL(ROUND(SUM(Associations.Expenses),0),0) AS Amt, 1 AS isExpense
-				FROM         Expenses INNER JOIN
-									  ReportingOrg ON Expenses.OrgR = ReportingOrg.OrgR INNER JOIN
-									  Associations ON Expenses.ExpenseID = Associations.ExpenseID INNER JOIN
-									  Project ON Associations.Accession = Project.Accession
-				GROUP BY Project.Project, Project.Accession, Associations.OrgR, Project.inv1, Expenses.Exp_SFN
-				HAVING      (SUM(Associations.Expenses) > 0)
-				
-				UNION ALL
-				
-				-- Populate this time with FTE data
-				SELECT     Project.Project, Project.Accession, Associations.OrgR, Project.inv1, Expenses.FTE_SFN SFN, ISNULL(ROUND(SUM(Associations.FTE), 1),0) AS Amt, 0 AS isExpense
-				FROM         Expenses INNER JOIN
-									  ReportingOrg ON Expenses.OrgR = ReportingOrg.OrgR INNER JOIN
-									  Associations ON Expenses.ExpenseID = Associations.ExpenseID INNER JOIN
-									  Project ON Associations.Accession = Project.Accession
-				GROUP BY Project.Project, Project.Accession, Associations.OrgR, Project.inv1, Expenses.FTE_SFN
-				HAVING      (SUM(Associations.FTE) > 0)
+-- 2017-09-28 by kjt: Revised to include credits.
+/* Populate with all non-zero expense data*/ 
+-- 
+SELECT Project.Project, Project.Accession, Associations.OrgR, Project.inv1, Expenses.Exp_SFN SFN, ISNULL(ROUND(SUM(Associations.Expenses), 0), 0) AS Amt, 
+                         1 AS isExpense
+FROM            Expenses INNER JOIN
+                         ReportingOrg ON Expenses.OrgR = ReportingOrg.OrgR INNER JOIN
+                         Associations ON Expenses.ExpenseID = Associations.ExpenseID INNER JOIN
+                         Project ON Associations.Accession = Project.Accession
+GROUP BY Project.Project, Project.Accession, Associations.OrgR, Project.inv1, Expenses.Exp_SFN
+HAVING        (SUM(Associations.Expenses) <> 0)
+UNION ALL
+/* Populate this time with FTE data*/ 
+--
+SELECT Project.Project, Project.Accession, Associations.OrgR, Project.inv1, Expenses.FTE_SFN SFN, ISNULL(ROUND(SUM(Associations.FTE), 1), 0) AS Amt, 0 AS isExpense
+FROM            Expenses INNER JOIN
+                         ReportingOrg ON Expenses.OrgR = ReportingOrg.OrgR INNER JOIN
+                         Associations ON Expenses.ExpenseID = Associations.ExpenseID INNER JOIN
+                         Project ON Associations.Accession = Project.Accession
+GROUP BY Project.Project, Project.Accession, Associations.OrgR, Project.inv1, Expenses.FTE_SFN
+HAVING        (SUM(Associations.FTE) <> 0)
 
 GO
 EXECUTE sp_addextendedproperty @name = N'MS_DiagramPane1', @value = N'[0E232FF0-B466-11cf-A24F-00AA00A3EFFF, 1.00]

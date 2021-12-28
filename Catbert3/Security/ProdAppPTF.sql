@@ -1,0 +1,2 @@
+﻿CREATE USER [ProdAppPTF] FOR LOGIN [ProdAppPTF];
+

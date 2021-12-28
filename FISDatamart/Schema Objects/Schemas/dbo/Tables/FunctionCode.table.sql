@@ -1,12 +1,17 @@
 ﻿CREATE TABLE [dbo].[FunctionCode] (
     [FunctionCodeID] SMALLINT     NOT NULL,
     [FunctionCode]   CHAR (2)     NULL,
-    [Description]    VARCHAR (50) NULL
+    [Description]    VARCHAR (50) NULL,
+    CONSTRAINT [PK_FunctionCode] PRIMARY KEY CLUSTERED ([FunctionCodeID] ASC)
 );
 
 
+
+
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Reference table containing lookup information for resolving Base Budget Function Type Codes for Cooperative Extension (CE), Organized Research (OR), Instruction (IR), and Other/Unknown (OT).', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'FunctionCode';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Base Budget Function Codes: Reference table containing lookup information for resolving Base Budget Function Type Codes for Cooperative Extension (CE), Organized Research (OR), Instruction (IR), and Other/Unknown (OT).', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'FunctionCode';
+
+
 
 
 GO

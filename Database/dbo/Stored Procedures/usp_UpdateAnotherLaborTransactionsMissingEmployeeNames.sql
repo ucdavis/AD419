@@ -1,4 +1,5 @@
-﻿-- =============================================
+﻿
+-- =============================================
 -- Author:		Ken Taylor
 -- Create date: August 20, 2016
 -- Description:	Update the LaborTransactions table's missing employee names where they
@@ -13,6 +14,8 @@
 -- 2013-11-13 by kjt: Added apostrophe replacement for names like O'Malley, etc.
 -- 2015-02-19 by kjt: Removed [AD419] specific database references so sproc could be used on other databases
 -- such as AD419_2014, etc.
+-- 20191015 by kjt: Added another section for update using RICE_UC_KRM_PERSON view.
+--
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_UpdateAnotherLaborTransactionsMissingEmployeeNames] 
 	@IsDebug bit = 0 -- Set to 1 to print generated SQL only
@@ -86,6 +89,32 @@ IF @IsDebug = 0
 	PRINT '
 Total Number of Records Updated = ' + CONVERT(varchar(50), @RecordsUpdatedCount);
 
+
+------------------------------------------------------------------------------
+-- 2019-10-15 by kjt: New update statement using RICE_UC_KRIM_PERSON table:
+	SELECT @TSQL = '
+	UPDATE [dbo].[AnotherLaborTransactions]
+		SET employeeName = REPLACE(PERSON_NM, '', '', '','')
+	FROM [dbo].[AnotherLaborTransactions] t1
+	INNER JOIN [dbo].[RICE_UC_KRIM_PERSON] t2 ON t1.[EmployeeID] = t2.PPS_ID
+	   where employeeName is null  
+'
+
+	IF @IsDebug = 1
+		BEGIN
+			SET NOCOUNT ON
+			PRINT @TSQL
+			SET NOCOUNT OFF
+		END
+	ELSE
+		BEGIN
+			EXEC sp_executesql @TSQL, N'@RowCount int OUTPUT', @MyCount OUTPUT;
+			SELECT @RecordsUpdatedCount = @MyCount + @RecordsUpdatedCount
+		PRINT '
+Total Number of Records Updated = ' + CONVERT(varchar(50), @RecordsUpdatedCount);
+		END
+
+------------------------------------------------------------------------------
 SET NOCOUNT ON
 
 -- Print a list of employee IDs with whose records have NULL employee names after updates have been completed:

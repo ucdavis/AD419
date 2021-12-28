@@ -1,2 +1,4 @@
-﻿CREATE USER [prodapp] FOR LOGIN [AESDEAN\ProdApp];
+﻿CREATE USER [prodapp] FOR LOGIN [ou\caes-ProdApp];
+
+
 

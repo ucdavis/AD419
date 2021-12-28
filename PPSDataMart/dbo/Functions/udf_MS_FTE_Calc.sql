@@ -1,0 +1,358 @@
+﻿-- =============================================
+-- Author:		Ken Taylor
+-- Create date: March 13, 2014
+-- Description:	Calculate the MS FTE Calculation
+-- Modifications: 20160314 by kjt: Revised DOS code list from 
+-- REG and AYS to 
+-- REG, FYS, FTO, REO, and PDS according to Julie Fritz.
+--	2017-04-03 by kjt: Revised the calculation of MS Staff Including Academic as 
+--		it appeared to be summing PTS and students together twice. 
+--	2017-04-04 by kjt: Fixed the date logic so that it would properly take into account the 
+--		appointment end date.
+--	2017-04-04 by kjt: Added HAVING to student portion to excluded non-active students, also modified
+--		home department join to use their Admin department if the appointment dept was null to eliminate
+--		the NULL department entries.
+--	2017-04-05 by kjt: Revised to use updated dept code selection.
+--	2017-04-10 by kjt: Udated logic to be similar used in udf_FTE_Detail.
+-- =============================================
+CREATE FUNCTION [dbo].[udf_MS_FTE_Calc] 
+(	
+
+)
+RETURNS @MS_FTE_Calc table (
+	[Department] [nvarchar](15) NULL,
+	[FTF] [int] NULL,
+	[PTF] [int] NULL,
+	[FTS] [int] NULL,
+	[PTS] [int] NULL,
+	[STU] [int] NULL,
+	[MS_Faculty_FTE] [decimal](5, 2) NULL,
+	[MS_Staff_FTE] [decimal](5, 2) NULL,
+	[MS_Staff_Incl_Acad_Stud] [decimal](5, 2) NULL,
+	[Total_MS_FTE] [decimal](5, 2) NULL
+)
+AS
+BEGIN
+
+	DECLARE @FTEDetail table(	
+			Department nVarChar(15),
+			MS_Empl_Class char(3),
+			Employee_Name nvarchar(26) ,
+			EID varchar(9),
+			FTE decimal(4,1),
+			FTF int,
+			PTF int,
+			FTS int,
+			PTS int,
+			Stu2 int
+	)
+
+ /*
+ -- Original SQL:
+
+	INSERT INTO @FTEDetail
+	SELECT * FROM OPENQUERY
+		(pay_pers_extr,
+		'
+		SELECT 
+			CTLHME.HME_ABRV_DEPT_NAME  Appt_Dept_Name,
+			''Fac'' MS_Empl_Class,
+			SG4PER.EMP_NAME,
+			SG4PER.EMPLOYEE_ID EID,
+			SUM(EDBDIS_V.DIST_PERCENT)  FTE,		/*NOTE: THIS IS NOT THE FTE COLUMN SG4PER.DIST_FTE, THATS FOR TEACHING %. */
+			DECODE(FLOOR(SUM(EDBDIS_V.DIST_PERCENT)),1,1,0) FTF,
+			DECODE(FLOOR(SUM(EDBDIS_V.DIST_PERCENT)),0,1,0) PTF,
+			0 FTS, 
+			0 PTS, 
+			0 Stu2
+		FROM 
+			(
+			PAYROLL.SG4PER 
+				LEFT JOIN PAYROLL.EDBDIS_V ON SG4PER.EMPLOYEE_ID = EDBDIS_V.EMPLOYEE_ID 
+					LEFT JOIN PAYROLL.SG4APP ON EDBDIS_V.APPT_NUM = SG4APP.APPT_NUM AND EDBDIS_V.EMPLOYEE_ID = SG4APP.EMPLOYEE_ID 
+			)
+			LEFT JOIN PAYROLL.CTLHME ON SG4APP.APPT_DEPT = CTLHME.HME_DEPT_NO
+		WHERE 
+			(SG4PER.ACADEMIC_SENATE = ''Y'' OR SG4PER.ACADEMIC_FEDERATION = ''Y'')
+			AND EDBDIS_V.DIST_DOS In (''REG'',''AYS'') 
+			AND ((EDBDIS_V.PAY_BEGIN_DATE<=SYSDATE AND EDBDIS_V.PAY_END_DATE>=SYSDATE) Or EDBDIS_V.PAY_END_DATE Is Null)
+			AND EDBDIS_V.DIST_ADC_CODE<>''D'' 
+			AND SG4APP.APPT_ADC_CODE<>''D'' 
+			AND SG4PER.UCD_ADC_CODE<>''D'' 
+			AND SG4PER.WOSEMP<>''Y'' 
+			AND EDBDIS_V.DIST_DEPT_CODE Like ''030%''
+		GROUP BY 
+			CTLHME.HME_ABRV_DEPT_NAME,
+			SG4PER.EMP_NAME,
+			SG4PER.EMPLOYEE_ID,
+			SG4PER.ACADEMIC 
+	/*******************************************************/
+	UNION
+		SELECT 
+			CTLHME.HME_ABRV_DEPT_NAME  Appt_Dept_Name,
+			''Stu'' MS_Empl_Class,
+			SG4PER.EMP_NAME,
+			SG4PER.EMPLOYEE_ID EID,
+			SUM(EDBDIS_V. DIST_PERCENT)  FTE,		/*NOTE: THIS IS NOT THE FTE COLUMN SG4PER.DIST_FTE, THATS FOR TEACHING %. */
+			0 FTF, 
+			0 PTF, 
+			0 FTS, 
+			0 PTS, 
+			DECODE(SG4PER.ACADEMIC,''Y'',1,0) Stu2
+		FROM 
+			(
+			PAYROLL.SG4PER 
+				LEFT JOIN PAYROLL.EDBDIS_V ON SG4PER.EMPLOYEE_ID = EDBDIS_V.EMPLOYEE_ID 
+					LEFT JOIN PAYROLL.SG4APP ON EDBDIS_V.APPT_NUM = SG4APP.APPT_NUM AND EDBDIS_V.EMPLOYEE_ID = SG4APP.EMPLOYEE_ID 
+			)
+			LEFT JOIN PAYROLL.CTLHME ON SG4APP.APPT_DEPT = CTLHME.HME_DEPT_NO
+		WHERE 
+			SG4PER.STUDENT_STATUS IN(''3'',''4'',''6'',''7'')
+			AND EDBDIS_V.DIST_DOS In (''REG'',''AYS'') 
+			AND ((EDBDIS_V.PAY_BEGIN_DATE<=SYSDATE AND EDBDIS_V.PAY_END_DATE>=SYSDATE) Or EDBDIS_V.PAY_END_DATE Is Null)
+			AND EDBDIS_V.DIST_ADC_CODE<>''D'' 
+			AND SG4APP.APPT_ADC_CODE<>''D'' 
+			AND SG4PER.UCD_ADC_CODE<>''D'' 
+			AND SG4PER.WOSEMP<>''Y'' 
+			AND EDBDIS_V.DIST_DEPT_CODE Like ''030%''
+		GROUP BY 
+			CTLHME.HME_ABRV_DEPT_NAME,
+			SG4PER.EMP_NAME,
+			SG4PER.EMPLOYEE_ID,
+			SG4PER.ACADEMIC 
+	/*******************************************************/
+	UNION
+		SELECT 
+			CTLHME.HME_ABRV_DEPT_NAME  Appt_Dept_Name,
+			''Sta'' MS_Empl_Class,
+			SG4PER.EMP_NAME,
+			SG4PER.EMPLOYEE_ID EID,
+			SUM(EDBDIS_V. DIST_PERCENT)  FTE,		/*NOTE: THIS IS NOT THE FTE COLUMN SG4PER.DIST_FTE, THATS FOR TEACHING %. */
+			0 FTF, 
+			0 PTF, 
+			DECODE(FLOOR(SUM(EDBDIS_V.DIST_PERCENT)),1,1,0) FTS,
+			DECODE(FLOOR(SUM(EDBDIS_V.DIST_PERCENT)),0,1,0) PTS,
+			0 Stu2
+		FROM 
+			(
+			PAYROLL.SG4PER 
+				LEFT JOIN PAYROLL.EDBDIS_V ON SG4PER.EMPLOYEE_ID = EDBDIS_V.EMPLOYEE_ID 
+					LEFT JOIN PAYROLL.SG4APP ON EDBDIS_V.APPT_NUM = SG4APP.APPT_NUM AND EDBDIS_V.EMPLOYEE_ID = SG4APP.EMPLOYEE_ID 
+			)
+			LEFT JOIN PAYROLL.CTLHME ON SG4APP.APPT_DEPT = CTLHME.HME_DEPT_NO
+		WHERE 
+			NOT 
+				(
+				(SG4PER.ACADEMIC_SENATE = ''Y'' OR SG4PER.ACADEMIC_FEDERATION = ''Y'')		/*faculty*/
+				OR
+				SG4PER.STUDENT_STATUS IN(''3'',''4'',''6'',''7'')		/*student*/
+				)
+			AND EDBDIS_V.DIST_DOS In (''REG'',''AYS'') 
+			AND ((EDBDIS_V.PAY_BEGIN_DATE<=SYSDATE AND EDBDIS_V.PAY_END_DATE>=SYSDATE) Or EDBDIS_V.PAY_END_DATE Is Null)
+			AND EDBDIS_V.DIST_ADC_CODE<>''D'' 
+			AND SG4APP.APPT_ADC_CODE<>''D'' 
+			AND SG4PER.UCD_ADC_CODE<>''D'' 
+			AND SG4PER.WOSEMP<>''Y'' 
+			AND EDBDIS_V.DIST_DEPT_CODE Like ''030%''
+		GROUP BY 
+			CTLHME.HME_ABRV_DEPT_NAME,
+			SG4PER.EMP_NAME,
+			SG4PER.EMPLOYEE_ID,
+			SG4PER.ACADEMIC 
+	/*******************************************************/
+	ORDER BY 
+			Appt_Dept_Name,
+			MS_Empl_Class,
+			EMP_NAME,
+			EID
+		'
+		)
+	*/
+
+	INSERT INTO @FTEDetail
+	SELECT * FROM OPENQUERY
+	(pay_pers_extr,
+		'
+		SELECT 
+			CTLHME.HME_ABRV_DEPT_NAME  Appt_Dept_Name,
+			''Fac'' MS_Empl_Class,
+			SG4PER.EMP_NAME,
+			SG4PER.EMPLOYEE_ID EID,
+			SUM(EDBDIS_V.DIST_PERCENT)  FTE,		/*NOTE: THIS IS NOT THE FTE COLUMN SG4PER.DIST_FTE, THATS FOR TEACHING %. */
+			DECODE(FLOOR(SUM(EDBDIS_V.DIST_PERCENT)),1,1,0) FTF,
+			DECODE(FLOOR(SUM(EDBDIS_V.DIST_PERCENT)),0,1,0) PTF,
+			0 FTS, 
+			0 PTS, 
+			0 Stu2
+		FROM 
+			(
+			PAYROLL.SG4PER 
+				LEFT JOIN PAYROLL.EDBDIS_V ON SG4PER.EMPLOYEE_ID = EDBDIS_V.EMPLOYEE_ID 
+					LEFT JOIN PAYROLL.SG4APP ON EDBDIS_V.APPT_NUM = SG4APP.APPT_NUM AND EDBDIS_V.EMPLOYEE_ID = SG4APP.EMPLOYEE_ID 
+			)
+			LEFT JOIN PAYROLL.CTLHME ON COALESCE(SG4APP.APPT_DEPT, SG4PER.UCD_ADMIN_DEPT)  = CTLHME.HME_DEPT_NO
+		WHERE 
+			(SG4PER.ACADEMIC_SENATE = ''Y'' OR SG4PER.ACADEMIC_FEDERATION = ''Y'')
+			AND EDBDIS_V.DIST_DOS In (''REG'',''FYS'', ''FTO'', ''REO'', ''PDS'') 
+			AND (EDBDIS_V.PAY_BEGIN_DATE<=SYSDATE AND (EDBDIS_V.PAY_END_DATE>=SYSDATE Or EDBDIS_V.PAY_END_DATE Is Null))
+			AND EDBDIS_V.DIST_ADC_CODE<>''D'' 
+			AND SG4APP.APPT_ADC_CODE<>''D'' 
+			AND SG4PER.UCD_ADC_CODE<>''D'' 
+			AND SG4PER.WOSEMP<>''Y'' 
+			AND (
+				(EDBDIS_V.DIST_DEPT_CODE Like ''03%'' OR (EDBDIS_V.DIST_DEPT_CODE IN (''065040'', ''065025''))) AND 
+				(EDBDIS_V.DIST_DEPT_CODE NOT IN (''036000'', ''036005''))
+			)
+			AND (
+				(COALESCE(SG4APP.APPT_DEPT, SG4PER.UCD_ADMIN_DEPT) Like ''03%'' OR (COALESCE(SG4APP.APPT_DEPT, SG4PER.UCD_ADMIN_DEPT) IN (''065040'', ''065025''))) AND 
+				(COALESCE(SG4APP.APPT_DEPT, SG4PER.UCD_ADMIN_DEPT) NOT IN (''036000'', ''036005''))
+			)
+		GROUP BY 
+			CTLHME.HME_ABRV_DEPT_NAME,
+			COALESCE(SG4APP.APPT_DEPT, SG4PER.UCD_ADMIN_DEPT),
+			SG4PER.EMP_NAME,
+			SG4PER.EMPLOYEE_ID,
+			SG4PER.ACADEMIC 
+	/*******************************************************/
+	UNION
+
+	SELECT 
+			CTLHME.HME_ABRV_DEPT_NAME  Appt_Dept_Name,
+			''Stu'' MS_Empl_Class,
+			SG4PER.EMP_NAME,
+			SG4PER.EMPLOYEE_ID EID,
+			SUM(EDBDIS_V. DIST_PERCENT)  FTE,		/*NOTE: THIS IS NOT THE FTE COLUMN SG4PER.DIST_FTE, THATS FOR TEACHING %. */
+			0 FTF, 
+			0 PTF, 
+			0 FTS, 
+			0 PTS, 
+			DECODE(SG4PER.ACADEMIC,''Y'',1,0) Stu2
+		FROM 
+			(
+			PAYROLL.SG4PER 
+				LEFT JOIN PAYROLL.EDBDIS_V ON SG4PER.EMPLOYEE_ID = EDBDIS_V.EMPLOYEE_ID 
+					LEFT JOIN PAYROLL.SG4APP ON EDBDIS_V.APPT_NUM = SG4APP.APPT_NUM AND EDBDIS_V.EMPLOYEE_ID = SG4APP.EMPLOYEE_ID 
+			)
+			LEFT JOIN PAYROLL.CTLHME ON COALESCE(SG4APP.APPT_DEPT, SG4PER.UCD_ADMIN_DEPT)  = CTLHME.HME_DEPT_NO
+		WHERE 
+			SG4PER.STUDENT_STATUS IN(''3'',''4'',''6'',''7'')
+			AND EDBDIS_V.DIST_DOS In (''REG'',''FYS'', ''FTO'', ''REO'', ''PDS'') 
+			AND (EDBDIS_V.PAY_BEGIN_DATE<=SYSDATE AND (EDBDIS_V.PAY_END_DATE>=SYSDATE Or EDBDIS_V.PAY_END_DATE Is Null))
+			AND EDBDIS_V.DIST_ADC_CODE<>''D'' 
+			AND SG4APP.APPT_ADC_CODE<>''D'' 
+			AND SG4PER.UCD_ADC_CODE<>''D'' 
+			AND SG4PER.WOSEMP<>''Y'' 
+			AND (
+				(EDBDIS_V.DIST_DEPT_CODE Like ''03%'' OR (EDBDIS_V.DIST_DEPT_CODE IN (''065040'', ''065025''))) AND 
+				(EDBDIS_V.DIST_DEPT_CODE NOT IN (''036000'', ''036005''))
+			)
+			AND (
+				(COALESCE(SG4APP.APPT_DEPT, SG4PER.UCD_ADMIN_DEPT) Like ''03%'' OR (COALESCE(SG4APP.APPT_DEPT, SG4PER.UCD_ADMIN_DEPT) IN (''065040'', ''065025''))) AND 
+				(COALESCE(SG4APP.APPT_DEPT, SG4PER.UCD_ADMIN_DEPT) NOT IN (''036000'', ''036005''))
+			)
+		GROUP BY 
+			CTLHME.HME_ABRV_DEPT_NAME,
+			COALESCE(SG4APP.APPT_DEPT, SG4PER.UCD_ADMIN_DEPT),
+			SG4PER.EMP_NAME,
+			SG4PER.EMPLOYEE_ID,
+			SG4PER.ACADEMIC 
+		HAVING DECODE(SG4PER.ACADEMIC,''Y'',1,0) = 1
+	/*******************************************************/
+	UNION
+
+		SELECT 
+			CTLHME.HME_ABRV_DEPT_NAME  Appt_Dept_Name,
+			''Sta'' MS_Empl_Class,
+			SG4PER.EMP_NAME,
+			SG4PER.EMPLOYEE_ID EID,
+			SUM(EDBDIS_V. DIST_PERCENT)  FTE,		/*NOTE: THIS IS NOT THE FTE COLUMN SG4PER.DIST_FTE, THATS FOR TEACHING %. */
+			0 FTF, 
+			0 PTF, 
+			DECODE(FLOOR(SUM(EDBDIS_V.DIST_PERCENT)),1,1,0) FTS,
+			DECODE(FLOOR(SUM(EDBDIS_V.DIST_PERCENT)),0,1,0) PTS,
+			0 Stu2
+		FROM 
+			(
+			PAYROLL.SG4PER 
+				LEFT JOIN PAYROLL.EDBDIS_V ON SG4PER.EMPLOYEE_ID = EDBDIS_V.EMPLOYEE_ID 
+					LEFT JOIN PAYROLL.SG4APP ON EDBDIS_V.APPT_NUM = SG4APP.APPT_NUM AND EDBDIS_V.EMPLOYEE_ID = SG4APP.EMPLOYEE_ID 
+			)
+			LEFT JOIN PAYROLL.CTLHME ON COALESCE(SG4APP.APPT_DEPT, SG4PER.UCD_ADMIN_DEPT)  = CTLHME.HME_DEPT_NO
+		WHERE 
+			NOT 
+				(
+				(SG4PER.ACADEMIC_SENATE = ''Y'' OR SG4PER.ACADEMIC_FEDERATION = ''Y'')		/*faculty*/
+				OR
+				SG4PER.STUDENT_STATUS IN(''3'',''4'',''6'',''7'')		/*student*/
+				)
+			AND EDBDIS_V.DIST_DOS In (''REG'',''FYS'', ''FTO'', ''REO'', ''PDS'') 
+			AND (EDBDIS_V.PAY_BEGIN_DATE<=SYSDATE AND (EDBDIS_V.PAY_END_DATE>=SYSDATE Or EDBDIS_V.PAY_END_DATE Is Null))
+			AND EDBDIS_V.DIST_ADC_CODE<>''D'' 
+			AND SG4APP.APPT_ADC_CODE<>''D'' 
+			AND SG4PER.UCD_ADC_CODE<>''D'' 
+			AND SG4PER.WOSEMP<>''Y'' 
+			AND (
+				(EDBDIS_V.DIST_DEPT_CODE Like ''03%'' OR (EDBDIS_V.DIST_DEPT_CODE IN (''065040'', ''065025''))) AND 
+				(EDBDIS_V.DIST_DEPT_CODE NOT IN (''036000'', ''036005''))
+			)
+			AND (
+				(COALESCE(SG4APP.APPT_DEPT, SG4PER.UCD_ADMIN_DEPT) Like ''03%'' OR (COALESCE(SG4APP.APPT_DEPT, SG4PER.UCD_ADMIN_DEPT) IN (''065040'', ''065025''))) AND 
+				(COALESCE(SG4APP.APPT_DEPT, SG4PER.UCD_ADMIN_DEPT) NOT IN (''036000'', ''036005''))
+			)
+		GROUP BY 
+			CTLHME.HME_ABRV_DEPT_NAME,
+			COALESCE(SG4APP.APPT_DEPT, SG4PER.UCD_ADMIN_DEPT),
+			SG4PER.EMP_NAME,
+			SG4PER.EMPLOYEE_ID,
+			SG4PER.ACADEMIC 
+	/*******************************************************/
+	ORDER BY 
+			Appt_Dept_Name,
+			MS_Empl_Class,
+			EMP_NAME,
+			EID
+	'
+	)
+
+	--Now we have the FTE Detail info in the @FTEDetail table var
+
+	-- We're now going to delete any duplicate entries where an employee is present in both the faculty and student categories,
+	-- which sometimes happens when they are a graduate student:
+	DELETE FROM @FTEDetail
+	WHERE 
+		EID IN (
+			SELECT DISTINCT t1.EID
+			FROM @FTEDetail t1
+			INNER JOIN @FTEDetail t2 ON t1.EID = t2.EID AND t2.MS_Empl_Class = 'Stu'
+			WHERE t1.MS_Empl_Class = 'Fac' 
+		) AND 
+		MS_Empl_Class = 'Stu'
+
+	DECLARE @DeptartmentClassDetails table (
+			Department nVarChar(15),
+			FTF int,
+			PTF int,
+			FTS int,
+			PTS int,
+			STU int
+	)
+
+	INSERT INTO @DeptartmentClassDetails
+	SELECT     TOP 100 PERCENT Department, SUM(FTF) AS FTF, SUM(PTF) AS PTF, SUM(FTS) AS FTS, SUM(PTS) AS PTS, SUM(Stu2) AS STU
+	FROM         @FTEDetail AS Detail
+	GROUP BY Department
+	ORDER BY Department
+
+	--Now we have the department class details, let's created the dept totals
+	INSERT INTO @MS_FTE_Calc
+	SELECT     TOP 100 PERCENT Department, FTF, PTF, FTS, PTS, STU, CONVERT(decimal(5, 2), FTF + CONVERT(decimal(5, 2), PTF) / 3) AS MS_Faculty_FTE, 
+						  CONVERT(decimal(5, 2), FTS + CONVERT(decimal(5, 2), PTS) / 2) AS MS_Staff_FTE, 
+						  CONVERT(decimal(5, 2), FTS + CONVERT(decimal(5, 2), (PTS+STU)) / 2) AS MS_Staff_Incl_Acad_Stud, 0 AS [Total_MS_FTE]
+	FROM         @DeptartmentClassDetails
+	ORDER BY Department
+
+	UPDATE @MS_FTE_Calc
+	SET [Total_MS_FTE] = MS_Faculty_FTE + MS_Staff_Incl_Acad_Stud
+
+	RETURN
+END

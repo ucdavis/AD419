@@ -1,4 +1,5 @@
-﻿-- =============================================
+﻿
+-- =============================================
 -- Author:		Scott Kirkland
 -- Create date: 11/12/2006
 -- Description:	
@@ -8,8 +9,9 @@ EXEC usp_getAssociationsByGrouping 'AANS', 'PI', 'L', '----'
 
 */
 -- Modifications: 2012-03-08 by kjt: Modified Employee branch to handle FTE_SFN.
+-- 2020-05-28 by srk: Add in accession number to result
 -- =============================================
-CREATE PROCEDURE [dbo].[usp_getAssociationsByGrouping] 
+CREATE PROCEDURE [dbo].[usp_getAssociationsByGrouping]
 	-- Add the parameters for the stored procedure here
 	@OrgR char(4),
 	@Grouping varchar(50),
@@ -34,7 +36,7 @@ DECLARE @txtSQL varchar(2000)
 
 SET @txtSQL =
 	'
-	SELECT     Project.Project, SUM(Associations.Expenses) AS Spent, SUM(Associations.FTE) AS FTE
+	SELECT     Project.Project, Project.Accession, SUM(Associations.Expenses) AS Spent, SUM(Associations.FTE) AS FTE
 	'
 	+
 	CASE @Grouping
@@ -161,7 +163,7 @@ SET @txtSQL =
 	END
 	+
 	'
-	GROUP BY Project.Project
+	GROUP BY Project.Project, Project.Accession
 	ORDER BY Project.Project
 	'
 		

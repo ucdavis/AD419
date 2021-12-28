@@ -1,9 +1,13 @@
-﻿-- =============================================
+﻿
+-- =============================================
 -- Author:		Ken Taylor
 -- Create date: July 11, 2016
 -- Description:	Update NewAccountSFN's Award numbers and SFN
 -- This procedure basically takes the place of the old Classify logic
 -- and determines what SFN to assign to each account.
+--
+-- Notes:
+--	AllAccountsFor204Projects and FFY_ExpensesByARC nust have been loaded first.
 --
 -- Usage:
 /*
@@ -18,6 +22,13 @@
 --	20160818 by kjt: Revised to use the correct project table.
 --	20161118 by kjt: Revised to dynamically generate the case statement based
 --	on entries present in the SfnClassificationLogic table.
+-- 20171011 by kjt: Added update of SFN and OPFund columns for FFY_ExpensesByARC,
+--	as this could not be done prior to classifying accounts.
+-- 20171012 by kjt: Moved all of the update statement out of usp_LoadNewAccountSFN into
+--	this sproc.
+-- 20181114 by kjt: Moved the above update statements that were moved from udf_GetDirectAndIndirectExpensesByARCandAccount,
+--	and usp_LoadNewAccountSFN up prior to running the actual account classification logic, as this sets
+--	some of the field used for classification.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_UpdateNewAccountSFN] 
 (
@@ -60,6 +71,36 @@ BEGIN
 	ELSE
 		EXEC (@TSQL)
 
+	-- Logic was moved from usp_LoadNewAccountSFN 
+	-- and needs to be done prior to the classification process:
+	SELECT @TSQL = '
+	 UPDATE NewAccountSFN
+	 SET IsFederalFund = CASE WHEN t2.FederalFundsFlag = ''Y'' THEN 1 ELSE 0 END
+	 FROM NewAccountSFN t1
+	 INNER JOIN [FISDataMart].[dbo].[SubFundGroupTypes] t2 ON t1.SubFundGroupTypeCode = t2.SubFundGroupType
+
+	 UPDATE NewAccountSFN
+	 SET IsNIH = CASE WHEN t2.Code = ''NIH'' THEN 1 ELSE 0 END,
+		 IsNIFA = CASE WHEN t2.Code = ''NIFA'' THEN 1 ELSE 0 END
+	 FROM NewAccountSFN t1
+	 INNER JOIN [dbo].[CFDANumImport] t2 ON t1.CFDANum = t2.CFDANum
+
+	 UPDATE NewAccountSFN
+	 SET  IsNIH = 0 
+	 where IsNIH IS NULL
+
+	 UPDATE NewAccountSFN
+	 SET  IsNIFA = 0 
+	 where IsNIFA IS NULL
+'
+	IF @IsDebug = 1
+		PRINT @TSQL
+	ELSE
+		EXEC (@TSQL)
+/*-----------------------------------------------------------------------------------------------------*/
+-- Logic for populating the SFN:
+-- Update statement using automatically generated SQL from SfnClassificationLogic table via usp_GenerateNewAccountSfnCaseStatement
+	
 	SELECT @TSQL = '
 	-- Set any of the SFN for any of the accounts we''ve already identified as 204:
 	UPDATE [dbo].[NewAccountSFN]
@@ -73,8 +114,6 @@ BEGIN
 	ELSE
 		EXEC (@TSQL)
 
-/*-----------------------------------------------------------------------------------------------------*/
--- Update statement using automatically generated SQL from SfnClassificationLogic table via usp_GenerateNewAccountSfnCaseStatement
 	
 	DECLARE @CaseStatement varchar(MAX) 
 	EXEC usp_GenerateNewAccountSfnCaseStatement @CaseStatement OUTPUT
@@ -171,4 +210,25 @@ BEGIN
 		PRINT @TSQL
 	ELSE
 		EXEC (@TSQL)
+
+
+	SELECT @TSQL = '
+	-- This was moved from udf_GetDirectAndIndirectExpensesByARCandAccount as the
+	-- [NewAccountSFN] had yet to be populated.
+
+	UPDATE [dbo].[FFY_ExpensesByARC]
+	SET SFN = t2.SFN, 
+	OpFundNum = t2.OpFundNum
+	FROM [dbo].[FFY_ExpensesByARC] t1
+	INNER JOIN 
+	( 
+		SELECT DISTINCT Chart, Account, SFN, OpFundNum
+		FROM [dbo].[NewAccountSFN]
+	) t2 ON t1.Chart = t2.Chart AND t1.Account = t2.Account
+'
+	IF @IsDebug = 1
+		PRINT @TSQL
+	ELSE
+		EXEC (@TSQL)
+
 END

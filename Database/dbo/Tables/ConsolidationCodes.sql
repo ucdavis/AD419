@@ -5,3 +5,10 @@
     [IncludeInLaborTransactions] BIT           NULL
 );
 
+
+
+
+GO
+CREATE NONCLUSTERED INDEX [ConsolidationCodes_IncludeInFTECalc_NCLIDX]
+    ON [dbo].[ConsolidationCodes]([IncludeInFTECalc] ASC);
+

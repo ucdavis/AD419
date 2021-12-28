@@ -23,7 +23,13 @@
 */
 -- Modifications:
 --	2016-08-19 by kjt: Revised to use UFYOrganizationsOrgR_v
---
+--	2017-09-26 by kjt: Removed having clause for adding any missing 204 accounts so that
+--		204 accounts with no expenses would also be included; otherwise, we are not ablew to exclude 
+--		and re-include them properly.
+--	2017-10-12 by kjt: Revised the joins because we already have the Org present in NewAccountSFN,
+--		so it is not necessary to do another join on Accounts.
+--	2017-10-13 by kjt: Changed FFY_ExpensesByARC join with NewAccountSFN to use OrgXOrgR instead of 
+--		UFYOrganizationsOrgR_v since this can change over the year if run retroactively.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_LoadAD419Accounts] 
 AS
@@ -42,29 +48,28 @@ BEGIN
       ,[Org]
       ,[OrgR]
       ,[Expenses]
-      ,[SFN]
+      ,t4.[SFN]
       ,[IsExpired])
 
     SELECT DISTINCT
        t1.[Chart]
       ,t1.[Account]
-	  ,t2.Org
+	  ,t4.Org
 	  ,t3.OrgR
       ,SUM([Total]) Expenses
-	  --,CONVERT(varchar(5),NULL) AS SFN
-	  ,CONVERT(varchar(5),SFN) SFN
+	  ,CONVERT(varchar(5),t4.SFN) SFN
 	  ,CONVERT(bit,NULL) AS IsExpired
 	--INTO AD419Accounts
 	FROM [AD419].[dbo].[FFY_ExpensesByARC]  t1
-	INNER JOIN  [dbo].[NewAccountSFN] t4 ON t1.chart = t4.Chart and t1.Account = t4.Account
-	LEFT OUTER JOIN FisDataMart.dbo.Accounts t2 ON t1.Chart = t2.Chart and t1.Account = t2.Account AND t2.Year = 9999 AND t2.Period = '--'
-	LEFT OUTER JOIN dbo.UFYOrganizationsOrgR_v t3 ON t2.Chart = t3.Chart AND t2.Org = t3.Org --AND t2.Year = t3.Year and t2.Period = t3.Period
-	group by t1.Chart, t1.Account, SFN, t3.OrgR, 
-	t2.Org  having SUM(Total) <> 0
+	INNER JOIN  [dbo].[NewAccountSFN] t4 ON t1.chart = t4.Chart and t1.Account = t4.Account -- This gets us the Org we need for the OrgR join.
+	LEFT OUTER JOIN [dbo].[OrgXOrgR] t3 ON t4.Chart = t3.Chart AND t4.Org = t3.Org
+	group by t1.Chart, t1.Account, t4.SFN, t3.OrgR, 
+	t4.Org  having SUM(Total) <> 0
 	order by t1.Chart, t1.Account , t3.OrgR, 
-	t2.Org 
+	t4.Org 
 
 	-- Add records for any 204 accounts that were excluded by ARC, etc:
+	-- 2017-09-26 by kjt: Removed having clause to include accounts with no expenses. 
 	INSERT INTO AD419Accounts (
 		Chart, Account, Org, OrgR, Expenses, SFN
 	)
@@ -72,27 +77,28 @@ BEGIN
 		   t1.[Chart]
 		  ,t1.[Account]
 		  ,t2.Org
-		  ,t3.OrgR
-		  ,SUM(Expenses) Expenses,
+		  ,t2.OrgR
+		  ,SUM(t1.Expenses) Expenses,
 		  '204' AS SFN
 	  
 	FROM (
 		SELECT Chart, Account, SUM(Expenses) Expenses
-		FROM [AD419].[dbo].[AllAccountsFor204Projects]
-		GROUP BY Chart, Account, IsExpired having sum(Expenses) <> 0
+		FROM [dbo].[AllAccountsFor204Projects]
+		GROUP BY Chart, Account, IsExpired --having sum(Expenses) <> 0
 
 		EXCEPT
 
 		SELECT [Chart]
 			  ,[Account]
 			  ,SUM(Expenses) Expenses
-		  FROM [AD419].[dbo].[AD419Accounts]
-		  GROUP BY CHART, Account having sum(Expenses) <> 0
+		  FROM [dbo].[AD419Accounts]
+		  GROUP BY CHART, Account --having sum(Expenses) <> 0
 	) t1
-	  LEFT OUTER JOIN FisDataMart.dbo.Accounts t2 ON t1.Chart = t2.Chart and t1.Account = t2.Account AND t2.Year = 9999 AND t2.Period = '--'
-	  LEFT OUTER JOIN dbo.UFYOrganizationsOrgR_v t3 ON t2.Chart = t3.Chart AND t2.Org = t3.Org -- AND t2.Year = t3.Year and t2.Period = t3.Period
-	  group by t1.Chart, t1.Account, t3.OrgR, t2.Org 
-	  order by t1.Chart, t1.Account, t3.OrgR, t2.Org
+	 -- LEFT OUTER JOIN FisDataMart.dbo.Accounts t2 ON t1.Chart = t2.Chart and t1.Account = t2.Account AND t2.Year = 9999 AND t2.Period = '--'
+	  LEFT OUTER JOIN [dbo].[AllAccountsFor204Projects] t2 ON t1.Chart = t2.Chart AND t1.Account = t2.Account
+	  --LEFT OUTER JOIN dbo.UFYOrganizationsOrgR_v t3 ON t1.Chart = t3.Chart AND t2.Org = t3.Org -- AND t2.Year = t3.Year and t2.Period = t3.Period
+	  group by t1.Chart, t1.Account, t2.OrgR, t2.Org 
+	  order by t1.Chart, t1.Account, t2.OrgR, t2.Org
 
 	-- Update several fields pertaining to 204 specific accounts:
 	update AD419Accounts

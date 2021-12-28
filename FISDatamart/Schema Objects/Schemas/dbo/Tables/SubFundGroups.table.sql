@@ -11,8 +11,11 @@
     [OPUnexpendedBalanceAccount]  VARCHAR (7)  NULL,
     [OPFundGroup]                 VARCHAR (6)  NULL,
     [OPOverheadClearingAccount]   VARCHAR (6)  NULL,
-    [SubFundGroupPK]              VARCHAR (14) NULL
+    [SubFundGroupPK]              VARCHAR (14) NULL,
+    CONSTRAINT [PK_SubFundGroups] PRIMARY KEY CLUSTERED ([Year] ASC, [Period] ASC, [SubFundGroupNum] ASC)
 );
+
+
 
 
 GO
@@ -32,7 +35,9 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Sub Fund Gr
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Sub Fund Group Description (Name):', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'SubFundGroups', @level2type = N'COLUMN', @level2name = N'SubFundGroupName';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Sub Fund Group Description (Name): ', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'SubFundGroups', @level2type = N'COLUMN', @level2name = N'SubFundGroupName';
+
+
 
 
 GO

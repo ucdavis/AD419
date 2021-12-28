@@ -5,6 +5,10 @@
     [ConsolidationCode] VARCHAR (4)  NULL,
     [DirectTotal]       MONEY        NULL,
     [IndirectTotal]     MONEY        NULL,
-    [Total]             MONEY        NULL
+    [Total]             MONEY        NULL,
+    [SFN]               VARCHAR (5)  NULL,
+    [OpFundNum]         VARCHAR (6)  NULL
 );
+
+
 

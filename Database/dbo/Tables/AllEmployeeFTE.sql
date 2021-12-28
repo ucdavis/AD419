@@ -16,10 +16,12 @@
     [Payrate]           NUMERIC (17, 4)  NULL,
     [Amount]            MONEY            NULL,
     [FTE]               NUMERIC (38, 19) NULL,
-    [RateTypeCd]        VARCHAR (1)      NULL,
+    [RateTypeCd]        VARCHAR (3)      NULL,
     [ProjectNumber]     VARCHAR (24)     NULL,
     [InclFTE]           NUMERIC (38, 19) NULL,
     [FTE_SFN]           CHAR (3)         NOT NULL,
     [OrgR]              VARCHAR (4)      NULL
 );
+
+
 

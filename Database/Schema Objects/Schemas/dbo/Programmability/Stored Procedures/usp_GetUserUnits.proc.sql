@@ -1,8 +1,21 @@
-﻿-- =============================================
+﻿
+-- =============================================
 -- Author:		Ken Taylor
 -- Create date: 10/28/2009
 -- Description:	Returns a user's units for construction
 --	of the principal
+-- Usage:
+/*
+	USE [AD419]
+	GO
+
+	EXEC [dbo].[usp_GetUserUnits] @EmployeeID = '838163392'
+	GO
+
+*/
+-- Modifications:
+--	20191021 by kjt: Added Usage section for testing.
+--
 CREATE PROCEDURE [dbo].[usp_GetUserUnits] (
 	@EmployeeID nvarchar(9),
 	@ApplicationName varchar(50) = 'AD419'

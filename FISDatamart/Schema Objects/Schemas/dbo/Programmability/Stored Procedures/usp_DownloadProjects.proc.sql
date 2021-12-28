@@ -1,4 +1,18 @@
-﻿/*
+﻿
+/*
+Usage:
+
+	USE [FISDataMart]
+	GO
+
+	EXEC [dbo].[usp_DownloadProjects]
+		@GetUpdatesOnly = 0,
+		@FirstDateString = '2021-07-01',
+		@LastDateString = '2021-07-01',
+		@IsDebug = 1
+
+	GO
+
 Modifications:
 	20110128 by kjt:
 		Analyzed the org level and chart mapping and found that it need to be revised
@@ -12,8 +26,11 @@ Modifications:
 		Changed erroneous table name from Objects to Projects.
 	2011-03-04 by kjt:
 		Added logic to pass a destination table name; otherwise defaults to Projects.
+	2015-10-08 by kjt: Modifications to take into account removing DANR as level 4 ORG for chart L, and moving
+		AANS up to level 4 org position.  AAES is now at Level 4 for both Chart 'L' and Chart '3' as of FY 2016.
+	2021-04-23 by kjt: Expanded filtering to also included VETM Orgs as they are required for Animal Health reports.
 */
-CREATE Procedure [dbo].[usp_DownloadProjects]
+CREATE PROCEDURE [dbo].[usp_DownloadProjects]
 (
 	@FirstDateString varchar(16) = null,
 		--earliest date to download (FINANCE.PROJECT.LAST_UPDATE_DATE) 
@@ -59,7 +76,7 @@ DECLARE @EndingFiscalYear int = null
 	CLOSE MyCursor
 	DEALLOCATE MyCursor
 	
-	IF @IsDebug = 1 PRINT '@NumFiscalYearsToDownload: ' + Convert(varchar(20), @NumFiscalYearsToDownload)
+	IF @IsDebug = 1 PRINT '-- @NumFiscalYearsToDownload: ' + Convert(varchar(20), @NumFiscalYearsToDownload)
 -------------------------------------------------------------------------------------	
 -- Build the Where clause based on the dates provided:
 SELECT @WhereClause = 
@@ -90,12 +107,16 @@ SELECT @WhereClause += '
 								(ORG_ID_LEVEL_1 = ''''BIOS'''')
 								
 								OR 
-								(CHART_NUM_LEVEL_4 = ''''3'''' AND ORG_ID_LEVEL_4 = ''''AAES'''')
+								(CHART_NUM_LEVEL_4 IN (''''3'''', ''''L'''') AND ORG_ID_LEVEL_4 = ''''AAES'''')
 								OR
 								(CHART_NUM_LEVEL_5=''''L'''' AND ORG_ID_LEVEL_5 = ''''AAES'''')
 								
 								OR
 								(ORG_ID_LEVEL_4 = ''''BIOS'''')
+
+								-- 2021-04-23 by kjt: Added VETM orgs for Animal Health Reports. 
+								OR 
+								(CHART_NUM_LEVEL_4 IN (''''3'''', ''''L'''') AND ORG_ID_LEVEL_4 = ''''VETM'''')
 							)
 							AND
 							(

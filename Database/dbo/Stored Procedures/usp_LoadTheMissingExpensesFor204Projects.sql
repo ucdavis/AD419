@@ -15,7 +15,7 @@ GO
 DECLARE	@return_value int
 
 EXEC	@return_value = [dbo].[usp_LoadTheMissingExpensesFor204Projects]
-		@FIscalYear = 2015,
+		@FIscalYear = 2016,
 		@IsDebug = 1
 
 SELECT	'Return Value' = @return_value
@@ -23,10 +23,11 @@ SELECT	'Return Value' = @return_value
 GO
 */
 -- Modifications
+--	20171002 by kjt: Added "SUB9" to the object exclusion list as per discussion with Shannon Tanguay 2017-10-02.
 --
 -- =============================================
-CREATE PROCEDURE usp_LoadTheMissingExpensesFor204Projects 
-	@FIscalYear int = 2015, 
+CREATE PROCEDURE [dbo].[usp_LoadTheMissingExpensesFor204Projects] 
+	@FIscalYear int = 2016, 
 	@IsDebug bit = 0
 AS
 BEGIN
@@ -65,7 +66,7 @@ BEGIN
 	  ((t1.FiscalYear = ' + CONVERT(varchar(4), @FiscalYear) + ' AND t1.FiscalPeriod BETWEEN ''04'' AND ''13'') OR 
 			 (t1.FiscalYear = ' + CONVERT(varchar(4), @FiscalYear + 1) + ' AND t1.FiscalPeriod BETWEEN ''01'' AND ''03''))
 			AND TransBalanceType IN (''AC'')
-			AND ConsolidationCode NOT IN (''INC0'', ''BLSH'', ''SB74'')
+			AND ConsolidationCode NOT IN (''INC0'', ''BLSH'', ''SB74'', ''SUB9'')
 			and t1.Chart+AccountNum NOT IN (
 				SELECT DISTINCT Chart+Account 
 				FROM dbo.udf_ArcCodeAccountExclusionsForFiscalYear(' + CONVERT(varchar(4), @FiscalYear) + ')

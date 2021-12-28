@@ -3,17 +3,34 @@
 -- Create date: January 13, 2012
 -- Description:	Given an admin unit, return the appropriate table values
 -- Usage:
--- select * from udf_GetAdminTable('ACL1')
--- select * from udf_GetAdminTable('ACL2')
--- select * from udf_GetAdminTable('ACL3')
--- select * from udf_GetAdminTable('ACL4')
--- select * from udf_GetAdminTable('ACL5')
--- select * from udf_GetAdminTable('ADNO')
--- select * from udf_GetAdminTable('All')
--- select * from udf_GetAdminTable('') --AD419
+/*
+
+ select * from udf_GetAdminTable('ACL1')
+
+ select * from udf_GetAdminTable('ACL2')
+
+ select * from udf_GetAdminTable('ACL3')
+
+ select * from udf_GetAdminTable('ACL4')
+
+ select * from udf_GetAdminTable('ACL5')
+
+ select * from udf_GetAdminTable('ADNO')
+
+ select * from udf_GetAdminTable('All')
+
+ select * from udf_GetAdminTable('AD419') -- AD419 Admin report now showing credits
+
+ select * from udf_GetAdminTable('') -- AD419 Admin report with the credits zeroed out
+	-- suitable for submission to ANR.
+
+*/
 -- Modifications:
 -- 2014-12-17 by kjt: Removed database specific database references so it sp can be run against
 --	another AD419 database, i.e. AD419_2014, etc.
+-- 2017-10-04 ky kjt: Changed dedault report for AD-419 Admin report from [dbo].[AD419_Admin] to [dbo].[AD419_Admin_ZeroedCredits].
+--	Added selection AD419 to call existing AD419_Admin report.
+-- 2017-12-01 by kjt: Changed Pi field length from 30 to 50 characters.
 -- =============================================
 CREATE FUNCTION [dbo].[udf_GetAdminTable]
 (
@@ -26,7 +43,7 @@ RETURNS @Retval TABLE (
 						proj char(4),
 						project varchar(24),
 						accession char(7),
-						PI varchar(30),
+						PI varchar(50),
 						f201 decimal(16,2) DEFAULT 0.0,
 						f202 decimal(16,2) DEFAULT 0.0,
 						f203 decimal(16,2) DEFAULT 0.0,
@@ -76,8 +93,10 @@ BEGIN
 		INSERT INTO @Retval SELECT * FROM [dbo].[ACL4_Admin]
 	ELSE IF @AdminUnit LIKE 'ACL5'  
 		INSERT INTO @Retval SELECT * FROM [dbo].[ACL5_Admin]
-	ELSE
-		INSERT INTO @Retval SELECT * FROM [dbo].[AD419_Admin] 
+	ELSE IF @AdminUnit LIKE 'AD419'
+		INSERT INTO @Retval SELECT * FROM [dbo].[AD419_Admin]
+	ELSE 
+		INSERT INTO @Retval SELECT * FROM [dbo].[AD419_Admin_ZeroedCredits] 
 
 	RETURN 
 END

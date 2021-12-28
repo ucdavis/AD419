@@ -31,7 +31,7 @@
 -- 20110323 by kjt:
 --		Revised calls to underlying procedures to pass @TableName.
 -- =============================================
-CREATE Procedure [dbo].[usp_Download_TableRecordsForFiscalYear]
+CREATE PROCEDURE [dbo].[usp_Download_TableRecordsForFiscalYear]
 (
 	--PARAMETERS:
 	@TableName varchar(255) = null, --Name of the table to update 
@@ -220,7 +220,7 @@ DECLARE @TableName varchar(255) = 'Accounts', --Name of the table to update
 				  --Build Transact-SQL command:
 					--Note: it doesn't work to build the SQL command and only pass in the Oracle SQL as a string--not if you want to parameterize the query.  The OPENQUERY() function apparently expects a string literal *only* for the 2nd argument (the SQL command) and will not work with any kind of character string built from variables.  The workaround is to build the entire t-SQL command as a varchar, and then execute it as a block of code by calling EXEC(<varchar>) with the entire block of code contained in the single parameter.  The trickiest part of doing this is that single quotes need to be escaped with 2 single quotes TWICE within the SQL for Oracle, meaning that you need to write the code with QUADRUPLE single quotes for every embedded quote you eventually want to pass thru to Oracle.  If the item to be inserted in quotes is a variable, then you need *5* single quotes, the 5th being used to close or open the strings being concatenated with the variable (/parameter).
 				
-				  IF @IsDebug = 1
+				  --IF @IsDebug = 1
 					BEGIN
 						PRINT '
 				--Making call to download ' + @TableName + ' records:

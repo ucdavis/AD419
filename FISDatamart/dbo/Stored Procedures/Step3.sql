@@ -1,0 +1,182 @@
+﻿
+CREATE PROCEDURE [dbo].[Step3]
+AS
+BEGIN
+merge GeneralLedgerProjectBalanceForAllPeriods as GeneralLedgerProjectBalanceForAllPeriods
+using
+(
+SELECT
+     FISCAL_YEAR
+	,CHART_NUM	
+	,ORG_ID	
+	,ACCT_TYPE_CODE	
+	,ACCT_NUM	
+	,SUB_ACCT_NUM
+	,OBJ_CONSOLIDATN_NUM			
+	,OBJECT_NUM	
+	,SUB_OBJECT_NUM	
+	,PROJECT_NUM
+	,BALANCE_TYPE_CODE
+	,BALANCE_TYPE_NAME
+	,OBJECT_TYPE_CODE
+	,SUB_FUND_GROUP_TYPE_CODE
+	,BALANCE_CREATE_DATE
+	,YTD_ACTUAL_AMT	
+	,FISCAL_YEAR_BEGIN_BAL	
+	,CONTRACTS_AND_GRANTS_BEGIN_BAL
+	,JUL_TRANS_TOTAL_AMT
+	,AUG_TRANS_TOTAL_AMT
+	,SEP_TRANS_TOTAL_AMT
+	,OCT_TRANS_TOTAL_AMT
+	,NOV_TRANS_TOTAL_AMT
+	,DEC_TRANS_TOTAL_AMT
+	,JAN_TRANS_TOTAL_AMT
+	,FEB_TRANS_TOTAL_AMT
+	,MAR_TRANS_TOTAL_AMT
+	,APR_TRANS_TOTAL_AMT
+	,MAY_TRANS_TOTAL_AMT
+	,JUN_TRANS_TOTAL_AMT
+	,MONTH13_TRANS_TOTAL_AMT
+	,LAST_UPDATE_DATE
+FROM OPENQUERY (FIS_DS, 
+			'SELECT 	
+	 OA.FISCAL_YEAR
+	,OA.CHART_NUM	
+	,OA.ORG_ID	
+	,OA.ACCT_TYPE_CODE	
+	,OA.ACCT_NUM	
+	,GL_ProjectBalAllPeriod.SUB_ACCT_NUM
+	,GL_ProjectBalAllPeriod.OBJ_CONSOLIDATN_NUM			
+	,GL_ProjectBalAllPeriod.OBJECT_NUM	
+	,GL_ProjectBalAllPeriod.SUB_OBJECT_NUM	
+	,GL_ProjectBalAllPeriod.PROJECT_NUM
+	,GL_ProjectBalAllPeriod.BALANCE_TYPE_CODE
+	,GL_ProjectBalAllPeriod.BALANCE_TYPE_NAME
+	,GL_ProjectBalAllPeriod.OBJECT_TYPE_CODE
+	,OA.SUB_FUND_GROUP_TYPE_CODE
+	,GL_ProjectBalAllPeriod.BALANCE_CREATE_DATE
+	,GL_ProjectBalAllPeriod.YTD_ACTUAL_AMT	
+	,GL_ProjectBalAllPeriod.FISCAL_YEAR_BEGIN_BAL	
+	,GL_ProjectBalAllPeriod.CONTRACTS_AND_GRANTS_BEGIN_BAL
+	,GL_ProjectBalAllPeriod.JUL_TRANS_TOTAL_AMT
+	,GL_ProjectBalAllPeriod.AUG_TRANS_TOTAL_AMT
+	,GL_ProjectBalAllPeriod.SEP_TRANS_TOTAL_AMT
+	,GL_ProjectBalAllPeriod.OCT_TRANS_TOTAL_AMT
+	,GL_ProjectBalAllPeriod.NOV_TRANS_TOTAL_AMT
+	,GL_ProjectBalAllPeriod.DEC_TRANS_TOTAL_AMT
+	,GL_ProjectBalAllPeriod.JAN_TRANS_TOTAL_AMT
+	,GL_ProjectBalAllPeriod.FEB_TRANS_TOTAL_AMT
+	,GL_ProjectBalAllPeriod.MAR_TRANS_TOTAL_AMT
+	,GL_ProjectBalAllPeriod.APR_TRANS_TOTAL_AMT
+	,GL_ProjectBalAllPeriod.MAY_TRANS_TOTAL_AMT
+	,GL_ProjectBalAllPeriod.JUN_TRANS_TOTAL_AMT
+	,GL_ProjectBalAllPeriod.MONTH13_TRANS_TOTAL_AMT
+	,GL_ProjectBalAllPeriod.DS_LAST_UPDATE_DATE AS LAST_UPDATE_DATE
+			from FINANCE.GL_PROJECT_BAL_ALL_PERIOD GL_ProjectBalAllPeriod
+			INNER JOIN FINANCE.ORGANIZATION_ACCOUNT OA ON
+				GL_ProjectBalAllPeriod.FISCAL_YEAR = OA.FISCAL_YEAR AND
+				GL_ProjectBalAllPeriod.CHART_NUM = OA.CHART_NUM AND
+				GL_ProjectBalAllPeriod.ACCT_NUM = OA.ACCT_NUM AND
+				OA.FISCAL_PERIOD = ''--''
+			INNER JOIN
+			(
+				SELECT DISTINCT CHART_NUM, ORG_ID
+				FROM FINANCE.ORGANIZATION_HIERARCHY Orgs
+				WHERE 
+					(
+						(Orgs.CHART_NUM_LEVEL_1 = ''3'' and Orgs.ORG_ID_LEVEL_1 = ''AAES'')
+						OR
+						(Orgs.ORG_ID_LEVEL_1 = ''BIOS'')
+						OR
+						(Orgs.CHART_NUM_LEVEL_2 = ''L'' and Orgs.ORG_ID_LEVEL_2 = ''AAES'')
+						OR 
+						(Orgs.CHART_NUM_LEVEL_4 = ''3'' AND Orgs.ORG_ID_LEVEL_4 = ''AAES'')
+						OR
+						(Orgs.ORG_ID_LEVEL_4 = ''BIOS'')
+						OR
+						(Orgs.CHART_NUM_LEVEL_5 = ''L'' AND Orgs.ORG_ID_LEVEL_5 = ''AAES'')
+					)
+					AND FISCAL_YEAR = 2011
+			
+			) Orgs ON OA.CHART_NUM = Orgs.CHART_NUM AND OA.ORG_ID = Orgs.ORG_ID
+			WHERE 
+				GL_ProjectBalAllPeriod.FISCAL_YEAR = 2011
+				AND GL_ProjectBalAllPeriod.object_num NOT IN ( ''0054'',''9998'',''HIST'' )
+                AND GL_ProjectBalAllPeriod.balance_type_code IN ( ''CB'', ''AC'', ''EX'', ''IE'' )
+				
+		')
+) FIS_DS_GL_PROJECT_BAL_ALL_PERIOD on 
+    Year = FISCAL_YEAR 
+AND Chart = CHART_NUM
+AND OrgID = ORG_ID
+AND Account = ACCT_NUM
+AND CONVERT(char(5), SubAccount) = SUB_ACCT_NUM
+AND Object = OBJECT_NUM
+AND SubObject = SUB_OBJECT_NUM
+AND Project = PROJECT_NUM 
+AND BalType = BALANCE_TYPE_CODE
+AND ObjectType = OBJECT_TYPE_CODE
+
+WHEN MATCHED THEN UPDATE set
+	   [AccountType]							= ACCT_TYPE_CODE
+      ,[ObjectConsolidatnNum]					= OBJ_CONSOLIDATN_NUM
+      ,[BalTypeName]							= BALANCE_TYPE_NAME
+      ,[SubFundGroupType]						= SUB_FUND_GROUP_TYPE_CODE
+      ,[BalanceCreateDate]						= BALANCE_CREATE_DATE
+      ,[YearToDateActualBalance]				= YTD_ACTUAL_AMT
+      ,[FiscalYearBeginningBalance]				= FISCAL_YEAR_BEGIN_BAL
+      ,[ContractsAndGrantsBeginningBalance]		= CONTRACTS_AND_GRANTS_BEGIN_BAL
+      ,[JulyTransactionsTotalAmount]			= JUL_TRANS_TOTAL_AMT
+      ,[AugustTransactionsTotalAmount]			= AUG_TRANS_TOTAL_AMT
+      ,[SeptemberTransactionsTotalAmount]		= SEP_TRANS_TOTAL_AMT
+      ,[OctoberTransactionsTotalAmount]			= OCT_TRANS_TOTAL_AMT
+      ,[NovemberTransactionsTotalAmount]		= NOV_TRANS_TOTAL_AMT
+      ,[DecemberTransactionsTotalAmount]		= DEC_TRANS_TOTAL_AMT
+      ,[JanuaryTransactionsTotalAmount]			= JAN_TRANS_TOTAL_AMT
+      ,[FebruaryTransactionsTotalAmount]		= FEB_TRANS_TOTAL_AMT
+      ,[MarchTransactionsTotalAmount]			= MAR_TRANS_TOTAL_AMT
+      ,[AprilTransactionsTotalAmount]			= APR_TRANS_TOTAL_AMT
+      ,[MayTransactionsTotalAmount]				= MAY_TRANS_TOTAL_AMT
+      ,[JuneTransactionsTotalAmount]			= JUN_TRANS_TOTAL_AMT
+      ,[Month13TransactionsTotalAmount]			= MONTH13_TRANS_TOTAL_AMT
+      ,[LastUpdateDate]							= LAST_UPDATE_DATE
+      
+ WHEN NOT MATCHED BY TARGET THEN INSERT VALUES 
+ (
+	 FISCAL_YEAR
+	,CHART_NUM	
+	,ORG_ID	
+	,ACCT_TYPE_CODE	
+	,ACCT_NUM	
+	,SUB_ACCT_NUM
+	,OBJ_CONSOLIDATN_NUM			
+	,OBJECT_NUM	
+	,SUB_OBJECT_NUM	
+	,PROJECT_NUM
+	,BALANCE_TYPE_CODE
+	,BALANCE_TYPE_NAME
+	,OBJECT_TYPE_CODE
+	,SUB_FUND_GROUP_TYPE_CODE
+	,BALANCE_CREATE_DATE
+	,YTD_ACTUAL_AMT	
+	,FISCAL_YEAR_BEGIN_BAL	
+	,CONTRACTS_AND_GRANTS_BEGIN_BAL
+	,JUL_TRANS_TOTAL_AMT
+	,AUG_TRANS_TOTAL_AMT
+	,SEP_TRANS_TOTAL_AMT
+	,OCT_TRANS_TOTAL_AMT
+	,NOV_TRANS_TOTAL_AMT
+	,DEC_TRANS_TOTAL_AMT
+	,JAN_TRANS_TOTAL_AMT
+	,FEB_TRANS_TOTAL_AMT
+	,MAR_TRANS_TOTAL_AMT
+	,APR_TRANS_TOTAL_AMT
+	,MAY_TRANS_TOTAL_AMT
+	,JUN_TRANS_TOTAL_AMT
+	,MONTH13_TRANS_TOTAL_AMT
+	,LAST_UPDATE_DATE
+)
+
+--WHEN NOT MATCHED BY SOURCE THEN DELETE
+;
+END

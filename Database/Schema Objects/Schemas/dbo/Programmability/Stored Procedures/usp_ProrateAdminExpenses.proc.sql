@@ -8,6 +8,8 @@
 -- Modifications:
 -- 2014-12-17 by kjt: Removed database specific database references so it sp can be run against
 --	another AD419 database, i.e. AD419_2014, etc.
+-- 2017-09-29 by kjt: Modified arithmatic logic to use the absolute value of the amount in
+--	order to handle prorating against credit amounts.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_ProrateAdminExpenses] 
 	-- Add the parameters for the stored procedure here
@@ -103,7 +105,7 @@ BEGIN
 				if @MySFN not in ('241','242','243','244')
 					begin  --if @MySFN not in ('241','242','243','244')
 						select @TSQL = 
-						'update dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f' + @MySFN + '_prorate    = (f' + @MySFN + ') / (' + CONVERT(varchar(50), @ProjectsTotal) + ') * ' + CONVERT(varchar(50), @MyUnassociatedTotal) 
+						'update dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f' + @MySFN + '_prorate    = ABS(f' + @MySFN + ') / (' + CONVERT(varchar(50), @ProjectsTotal) + ') * ' + CONVERT(varchar(50), @MyUnassociatedTotal) 
 						
 						IF @AdminUnit IS NULL OR @AdminUnit LIKE '' OR @AdminUnit LIKE @AllTableNamePrefix OR @AdminUnit LIKE 'ADNO' 
 							SELECT @TSQL += ';
@@ -116,7 +118,7 @@ BEGIN
 '   
 						ELSE SELECT @TSQL +=  ' WHERE dept IN (SELECT OrgCd3Char FROM [dbo].[ReportingOrg] WHERE AdminClusterOrgR = ''' + @AdminUnit + ''');
 '
-						select @TSQL += 'update dbo.[' + @AdminUnit + '_' + @AdminTableName + '] set f' + @MySFN +  '= (f' + @MySFN + ') + ((f' + @MySFN + ') / (' + CONVERT(varchar(50), @ProjectsTotal) + ') * ' + CONVERT(varchar(50), @MyUnassociatedTotal) + ')'
+						select @TSQL += 'update dbo.[' + @AdminUnit + '_' + @AdminTableName + '] set f' + @MySFN +  '= (f' + @MySFN + ') + (ABS(f' + @MySFN + ') / (' + CONVERT(varchar(50), @ProjectsTotal) + ') * ' + CONVERT(varchar(50), @MyUnassociatedTotal) + ')'
 						IF @AdminUnit IS NULL OR @AdminUnit LIKE '' OR @AdminUnit LIKE @AllTableNamePrefix OR @AdminUnit LIKE 'ADNO' 
 							SELECT @TSQL += ';'   
 						ELSE SELECT @TSQL +=  ' WHERE dept IN (SELECT OrgCd3Char FROM [dbo].[ReportingOrg] WHERE AdminClusterOrgR = ''' + @AdminUnit + ''');'
@@ -132,7 +134,7 @@ BEGIN
 							select 'Now updating SFN: ' + @MySFN
 							
 						select @TSQL = '
-						update dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f' + @MySFN + '_prorate = ROUND((f' + @MySFN + ') / (' + CONVERT(varchar(50), @ProjectsTotal) + ') * ' + CONVERT(varchar(20), @MyUnassociatedTotal) + ',1)'
+						update dbo.[' + @AdminUnit + '_' + @NonAdminWithProratedAmountsTableName + '] set f' + @MySFN + '_prorate = ROUND(ABS(f' + @MySFN + ') / (' + CONVERT(varchar(50), @ProjectsTotal) + ') * ' + CONVERT(varchar(20), @MyUnassociatedTotal) + ',1)'
 						IF @AdminUnit IS NULL OR @AdminUnit LIKE '' OR @AdminUnit LIKE @AllTableNamePrefix OR @AdminUnit LIKE 'ADNO' 
 							SELECT @TSQL += ';
 '   
@@ -144,7 +146,7 @@ BEGIN
 '   
 						ELSE SELECT @TSQL +=  ' WHERE dept IN (SELECT OrgCd3Char FROM [dbo].[ReportingOrg] WHERE AdminClusterOrgR = ''' + @AdminUnit + ''');
 '
-						select @TSQL += 'update dbo.[' + @AdminUnit + '_' + @AdminTableName + '] set f' + @MySFN +  '= (f' + @MySFN + ') +             ROUND((f' + @MySFN + ') / (' + CONVERT(varchar(50), @ProjectsTotal) + ') * ' + CONVERT(varchar(20), @MyUnassociatedTotal) + ',1)'
+						select @TSQL += 'update dbo.[' + @AdminUnit + '_' + @AdminTableName + '] set f' + @MySFN +  '= (f' + @MySFN + ') +             ROUND(ABS(f' + @MySFN + ') / (' + CONVERT(varchar(50), @ProjectsTotal) + ') * ' + CONVERT(varchar(20), @MyUnassociatedTotal) + ',1)'
 						IF @AdminUnit IS NULL OR @AdminUnit LIKE '' OR @AdminUnit LIKE @AllTableNamePrefix OR @AdminUnit LIKE 'ADNO' 
 							SELECT @TSQL += ';
 '   

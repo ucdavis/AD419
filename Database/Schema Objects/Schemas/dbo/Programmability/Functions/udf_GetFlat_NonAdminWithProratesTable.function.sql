@@ -4,6 +4,7 @@
 -- Description:	Given an admin unit, return the appropriate table values
 -- 2014-12-17 by kjt: Removed database specific database references so it sp can be run against
 --	another AD419 database, i.e. AD419_2014, etc.
+-- 2017-12-01 by kjt: Changed Pi field length from 30 to 50 characters.
 -- =============================================
 CREATE FUNCTION [dbo].[udf_GetFlat_NonAdminWithProratesTable]
 (
@@ -15,7 +16,7 @@ RETURNS @Retval TABLE (
 			dept char(3), 
 			proj char(4), 
 			project varchar(24), 
-			PI varchar(30), 
+			PI varchar(50), 
 			accession char(7), 
 			SFN varchar(20), 
 			expense decimal(16,2), 

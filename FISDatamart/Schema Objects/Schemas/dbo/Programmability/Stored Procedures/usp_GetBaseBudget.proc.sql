@@ -6,6 +6,11 @@
 -- Modifications:
 --	20110307 by kjt:
 --		Added table name prefix to IsCAES, since it has now been added to Accounts table.
+--	20111019 by kjt:
+--		Revised to accept multiple OP Fund Numbers.
+--	20130424 by kjt:
+--		Fixed code to also accept multiple OP funds for FTE as well.
+-- 20151009 by kjt: Added OP Fund to select list.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_GetBaseBudget] 
 	-- Add the parameters for the stored procedure here
@@ -18,7 +23,7 @@ CREATE PROCEDURE [dbo].[usp_GetBaseBudget]
 	@IsCAES tinyint = 3, -- 1 AAES without ACBS; 2 ACBS only; 3 AAES and ACBS; 0 BIOS only.
 	@FiscalYear int = 2010,
 	@SubFundGroups varchar(500) = 'GENFND', -- a comma delimitted list of SubFundGroups, typically just one, i.e., 'GENFND', etc.
-	@OpFundNum varchar(6) = '19900'
+	@OpFundNum varchar(500) = '19900' -- a comma delimitted list of OpFundNumbers, typically just one, i.e., '19900', etc.
 WITH RECOMPILE
 AS
 BEGIN
@@ -28,18 +33,18 @@ BEGIN
 
     -- Insert statements for procedure here
 	/****** Script for SelectTopNRows command from SSMS  ******/
-/*
-Declare @IncludeAppliedTransactions bit = 1
-Declare @IncludePendingTransactions bit = 1
-Declare @IncludeCE bit = 1
-Declare @IncludeIR bit = 0
-Declare @IncludeOR bit = 0
-Declare @IncludeOT bit = 0
-Declare @IsCAES tinyint = 3
-Declare @FiscalYear int = 2010
-Declare @SubFundGroups varchar(500) = 'GENFND'
-Declare @OPFundNum varchar(6) = '19900'
-*/
+
+--Declare @IncludeAppliedTransactions bit = 1
+--Declare @IncludePendingTransactions bit = 1
+--Declare @IncludeCE bit = 1
+--Declare @IncludeIR bit = 1
+--Declare @IncludeOR bit = 1
+--Declare @IncludeOT bit = 0
+--Declare @IsCAES tinyint = 3
+--Declare @FiscalYear int = 2010
+--Declare @SubFundGroups varchar(500) = 'GENFND,OTHER'
+--Declare @OPFundNum varchar(6) = '19900,69085'
+
 
 Declare @CE_FunctionCodeID smallint;
 Set @CE_FunctionCodeID = (select FunctionCodeID from FISDataMart.dbo.FunctionCode where FunctionCode = 'CE');
@@ -103,13 +108,14 @@ IF @IsCAES = 2 OR @IsCAES = 3
 	END
 
 
-DECLARE @MyTable TABLE (Chart varchar(2), OrgID char(4), FunctionCodeID smallint, [Object] char(4), BaseBudget money, FTE Decimal(14,2) )
+DECLARE @MyTable TABLE (Chart varchar(2), OrgID char(4), FunctionCodeID smallint, OpFundNum char(6), [Object] char(4), BaseBudget money, FTE Decimal(14,2) )
 
-INSERT INTO @MyTable(Chart , OrgID, FunctionCodeID, [Object], BaseBudget)
+INSERT INTO @MyTable(Chart , OrgID, FunctionCodeID, OpFundNum, [Object], BaseBudget)
 SELECT 
 	 bbv.Chart
 	,[OrgID]
 	,FunctionCodeID
+	,acts.OPFundNum
 	,[Object]
     ,SUM([LineAmount])*-1 BaseBudget
 FROM [FISDataMart].[dbo].[BaseBudgetV] bbv
@@ -121,12 +127,13 @@ where BalType in ('BB','BI') and bbv.Year = @FiscalYear
   --and IsCAES = 1
   AND bbv.IsCAES IN (Select * from @CAESList)
   AND acts.SubFundGroupNum IN (select * from dbo.SplitVarcharValues(@SubFundGroups))
-  AND acts.OpFundNum LIKE @OpFundNum 
+  --AND acts.OpFundNum LIKE @OpFundNum 
+  AND acts.OpFundNum IN (select * from dbo.SplitVarcharValues(@OpFundNum)) 
   and IsPending IN (Select * from @MyIsPendings)
   and bbv.Account in (select account
 					  from FISDataMart.dbo.Accounts acts 
 					  where bbv.chart = acts.chart AND acts.Year = @FiscalYear AND acts.Period = '--')
-group by bbv.Chart, OrgID, FunctionCodeID, [Object]
+group by bbv.Chart, OrgID, FunctionCodeID, acts.OpFundNum, [Object]
   
 
 DECLARE MyCursor CURSOR FOR 
@@ -146,7 +153,7 @@ where BalType in ('FT','FI') and bbv.Year = @FiscalYear
   --and IsCAES = 1
   AND bbv.IsCAES IN (Select * from @CAESList)
   AND acts.SubFundGroupNum IN (select * from dbo.SplitVarcharValues(@SubFundGroups))
-  AND acts.OpFundNum LIKE @OpFundNum 
+  AND acts.OpFundNum IN (select * from dbo.SplitVarcharValues(@OpFundNum)) 
   and IsPending IN (Select * from @MyIsPendings)
   and bbv.Account in (select account
 					  from FISDataMart.dbo.Accounts acts 
@@ -175,9 +182,16 @@ Update @MyTable set FTE = 0.00 where FTE is NULL
 Select  
 	CASE WHEN Chart1 = 'L' THEN Org4 
 	     WHEN Chart1 = '3' THEN Org3 
-	     WHEN Chart6 = 'L' THEN Org7
+	     WHEN Chart6 = 'L' THEN 
+		 CASE WHEN @FiscalYear = 2016 THEN Org6 ELSE Org7 END
 	     ELSE Org6
 	     END AS Org3
+	,CASE WHEN Chart1 = 'L' THEN Name4 
+	     WHEN Chart1 = '3' THEN Name3 
+	     WHEN Chart6 = 'L' THEN 
+		 CASE WHEN @FiscalYear = 2016 THEN Name6 ELSE Name7 END
+	     ELSE Name6
+	     END AS Name3
 	,[OrgID] 
 	,CASE FunctionCodeID 
 		WHEN @CE_FunctionCodeID THEN 'CE'
@@ -186,6 +200,7 @@ Select
 	    WHEN @OT_FunctionCodeID THEN 'OT'
 		ELSE 'NA'
 	  END as FunctionCode
+	,OpFundNum
 	,[Object]
 	,BaseBudget
 	,FTE
@@ -195,9 +210,16 @@ from @MyTable myTable
 Where BaseBudget <> 0 
 Group by CASE WHEN Chart1 = 'L' THEN Org4 
 	     WHEN Chart1 = '3' THEN Org3 
-	     WHEN Chart6 = 'L' THEN Org7
+	     WHEN Chart6 = 'L' THEN
+		 CASE WHEN @FiscalYear = 2016 THEN Org6 ELSE Org7 END
 	     ELSE Org6
-	     END, OrgID, FunctionCodeID, [Object], BaseBudget,FTE
-order by Org3, OrgID, FunctionCode, [Object], BaseBudget,FTE
+	     END 
+		,CASE WHEN Chart1 = 'L' THEN Name4 
+	     WHEN Chart1 = '3' THEN Name3 
+	     WHEN Chart6 = 'L' THEN 
+		 CASE WHEN @FiscalYear = 2016 THEN Name6 ELSE Name7 END
+	     ELSE Name6
+	     END, OrgID, FunctionCodeID, OpFundNum, [Object], BaseBudget,FTE
+order by Org3, OrgID, FunctionCode, OpFundNum, [Object], BaseBudget,FTE
 
 END

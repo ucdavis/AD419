@@ -26,7 +26,7 @@ IF @FunctionCode LIKE @OT_FunctionCode
 	where BalType in ('BB', 'BI', 'FT','FI')
 		and SubFundGroupNum IN (select SubFundGroupNum from FISDataMart.dbo.BaseBudgetSubFundGroups)
 		AND (HigherEdFuncCode NOT IN ('PBSV', 'INST', 'FINA', 'ORES')
-		AND (A11AcctNum NOT like '62%' OR A11AcctNum NOT BETWEEN '40' AND '59'))
+		AND (A11AcctNum NOT like '62%' OR LEFT(A11AcctNum,2) NOT BETWEEN '40' AND '59'))
 ELSE IF @FunctionCode LIKE @CE_FunctionCode
 
 -- Cooperative Extension (CE):

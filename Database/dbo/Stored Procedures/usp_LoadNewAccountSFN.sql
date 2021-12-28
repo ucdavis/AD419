@@ -16,18 +16,22 @@
 USE AD419
 GO
 
-EXEC usp_LoadNewAccountSFN @FiscalYear = 2015
+EXEC usp_LoadNewAccountSFN @FiscalYear = 2016
 GO
 
 */
 -- Modifications:
---
+--	20170321 by kjt: Added the columns that will facilitate classification using newly idenfied fields, such as 
+-- SubFundGroupNum, SubFundGroupTypeCode, isNIH, isFederalFund, is204.
+--	20171003 by kjt: Added HigherEdFuncCode "OAES" as per discussion with Shannon Tanguay 2017-10-02.
+--	20171012 by kjt: Moved all of the update statements to usp_UpdateNewAccountSFN.
+--	20171012 by kjt: Removed the 9999 fiscal year
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_LoadNewAccountSFN] 
-	@FiscalYear int = 2015
+	@FiscalYear int = 2016
 AS
 BEGIN
-	-- DECLARE @FiscalYear int = 2015
+	-- DECLARE @FiscalYear int = 2016
 
 	-- SET NOCOUNT ON added to prevent extra result sets from
 	-- interfering with SELECT statements.
@@ -53,6 +57,11 @@ BEGIN
 		  ,[ExpirationDate]
 		  ,[AwardEndDate]
 		  ,[IsAccountInFinancialData]
+		  ,[SubFundGroupNum]
+		  ,[SubFundGroupTypeCode]
+		  ,[IsNIH]
+		  ,[IsFederalFund]
+		  ,[IsNIFA] --Populated from CFDA Numbers, etc.
 	  )
 
 	SELECT 
@@ -72,7 +81,12 @@ BEGIN
 		CONVERT (varchar(50), NULL) AS OpFund_AwardNum,
 		Limit1.ExpirationDate,
 		Limit1.AwardEndDate,
-		CONVERT (bit, NULL) AS IsAccountInFinancialData
+		CONVERT (bit, NULL) AS IsAccountInFinancialData,
+		Limit1.SubFundGroupNum,
+		Limit1.SubFundGroupTypeCode,
+		CONVERT (bit, NULL) AS IsNIH,
+		CONVERT (bit, NULL) AS IsFederalFund,
+		CONVERT (bit, NULL) AS IsNIFA
 --Into NewAccountSFN
 	FROM (
 		SELECT DISTINCT Extent1.Chart, Extent1.Account
@@ -80,8 +94,8 @@ BEGIN
 					 [FISDataMart].[dbo].[ARCCodes] ARC_Codes ON Extent1.AnnualReportCode like ARC_Codes.ARCCode
 		where (
 					(Year = @FiscalYear AND Period BETWEEN '04' AND '13') OR 
-					(Year = @FiscalYear + 1 AND Period BETWEEN '01' AND '03') OR
-					(Year = 9999 AND Period = '--')
+					(Year = @FiscalYear + 1 AND Period BETWEEN '01' AND '03')
+					-- OR (Year = 9999 AND Period = '--')
 			   )
 			  AND Extent1.HigherEdFuncCode not like 'PROV' -- Exclude the PROV accounts.
 			  AND Extent1.OpFundGroupCode NOT LIKE '600000' -- BALANCE SHEET
@@ -102,7 +116,9 @@ BEGIN
 		Account2.SponsorCategoryCode, 
 		Account2.OpFundNum,
 		Account2.ExpirationDate,
-		Account2.AwardEndDate
+		Account2.AwardEndDate,
+		Account2.SubFundGroupNum,
+		Account2.SubFundGroupTypeCode
 	 FROM (
 		SELECT 
 			Extent2.Year, Extent2.Period, 
@@ -115,25 +131,16 @@ BEGIN
 			Extent2.SponsorCode, 
 			Extent2.SponsorCategoryCode, 
 			Extent2.OpFundNum,
-			(CASE WHEN ((LEFT(Extent2.A11AcctNum,2) BETWEEN '44' AND '59') OR Extent2.HigherEdFuncCode = 'ORES') AND Extent2.Chart = 'L' THEN 1
+			(CASE WHEN ((LEFT(Extent2.A11AcctNum,2) BETWEEN '44' AND '59') OR Extent2.HigherEdFuncCode IN ('ORES', 'OAES')) AND Extent2.Chart = 'L' THEN 1
 		  WHEN ((LEFT(Extent2.A11AcctNum,2) = '62' OR Extent2.HigherEdFuncCode = 'PBSV') ) THEN 1
 		  ELSE 0 END)  AS isCE
 		  , Extent2.ExpirationDate,
-		  Extent2.AwardEndDate
+		  Extent2.AwardEndDate,
+		  Extent2.SubFundGroupNum, 
+		  Extent2.SubFundGroupTypeCode
 	 FROM FISDataMart.dbo.Accounts AS Extent2
 	 WHERE (Distinct1.Chart = extent2.Chart AND Distinct1.Account = Extent2.Account)
 	 ) AS Account2
-
 	 ORDER BY Account2.Year DESC, Account2.Period, Account2.Chart, Account2.Account) AS Limit1
 
-	 UPDATE NewAccountSFN
-	 SET IsAccountInFinancialData = 1 
-	 FROM NewAccountSFN t1
-	 INNER JOIN FFY_ExpensesByARC t2 ON t1.Chart = t2.Chart AND t1.Account = t2.Account
-
-	 UPDATE NewAccountSFN
-	 SET  IsAccountInFinancialData = 0 
-	 where IsAccountInFinancialData IS NULL
-
-   
 END

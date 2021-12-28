@@ -1,4 +1,5 @@
-﻿-- =============================================
+﻿
+-- =============================================
 -- Author:		Ken Taylor
 -- Create date: January 20, 2011
 -- Description:	Given a table name, rebuild, which also includes enabling
@@ -45,13 +46,50 @@
 --
 --		(ps.avg_fragmentation_in_percent > @MaxFragmentationPermitted) OR
 --		(ps.avg_fragmentation_in_percent IS NULL) --disabled.
---	
 -- in order to correctly handle partitioned indexes.
+--
+-- Usage: 
+/*
+	USE [FISDataMart]
+	GO
+
+	DECLARE @return_value int,
+		@TableName varchar(255) = 'AnotherLaborTransactions', 
+		@MaxFragmentationPermitted int = 5,
+		@MaxFragmentationToReorganize int = 30,
+		@IsDebug bit = 0 
+
+	SET NOCOUNT ON;
+
+	EXEC	@return_value = [dbo].[usp_RebuildAllTableIndexes]
+			@TableName = @TableName,
+			@MaxFragmentationPermitted = @MaxFragmentationPermitted,
+			@MaxFragmentationToReorganize = @MaxFragmentationToReorganize,
+			@IsDebug = @IsDebug
+
+	IF @IsDebug = 0
+		SELECT	'Return Value' = @return_value
+	SET NOCOUNT OFF;
+
+GO
+
+*/
+--
+-- Modifications:
+--	20210723 by kjt: Revised to 
+--		Do nothing of less than threshold @MaxFragmentationPermitted (5%),
+--		Reorganize between threshold and @MaxFragmentationToReorganize (30%)
+--		Rebuild if >  @MaxFragmentationToReorganize (30%).
+--	Added new parameter to allow setting of MaxFragmentationToReorganize, which is
+--		the maximum amount of fragmentation for which we'll perform a reorganization.
+--		Any amount > MaxFragmentationToReorganize results in an full index rebuild.
+--
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_RebuildAllTableIndexes] 
 	-- Add the parameters for the stored procedure here
 	@TableName varchar(255) = null, 
-	@MaxFragmentationPermitted int = 5, --The maximum fragmentation permitted (in percent).
+	@MaxFragmentationPermitted int = 5, --The maximum fragmentation permitted prior to a reorganize (in percent).
+	@MaxFragmentationToReorganize int = 30, -- The maximum fragmentation permitted prior to a rebuild (in percent).
 	@IsDebug bit = 0 --Set to 1 to only print SQL to be executed.
 AS
 BEGIN
@@ -110,9 +148,19 @@ ORDER BY
 				IF @IsDebug = 1
 					SELECT @TSQL = '--Index: ' + @IndexName + ' has ' + CONVERT(varchar(20), @AvgFragPct) + '%.
 		'
-					
-				SELECT @TSQL += 'ALTER INDEX [' + @IndexName + '] ON [dbo].[' + @TableName + '] REBUILD PARTITION = ALL WITH ( PAD_INDEX  = OFF, STATISTICS_NORECOMPUTE  = OFF, ALLOW_ROW_LOCKS  = ON, ALLOW_PAGE_LOCKS  = ON, ONLINE = OFF, SORT_IN_TEMPDB = OFF )
+				DECLARE @IndexAction varchar(20) = 'rebuild'
+				-- You must first rebuild an index after it''s been disabled.  
+				-- Once it's rebuilt, it can be reorganized if appropriate.
+				IF @AvgFragPct IS NULL OR @AvgFragPct > @MaxFragmentationToReorganize
+				  SELECT @TSQL += 'ALTER INDEX [' + @IndexName + '] ON [dbo].[' + @TableName + '] REBUILD PARTITION = ALL WITH ( PAD_INDEX  = OFF, STATISTICS_NORECOMPUTE  = OFF, ALLOW_ROW_LOCKS  = ON, ALLOW_PAGE_LOCKS  = ON, ONLINE = OFF, SORT_IN_TEMPDB = OFF )
 		'
+				ELSE
+				-- Reorganize any index that's enabled and has a @AvgFragPct between @MaxFragmentationPermitted and @MaxFragmentationToReorganize.
+				  BEGIN
+					SELECT @IndexAction = 'reorganize'
+					SELECT @TSQL += 'ALTER INDEX [' + @IndexName + '] ON [dbo].[' + @TableName + '] REORGANIZE  WITH ( LOB_COMPACTION = ON )
+		'		  END
+				
 				IF @IsDebug = 1
 					PRINT @TSQL
 				ELSE
@@ -120,7 +168,7 @@ ORDER BY
 						EXEC (@TSQL)
 						SELECT @StartTime = (@EndTime)
 						SELECT @EndTime = (GETDATE())
-						PRINT '--Time to rebuild ' + @IndexName + ' on table ' +@TableName + ': ' + CONVERT(varchar(20),@EndTime - @StartTime, 114)
+						PRINT '--Time to ' + @IndexAction + ' ' + @IndexName + ' on table ' +@TableName + ': ' + CONVERT(varchar(20),@EndTime - @StartTime, 114)
 					END
 				Fetch NEXT FROM MyCursor INTO @tblName, @IndexName, @AvgFragPct
 			END --WHILE

@@ -16,8 +16,9 @@
 */
 --
 -- Modifications:
+--	02017-10-13 by kjt" Added logic to skip loading if already loaded for reporting year.
 --
-CREATE PROCEDURE usp_PostPreImportReviewAutomation
+CREATE  PROCEDURE [dbo].[usp_PostPreImportReviewAutomation]
 	@FiscalYear int = 2015,
 	@IsDebug bit = 0
 AS
@@ -29,9 +30,20 @@ BEGIN
     DECLARE @TSQL varchar(MAX) = ''
 
 	SELECT @TSQL = '
-	-- Reload the OrgXOrgR table:
-	EXEC [dbo].[usp_Repopulate_OrgXOrgR] @FiscalYear = ' + CONVERT(varchar(4), @FiscalYear) + ', 
-		@IsDebug = ' + CONVERT(varchar(1), @IsDebug) + '
+	DECLARE @NeedsReload bit
+	DECLARE @ReportingYear int
+
+	-- 20171013 by kjt: Keep existing organizational data if table has alreay been loaded for target reporting year:
+	SELECT @ReportingYear = (	
+		SELECT DISTINCT FiscalYear 
+		FROM [dbo].[AllOrgXOrgR]
+	)
+	IF @ReportingYear IS NULL OR @ReportingYear != ' + CONVERT(varchar(4), @FiscalYear) + '
+	BEGIN
+		-- Reload the OrgXOrgR table:
+		EXEC [dbo].[usp_Repopulate_OrgXOrgR] @FiscalYear = ' + CONVERT(varchar(4), @FiscalYear) + ', 
+			@IsDebug = ' + CONVERT(varchar(1), @IsDebug) + '
+	END
 '
 	IF @IsDebug = 1
 		PRINT @TSQL	

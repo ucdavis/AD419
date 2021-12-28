@@ -1,4 +1,5 @@
-﻿-- =============================================
+﻿
+-- =============================================
 -- Author:		Ken Taylor
 -- Create date: August 19, 2016
 -- Description:	Loads all of the financial data tables
@@ -16,6 +17,8 @@
 --	20161019 by kjt: Fixed hard-coded fiscal years that were intended to use passed parameter.
 --		Also added filtering out of any account in ARCCodeAccountExclusionsV
 --	20170118 by kjt: Removed statements that were previously commented out.
+--	20171025 by kjt: Added @FiscalYear parameters where required.
+--	20191011 by kjt: Added @FiscalYear parameter to Load PPSExpensesFor204Projects.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_LoadFinancialData] 
 	@FiscalYear int = 2016, 
@@ -97,6 +100,7 @@ BEGIN
 
 	-- Load PPSExpensesFor204Projects:
 	EXEC [dbo].[usp_LoadPPSExpensesFor204Projects]
+			@FiscalYear = ' + CONVERT(varchar(4), @FiscalYear) + ',
 			@IsDebug = ' + CONVERT(varchar(1), @IsDebug) + '
 
 	-- Load FISExpensesFor204Projects:
@@ -105,6 +109,7 @@ BEGIN
 
 	-- Load PPSExpensesForNon204Projects:
 	EXEC [dbo].[usp_LoadPPSExpensesForNon204Projects]
+			@FiscalYear = ' + CONVERT(varchar(4), @FiscalYear) + ',
 			@IsDebug = ' + CONVERT(varchar(1), @IsDebug) + '
 
 	-- Load FISExpensesForNon204Projects:

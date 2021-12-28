@@ -12,10 +12,13 @@
 -- *Note the the 2 parameters are just place holders and need not be provided.
 */
 -- Modifications:
---
+--	2017-09-21 by kjt: Revised to use updated process category sequence order from 13 to 15
+--		because of the new steps that were added.
+--	2018-11-09 by kjt: Revised to use updated process category sequence order from 15 to 17
+--		because of the new steps that were added.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_DeleteAllExpensesAndAssocoationsAndResetStatus]
-	@FiscalYear int = 2015, 
+	@FiscalYear int = 2018, 
 	@IsDebug bit = 0
 AS
 BEGIN
@@ -36,13 +39,13 @@ BEGIN
 	  select Id from  [dbo].[ProcessStatus]
 	  WHERE CategoryID IN (
 		  select Id from [dbo].[ProcessCategory]
-		  WHERE SequenceOrder >= 13
+		  WHERE SequenceOrder >= 17
 	  )
    )
 
    UPDATE [dbo].[ProcessCategory]
    SET IsCompleted = 0 
-   WHERE SequenceOrder >= 13
+   WHERE SequenceOrder >= 17
 '
 
 	IF @IsDebug = 1

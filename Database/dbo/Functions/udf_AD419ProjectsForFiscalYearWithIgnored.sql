@@ -1,4 +1,5 @@
-﻿-- =============================================
+﻿
+-- =============================================
 -- Author:		Ken Taylor
 -- Create date: September 8, 2016
 -- Description:	Uses AllProjectsNew as main datasource and returns a list of 
@@ -13,15 +14,18 @@
 --
 -- Usage:
 /*
-	SELECT * FROM udf_AD419ProjectsForFiscalYearWithIgnored(2015)
+	SELECT * FROM udf_AD419ProjectsForFiscalYearWithIgnored(2021)
 */
 --
 -- Modifications:
+--	20171026 by kjt: Revised to use ProjectStatus table for determining which projects to include
+--		instead of hard coding.
+--	20211108 by kjt: Revised to add employeeID field to output variable.
 --
 -- =============================================
 CREATE FUNCTION [dbo].[udf_AD419ProjectsForFiscalYearWithIgnored] 
 (
-	@FiscalYear int = 2015
+	@FiscalYear int = 2017
 )
 RETURNS 
 @Table_Var TABLE 
@@ -40,6 +44,7 @@ RETURNS
     ,[StatusCd] varchar(1)
     ,[Title] varchar(512)
     ,[UpdateDate] datetime2
+	,EmployeeID varchar(10)
     ,[inv1] varchar(100)
     ,[inv2] varchar(100)
     ,[Inv3] varchar(100)
@@ -71,6 +76,7 @@ INSERT INTO @Table_Var (
       ,[StatusCd]
       ,[Title]
       ,[UpdateDate]
+	  ,EmployeeID
 	  ,[Inv1]
 	  ,[Is204]
       ,[idProject]
@@ -91,20 +97,25 @@ select
 			THEN 'B' ELSE LEFT(RTRIM(t1.[ProjectStatus]), 1) END [StatusCd]
       ,t1.[Title]
       ,NULL AS [UpdateDate]
+	  ,t3.UcpEmployeeId AS EmployeeID
       ,t1.ProjectDirector AS [inv1]
       ,t1.[Is204]
       ,t1.Id [idProject]
 	  ,t1.[IsIgnored]
 
  FROM  [dbo].[udf_AllProjectsNewForFiscalYear](@FiscalYear) t1
+  INNER JOIN [dbo].[NifaProjectAccessionNumberImport] t3 ON t1.AccessionNumber = t3.AccessionNumber
   LEFT OUTER JOIN dbo.ReportingOrg AS t8 ON 
 		t1.OrgR = t8.OrgR AND 
 		(t8.IsActive = 1 OR t8.OrgR IN ('XXXX', 'AINT'))
  WHERE  
 	 (t1.IsUCD = 1) AND (t1.IsExpired = 0) AND 
 	 (t1.AccessionNumber NOT LIKE '0000000') AND
-	 (RTRIM(t1.ProjectStatus) NOT LIKE 'Draft') AND 
-	 (RTRIM(t1.ProjectStatus) NOT LIKE 'Unknown')
+	 (RTRIM(t1.ProjectStatus) NOT IN (
+		SELECT [Status]
+		FROM [dbo].[ProjectStatus]
+		WHERE IsExcluded = 1)
+	 )
 
  -- Populate the various Inv_ from data present in the CoProjectDirectors column:
  update @Table_Var

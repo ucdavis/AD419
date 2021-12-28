@@ -16,6 +16,7 @@
 --	2016-08-18 by kjt: Revised to use the AllProjectsNew table.
 --  2016-08-19 by kjt: Added Begin and End Data filtering.
 --	2016-08-20 by kjt: Added Id and IsIgnored columns.
+--	2017-12-12 by kjt: Revised logic to use isExpired as already set during import.
 -- =============================================
 CREATE FUNCTION [dbo].[udf_AllProjectsNewForFiscalYear] 
 (
@@ -64,7 +65,7 @@ BEGIN
       ,[ProjectEndDate]
       ,[ProjectStatus]
       ,[IsUCD]
-      ,CASE WHEN [ProjectEndDate] <= CONVERT(DateTime, CONVERT(varchar(4),@FiscalYear -1) +'-09-30 00:00:00.000') THEN 1 ELSE 0 END AS IsExpired
+      ,[IsExpired]
       ,[Is204]
       ,[IsInterdepartmental]  
 	  ,[IsIgnored]
