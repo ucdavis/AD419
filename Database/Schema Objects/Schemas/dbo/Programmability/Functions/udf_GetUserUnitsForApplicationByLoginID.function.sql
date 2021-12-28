@@ -1,7 +1,20 @@
-﻿-- =============================================
+﻿
+-- =============================================
 -- Author:		Ken Taylor
 -- Create date: 2009-10-28
 -- Description: Replacement of Catbert usp_GetUserUnits
+-- Usage:
+/*
+	USE [AD419]
+	GO
+
+	SELECT * FROM [dbo].[udf_GetUserUnitsForApplicationByLoginID]('postit', 'AD419')
+	GO
+
+*/
+-- Modifications:
+--	20191021by kjt: Added Usage to comments section for testing.
+--
 -- =============================================
 CREATE FUNCTION [dbo].[udf_GetUserUnitsForApplicationByLoginID]
 (

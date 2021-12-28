@@ -1,4 +1,15 @@
-﻿/*
+﻿
+/*
+
+Usage:
+	
+	USE [FISDataMart]
+	GO
+
+	EXEC [dbo].[usp_DownloadSubAccount]
+		@GetUpdatesOnly = 0,
+		@IsDebug = 0
+
 Modifications:
 	20110128 by kjt:
 		Analyzed the org level and chart mapping and found that it need to be revised
@@ -15,8 +26,12 @@ Modifications:
 		Removed ORDER BY.
 	2011-03-04 by kjt:
 		Added logic to pass a destination table name; otherwise defaults to SubAccounts.
+	2015-10-08 by kjt: Modifications to take into account removing DANR as level 4 ORG for chart L, and moving
+		AANS up to level 4 org position.  AAES is now at Level 4 for both Chart 'L' and Chart '3' as of FY 2016.
+	2021-05-04 by kjt: Expanded filtering to also included VETM Orgs as they are required for Animal Health reports.
+
 */
-CREATE Procedure [dbo].[usp_DownloadSubAccount]
+CREATE PROCEDURE [dbo].[usp_DownloadSubAccount]
 (
 	@FirstDateString varchar(16) = null,
 		--earliest date to download (FINANCE.SubAccount.DS_LAST_UPDATE_DATE) 
@@ -176,12 +191,16 @@ merge SubAccounts as SubAccounts
 											(ORG_ID_LEVEL_1 = ''''BIOS'''')
 							
 											OR 
-											(CHART_NUM_LEVEL_4 = ''''3'''' AND ORG_ID_LEVEL_4 = ''''AAES'''')
+											(CHART_NUM_LEVEL_4 IN (''''3'''', ''''L'''') AND ORG_ID_LEVEL_4 = ''''AAES'''')
 											OR
 											(CHART_NUM_LEVEL_5 = ''''L'''' AND ORG_ID_LEVEL_5 = ''''AAES'''')
-									
+											
 											OR
 											(ORG_ID_LEVEL_4 = ''''BIOS'''')
+
+										-- 2021-05-04 by kjt: Added VETM orgs for Animal Health Reports. 
+											OR 
+											(CHART_NUM_LEVEL_4 IN (''''3'''', ''''L'''') AND ORG_ID_LEVEL_4 = ''''VETM'''')
 										)
 								)
 							)

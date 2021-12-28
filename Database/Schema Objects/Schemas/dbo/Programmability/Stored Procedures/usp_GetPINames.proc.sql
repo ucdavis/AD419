@@ -2,7 +2,7 @@
 -- Author:		Alan Lai
 -- Create date: 9/27/2006
 -- Description:	Obtains a list of PIs for a specific department
---	using hte Org code.
+--	using the Org code.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_GetPINames]
 

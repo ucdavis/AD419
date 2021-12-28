@@ -1,6 +1,7 @@
-﻿CREATE VIEW [dbo].[OrgXOrgR]
+﻿
+CREATE VIEW [dbo].[OrgXOrgR]
 AS
-SELECT        t1.Chart, t1.Org, COALESCE (t2.AD419OrgR, t1.OrgR) AS OrgR
+SELECT        t1.Chart, t1.Org, COALESCE (t2.AD419OrgR, t1.OrgR) AS OrgR, t1.HomeDeptNum
 FROM            dbo.AllOrgXOrgR t1 LEFT OUTER JOIN
                 dbo.ExpenseOrgR_X_AD419OrgR AS t2 ON 
 					t1.Chart = t2.Chart AND 

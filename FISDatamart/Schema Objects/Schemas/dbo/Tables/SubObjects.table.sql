@@ -9,8 +9,11 @@
     [ShortName]      CHAR (12)    NULL,
     [ActiveInd]      CHAR (1)     NULL,
     [LastUpdateDate] DATETIME     NULL,
-    [SubObjectPK]    VARCHAR (28) NULL
+    [SubObjectPK]    VARCHAR (28) NULL,
+    CONSTRAINT [PK_SubObjects] PRIMARY KEY CLUSTERED ([Year] ASC, [Period] ASC, [Chart] ASC, [Account] ASC, [Object] ASC, [SubObject] ASC)
 );
+
+
 
 
 GO
@@ -34,7 +37,9 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Account Num
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Object Number: Identifier used to classify accounting transactions by type. Examples are academic salaries, in-state travel, Reg Fee income.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'SubObjects', @level2type = N'COLUMN', @level2name = N'Object';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Object Number: Identifier used to classify accounting transactions by type. Examples are academic salaries, in-state travel, Reg Fee income.  	', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'SubObjects', @level2type = N'COLUMN', @level2name = N'Object';
+
+
 
 
 GO

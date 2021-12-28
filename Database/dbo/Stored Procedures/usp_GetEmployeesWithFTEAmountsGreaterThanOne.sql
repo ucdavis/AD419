@@ -1,4 +1,6 @@
-﻿-- =============================================
+﻿
+
+-- =============================================
 -- Author:		Ken Taylor
 -- Create date: May 17, 2016
 -- Description:	This is the report for FTE > 1 across the included ARCs, but it also shows the FTE for the excluded ARCs in order to give the complete picture.
@@ -15,7 +17,7 @@
 
 	DECLARE	@return_value int
 
-	EXEC	@return_value = [dbo].[usp_GetEmployeesWithFTEAmountsGreaterThanOne]
+	EXEC	@return_value = [dbo].[usp_GetEmployeesWithFTEAmountsGreaterThanOne] @FiscalYear = 2021, @isDebug = 1
 
 	SELECT	'Return Value' = @return_value
 
@@ -23,19 +25,31 @@
 */
 -- Modifications:
 --	20160816 by kjt: Revised to use [dbo].[AnotherLaborTransactions] 
+--	20201020 by kjt: Revised to handle NULL PayPeriodEndDates present in
+--		Fringe transactions of UC Path data, plus added ReportingYear to 
+--		WHERE clause as multiple reporting years may be present.
+--	20211103 by kjt: Revised to handle use with UCP version of AnotherLaborTransactions
 --
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_GetEmployeesWithFTEAmountsGreaterThanOne] 
+(	
+	@FiscalYear int = 2021,
+	@IsDebug bit = 0
+)
 AS
 BEGIN
 	-- SET NOCOUNT ON added to prevent extra result sets from
 	-- interfering with SELECT statements.
 	SET NOCOUNT ON;
-	SELECT *, CASE WHEN [ExcludedByARC] = 0 THEN FTE ELSE 0 END AS InclFTE  FROM (
-    SELECT
+	--DECLARE @FiscalYear int = 2021
+	
+	SELECT
 		[EmployeeID] ,
 		[EmployeeName] ,
-		Convert(Date,[PayPeriodEndDate]) [PayPeriodEndDate],
+		CASE WHEN [PayPeriodEndDate] IS NULL 
+			THEN [PayPeriodEndDate]
+			ELSE Convert(Date,[PayPeriodEndDate]) 
+		END AS  [PayPeriodEndDate],
 		[Chart] ,
 		[Account] ,
 		[Org] ,
@@ -50,65 +64,50 @@ BEGIN
 		[ExcludedByOrg] ,
 		[ExcludedByARC] ,
 		[ExcludedByAccount],
-		CASE 
-			WHEN [FinanceDocTypeCd] IN (SELECT DocumentType FROM AD419.dbo.[FinanceDocTypesForFTECalc]) AND
-				 ObjConsol IN (SELECT Obj_Consolidatn_Num FROM AD419.dbo.[ConsolCodesForFTECalc]) AND 
-				 DosCd IN (SELECT DOS_Code FROM AD419.dbo.DOSCodes) AND
-				 [PayRate] <> 0
+		CASE WHEN  SUM([PayRate]) <> 0
 			THEN 
-				CASE 
-					WHEN [RateTypeCd] = 'H' 
-					THEN SUM(Amount) / ([PayRate] * 2088) 
-					ELSE SUM(Amount) / [PayRate] / 12 
-				END 
+				SUM(ERN_DERIVED_PERCENT)/12
 			ELSE 0 
-		END
-		AS FTE
+		END AS FTE
 	FROM
-		[dbo].[AnotherLaborTransactions] 
+		[dbo].[AnotherLaborTransactions] t3
 	WHERE
-		EmployeeID IN (	SELECT
-							DISTINCT [EmployeeID] 
-						FROM
-							(	SELECT
-									[EmployeeID] ,
-									[EmployeeName] ,
-									CONVERT(DECIMAL(18, 4),
-									CASE 
-										WHEN 
-											[FinanceDocTypeCd] IN (SELECT DocumentType FROM AD419.dbo.[FinanceDocTypesForFTECalc]) AND
-											ObjConsol IN (SELECT Obj_Consolidatn_Num FROM AD419.dbo.[ConsolCodesForFTECalc]) AND
-											DosCd IN (SELECT DOS_Code FROM AD419.dbo.DOSCodes) AND
-											[PayRate] <> 0 
-										THEN 
-											CASE 
-												WHEN [RateTypeCd] = 'H' 
-												THEN SUM(Amount) / ([PayRate] * 2088) 
-												ELSE SUM(Amount) / [PayRate] / 12 
-											END 
-										ELSE 0 
-									END) AS FTE 
-								FROM
-									[dbo].[AnotherLaborTransactions] 
-								WHERE
-									ExcludedByOrg = 0 AND
-									ExcludedByARC = 0 
-								GROUP BY
-									[EmployeeID] ,
-									[EmployeeName],
-									FinanceDocTypeCd,
-									ObjConsol,
-									Payrate,
-									RateTypeCd,
-									DOScd ) t1 
-						GROUP BY
-							[EmployeeID] ,
-							[EmployeeName] 
-						HAVING
-							SUM(FTE) > 1.001 ) AND
-							ObjConsol IN (SELECT Obj_Consolidatn_Num FROM AD419.dbo.[ConsolCodesForFTECalc]) AND
-							DosCd IN	 (SELECT DOS_Code FROM AD419.dbo.DOSCodes) 
-	GROUP BY
+		ReportingYear = @FiscalYear AND DosCd <> 'XXX' AND
+		EXISTS (
+			SELECT t1.EMPLOYEEID 
+			FROM (
+				SELECT DISTINCT [EmployeeID]
+				FROM
+					[dbo].[AnotherLaborTransactions] 
+				WHERE
+					ReportingYear = @FiscalYear
+				GROUP BY
+					[EmployeeID] 
+						--,Payrate
+						,FinanceDocTypeCd, ObjConsol,DosCd
+				HAVING CONVERT(DECIMAL(18, 4),
+					CASE 
+						WHEN  [FinanceDocTypeCd] IN (SELECT DocumentType FROM dbo.[FinanceDocTypesForFTECalc]) AND
+												ObjConsol IN (SELECT Obj_Consolidatn_Num FROM dbo.[ConsolCodesForFTECalc]) AND
+												DosCd IN (SELECT DOS_Code FROM dbo.DOSCodes) AND
+							SUM([PayRate]) <> 0 
+						THEN 
+							SUM(ERN_DERIVED_PERCENT)/12
+						ELSE 0 
+					END) > 1.001 
+				)t1
+				inner join 
+				(
+					SELECT DISTINCT EmployeeID FROM [dbo].[AnotherLaborTransactions] 
+					WHERE ExcludedByOrg = 0 AND ReportingYear = @FiscalYear AND [FringeBenefitSalaryCd] = 'S'
+				
+				
+				) t2 ON t1.Employeeid = t2.EmployeeID
+				WHERE t3.EmployeeID = t2.EmployeeID
+	) 
+	GROUP BY 
+		[EmployeeID] ,
+		[EmployeeName] ,
 		[PayPeriodEndDate],
 		[Chart] ,
 		[Account] ,
@@ -116,31 +115,30 @@ BEGIN
 		[ObjConsol] ,
 		[FinanceDocTypeCd] ,
 		[DosCd] ,
-		[EmployeeID] ,
-		[EmployeeName] ,
 		[TitleCd] ,
 		[AnnualReportCode] ,
-		[ExcludedByARC] ,
-		[ExcludedByOrg] ,
-		[ExcludedByAccount],
-		[Payrate],
-		[RateTypeCd] 
-		) t1
-	ORDER BY
-		[EmployeeName] ,
-		[EmployeeID] ,
-		[PayPeriodEndDate],
-		[TitleCd] ,
-		[Chart] ,
-		[Org] ,
-		[ExcludedByAccount],
-		[Account] ,
-		[ObjConsol] ,
-		[FinanceDocTypeCd] ,
-		[DosCd] ,
-		[AnnualReportCode] ,
-		[ExcludedByARC] ,
-		[ExcludedByOrg] ,
+		[RateTypeCd] ,
 		[PayRate] ,
-		[RateTypeCd]
+		[Amount],
+		[ExcludedByOrg] ,
+		[ExcludedByARC] ,
+		[ExcludedByAccount]
+	ORDER BY 
+		[EmployeeID] ,
+		[EmployeeName] ,
+		[PayPeriodEndDate],
+		[Chart] ,
+		[Account] ,
+		[Org] ,
+		[ObjConsol] ,
+		[FinanceDocTypeCd] ,
+		[DosCd] ,
+		[TitleCd] ,
+		[AnnualReportCode] ,
+		[RateTypeCd] ,
+		[PayRate] ,
+		[Amount],
+		[ExcludedByOrg] ,
+		[ExcludedByARC] ,
+		[ExcludedByAccount]
 END

@@ -1,0 +1,2 @@
+﻿CREATE USER [ProdReportsAD419] FOR LOGIN [ProdReportsAD419];
+

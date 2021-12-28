@@ -1,4 +1,5 @@
-﻿-- =============================================
+﻿
+-- =============================================
 -- Author:		Ken Taylor
 -- Create date: August 11, 2016
 -- Description:	Repopulate the AD419 204 or 20x PPS, i.e. Labor Replated Expenses depending on the DataSource provided.
@@ -11,7 +12,7 @@
 	DECLARE	@return_value int
 
 	EXEC	@return_value = [dbo].[sp_Repopulate_AD419_20x_PPS_Expenses]
-			@FiscalYear = 2015,
+			@FiscalYear = 2016,
 			@IsDebug = 0,
 			@TableName = N'AllExpenses',
 			@DataSource = '20x'
@@ -29,7 +30,7 @@
 	DECLARE	@return_value int
 
 	EXEC	@return_value = [dbo].[sp_Repopulate_AD419_20x_PPS_Expenses]
-			@FiscalYear = 2015,
+			@FiscalYear = 2021,
 			@IsDebug = 0,
 			@TableName = N'AllExpenses',
 			@DataSource = '204'
@@ -45,7 +46,7 @@
 	DECLARE	@return_value int
 
 	EXEC	@return_value = [dbo].[sp_Repopulate_AD419_20x_PPS_Expenses]
-			@FiscalYear = 2015,
+			@FiscalYear = 2016,
 			@IsDebug = 0,
 			@TableName = N'AllExpenses',
 			@DataSource = 'PPS'
@@ -68,10 +69,20 @@
 --	20160912 by kjt: Revised to use the project's department.
 --	20160914 by kjt: Added RAISEERROR to return exceptions back to caller. 
 --	20160921 by kjt: Removed RETURN -1 statement as it could not be used in this context.
+--	20171016 by kjt: Added ProjXOrgR remapping so we'd not attempt to add another entry to ProjXorgR
+--		when the remapped OrgR was present and not the expense OrgR.
+--	20211111 by kjt: Removed the old logic that added an OrgR to the ProjXOrgR table, as we've already added
+--		all the records in a previous, so this step is no longer necessary.  Also, according to Shannon, PIs
+--		share their grant money with other researchers in other departments to help work on their projects.  
+--		Therefore, the project's department(s) may not be correct for the expense, so we're just keeping the
+--		original expenses OrgR with any OrgR remapping, and not changing it over to the project's department.
+--		What this means, is we'll only see the expense in the final report, not in any of the UIs related to the 
+--		department's expenses, since the project does not map to the expense's department, 
+-- 
 -- =============================================
 CREATE PROCEDURE [dbo].[sp_Repopulate_AD419_20x_PPS_Expenses] 
 	-- Add the parameters for the stored procedure here
-	@FiscalYear int = 2015,  -- Not used by kept here for consistancy in parameter signature with other sprocs 
+	@FiscalYear int = 2016,  -- Not used by kept here for consistancy in parameter signature with other sprocs 
 	@IsDebug bit = 0,
 	@TableName varchar(100) = 'AllExpenses',
 	@DataSource varchar(5) = '204' -- This needs to be either '204' or '20x'
@@ -123,12 +134,13 @@ BEGIN
 	   [Accession]
       ,[Exp_SFN]
       ,[OrgR]
+	  ,[AD419OrgR]
       ,[Org]
       ,[EID]
       ,[Employee_Name]
       ,[TitleCd]
       ,[Title_Code_Name]
-      ,[Chart]
+      ,[' + @DataTableName +'].[Chart]
       ,[Account]
       ,[SubAcct]
       ,[PI_Name]
@@ -140,12 +152,15 @@ BEGIN
       ,[FTE]
       ,[FTE_SFN]
       ,[Staff_Grp_Cd]
-  FROM [AD419].[dbo].[' + @DataTableName +'] FOR READ ONLY
+  FROM [dbo].[' + @DataTableName +'] 
+   LEFT OUTER JOIN [dbo].[ExpenseOrgR_X_AD419OrgR] ON [dbo].[' + @DataTableName +'].Chart = [dbo].[ExpenseOrgR_X_AD419OrgR].Chart AND
+	[dbo].[' + @DataTableName +'].Org =  [dbo].[ExpenseOrgR_X_AD419OrgR].ExpenseOrg FOR READ ONLY
 
   DECLARE 
 	  @DataSource varchar(5) = '''+@DataSource+''',
 	  @Accession varchar(10),
       @OrgR varchar(5),
+	  @AD419OrgR varchar(4),
       @Chart varchar(2),
       @Account varchar(7),
       @SubAcct varchar(5),
@@ -167,7 +182,6 @@ BEGIN
 	  @AccessionOrgR varchar(4)
 
 	declare @ProjXOrgRCount int
-	declare @IsAINT bit
 	declare @IsAIND bit
 
 	  OPEN PpsExpenseCursor
@@ -175,6 +189,7 @@ BEGIN
 	      @Accession,
 		  @Exp_SFN,
 	      @OrgR,
+		  @AD419OrgR,
 		  @Org,
 		  @EID,
 		  @Employee_Name,
@@ -198,51 +213,33 @@ BEGIN
 		IF @Accession IS NOT NULL AND @Accession NOT LIKE ''''  -- This is not a 20x or 204 expense so do not perform orgR check
 		BEGIN
 			select @ProjXOrgRCount = 0
-			select @IsAINT = 0
 			select @IsAIND = 0
-			select @AccessionOrgR = @OrgR
+			select @AccessionOrgR = @OrgR --Assume the expense''s OrgR coincides with the project''s OrgR 
 
 			select @ProjXOrgRCount = (SELECT COUNT(*)
 			FROM         ProjXOrgR INNER JOIN
 								  ReportingOrg ON ProjXOrgR.OrgR = ReportingOrg.OrgR
 			WHERE     (ProjXOrgR.Accession = @Accession) AND 
-					  (ProjXOrgR.OrgR = @OrgR) AND 
+					  (ProjXOrgR.OrgR = COALESCE(@Ad419OrgR,@OrgR)) AND 
 					  (ReportingOrg.IsActive = 1 OR ReportingOrg.OrgR IN (''AINT'', ''XXXX''))
 					)
 			If @ProjXOrgRCount = 0 
 			Begin
-				Select @IsAINT = (
-					Select CASE WHEN -- Project''s OrgR IN (''AINT'', ''XXXX'')
-					OrgR IN (''AINT'', ''XXXX'') THEN 1 ELSE 0 END
-					from ReportingOrg where OrgR = (select OrgR from Project where Accession = @Accession)
+				Select @IsAIND = (
+					Select DISTINCT CASE OrgR WHEN ''AIND'' THEN 1 ELSE 0 END
+					from ProjXOrgR where Accession = @Accession
 				)
-				If @IsAINT = 1 
+				If @IsAIND = 1
 					Begin
-						Insert into ProjXOrgR(Accession, OrgR)
-						values (@Accession, @OrgR)
+						Select @OrgR = ''AIND''  --We''re updating the Expense''s OrgR since ''AIND'' is only valid for AD-419 purposes.
 					End
-				Else
+				Else 
 					Begin
-						Select @IsAIND = (
-							Select CASE OrgR WHEN ''AIND'' THEN 1 ELSE 0 END
-							from ProjXOrgR where Accession = @Accession
-						)
-						If @IsAIND = 1
-							Begin
-								Select @OrgR = ''AIND''
-							End
-
-						Else --- The Expense''s department is different from the project''s department,
-						-- so use the project''s department:
-							Begin
-								--RETURN -1
-								--GOTO Fetch_Next
-								-- Use the project''s Department:
-								SELECT @AccessionOrgR = (SELECT OrgR FROM ProjXOrgR WHERE Accession = @Accession)
-								IF @AccessionOrgR IS NULL
-									GOTO Fetch_Next
-							End
+						SELECT @AccessionOrgR = (COALESCE(@Ad419OrgR,@OrgR))
+						IF @AccessionOrgR IS NULL
+							GOTO Fetch_Next
 					End
+					
 			End
 		END
 
@@ -302,6 +299,7 @@ BEGIN
 	      @Accession,
 		  @Exp_SFN,
 	      @OrgR,
+		  @AD419OrgR,
 		  @Org,
 		  @EID,
 		  @Employee_Name,

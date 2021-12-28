@@ -1,7 +1,27 @@
-﻿CREATE Procedure [dbo].[usp_UpdatePersons]
+﻿
+-- Author: Ken Taylor
+-- Modified On: 2020-07-31
+-- Purpose: To update the PPS Datamart Persons table with data from UC Path
+-- Usage:
+/*
+
+	EXEC [dbo].[usp_UpdatePersons]
+		@FirstDate = null,
+		@GetUpdatesOnly = 0,
+		@IsDebug = 1
+
+	GO
+
+*/
+
+-- Modifications:
+-- 2020-07-31 by kjt: Modified for use with UCP_Persons view as datasource.
+-- 2021-02-23 by kjt: Modified to use UCP_PersonsV2 view as datasource.
+
+CREATE Procedure [dbo].[usp_UpdatePersons]
 (
 	@FirstDate varchar(16) = null,
-		--earliest date to download (PERSONS.DS_LAST_UPDATE_DATE) 
+		--earliest date to download (UCP_Persons.LastChangeDate) 
 		--optional, defaults to highest date in dbo.Persons table
 	@GetUpdatesOnly bit = 1, -- set to 0 if you want all the records since the first date.
 							 --Only valid if a firstdate is provided.
@@ -48,79 +68,128 @@ declare @MyDate smalldatetime	--temp holder of dates as type smalldatetime
 	print '-- Downloading Persons records...'
 	IF @GetUpdatesOnly = 1
 	BEGIN
-		print '-- Selecting records from EDBPER_V where EDBPER_V.LAST_CHG_DATE >= ' + convert(varchar(30),convert(smalldatetime,@FirstDate),102) + ' (Earliest Date)'
+		print '-- Selecting records from UCP_PersonsV2 where UCP_PersonsV2.LastChangeDate >= ' + convert(varchar(30),convert(smalldatetime,@FirstDate),102) + ' (Earliest Date)'
 		print '-- Update any matching records in the persons table where none have been updated previously'
-		print '--  or where the EDBPER_V.LAST_CHG_DATE > ' + Convert(varchar(30), @MaxDate, 110) + '.'
+		print '--  or where the UCP_PersonsV2.LastChangeDate > ' + Convert(varchar(30), @MaxDate, 110) + '.'
 	END
 	ELSE
-		print '-- Selecting all records from EDBPER_V'
+		print '-- Selecting all records from UCP_PersonsV2.LastChangeDate'
 		
 	print '-- IsDebug = ' + CASE @IsDebug WHEN 1 THEN 'True (Just display SQL. Don''t update anything)' ELSE 'False (Run script)' END
 	print '-------------------------------------------------------------------------'
 	
 select @TSQL = 
-	'merge PPSDataMart.dbo.Persons Persons
+	'merge PPSDataMart.dbo.Persons Persons -- At this point the old persons table has been renamed to Persons_PPS.
+											-- so we''re using reusing Persons for the UCP Personnel data.
 	using
 	(
-SELECT EMPLOYEE_ID, FIRST_NAME, MIDDLE_NAME, LAST_NAME, EMP_NAME, NAMESUFFIX, BIRTH_DATE,
-				UCD_MAILID, UCDLOGINID, HOME_DEPT, ALT_DEPT_CD, UCD_ADMIN_DEPT, SCHOOL_DIVISION,
-				PRIMARY_TITLE, PRIMARY_APPT_NUM, PRIMARY_DIST_NUM, JOB_GROUP_ID, HIRE_DATE, ORIG_HIRE_DATE,
-				EMP_STATUS, STUDENT_STATUS, EDU_LEVEL, EMP_REL_UNIT, EMPLMT_CREDIT, SUPERVISOR, LAST_CHG_DATE FROM OPENQUERY(PAY_PERS_EXTR, ''
-	SELECT EMPLOYEE_ID, FIRST_NAME, MIDDLE_NAME, LAST_NAME, EMP_NAME, NAMESUFFIX, BIRTH_DATE,
-				UCD_MAILID, UCDLOGINID, HOME_DEPT, ALT_DEPT_CD, UCD_ADMIN_DEPT, SCHOOL_DIVISION,
-				PRIMARY_TITLE, PRIMARY_APPT_NUM, PRIMARY_DIST_NUM, JOB_GROUP_ID, HIRE_DATE, ORIG_HIRE_DATE,
-				EMP_STATUS, STUDENT_STATUS, EDU_LEVEL, EMP_REL_UNIT, EMPLMT_CREDIT, SUPERVISOR, LAST_CHG_DATE
-	FROM EDBPER_V'
-	
+	SELECT
+	   [EmployeeID]
+      ,[FirstName]
+      ,[MiddleName]
+      ,[LastName]
+	  ,[FullName]
+      ,[Suffix]
+      ,[BirthDate]
+      ,[UCDMailID]
+      ,[UCDLoginID]
+      ,[HomeDepartment]
+      ,[AlternateDepartment]
+      ,[AdministrativeDepartment]
+      ,[SchoolDivision]
+      ,[PrimaryTitle]
+      ,[PrimaryApptNo]
+      ,[PrimaryDistNo]
+      ,[JobGroupID]
+      ,[HireDate]
+      ,[OriginalHireDate]
+      ,[EmployeeStatus]
+      ,[StudentStatus]
+      ,[EducationLevel]
+      ,[BarganingUnit]
+      ,[LeaveServiceCredit]
+      ,[Supervisor]
+      ,[LastChangeDate]
+      ,[IsInPPS]
+      ,[PPS_ID]
+      ,[UCP_EMPLID]
+      ,[HasUcpEmplId]
+ FROM [dbo].[UCP_PersonsV2]	
+ '
 	IF @GetUpdatesOnly = 1
 		SELECT @TSQL += '
-	WHERE (EDBPER_V.LAST_CHG_DATE >= TO_DATE(''''' + @FirstDate  + ''''' ,''''yyyy.mm.dd''''))
-'')
-WHERE (LAST_CHG_DATE IS NULL OR LAST_CHG_DATE >= ''' + Convert(varchar(30), @MaxDate, 101) + ''')
- --( Last_Update_Date is null OR Last_Update_Date >= ''' + convert(varchar(30), @MaxDate, 101) + ''')
+WHERE (LastChangeDate IS NULL OR LastChangeDate >= ''' + Convert(varchar(30), @MaxDate, 101) + ''')
  '
-	ELSE
-		SELECT @TSQL += ' '') '
 		
 SELECT @TSQL += '
-) PAYPERSEXTR on Persons.EmployeeID = PAYPERSEXTR.EMPLOYEE_ID
+) UcpPersons on Persons.EmployeeID = UcpPersons.EmployeeID
 
 	WHEN MATCHED THEN UPDATE set
-	[FirstName] = FIRST_NAME
-      ,[MiddleName] = MIDDLE_NAME
-      ,[LastName] = LAST_NAME
-      ,[FullName] = EMP_NAME
-      ,[Suffix] = NAMESUFFIX
-      ,[BirthDate] = BIRTH_DATE
-      ,[UCDMailID] = UCD_MAILID
-      ,[UCDLoginID] = PAYPERSEXTR.UCDLOGINID
-      ,[HomeDepartment] = HOME_DEPT
-      ,[AlternateDepartment] = ALT_DEPT_CD
-      ,[AdministrativeDepartment] = UCD_ADMIN_DEPT
-      ,[SchoolDivision] = SCHOOL_DIVISION
-      ,[PrimaryTitle] = PRIMARY_TITLE
-      ,[PrimaryApptNo] = PRIMARY_APPT_NUM
-      ,[PrimaryDistNo] = PRIMARY_DIST_NUM
-      ,[JobGroupID] = JOB_GROUP_ID
-      ,[HireDate] = HIRE_DATE
-      ,[OriginalHireDate] = ORIG_HIRE_DATE
-      ,[EmployeeStatus] = EMP_STATUS
-      ,[StudentStatus] = STUDENT_STATUS
-      ,[EducationLevel] = EDU_LEVEL
-      ,[BarganingUnit] = EMP_REL_UNIT
-      ,[LeaveServiceCredit] = EMPLMT_CREDIT
-      ,[Supervisor] = PAYPERSEXTR.SUPERVISOR
-      ,[LastChangeDate] = LAST_CHG_DATE
-      ,[IsInPPS] = 1
+	   [FirstName] = UcpPersons.FirstName
+      ,[MiddleName] = UcpPersons.MiddleName
+      ,[LastName] = UcpPersons.LastName
+      ,[FullName] = UcpPersons.FullName
+      ,[Suffix] = UcpPersons.Suffix
+      ,[BirthDate] = UcpPersons.BirthDate
+      ,[UCDMailID] = UcpPersons.UCDMailID
+      ,[UCDLoginID] = UcpPersons.UCDLoginID
+      ,[HomeDepartment] = UcpPersons.HomeDepartment
+      ,[AlternateDepartment] = UcpPersons.AlternateDepartment
+      ,[AdministrativeDepartment] = UcpPersons.AdministrativeDepartment
+      ,[SchoolDivision] = UcpPersons.SchoolDivision
+      ,[PrimaryTitle] = UcpPersons.PrimaryTitle
+      ,[PrimaryApptNo] = UcpPersons.PrimaryApptNo
+      ,[PrimaryDistNo] = UcpPersons.PrimaryDistNo
+      ,[JobGroupID] = UcpPersons.JobGroupID
+      ,[HireDate] = UcpPersons.HireDate
+      ,[OriginalHireDate] = UcpPersons.OriginalHireDate
+      ,[EmployeeStatus] = UcpPersons.EmployeeStatus
+      ,[StudentStatus] = UcpPersons.StudentStatus
+      ,[EducationLevel] = UcpPersons.EducationLevel
+      ,[BarganingUnit] = UcpPersons.BarganingUnit
+      ,[LeaveServiceCredit] = UcpPersons.LeaveServiceCredit
+      ,[Supervisor] = UcpPersons.Supervisor
+      ,[LastChangeDate] = UcpPersons.LastChangeDate
+      ,[IsInPPS] = UcpPersons.IsInPPS
+	  ,[UCP_EMPLID] = UcpPersons.[UCP_EMPLID]
+	  ,[HasUcpEmplId] = 1
       
     WHEN NOT MATCHED BY TARGET THEN INSERT VALUES 
       (
-      EMPLOYEE_ID, FIRST_NAME, MIDDLE_NAME, LAST_NAME, EMP_NAME, NAMESUFFIX, BIRTH_DATE,
-				UCD_MAILID, UCDLOGINID, HOME_DEPT, ALT_DEPT_CD, UCD_ADMIN_DEPT, SCHOOL_DIVISION,
-				PRIMARY_TITLE, PRIMARY_APPT_NUM, PRIMARY_DIST_NUM, JOB_GROUP_ID, HIRE_DATE, ORIG_HIRE_DATE,
-				EMP_STATUS, STUDENT_STATUS, EDU_LEVEL, EMP_REL_UNIT, EMPLMT_CREDIT, SUPERVISOR, LAST_CHG_DATE, 1
+      [EmployeeID]
+      ,[FirstName]
+      ,[MiddleName]
+      ,[LastName]
+	  ,[FullName]
+      ,[Suffix]
+      ,[BirthDate]
+      ,[UCDMailID]
+      ,[UCDLoginID]
+      ,[HomeDepartment]
+      ,[AlternateDepartment]
+      ,[AdministrativeDepartment]
+      ,[SchoolDivision]
+      ,[PrimaryTitle]
+      ,[PrimaryApptNo]
+      ,[PrimaryDistNo]
+      ,[JobGroupID]
+      ,[HireDate]
+      ,[OriginalHireDate]
+      ,[EmployeeStatus]
+      ,[StudentStatus]
+      ,[EducationLevel]
+      ,[BarganingUnit]
+      ,[LeaveServiceCredit]
+      ,[Supervisor]
+      ,[LastChangeDate]
+      ,[IsInPPS]
+      ,[PPS_ID]
+      ,[UCP_EMPLID]
+      ,[HasUcpEmplId]
       )
-	-- WHEN NOT MATCHED BY SOURCE THEN DELETE
+	WHEN NOT MATCHED BY SOURCE THEN 
+		UPDATE
+		SET IsInPPS = 0
 	;'
 	
 	-------------------------------------------------------------------------

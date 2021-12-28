@@ -1,11 +1,13 @@
-﻿CREATE VIEW [dbo].[ProcessCategoryAndStatusV]
+﻿
+CREATE VIEW [dbo].[ProcessCategoryAndStatusV]
 AS
-SELECT        TOP (100) PERCENT c.SequenceOrder AS CategoryOrder, ISNULL(s.SequenceOrder, 1) AS SequenceOrder, c.Name AS CategoryName, c.Notes AS CategoryNotes, 
+SELECT        TOP (1000)  c.SequenceOrder AS CategoryOrder, ISNULL(s.SequenceOrder, 1) AS SequenceOrder, c.Name AS CategoryName, c.Notes AS CategoryNotes, 
                          c.StoredProcedureName, c.IsCompleted AS IsCategoryCompleted, s.Name AS SequenceName, s.Notes AS SequenceNotes, s.IsCompleted AS IsSequenceCompleted, 
                          s.CompletePriorToCategory, ISNULL(s.NoProcessingRequired, CASE WHEN StoredProcedureName IS NULL THEN 1 ELSE 0 END) AS NoProcessingRequired, 
                          s.Hyperlink, c.Id AS CategoryId, s.Id AS SequenceId
 FROM            dbo.ProcessCategory AS c FULL OUTER JOIN
                          dbo.ProcessStatus AS s ON c.Id = s.CategoryId
+WHERE c.SequenceOrder IS NOT NULL 
 ORDER BY CategoryOrder, SequenceOrder
 
 GO

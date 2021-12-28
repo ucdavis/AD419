@@ -1,0 +1,113 @@
+﻿-- =============================================
+-- Author:		Ken Taylor
+-- Create date: August 10, 2017
+-- Description:	Merge the UCD Person table.  We use this for matching PI Names to Employee IDs and vice versa.
+-- Usage:
+/*
+
+USE [AD419]
+GO
+
+DECLARE	@return_value int
+
+EXEC	@return_value = [dbo].[usp_MergeUCD_Person]
+		@FiscalYear = 2016,
+		@IsDebug = 0
+
+--SELECT	'Return Value' = @return_value
+
+GO
+
+*/
+-- Modifications:
+--	2017-08-17 by kjt: Added LAST_UPDATE_DATE.
+-- =============================================
+CREATE PROCEDURE usp_MergeUCD_Person 
+	-- Add the parameters for the stored procedure here
+	@FiscalYear int = 2016, 
+	@IsDebug bit = 1
+AS
+BEGIN
+	-- SET NOCOUNT ON added to prevent extra result sets from
+	-- interfering with SELECT statements.
+	SET NOCOUNT ON;
+
+	DECLARE @Today datetime2 = GETDATE()
+	DECLARE @TSQL varchar(MAX) = ''
+
+	SELECT @TSQL = '
+	MERGE [dbo].[UCD_PERSON]
+	USING (
+	SELECT [DAFIS_ID]
+		  ,[UCDLOGIN_ID]
+		  ,[EMPLOYEE_ID]
+		  ,[PRIOR_EMPLOYEE_ID]
+		  ,[PERSON_NAME]
+		  ,[PERSON_LAST_NAME]
+		  ,[PERSON_FIRST_NAME]
+		  ,[PERSON_MIDDLE_NAME]
+		  ,[EMAIL_ID]
+		  ,[EMPLOYEE_STATUS_CODE]
+		  ,[EMPLOYEE_TYPE_CODE]
+		  ,[EMPLOYEE_CLIENT_TYPE_CODE]
+		  ,[EMPLOYEE_CLIENT_TYPE_DESC]
+	  FROM OPENQUERY(FIS_DS, ''
+	  SELECT 
+		   DAFIS_ID
+		  ,UCDLOGIN_ID
+		  ,EMPLOYEE_ID
+		  ,PRIOR_EMPLOYEE_ID
+		  ,PERSON_NAME
+		  ,PERSON_LAST_NAME
+		  ,PERSON_FIRST_NAME
+		  ,PERSON_MIDDLE_NAME
+		  ,EMAIL_ID
+		  ,EMPLOYEE_STATUS_CODE
+		  ,EMPLOYEE_TYPE_CODE
+		  ,EMPLOYEE_CLIENT_TYPE_CODE
+		  ,EMPLOYEE_CLIENT_TYPE_DESC
+	  FROM FINANCE.UCD_PERSON
+	  '')
+	  ) PERSON ON PERSON.[DAFIS_ID] = UCD_PERSON.DAFIS_ID AND 
+		UCD_PERSON.EMPLOYEE_ID = PERSON.EMPLOYEE_ID AND 
+		UCD_PERSON.PERSON_NAME = PERSON.PERSON_NAME
+	  WHEN MATCHED THEN UPDATE SET
+		   [UCDLOGIN_ID] = PERSON.[UCDLOGIN_ID]
+		  ,[PRIOR_EMPLOYEE_ID] = PERSON.[PRIOR_EMPLOYEE_ID]
+		  ,[PERSON_LAST_NAME] = PERSON.[PERSON_LAST_NAME]
+		  ,[PERSON_FIRST_NAME] = PERSON.[PERSON_FIRST_NAME]
+		  ,[PERSON_MIDDLE_NAME] = PERSON.[PERSON_MIDDLE_NAME]
+		  ,[EMAIL_ID] = PERSON.[EMAIL_ID]
+		  ,[EMPLOYEE_STATUS_CODE] = PERSON.[EMPLOYEE_STATUS_CODE]
+		  ,[EMPLOYEE_TYPE_CODE] = PERSON.[EMPLOYEE_TYPE_CODE]
+		  ,[EMPLOYEE_CLIENT_TYPE_CODE] = PERSON.[EMPLOYEE_CLIENT_TYPE_CODE]
+		  ,[EMPLOYEE_CLIENT_TYPE_DESC] = PERSON.[EMPLOYEE_CLIENT_TYPE_DESC]
+		  ,[LAST_UPDATE_DATE] = ''' + CONVERT(varchar(30), @Today) + ''' 
+
+	WHEN NOT MATCHED BY TARGET THEN INSERT VALUES 
+	(
+		   [DAFIS_ID]
+		  ,[UCDLOGIN_ID]
+		  ,[EMPLOYEE_ID]
+		  ,[PRIOR_EMPLOYEE_ID]
+		  ,[PERSON_NAME]
+		  ,[PERSON_LAST_NAME]
+		  ,[PERSON_FIRST_NAME]
+		  ,[PERSON_MIDDLE_NAME]
+		  ,[EMAIL_ID]
+		  ,[EMPLOYEE_STATUS_CODE]
+		  ,[EMPLOYEE_TYPE_CODE]
+		  ,[EMPLOYEE_CLIENT_TYPE_CODE]
+		  ,[EMPLOYEE_CLIENT_TYPE_DESC]
+		  ,''' + CONVERT(varchar(30), @Today) + '''
+	 )
+	 --	WHEN NOT MATCHED BY SOURCE THEN DELETE
+ ;
+'
+	PRINT @TSQL
+	IF @IsDebug <> 1
+	BEGIN
+		EXEC(@TSQL)
+	END
+ 
+END

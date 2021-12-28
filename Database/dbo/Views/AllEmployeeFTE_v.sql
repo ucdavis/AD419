@@ -1,50 +1,118 @@
-﻿CREATE VIEW dbo.AllEmployeeFTE_v
+﻿
+
+
+-- =============================================
+-- Author:		Ken Taylor
+-- Create date: August 26, 2019 
+-- Description:	Serve as the data source to load the AllEmployeeFTE table.
+--
+-- Prerequisites:
+--	AnotherLaborTransactions must have already been loaded.
+--
+-- Usage:
+/*\
+	USE AD419 
+	GO
+
+	SELECT * FROM [dbo].[AllEmployeeFTE_v]
+
+	GO
+
+*/
+-- Modifications:
+--	2020-10-19 by kjt: Revised to use UC Path tables.
+--	2020-10-27 by kjt: Revsied to include the ERN_PERCENT_EFFORT as this is what
+--		we'll be using to calculate FTE.
+--	2021-11-04 by kjt: Added ReportingYear to all AnotherLaborTransactions queries as table may contain
+--		multiple years resulting in query timeouts.
+--
+-- =============================================
+
+CREATE VIEW [dbo].[AllEmployeeFTE_v]
 AS
-SELECT        TOP (100) PERCENT ISNULL(t1.EmployeeName, P.FullName) AS EmployeeName, t1.EmployeeID, t1.PayPeriodEndDate, t1.TitleCd, t1.Chart, t1.Org, 
+SELECT   TOP (500000)         ISNULL(t1.EmployeeName, P.PERSON_NM) AS EmployeeName, t1.EmployeeID, t1.PayPeriodEndDate, t1.TitleCd, t1.Chart, t1.Org, 
                          t1.ExcludedByAccount, t1.Account, t1.ObjConsol, t1.FinanceDocTypeCd, t1.DosCd, t1.AnnualReportCode, t1.ExcludedByARC, t1.ExcludedByOrg, t1.Payrate, 
                          t1.Amount, t1.FTE, t1.RateTypeCd, COALESCE (A.ProjectNumber, PN.ProjectNumber) AS ProjectNumber, 
                          CASE WHEN t1.[ExcludedByARC] = 0 THEN t1.FTE ELSE 0 END AS InclFTE, ISNULL(st.AD419_Line_Num, '244') AS FTE_SFN, MAX(O.OrgR) AS OrgR
-FROM            (SELECT        EmployeeID, EmployeeName, PayPeriodEndDate, Chart, Account, Org, ObjConsol, FinanceDocTypeCd, DosCd, TitleCd, AnnualReportCode, RateTypeCd, 
-                                                    Payrate, SUM(Amount) AS Amount, ExcludedByOrg, ExcludedByARC, ExcludedByAccount, CASE WHEN [FinanceDocTypeCd] IN
-                                                        (SELECT        t1.DocumentType
-                                                          FROM            dbo.[FinanceDocTypesForFTECalc] t1) AND ObjConsol IN
-                                                        (SELECT        Obj_Consolidatn_Num
-                                                          FROM            dbo.[ConsolCodesForFTECalc]) AND DosCd IN
-                                                        (SELECT        DOS_Code
-                                                          FROM            dbo.DOSCodes) AND [PayRate] <> 0 THEN CASE WHEN [RateTypeCd] = 'H' THEN SUM(Amount) / ([PayRate] * 2088) 
-                                                    ELSE SUM(Amount) / [PayRate] / 12 END ELSE 0 END AS FTE
-                          FROM            dbo.AnotherLaborTransactions
-                          WHERE        (EmployeeID IN
-                                                        (SELECT DISTINCT EmployeeID
-                                                          FROM            (SELECT        EmployeeID, EmployeeName, CONVERT(DECIMAL(18, 4), CASE WHEN [FinanceDocTypeCd] IN
-                                                                                                                  (SELECT        DocumentType
-                                                                                                                    FROM            dbo.[FinanceDocTypesForFTECalc]) AND ObjConsol IN
-                                                                                                                  (SELECT        Obj_Consolidatn_Num
-                                                                                                                    FROM            dbo.[ConsolCodesForFTECalc]) AND DosCd IN
-                                                                                                                  (SELECT        DOS_Code
-                                                                                                                    FROM            dbo.DOSCodes) AND [PayRate] <> 0 THEN CASE WHEN [RateTypeCd] = 'H' THEN SUM(Amount) 
-                                                                                                              / ([PayRate] * 2088) ELSE SUM(Amount) / [PayRate] / 12 END ELSE 0 END) AS FTE
-                                                                                    FROM            dbo.AnotherLaborTransactions AS AnotherLaborTransactions_1
-                                                                                    WHERE        (ExcludedByOrg = 0) AND (ExcludedByARC = 0)
-                                                                                    GROUP BY EmployeeID, EmployeeName, FinanceDocTypeCd, ObjConsol, Payrate, RateTypeCd, DosCd) AS t1_1
-                                                          GROUP BY EmployeeID, EmployeeName
-                                                          HAVING         (dbo.AnotherLaborTransactions.ObjConsol IN
-                                                                                        (SELECT        Obj_Consolidatn_Num
-                                                                                          FROM            dbo.ConsolCodesForFTECalc)) AND (dbo.AnotherLaborTransactions.DosCd IN
-                                                                                        (SELECT        DOS_Code
-                                                                                          FROM            dbo.DOSCodes))))
+FROM (
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+	SELECT        EmployeeID, EmployeeName, PayPeriodEndDate, Chart, Account, Org, ObjConsol, FinanceDocTypeCd, DosCd, TitleCd, AnnualReportCode, RateTypeCd, 
+							Payrate, SUM(Amount) AS Amount, ExcludedByOrg, ExcludedByARC, ExcludedByAccount, 
+							CASE WHEN [FinanceDocTypeCd] IN (
+									SELECT        t1.DocumentType
+									FROM            dbo.[FinanceDocTypesForFTECalc] t1
+								) AND ObjConsol IN  (
+									SELECT        Obj_Consolidatn_Num
+									FROM            dbo.[ConsolCodesForFTECalc]
+								) AND DosCd IN (
+									SELECT        DOS_Code
+									FROM            dbo.DOSCodes
+								) AND SUM(HOURS) <> 0
+								THEN 
+								SUM([ERN_DERIVED_PERCENT])/12
+							ELSE 0 
+						END AS FTE
+	FROM            dbo.AnotherLaborTransactions
+	WHERE        (
+	
+	ReportingYear = (SELECT [dbo].[udf_GetFiscalYear] ()) AND
+	EmployeeID IN (
+						SELECT DISTINCT EmployeeID
+							FROM            (
+							---------------------------------------------
+								SELECT        EmployeeID, EmployeeName, CONVERT(DECIMAL(18, 4), 
+									CASE WHEN 
+										[FinanceDocTypeCd] IN (
+											SELECT        DocumentType
+											FROM          dbo.[FinanceDocTypesForFTECalc]
+										) AND 
+										ObjConsol IN (
+											SELECT        Obj_Consolidatn_Num
+											FROM            dbo.[ConsolCodesForFTECalc]
+										) AND DosCd IN (
+											SELECT        DOS_Code
+											FROM            dbo.DOSCodes
+										) AND SUM(Hours) <> 0 
+									THEN SUM([ERN_DERIVED_PERCENT])/12
+									ELSE 0 
+								END) AS FTE
+							FROM            dbo.AnotherLaborTransactions AS AnotherLaborTransactions_1
+							WHERE (ExcludedByOrg = 0) AND 
+									(ExcludedByARC = 0) AND
+								   (ReportingYear = (SELECT [dbo].[udf_GetFiscalYear] ()))
+							GROUP BY EmployeeID, EmployeeName, FinanceDocTypeCd, ObjConsol, Payrate, RateTypeCd, DosCd
+						---------------------------------------------
+					) AS t1_1
+							GROUP BY EmployeeID, EmployeeName
+							HAVING      (dbo.AnotherLaborTransactions.ObjConsol IN (
+												SELECT        Obj_Consolidatn_Num
+												FROM            dbo.ConsolCodesForFTECalc)
+											) AND 
+										(dbo.AnotherLaborTransactions.DosCd IN (
+											SELECT        DOS_Code
+											FROM            dbo.DOSCodes)
+										)  AND 
+										(dbo.AnotherLaborTransactions.ReportingYear = (
+											SELECT [dbo].[udf_GetFiscalYear] ()
+										)
+									)
+								)
+							)
                           GROUP BY PayPeriodEndDate, Chart, Account, Org, ObjConsol, FinanceDocTypeCd, DosCd, EmployeeID, EmployeeName, TitleCd, AnnualReportCode, 
-                                                    ExcludedByARC, ExcludedByOrg, ExcludedByAccount, Payrate, RateTypeCd) AS t1 LEFT OUTER JOIN
-                         [$(PPSDataMart)].dbo.Titles AS T ON t1.TitleCd = T.TitleCode LEFT OUTER JOIN
+                                                    ExcludedByARC, ExcludedByOrg, ExcludedByAccount, Payrate, RateTypeCd		
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+													
+					) AS t1 LEFT OUTER JOIN
+                         [PPSDataMart].dbo.Titles AS T ON t1.TitleCd = T.TitleCode LEFT OUTER JOIN
                          dbo.staff_type AS st ON T.StaffType = st.Staff_Type_Code LEFT OUTER JOIN
                          dbo.OrgR_Lookup AS O ON t1.Org = O.Org LEFT OUTER JOIN
                          dbo.AllAccountsFor204Projects AS A ON t1.Chart = A.Chart AND t1.Account = A.Account LEFT OUTER JOIN
-                         [$(PPSDataMart)].dbo.Persons AS P ON t1.EmployeeID = P.EmployeeID LEFT OUTER JOIN
+						 [PPSDataMart].[dbo].[RICE_UC_KRIM_PERSON_V] AS P ON t1.EmployeeID = P.Employee_ID LEFT OUTER JOIN
                          dbo.FFY_SFN_Entries AS PS ON t1.Chart = PS.Chart AND t1.Account = PS.Account LEFT OUTER JOIN
                          dbo.AllProjectsNew AS PN ON PS.AccessionNumber = PN.AccessionNumber
 GROUP BY t1.EmployeeName, t1.EmployeeID, t1.PayPeriodEndDate, t1.TitleCd, t1.Chart, t1.Org, t1.ExcludedByAccount, t1.Account, t1.ObjConsol, t1.FinanceDocTypeCd, 
-                         t1.DosCd, t1.AnnualReportCode, t1.ExcludedByARC, t1.ExcludedByOrg, t1.Payrate, t1.Amount, t1.FTE, t1.RateTypeCd, ISNULL(st.AD419_Line_Num, '244'), 
-                         A.ProjectNumber, PN.ProjectNumber, P.FullName, PS.AccessionNumber
+                         t1.DosCd, t1.AnnualReportCode, t1.ExcludedByARC, t1.ExcludedByOrg, t1.PayRate, t1.Amount, t1.FTE, t1.RateTypeCd, ISNULL(st.AD419_Line_Num, '244'), 
+                         A.ProjectNumber, PN.ProjectNumber, P.PERSON_NM, PS.AccessionNumber
 ORDER BY EmployeeName, t1.EmployeeID, t1.PayPeriodEndDate, t1.TitleCd, t1.Chart, t1.Org, t1.ExcludedByAccount, t1.Account, t1.ObjConsol, t1.FinanceDocTypeCd, t1.DosCd, 
                          t1.AnnualReportCode, t1.ExcludedByARC, t1.ExcludedByOrg, t1.Payrate, t1.RateTypeCd, FTE_SFN, ProjectNumber
 GO
@@ -90,6 +158,8 @@ EXECUTE sp_addextendedproperty @name = N'MS_DiagramPane2', @value = N'
    End
 End
 ', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'AllEmployeeFTE_v';
+
+
 
 
 GO
@@ -233,5 +303,8 @@ Begin DesignProperties =
             End
             DisplayFlags = 280
             TopColumn = 0
-         End', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'AllEmployeeFTE_v';
+         End
+', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'AllEmployeeFTE_v';
+
+
 

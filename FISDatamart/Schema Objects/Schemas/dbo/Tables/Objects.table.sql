@@ -22,8 +22,11 @@
     [ConsolidatnShortName]  CHAR (12)    NULL,
     [ConsolidatnActiveInd]  CHAR (1)     NULL,
     [LastUpdateDate]        DATETIME     NULL,
-    [ObjectPK]              VARCHAR (11) NULL
+    [ObjectPK]              VARCHAR (11) NULL,
+    CONSTRAINT [PK_Objects] PRIMARY KEY CLUSTERED ([Year] ASC, [Chart] ASC, [Object] ASC)
 );
+
+
 
 
 GO
@@ -124,4 +127,10 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'DS Last Upd
 
 GO
 EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Primary Key:Unique identifier used for performing FK joins on other tables with this one; composed of Year, Chart, and Object.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Objects', @level2type = N'COLUMN', @level2name = N'ObjectPK';
+
+
+GO
+CREATE NONCLUSTERED INDEX [Objects_YearActiveInd_ChartObjectConsolidationCode_CVINDX]
+    ON [dbo].[Objects]([Year] ASC, [ActiveInd] ASC)
+    INCLUDE([Chart], [Object], [ConsolidatnCode]);
 

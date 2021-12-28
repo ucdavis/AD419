@@ -8,8 +8,11 @@
     [EffectiveDate]       DATETIME      NULL,
     [ExpirationDate]      DATETIME      NULL,
     [Comments]            VARCHAR (120) NULL,
-    [LastUpdateDate]      DATETIME      NULL
+    [LastUpdateDate]      DATETIME      NULL,
+    CONSTRAINT [PK_BillingIDConversions_1] PRIMARY KEY CLUSTERED ([BillingID] ASC)
 );
+
+
 
 
 GO
@@ -21,11 +24,15 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Billing Id:
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Chart Of Accounts Number: Identifier of a Chart of Accounts to be used on a transaction in dafis', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'BillingIDConversions', @level2type = N'COLUMN', @level2name = N'Chart';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Chart Of Accounts Number: Identifier of a Chart of Accounts to be used on a transaction in dafis ', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'BillingIDConversions', @level2type = N'COLUMN', @level2name = N'Chart';
+
+
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Account Number: Organization chosen identifier for a transaction used to classify financial resources for accounting and reporting purposes in dafis', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'BillingIDConversions', @level2type = N'COLUMN', @level2name = N'Account';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Account Number: Organization chosen identifier for a transaction used to classify financial resources for accounting and reporting purposes in dafis ', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'BillingIDConversions', @level2type = N'COLUMN', @level2name = N'Account';
+
+
 
 
 GO

@@ -1,0 +1,2 @@
+﻿CREATE USER [CAESTerry] FOR LOGIN [CAESTerry];
+

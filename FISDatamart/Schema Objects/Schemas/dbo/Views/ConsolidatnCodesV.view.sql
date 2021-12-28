@@ -110,9 +110,16 @@ Begin DesignProperties =
          Or = 1350
       End
    End
-End', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'ConsolidatnCodesV';
+End
+', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'ConsolidatnCodesV';
+
+
 
 
 GO
 EXECUTE sp_addextendedproperty @name = N'MS_DiagramPaneCount', @value = 1, @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'ConsolidatnCodesV';
+
+
+GO
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Object Consolidation Codes (View): Calls udf_ConsolidationsCodesList in order to return a distinct list of object consolidation codes present in the objects table.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'VIEW', @level1name = N'ConsolidatnCodesV';
 

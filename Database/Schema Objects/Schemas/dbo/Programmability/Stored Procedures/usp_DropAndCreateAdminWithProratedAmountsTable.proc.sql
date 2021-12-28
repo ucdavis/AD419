@@ -1,4 +1,5 @@
-﻿-- =============================================
+﻿
+-- =============================================
 -- Author:		Ken Taylor
 -- Create date: 2011-12-23
 -- Description:	Builds the SQL to create a AD419 admin table with pro-rated amounts table, 
@@ -9,7 +10,7 @@
 -- 2015-01-15 by kjt: Uncommented statements relating to f223 as we were unable to 
 -- ascertain why this SFN was removed in the first place.
 -- =============================================
-CREATE PROCEDURE  [dbo].[usp_DropAndCreateAdminWithProratedAmountsTable] 
+CREATE PROCEDURE [dbo].[usp_DropAndCreateAdminWithProratedAmountsTable] 
 	-- Add the parameters for the stored procedure here
 	@OutputTableName varchar(255) = 'NonAdminWithProratedAmountsTemp', -- Output table name
 	@NonAdminTableName varchar(255) = 'NonAdminTable', -- Input table name
@@ -34,7 +35,7 @@ Declare @CreateTableSQL varchar(MAX) = 'CREATE TABLE [dbo].[' + @OutputTableName
 				proj char(4),
 				project varchar(24),
 				accession char(7),
-				PI varchar(30),
+				PI varchar(50),
 				f201 decimal(16,2) DEFAULT 0,
 				f202 decimal(16,2) DEFAULT 0,
 				f203 decimal(16,2) DEFAULT 0,

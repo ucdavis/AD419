@@ -1,4 +1,5 @@
-﻿-- =============================================
+﻿
+-- =============================================
 -- Author:		Ken Taylor
 -- Create date: September 16, 2016
 -- Description:	Returns a list of any transactions that have non-zero expenses 
@@ -22,6 +23,10 @@
 --	20160919 by kjt: Added inner join to trans doc types statement that excludes Obj Consol Codes not
 --		used in FTE calculations to limit the number of rows returned.
 --	20161109 by kjt: Corrected issue: The select list for the INSERT statement contains more items than the insert list.
+--	2021-07-21 by kjt: Removed logic which performed UNION on AllAccountsFor204Projects as AnotherLaborTransactions
+--		now contains all labor transactions for UC Davis Chart L and 3, as opposed to just transactions within
+--		our college and ARCs, plus added filter to exclude 'XXX' DosCd.
+--
 -- =============================================
 CREATE FUNCTION [dbo].[udf_GetTransactionsForUnknownCodes] 
 (
@@ -107,37 +112,6 @@ BEGIN
 		) t2 ON t1.ObjConsol =t2.ObjConsol
 		WHERE ExcludedByOrg = 0 AND ExcludedByARC = 0
 
-		UNION
-
-		-- Add any non-expired, UC Davis 204 accounts
-		SELECT t1.[Chart]
-		  ,t1.[Account]
-		  ,[SubAccount]
-		  ,t1.[Org]
-		  ,t1.[ObjConsol]
-		  ,[FinanceDocTypeCd]
-		  ,[DosCd]
-		  ,[EmployeeID]
-		  ,[EmployeeName]
-		  ,[TitleCd]
-		  ,[RateTypeCd]
-		  ,[Payrate]
-		  ,[Amount]
-		  ,[PayPeriodEndDate]
-		  ,[FringeBenefitSalaryCd]
-		  ,t1.[AnnualReportCode]
-		  ,t1.[ExcludedByARC]
-		  ,t1.[ExcludedByOrg]
-		  ,t1.[ExcludedByAccount]
-		  ,[ExcludedByObjConsol] FROM [AnotherLaborTransactions]  t1
-		INNER JOIN (
-		select distinct ObjConsol from [AnotherLaborTransactions] 
-		EXCEPT 
-		select  distinct Obj_Consolidatn_Num from ConsolidationCodes 
-		) t2 ON t1.ObjConsol =t2.ObjConsol
-		INNER JOIN AllAccountsFor204Projects t3 ON t1.Chart = t3.Chart AND
-			t1.Account = t3.Account AND t3.ExcludedByAccount = 0 AND t3.IsUCD = 1 AND
-			t3.IsExpired = 0
 	END
 
 	IF @Option IN (0, 2)
@@ -184,7 +158,8 @@ BEGIN
 		  ,[ExcludedByARC]
 		  ,[ExcludedByOrg]
 		  ,[ExcludedByAccount]
-		  ,[ExcludedByObjConsol] FROM (
+		  ,[ExcludedByObjConsol] 
+	FROM (
 		select [Chart]
 		  ,[Account]
 		  ,[SubAccount]
@@ -212,38 +187,9 @@ BEGIN
 		) t2 ON t1.FinanceDocTypeCd = t2.FinanceDocTypeCd
 		WHERE ExcludedByOrg = 0 AND ExcludedByARC = 0
 
-		UNION
-
-		-- Add any non-expired, UC Davis 204 accounts
-		SELECT t1.[Chart]
-		  ,t1.[Account]
-		  ,[SubAccount]
-		  ,t1.[Org]
-		  ,[ObjConsol]
-		  ,t1.[FinanceDocTypeCd]
-		  ,[DosCd]
-		  ,[EmployeeID]
-		  ,[EmployeeName]
-		  ,[TitleCd]
-		  ,[RateTypeCd]
-		  ,[Payrate]
-		  ,[Amount]
-		  ,[PayPeriodEndDate]
-		  ,[FringeBenefitSalaryCd]
-		  ,t1.[AnnualReportCode]
-		  ,t1.[ExcludedByARC]
-		  ,t1.[ExcludedByOrg]
-		  ,t1.[ExcludedByAccount]
-		  ,[ExcludedByObjConsol] FROM [AnotherLaborTransactions]  t1
-		INNER JOIN (
-			select distinct FinanceDocTypeCd from [AnotherLaborTransactions] 
-			EXCEPT 
-			select  distinct DocumentType from TransDocTypes 
-		) t2 ON t1.FinanceDocTypeCd = t2.FinanceDocTypeCd
-		INNER JOIN AllAccountsFor204Projects t3 ON t1.Chart = t3.Chart AND
-			t1.Account = t3.Account AND t3.ExcludedByAccount = 0 AND t3.IsUCD = 1 AND
-			t3.IsExpired = 0) t1
-	INNER JOIN ConsolCodesForFTECalc t2 ON t1.ObjConsol = t2.Obj_Consolidatn_Num --Exclude any that are not used in labor calculations.
+	) t1
+	INNER JOIN ConsolCodesForFTECalc t2 ON 
+		t1.ObjConsol = t2.Obj_Consolidatn_Num --Exclude any that are not used in labor calculations.
 
 	END
 
@@ -292,47 +238,16 @@ BEGIN
 		  ,[ExcludedByARC]
 		  ,[ExcludedByOrg]
 		  ,[ExcludedByAccount]
-		  ,[ExcludedByObjConsol] from [AnotherLaborTransactions]  t1
-		INNER JOIN ConsolCodesForFTECalc t2 ON t1.ObjConsol = t2.Obj_Consolidatn_Num  -- Only include transactions we use for labor calculations.
+		  ,[ExcludedByObjConsol] 
+		from [AnotherLaborTransactions]  t1
+		INNER JOIN ConsolCodesForFTECalc t2 ON 
+			t1.ObjConsol = t2.Obj_Consolidatn_Num  -- Only include transactions we use for labor calculations.
 		INNER JOIN (
 			select distinct DosCd from [AnotherLaborTransactions] 
 			EXCEPT 
 			select  distinct DOS_Code DosCd from DOS_Codes 
 		) t3 ON t1.DosCd = t3.DosCd
-		WHERE ExcludedByOrg = 0 AND ExcludedByARC = 0
-
-		UNION
-
-		-- Add any non-expired, UC Davis 204 accounts
-		select  t1.[Chart]
-		  ,t1.[Account]
-		  ,[SubAccount]
-		  ,t1.[Org]
-		  ,[ObjConsol]
-		  ,[FinanceDocTypeCd]
-		  ,[DosCd]
-		  ,[EmployeeID]
-		  ,[EmployeeName]
-		  ,[TitleCd]
-		  ,[RateTypeCd]
-		  ,[Payrate]
-		  ,[Amount]
-		  ,[PayPeriodEndDate]
-		  ,[FringeBenefitSalaryCd]
-		  ,t1.[AnnualReportCode]
-		  ,t1.[ExcludedByARC]
-		  ,t1.[ExcludedByOrg]
-		  ,t1.[ExcludedByAccount]
-		  ,[ExcludedByObjConsol] from [AnotherLaborTransactions]  t1
-		INNER JOIN ConsolCodesForFTECalc t2 ON t1.ObjConsol = t2.Obj_Consolidatn_Num
-		INNER JOIN AllAccountsFor204Projects t3 ON t1.Chart = t3.Chart AND
-			t1.Account = t3.Account AND t3.ExcludedByAccount = 0 AND t3.IsUCD = 1 AND
-			t3.IsExpired = 0
-		where DosCd IN (
-			select distinct DosCd from [AnotherLaborTransactions] 
-			EXCEPT 
-			select  distinct DOS_Code DosCd from DOS_Codes 
-		)
+		WHERE ExcludedByOrg = 0 AND ExcludedByARC = 0 AND t1.DosCd NOT LIKE 'XXX'
 	END
 		
 	RETURN 

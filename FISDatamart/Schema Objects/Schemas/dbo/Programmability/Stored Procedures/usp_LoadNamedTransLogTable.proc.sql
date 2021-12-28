@@ -1,4 +1,5 @@
-﻿-- =============================================
+﻿
+-- =============================================
 -- Author:		Ken Taylor
 -- Create date: 2011-01-06
 -- Description:	Load the TransLog table 
@@ -14,7 +15,9 @@
 -- Modifications:
 --	2011-03-04 by kjt:
 --		Added logic to pass a destination table name; otherwise defaults to TransLog.
---
+--	2011-06-15 by kjt:
+--		Added logic to populate new FringeBenefit fields required by Steve Pesis.
+-- 
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_LoadNamedTransLogTable] 
 	@FirstDateString varchar(16) = null,
@@ -62,7 +65,7 @@ BEGIN
 	CLOSE MyCursor
 	DEALLOCATE MyCursor
 	
-	IF @IsDebug = 1 PRINT '@NumFiscalYearsToDownload: ' + Convert(varchar(20), @NumFiscalYearsToDownload) 
+	IF @IsDebug = 1 PRINT '--@NumFiscalYearsToDownload: ' + Convert(varchar(20), @NumFiscalYearsToDownload) 
 -------------------------------------------------------------------------------------	
 	/*
 		IF @IsDebug = 1 
@@ -149,6 +152,9 @@ INSERT INTO ' + @TableName + '
       ,[AccountAwardAmount]
       ,[AccountAwardEndDate]
       ,[HigherEdFunctionCode]
+      ,[FringeBenefitIndicator]
+	  ,[FringeBenefitChart]
+	  ,[FringeBenefitAccount]
       ,[AccountFunctionCode]
       ,[OPAccount]
       ,[OPFund]
@@ -241,6 +247,9 @@ INSERT INTO ' + @TableName + '
       ,[AccountAwardAmount]
       ,[AccountAwardEndDate]
       ,[HigherEdFunctionCode]
+      ,[FringeBenefitIndicator]
+	  ,[FringeBenefitChart]
+	  ,[FringeBenefitAccount]
       ,[AccountFunctionCode]
       ,[OPAccount]
       ,[OPFund]

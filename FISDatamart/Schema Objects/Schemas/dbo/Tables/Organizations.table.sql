@@ -49,8 +49,11 @@
     [Name12]          VARCHAR (40)  NULL,
     [ActiveIndicator] CHAR (1)      NULL,
     [OrganizationPK]  VARCHAR (14)  NULL,
-    [LastUpdateDate]  SMALLDATETIME NULL
+    [LastUpdateDate]  SMALLDATETIME NULL,
+    CONSTRAINT [PK_Organizations] PRIMARY KEY CLUSTERED ([Year] ASC, [Period] ASC, [Org] ASC, [Chart] ASC)
 );
+
+
 
 
 GO
@@ -74,7 +77,9 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Chart Of Ac
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Organization Hierarchy Level: Shows the level of the Organization within the user defined "Reports To" hierarchy.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Organizations', @level2type = N'COLUMN', @level2name = N'Level';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Organization Hierarchy Level: Shows the level of the Organization within the user defined "Reports To" hierarchy. ', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Organizations', @level2type = N'COLUMN', @level2name = N'Level';
+
+
 
 
 GO
@@ -118,7 +123,10 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Organizatio
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Chart Of Accounts Number For Level 2 Organization: Identifier of a Chart of Accounts', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Organizations', @level2type = N'COLUMN', @level2name = N'Chart2';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'
+Chart Of Accounts Number For Level 2 Organization: Identifier of a Chart of Accounts', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Organizations', @level2type = N'COLUMN', @level2name = N'Chart2';
+
+
 
 
 GO
@@ -130,11 +138,17 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Organizatio
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Chart Of Accounts Number For Level 3 Organization: Identifier of a Chart of Accounts', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Organizations', @level2type = N'COLUMN', @level2name = N'Chart3';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'
+Chart Of Accounts Number For Level 3 Organization: Identifier of a Chart of Accounts', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Organizations', @level2type = N'COLUMN', @level2name = N'Chart3';
+
+
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Organization Identifier For Level 3 Organization: Identifier of an Organization', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Organizations', @level2type = N'COLUMN', @level2name = N'Org3';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'
+Organization Identifier For Level 3 Organization: Identifier of an Organization', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Organizations', @level2type = N'COLUMN', @level2name = N'Org3';
+
+
 
 
 GO
@@ -142,11 +156,17 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Organizatio
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Chart Of Accounts Number For Level 4 Organization: Identifier of a Chart of Accounts', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Organizations', @level2type = N'COLUMN', @level2name = N'Chart4';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'
+Chart Of Accounts Number For Level 4 Organization: Identifier of a Chart of Accounts', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Organizations', @level2type = N'COLUMN', @level2name = N'Chart4';
+
+
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Organization Identifier For Level 4 Organization: Identifier of an Organization', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Organizations', @level2type = N'COLUMN', @level2name = N'Org4';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'
+Organization Identifier For Level 4 Organization: Identifier of an Organization', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'Organizations', @level2type = N'COLUMN', @level2name = N'Org4';
+
+
 
 
 GO

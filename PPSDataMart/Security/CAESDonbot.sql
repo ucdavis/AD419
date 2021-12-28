@@ -1,0 +1,2 @@
+﻿CREATE USER [CAESDonbot] FOR LOGIN [CAESDonbot];
+

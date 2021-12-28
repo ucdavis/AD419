@@ -1,10 +1,25 @@
-﻿-- =============================================
+﻿
+-- =============================================
 -- Author:		Ken Taylor
 -- Create date: April 12, 2011
 -- Description:	Wrapper to use for which trans log load 
 -- sproc to call depending if a table is partitioned of not.
 -- This replaces the former usp_LaodTransLog sproc, which has
 -- been renamed to usp_LoadTransLogNonPartitioned.
+-- Usage:
+/*
+
+USE [FISDataMart]
+GO
+
+EXEC [dbo].[usp_LoadTransLog]
+	@FirstDateString = '2018-10-01',
+	@LastDateString = '2021-06-30',
+	@GetUpdatesOnly = 0,
+	@IsDebug = 1
+
+
+*/
 -- Modifications:
 -- 20110414 by kjt:
 --	Modified to call renamed usp_LoadTransLogNonPartitioned which is now usp_LoadNamedTransLogTable,

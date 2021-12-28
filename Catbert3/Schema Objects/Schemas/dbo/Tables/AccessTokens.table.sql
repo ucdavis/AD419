@@ -7,3 +7,10 @@
     [Active]        BIT           NOT NULL
 );
 
+
+
+
+GO
+CREATE UNIQUE CLUSTERED INDEX [ClusteredIndex-20161103-115611]
+    ON [dbo].[AccessTokens]([Token] ASC, [ApplicationID] ASC);
+

@@ -4,9 +4,11 @@
     [Agency/Office]     NVARCHAR (2048) NULL,
     [TypesOfAssistance] NVARCHAR (4000) NULL,
     [DateModified]      DATETIME        NULL,
-    [DatePublished]     DATETIME        NULL,
+    [DatePublished]     DATE            NULL,
     [Agency]            VARCHAR (1024)  NULL,
     [Office]            VARCHAR (1024)  NULL,
     [Code]              VARCHAR (50)    NULL
 );
+
+
 

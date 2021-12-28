@@ -6,6 +6,7 @@
     [AnnualReportCode]      CHAR (6)        NULL,
     [OpFundNum]             VARCHAR (6)     NULL,
     [ConsolidationCode]     CHAR (4)        NULL,
+    [ObjectCode]            VARCHAR (4)     NULL,
     [TransDocType]          CHAR (4)        NULL,
     [OrgR]                  VARCHAR (4)     NULL,
     [Org]                   CHAR (4)        NOT NULL,
@@ -13,4 +14,6 @@
     [IsExpired]             BIT             NULL,
     [IsUCD]                 BIT             NULL
 );
+
+
 

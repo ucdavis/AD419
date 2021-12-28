@@ -2,11 +2,20 @@
 -- Author:		Name
 -- Create date: Ken Taylor
 -- Description:	Return a list of Indirect FFY expenses via ARC code.
--- Usage: SELECT * FROM udf_GetIndirectFFYExpensesByARC(2015)
+--
+-- Usage: 
+/*
+
+SELECT * FROM udf_GetIndirectFFYExpensesByARC(2015)
+
+*/
+-- Modifications: 
+--	20171003 by kjt: Added "SUB9" to the object exclusion list as per discussion with Shannon Tanguay 2017-10-02.
+--
 -- =============================================
-CREATE FUNCTION udf_GetIndirectFFYExpensesByARC 
+CREATE FUNCTION [dbo].[udf_GetIndirectFFYExpensesByARC] 
 (
-	@FiscalYear int
+	@FiscalYear int = 2016
 )
 RETURNS 
 @DirectFFYExpenses TABLE 
@@ -32,6 +41,7 @@ where
 	 (e.FiscalYear = @FiscalYear + 1 AND e.FiscalPeriod BETWEEN '01' AND '03'))
 	AND TransBalanceType IN ('AC')
 	AND ConsolidationCode  LIKE 'INDR'
+	AND ConsolidationCode NOT IN ('INC0', 'BLSH', 'SB74', 'SUB9') 
 	and Account NOT IN (
 		SELECT DISTINCT Chart+'-'+Account 
 		FROM AD419.dbo.ArcCodeAccountExclusions

@@ -15,6 +15,13 @@
     [OpFund_AwardNum]          VARCHAR (50) NULL,
     [ExpirationDate]           DATETIME     NULL,
     [AwardEndDate]             DATETIME     NULL,
-    [IsAccountInFinancialData] BIT          NULL
+    [IsAccountInFinancialData] BIT          NULL,
+    [SubFundGroupNum]          VARCHAR (6)  NULL,
+    [SubFundGroupTypeCode]     VARCHAR (2)  NULL,
+    [IsNIH]                    BIT          NULL,
+    [IsFederalFund]            BIT          NULL,
+    [isNIFA]                   BIT          NULL
 );
+
+
 

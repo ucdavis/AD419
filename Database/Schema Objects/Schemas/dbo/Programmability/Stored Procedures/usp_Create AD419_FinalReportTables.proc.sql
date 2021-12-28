@@ -35,6 +35,7 @@ MODIFICATIONS:
 2012-01-05 by kjt: Revised to allow revised prorating scheme to handle cluster expenses.
 2014-12-17 by kjt: Removed database specific database references so it sp can be run against
 	another AD419 database, i.e. AD419_2014, etc.
+2017-08-09 by kjt: Revised the populating of @OrgRExclusions to use new sproc udf_GetOrgRExclusions().
 */
 -------------------------------------------------------------------------
 CREATE PROCEDURE [dbo].[usp_Create AD419_FinalReportTables]
@@ -115,17 +116,17 @@ ELSE
 	BEGIN -- ELSE @ReportType != 0
 		-- First we need to check to see that all non-excluded expenses have
 		-- been associated
-		DECLARE @OrgRExclusions  TABLE (OrgR char(4))
-		INSERT INTO @OrgRExclusions VALUES ('ADNO');
-		-- This will get any additional admin clusters like ACL1-ACL5:
-		INSERT INTO @OrgRExclusions SELECT [AdminClusterOrgR] FROM [dbo].[ReportingOrg] WHERE [IsAdminCluster] = 1 AND [IsActive] = 1;
+		DECLARE @OrgRExclusions TABLE (OrgR char(4))
+		-- This will get ADNO, plus any additional admin clusters like ACL1-ACL5:
+		INSERT INTO @OrgRExclusions 
+		SELECT OrgR FROM [dbo].[udf_GetOrgRExclusions]();
 
 		DECLARE @Unassociated_Non_CAES_Expenses TABLE (OrgR varchar(4), Spent float, FTE float)
 
 		INSERT INTO @Unassociated_Non_CAES_Expenses
 		SELECT  OrgR, SUM(Expenses) AS Spent, SUM(FTE) AS FTE
 				FROM         Expenses
-				WHERE     (isAssociated = 0) AND --( OrgR NOT IN (@OrgRExclusions) )
+				WHERE     (isAssociated = 0) AND 
 					( OrgR NOT IN (SELECT * FROM @OrgRExclusions) )
 				GROUP BY OrgR
 				ORDER BY OrgR

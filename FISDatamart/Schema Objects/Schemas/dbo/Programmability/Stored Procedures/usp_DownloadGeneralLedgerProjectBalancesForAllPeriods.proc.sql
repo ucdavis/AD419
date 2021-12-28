@@ -1,8 +1,12 @@
 ﻿/*
 Modifications:
-
+20110613 by kjt: Revised to use Organization accounts where appropriate because 
+	GeneralLedgerProjectBalancesForAllPeriods table fields were coming back null and the
+	load process was failing for account ALTHAY1.
+2015-10-08 by kjt: Modifications to take into account removing DANR as level 4 ORG for chart L, and moving
+		AANS up to level 4 org position.  AAES is now at Level 4 for both Chart 'L' and Chart '3' as of FY 2016.
 */
-CREATE Procedure [dbo].[usp_DownloadGeneralLedgerProjectBalancesForAllPeriods]
+CREATE PROCEDURE [dbo].[usp_DownloadGeneralLedgerProjectBalancesForAllPeriods]
 (
 	@FirstDateString varchar(16) = null,
 		--earliest date to download (FINANCE.GL_PROJECT_BAL_ALL_PERIOD.DS_LAST_UPDATE_DATE) 
@@ -145,11 +149,11 @@ SELECT
 	,LAST_UPDATE_DATE
 FROM OPENQUERY (FIS_DS, 
 			''SELECT 	
-	 GL_ProjectBalAllPeriod.FISCAL_YEAR
-	,GL_ProjectBalAllPeriod.CHART_NUM	
-	,GL_ProjectBalAllPeriod.ORG_ID	
-	,GL_ProjectBalAllPeriod.ACCT_TYPE_CODE	
-	,GL_ProjectBalAllPeriod.ACCT_NUM	
+	 OA.FISCAL_YEAR
+	,OA.CHART_NUM	
+	,OA.ORG_ID	
+	,OA.ACCT_TYPE_CODE	
+	,OA.ACCT_NUM	
 	,GL_ProjectBalAllPeriod.SUB_ACCT_NUM
 	,GL_ProjectBalAllPeriod.OBJ_CONSOLIDATN_NUM			
 	,GL_ProjectBalAllPeriod.OBJECT_NUM	
@@ -158,7 +162,7 @@ FROM OPENQUERY (FIS_DS,
 	,GL_ProjectBalAllPeriod.BALANCE_TYPE_CODE
 	,GL_ProjectBalAllPeriod.BALANCE_TYPE_NAME
 	,GL_ProjectBalAllPeriod.OBJECT_TYPE_CODE
-	,GL_ProjectBalAllPeriod.SUB_FUND_GROUP_TYPE_CODE
+	,OA.SUB_FUND_GROUP_TYPE_CODE
 	,GL_ProjectBalAllPeriod.BALANCE_CREATE_DATE
 	,GL_ProjectBalAllPeriod.YTD_ACTUAL_AMT	
 	,GL_ProjectBalAllPeriod.FISCAL_YEAR_BEGIN_BAL	
@@ -195,7 +199,7 @@ FROM OPENQUERY (FIS_DS,
 						OR
 						(Orgs.CHART_NUM_LEVEL_2 = ''''L'''' and Orgs.ORG_ID_LEVEL_2 = ''''AAES'''')
 						OR 
-						(Orgs.CHART_NUM_LEVEL_4 = ''''3'''' AND Orgs.ORG_ID_LEVEL_4 = ''''AAES'''')
+						(Orgs.CHART_NUM_LEVEL_4 IN (''''3'''', ''''L'''') AND Orgs.ORG_ID_LEVEL_4 = ''''AAES'''')
 						OR
 						(Orgs.ORG_ID_LEVEL_4 = ''''BIOS'''')
 						OR

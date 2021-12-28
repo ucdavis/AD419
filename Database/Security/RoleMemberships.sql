@@ -21,3 +21,25 @@ EXECUTE sp_addsrvrolemember @loginame = N'NT AUTHORITY\SYSTEM', @rolename = N'sy
 
 
 GO
+ALTER ROLE [db_owner] ADD MEMBER [ProdAppAD419];
+
+
+GO
+ALTER ROLE [db_datareader] ADD MEMBER [ProdReportsAD419];
+
+
+GO
+ALTER ROLE [db_datareader] ADD MEMBER [OU\CAES-GLURMO-ProdApp];
+
+
+GO
+ALTER ROLE [db_owner] ADD MEMBER [ProdAppAD419];
+
+
+GO
+ALTER ROLE [db_datareader] ADD MEMBER [ProdReportsAD419];
+
+
+GO
+ALTER ROLE [db_datareader] ADD MEMBER [OU\CAES-GLURMO-ProdApp];
+

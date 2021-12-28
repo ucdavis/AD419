@@ -1,4 +1,17 @@
-﻿/*
+﻿
+
+/*
+Usage:
+	
+	USE [FISDataMart]
+	GO
+
+	EXEC [dbo].[usp_DownloadAccounts]
+	@FirstDateString = '2019-10-01',
+		@GetUpdatesOnly = 0,
+		@IsDebug = 1
+
+
 Modifications:
 	20110128 by kjt:
 		Analyzed the org level and chart mapping and found that it need to be revised
@@ -17,8 +30,13 @@ Modifications:
 	2011-08-19 by kjt:
 		Added 4 new fields relating to Account Manager Id, Account Reviewer Id, Principal Investigator Id, plus
 		Account Reviewer Name as per Scott K. required for the new Purchasing app.
+	2015-10-08 by kjt: Modifications to take into account removing DANR as level 4 ORG for chart L, and moving
+		AANS up to level 4 org position.  AAES is now at Level 4 for both Chart 'L' and Chart '3' as of FY 2016. 
+	2018-04-23 by kjt: Added FftCode (Federal Flow-Through code) to be abel to use with Animal Health queries.
+	2021-05-03 by kjt: Expanded filtering to also included VETM Orgs as they are required for Animal Health reports.
+	2921-05-05 by kjt: Removed some spaces, line feeds, and commented out logic so that all of the text was present in debug mode. 
 */
-CREATE Procedure [dbo].[usp_DownloadAccounts]
+CREATE PROCEDURE [dbo].[usp_DownloadAccounts]
 (
 	@FirstDateString varchar(16) = null,
 		--earliest date to download (FINANCE.ORGANIZATION_ACCOUNT.DS_LAST_UPDATE_DATE) 
@@ -93,17 +111,17 @@ SELECT @WhereClause += '
 								(CHART_NUM_LEVEL_1=''''3'''' AND ORG_ID_LEVEL_1 = ''''AAES'''')
 								OR
 								(CHART_NUM_LEVEL_2=''''L'''' AND ORG_ID_LEVEL_2 = ''''AAES'''')
-								
 								OR
 								(ORG_ID_LEVEL_1 = ''''BIOS'''')
-								
 								OR 
-								(CHART_NUM_LEVEL_4 = ''''3'''' AND ORG_ID_LEVEL_4 = ''''AAES'''')
+								(CHART_NUM_LEVEL_4 IN (''''3'''', ''''L'''') AND ORG_ID_LEVEL_4 = ''''AAES'''')
 								OR
 								(CHART_NUM_LEVEL_5 = ''''L'''' AND ORG_ID_LEVEL_5 = ''''AAES'''')
-								
 								OR
-								(ORG_ID_LEVEL_4 = ''''BIOS'''')
+								(ORG_ID_LEVEL_4 = ''''BIOS'''')	
+							-- 2021-05-03 by kjt: Added VETM orgs for Animal Health Reports. 
+								OR 
+								(CHART_NUM_LEVEL_4 IN (''''3'''', ''''L'''') AND ORG_ID_LEVEL_4 = ''''VETM'''')
 							)
 							AND
 							(
@@ -118,7 +136,6 @@ SELECT @WhereClause += '
 								END + '	
 							)
 						)
-						--OR A.ACCT_NUM in (''''EVOR094'''',''''MBOR039'''',''''MIOR017'''',''''NPOR035'''',''''PBOR023'''',''''BSOR001'''',''''BSFACOR'''',''''BSRESCH'''',''''CNSOR05'''',''''EVOR093'''',''''PBHB024'''',''''PBHBSAL'''')
 				)'
 
 -- Add the LastUpdateDate portion if appropriate: 
@@ -162,11 +179,9 @@ using
 	Award_Type_Code,Award_Year_Num,Award_Begin_Date, Award_End_Date, Award_Amount,
 	ICR_Type_Code,ICR_Series_Num,Higher_Ed_Func_Code,Acct_Reports_To_Chart_Num,
 	Acct_Reports_To_Acct_Num,A11_Acct_Num,A11_Fund_Num,OP_Fund_Num,
-	OP_Fund_Group_Code, Academic_Discipline_Code,Annual_Report_Code,
-	Payment_Medium_Code,NIH_Doc_Num, 
+	OP_Fund_Group_Code, Academic_Discipline_Code,Annual_Report_Code, Payment_Medium_Code,NIH_Doc_Num, 
 	fringe_benefit_ind,fringe_benefit_chart_num,fringe_benefit_acct_num,
-	null as Ye_Type,Account_PK,Org_FK, null as FunctionCodeID,
-	OPFund_FK, Is_CAES
+	null as Ye_Type,Account_PK,Org_FK, null as FunctionCodeID,OPFund_FK, Is_CAES, FFT_Code
 	
 	 FROM
 		OPENQUERY (FIS_DS,
@@ -226,7 +241,8 @@ using
 			CASE 
 					 WHEN (ORG_ID_LEVEL_2 = ''''ACBS'''' OR ORG_ID_LEVEL_5 = ''''ACBS'''') THEN 2
 				     WHEN (ORG_ID_LEVEL_1 = ''''BIOS'''' OR ORG_ID_LEVEL_4 = ''''BIOS'''') THEN 0
-				     ELSE 1 END AS Is_CAES
+				     ELSE 1 END AS Is_CAES,
+			A.FFT_Code
 		FROM
 			FINANCE.ORGANIZATION_ACCOUNT A 
 			INNER JOIN FINANCE.ORGANIZATION_HIERARCHY O ON 
@@ -289,16 +305,15 @@ WHEN MATCHED THEN UPDATE set
       ,[OrgFK] = Org_FK
       ,[OPFundFK] = OPFund_FK
       ,[IsCAES] = Is_CAES
+	  ,[FftCode] = FFT_Code
       
  WHEN NOT MATCHED BY TARGET THEN INSERT VALUES 
  (
 	Fiscal_Year, Fiscal_Period, Chart_Num,Account_Num,
 	Org_ID,Account_Name,SubFund_Group_Num,Sub_Fund_Group_Type_Code,
 	Fund_Group_Code,Acct_Effective_Date,Acct_Create_Date,Acct_Expiration_Date,
-	Acct_Last_Update_Date,
-	Acct_Mgr_Id,
-	Acct_Mgr_Name,Acct_Reviewer_Id, Acct_Reviewer_Name, Principal_Investigator_Id,
-	Principal_Investigator_Name,
+	Acct_Last_Update_Date, Acct_Mgr_Id, Acct_Mgr_Name,Acct_Reviewer_Id, 
+	Acct_Reviewer_Name, Principal_Investigator_Id,Principal_Investigator_Name,
 	Acct_Type_Code,Acct_Purpose_Text,Control_Chart_Num,Control_Acct_Num,Sponsor_Code,
 	Sponsor_Category_Code,Federal_Agency_Code,CFDA_Num,Award_Num,
 	Award_Type_Code,Award_Year_Num,Award_Begin_Date, Award_End_Date, Award_Amount,
@@ -307,7 +322,7 @@ WHEN MATCHED THEN UPDATE set
 	OP_Fund_Group_Code, Academic_Discipline_Code,Annual_Report_Code,
 	Payment_Medium_Code,NIH_Doc_Num, 
 	fringe_benefit_ind,fringe_benefit_chart_num,fringe_benefit_acct_num,
-	Ye_Type,Account_PK,Org_FK, null, OPFund_FK, Is_CAES
+	Ye_Type,Account_PK,Org_FK, FunctionCodeID, OPFund_FK, Is_CAES, FFT_Code
 )
 
 --WHEN NOT MATCHED BY SOURCE THEN DELETE

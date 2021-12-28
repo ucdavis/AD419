@@ -1,9 +1,12 @@
-﻿-- =============================================
+﻿
+-- =============================================
 -- Author:		Scott Kirkland
 -- Create date: 11/15/06
 -- Description:	
 -- Modifications:
 -- 2012-03-08 by kjt: Revised Employee branch to handle staff type.
+-- 2020-12-02 by kjt: Added several other Criterion for NULL conditions.
+--
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_getExpensesByRecordGrouping] 
 	-- Add the parameters for the stored procedure here
@@ -20,10 +23,11 @@ BEGIN
 	SET NOCOUNT ON;
 
 DECLARE @CriterionNull bit
-IF @Criterion = '----'
-	SET @CriterionNull = 1
-ELSE IF @Criterion = ''
-	SET @CriterionNull = 1
+IF @Criterion = '----' OR 
+	@Criterion = '' OR 
+	@Criterion = ' ' OR
+	@Criterion IS NULL
+		SET @CriterionNull = 1
 ELSE
 	SET @CriterionNull = 0
 
@@ -56,7 +60,7 @@ SET @txtSQL =
 		WHEN 'Sub-Account' THEN
 			CASE @CriterionNull
 				WHEN 1 THEN
-					' AND ( E.SubAcct IS NULL )'
+					' AND ( E.SubAcct IS NULL OR E.SubAcct = '' '')'
 				WHEN 0 THEN
 					' AND ( E.SubAcct = ''' +@Criterion + ''')'
 			END

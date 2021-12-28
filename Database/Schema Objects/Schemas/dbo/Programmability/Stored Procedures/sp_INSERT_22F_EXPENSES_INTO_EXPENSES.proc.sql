@@ -1,4 +1,5 @@
-﻿-- =============================================
+﻿
+-- =============================================
 -- Author:		Ken Taylor
 -- Create date: December 21, 2009
 -- Description:	Automate inserting of the 22F expenses
@@ -14,7 +15,7 @@
 	USE AD419
 	GO
 
-	DECLARE @return_value int, @FiscalYear int = 2015, @IsDebug bit = 0 
+	DECLARE @return_value int, @FiscalYear int = 2018, @IsDebug bit = 0 
 	EXEC	@return_value = [dbo].[sp_INSERT_22F_EXPENSES_INTO_EXPENSES]
 			@FiscalYear = @FiscalYear,
 			@IsDebug = @IsDebug
@@ -24,6 +25,7 @@
 
 */
 -- Modifications:
+--[2018-11-09] by kjt: Added header above select statement so we would know what we're looking at.
 --[12/17/2010] by kjt: Revised to use AllExpenses, table (formerly Expenses) instead of new Expenses view.
 --
 --[2011-11-23] by kjt: Revised to use square brackets around PI's name so that punctuation could
@@ -124,7 +126,10 @@ while @RowCount <= @MaxRows
 			
 		Select @RowCount = @RowCount + 1
 	end
-	
+
+	-- Sanity check to make sure all records got inserted:
+
+	select ''This list should be blank; any expenses listed below did not get associations as wanted:''
 	select * from @Import where Accession not in (
 		select accession from Associations where ExpenseID in (
 			select ExpenseID from Expenses where DataSource = ''22F''))

@@ -43,7 +43,7 @@ BEGIN
 		BEGIN
 			SELECT @TSQL = ''
 
-			SELECT @TSQL = 'EXEC usp_RebuildAllTableIndexes @TableName = ' +@tblName + ', @MaxFragmentationPermitted = ' + CONVERT(varchar(3), @MaxFragmentationPermitted) + ', @IsDebug = ' + CONVERT(char(1), @IsDebug)
+			SELECT @TSQL = 'EXEC usp_RebuildAllTableIndexes @TableName = [' +@tblName + '], @MaxFragmentationPermitted = ' + CONVERT(varchar(3), @MaxFragmentationPermitted) + ', @IsDebug = ' + CONVERT(char(1), @IsDebug)
 
 			IF @IsDebug = 1
 				PRINT @TSQL

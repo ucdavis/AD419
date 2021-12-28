@@ -1,8 +1,11 @@
 ﻿CREATE TABLE [dbo].[HigherEducationFunctionCodes] (
     [HigherEducationFunctionCode] VARCHAR (4)  NOT NULL,
     [HigherEducationFunctionName] VARCHAR (40) NULL,
-    [LastUpdateDate]              DATETIME     NULL
+    [LastUpdateDate]              DATETIME     NULL,
+    CONSTRAINT [PK_HigherEducationFunctionCode] PRIMARY KEY CLUSTERED ([HigherEducationFunctionCode] ASC)
 );
+
+
 
 
 GO
@@ -14,7 +17,9 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Higher Educ
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Higher Education Function Name: The descriptive name of the Higher Education Function Code', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'HigherEducationFunctionCodes', @level2type = N'COLUMN', @level2name = N'HigherEducationFunctionName';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'Higher Education Function Name: The descriptive name of the Higher Education Function Code ', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'HigherEducationFunctionCodes', @level2type = N'COLUMN', @level2name = N'HigherEducationFunctionName';
+
+
 
 
 GO

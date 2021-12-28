@@ -8,7 +8,7 @@
  USAGE:
 
 
-	EXEC usp_Repopulate_OrgXOrgR @FiscalYear = 2016, @IsDebug = 1
+	EXEC usp_Repopulate_OrgXOrgR @FiscalYear = 2017, @IsDebug = 1
 
 
 	-- *Note that the @FiscalYear parameter is now just a place holder so that it matches the same signature as the
@@ -30,6 +30,7 @@ Table OrgXOrgR exists to resolve Org + Chart combos into AD419 reporting org (Or
 		table for joins with expenses.
 	2016-08-08 by kjt: Reworked to use the new [dbo].[UFYOrganizationsOrgR_v] view, plus only get orgs that were active during the appropriate report period.
 	2016-09-29 by kjt: Removed date filter as these Orgs all are for year 9999.
+	2017-10-13 by kjt: Added FiscalYear column so we could keep track of when it was last loaded.
  CALLED BY:
  CALLED BY:
  DEPENDENCIES: 
@@ -60,11 +61,11 @@ AS
 
 	SELECT @TSQL = '
 	INSERT INTO AllOrgXOrgR
-		(Chart, Org, OrgR)
+		(Chart, Org, OrgR, FiscalYear)
 	SELECT DISTINCT 
-		t1.Chart, t1.Org, OrgR
+		t1.Chart, t1.Org, OrgR, ' + CONVERT(varchar(4), @FiscalYear) + ' AS FiscalYear  
 	FROM 
-		[dbo].[UFYOrganizationsOrgR_v]  AS t1
+		[dbo].[UFYOrganizationsOrgR_v] AS t1
 	ORDER BY 
 		t1.Chart, OrgR, t1.Org
 '

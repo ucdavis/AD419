@@ -11,15 +11,15 @@
 --
 /*
 	EXEC usp_AutoAssociate241Employees
-		@FiscalYear = 2015, @IsDebug = 0
+		@FiscalYear = 2016, @IsDebug = 0
 */
 --
 -- Modifications:
---	20160914 by kjt
+--	20160914 by kjt: Removed check for UnmatchedPiNames and revised to call usp_InsertAssociationsFor241Expenses.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_AutoAssociate241Employees] 
 	-- Add the parameters for the stored procedure here
-	@FiscalYear int = 2015, 
+	@FiscalYear int = 2016, 
 	@IsDebug bit = 0
 AS
 BEGIN
@@ -62,9 +62,9 @@ BEGIN
 		SELECT COUNT(*) FROM ProjXOrgR
 	)
 
-	SELECT @UnmatchedPiNames = (
-		 SELECT count(*) from PI_MATCH WHERE PI_MATCH IS NULL AND (IsProrated = 0 OR IsProrated IS NULL)
-	)
+	--SELECT @UnmatchedPiNames = (
+	--	 SELECT count(*) from PI_MATCH WHERE PI_MATCH IS NULL AND (IsProrated = 0 OR IsProrated IS NULL)
+	--)
 
 	DECLARE @ErrorMessage varchar(200) = ''
 	IF @FISCount = 0 OR @PPSCount = 0 OR @204Count = 0 OR @20xCount = 0
@@ -77,8 +77,8 @@ BEGIN
 		SELECT @ErrorMessage = 'Projects must be imported before continuing.'
 	ELSE IF @ProjectXOrgRCount = 0
 		SELECT @ErrorMessage = 'usp_ClassifyAccounts_LoadTablesAndAttemptToMatch must be executed before continuing.'
-	ELSE IF @UnmatchedPiNames > 0
-		SELECT @ErrorMessage = 'You must match PI Names or set unmatched name''s "IsProrated" to true before continuing.'
+	--ELSE IF @UnmatchedPiNames > 0
+	--	SELECT @ErrorMessage = 'You must match PI Names or set unmatched name''s "IsProrated" to true before continuing.'
 	
 	IF @ErrorMessage IS NOT NULL AND @ErrorMessage NOT LIKE ''
 	BEGIN
@@ -97,7 +97,7 @@ BEGIN
 	-- Auto-Associate 241 Employees:
 	DECLARE	@return_value int
 
-	EXEC @return_value = [dbo].[usp_InsertAssociationsFor241Employees] @IsDebug = ' + CONVERT(varchar(1), @IsDebug) + '
+	EXEC @return_value = [dbo].[usp_InsertAssociationsFor241Expenses] @IsDebug = ' + CONVERT(varchar(1), @IsDebug) + '
 			
 	SELECT	''Return Value'' = @return_value
 '

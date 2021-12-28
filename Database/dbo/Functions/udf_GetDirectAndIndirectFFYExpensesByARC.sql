@@ -5,16 +5,18 @@
 --
 -- Usage: 
 /*
-	SELECT * FROM udf_GetDirectAndIndirectFFYExpensesByARC(2015)
+	SELECT * FROM udf_GetDirectAndIndirectFFYExpensesByARC(2016)
 */
 --
 -- Modifications:
 --	20160818 by kjt: Fixed issue using Account, i.e., 
 --		Chart+'-'+Account, Vs. AccountNum, i.e. 7-character account number only.
+--	20171002 by kjt: Added "SUB9" to the object exclusion list as per discussion with Shannon Tanguay 2017-10-02.
+--
 -- =============================================
 CREATE FUNCTION [dbo].[udf_GetDirectAndIndirectFFYExpensesByARC] 
 (
-	@FiscalYear int
+	@FiscalYear int = 2016
 )
 RETURNS 
 @DirectAndIndirectFFYExpenses TABLE 
@@ -43,7 +45,7 @@ where
 	((e.FiscalYear = @FiscalYear AND e.FiscalPeriod BETWEEN '04' AND '13') OR 
 	 (e.FiscalYear = @FiscalYear + 1 AND e.FiscalPeriod BETWEEN '01' AND '03'))
 	AND TransBalanceType IN ('AC')
-	AND ConsolidationCode NOT IN ('INC0', 'BLSH', 'SB74') AND ConsolidationCode NOT LIKE 'INDR' AND  TransBalanceType = 'AC' 
+	AND ConsolidationCode NOT IN ('INC0', 'BLSH', 'SB74', 'SUB9') AND ConsolidationCode NOT LIKE 'INDR' AND  TransBalanceType = 'AC' 
 	and Account NOT IN (
 		SELECT DISTINCT Chart+'-'+Account 
 		FROM AD419.dbo.ArcCodeAccountExclusions
@@ -70,7 +72,7 @@ where
 	((e.FiscalYear = @FiscalYear AND e.FiscalPeriod BETWEEN '04' AND '13') OR 
 	 (e.FiscalYear = @FiscalYear + 1 AND e.FiscalPeriod BETWEEN '01' AND '03'))
 	AND TransBalanceType IN ('AC')
-	AND ConsolidationCode  LIKE 'INDR' AND ConsolidationCode NOT IN ('INC0', 'BLSH', 'SB74') 
+	AND ConsolidationCode  LIKE 'INDR' AND ConsolidationCode NOT IN ('INC0', 'BLSH', 'SB74', 'SUB9') 
 	and Account NOT IN (
 		SELECT DISTINCT Chart+'-'+Account 
 		FROM AD419.dbo.ArcCodeAccountExclusions

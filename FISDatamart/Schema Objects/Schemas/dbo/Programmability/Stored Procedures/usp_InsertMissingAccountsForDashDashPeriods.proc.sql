@@ -11,6 +11,8 @@
 --  2011-08-23 by kjt:
 --		Added MgrId, ReviewerId, ReviewerName, and PrincipalInvestigatorName as
 --		per Scott Kirkland (required for new Purchasing application).
+--	2018-04-24 by kjt: 
+--		Added FftCode to be used in identifying federal flow-through accounts.
 -- =============================================
 CREATE PROCEDURE [dbo].[usp_InsertMissingAccountsForDashDashPeriods] 
 	-- Add the parameters for the stored procedure here
@@ -82,6 +84,7 @@ BEGIN
       ,[FunctionCodeID]
       ,CONVERT(char(4), A.Year) + ''|'' + ''--'' + ''|'' + RTRIM(A.Chart)  + ''|'' + A.OpFundNum AS [OPFundFK]
       ,[IsCAES]
+	  ,[FftCode]
 	FROM Accounts A
 	INNER JOIN
 	(

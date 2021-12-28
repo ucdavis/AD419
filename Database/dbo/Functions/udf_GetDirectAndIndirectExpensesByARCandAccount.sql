@@ -14,7 +14,7 @@
 -- This function is also used to populate the FFY_Expenses_ByARC table:
 	TRUNCATE TABLE FFY_ExpensesByARC
 	INSERT INTO FFY_ExpensesByARC
-	SELECT * FROM dbo.udf_GetDirectAndIndirectExpensesByARCandAccount(2015, 0)
+	SELECT * FROM dbo.udf_GetDirectAndIndirectExpensesByARCandAccount(2016, 0)
 */
 -- Modifications:
 -- 20160808 by kjt: Added exclusion of expenses with a higher ed function code of PROV.
@@ -24,10 +24,12 @@
 -- 20160921 by kjt: Revised to allow passing of parameter for SFY so same procedure can be used
 -- for both FFY and SFY Expenses by ARC.
 -- 20161115 by kjt: Added SFN as per Shannon.
+-- 20171003 by kjt: Added "SUB9" to the object exclusion list as per discussion with Shannon Tanguay 2017-10-02.
+-- 20171011 by kjt: Moved SFN and OPFund setting logic to usp_UpdateNewAccountSFN.
 -- =============================================
 CREATE FUNCTION [dbo].[udf_GetDirectAndIndirectExpensesByARCandAccount] 
 (
-	@FiscalYear int,
+	@FiscalYear int = 2016,
 	@UseStateFiscalYear bit = 0 --FFY (default)
 )
 RETURNS 
@@ -84,7 +86,7 @@ BEGIN
 			((e.FiscalYear = @FiscalYear AND e.FiscalPeriod BETWEEN '04' AND '13') OR 
 				 (e.FiscalYear = @FiscalYear + 1 AND e.FiscalPeriod BETWEEN '01' AND '03'))
 			AND TransBalanceType IN ('AC')
-			AND ConsolidationCode NOT IN ('INC0', 'BLSH', 'SB74') AND ConsolidationCode NOT LIKE 'INDR' AND  TransBalanceType = 'AC' 
+			AND ConsolidationCode NOT IN ('INC0', 'BLSH', 'SB74', 'SUB9') AND ConsolidationCode NOT LIKE 'INDR' AND  TransBalanceType = 'AC' 
 			AND e.HigherEdFunctionCode not like 'PROV'
 			and e.Chart+AccountNum NOT IN (
 				SELECT DISTINCT Chart+Account 
@@ -119,7 +121,7 @@ BEGIN
 		where 
 			e.FiscalYear = @FiscalYear
 			AND TransBalanceType IN ('AC')
-			AND ConsolidationCode NOT IN ('INC0', 'BLSH', 'SB74') AND ConsolidationCode NOT LIKE 'INDR' AND  TransBalanceType = 'AC' 
+			AND ConsolidationCode NOT IN ('INC0', 'BLSH', 'SB74', 'SUB9') AND ConsolidationCode NOT LIKE 'INDR' AND  TransBalanceType = 'AC' 
 			AND e.HigherEdFunctionCode not like 'PROV'
 			and e.Chart+AccountNum NOT IN (
 				SELECT DISTINCT Chart+Account 
@@ -169,7 +171,7 @@ BEGIN
 			((e.FiscalYear = @FiscalYear AND e.FiscalPeriod BETWEEN '04' AND '13') OR 
 			 (e.FiscalYear = @FiscalYear + 1 AND e.FiscalPeriod BETWEEN '01' AND '03'))
 			AND TransBalanceType IN ('AC')
-			AND ConsolidationCode  LIKE 'INDR' AND ConsolidationCode NOT IN ('INC0', 'BLSH', 'SB74') 
+			AND ConsolidationCode  LIKE 'INDR' AND ConsolidationCode NOT IN ('INC0', 'BLSH', 'SB74', 'SUB9') 
 			AND e.HigherEdFunctionCode not like 'PROV'
 			and e.Chart+AccountNum NOT IN (
 				SELECT DISTINCT Chart+Account 
@@ -201,7 +203,7 @@ BEGIN
 		where 
 			e.FiscalYear = @FiscalYear
 			AND TransBalanceType IN ('AC')
-			AND ConsolidationCode  LIKE 'INDR' AND ConsolidationCode NOT IN ('INC0', 'BLSH', 'SB74') 
+			AND ConsolidationCode  LIKE 'INDR' AND ConsolidationCode NOT IN ('INC0', 'BLSH', 'SB74', 'SUB9') 
 			AND e.HigherEdFunctionCode not like 'PROV'
 			and e.Chart+AccountNum NOT IN (
 				SELECT DISTINCT Chart+Account 
@@ -256,16 +258,19 @@ BEGIN
 	UPDATE @DirectAndIndirectExpenses 
 	SET Total = DirectTotal + IndirectTotal
 
+	-- 20171011 by kjt: This can''t happen here because the NewAccountSFN table doesn't 
+	-- get loaded until a later step, so it will have to be added elsewhere.
+
 	-- Logic for populating the SFN:
-	UPDATE @DirectAndIndirectExpenses
-	SET SFN = t2.SFN, 
-	OpFundNum = t2.OpFundNum
-	FROM @DirectAndIndirectExpenses t1
-	INNER JOIN 
-	( 
-		SELECT DISTINCT Chart, Account, SFN, OpFundNum
-		FROM NewAccountSFN 
-	) t2 ON t1.Chart = t2.Chart AND t1.Account = t2.Account
+	--UPDATE @DirectAndIndirectExpenses
+	--SET SFN = t2.SFN, 
+	--OpFundNum = t2.OpFundNum
+	--FROM @DirectAndIndirectExpenses t1
+	--INNER JOIN 
+	--( 
+	--	SELECT DISTINCT Chart, Account, SFN, OpFundNum
+	--	FROM NewAccountSFN 
+	--) t2 ON t1.Chart = t2.Chart AND t1.Account = t2.Account
 	
 	RETURN 
 END

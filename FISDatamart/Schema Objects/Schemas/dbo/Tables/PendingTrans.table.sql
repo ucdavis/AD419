@@ -9,11 +9,11 @@
     [SubAccount]        CHAR (5)        NULL,
     [ObjectTypeCode]    CHAR (2)        NULL,
     [Object]            CHAR (4)        NULL,
-    [SubObject]         CHAR (3)        NULL,
+    [SubObject]         VARCHAR (5)     NULL,
     [BalType]           CHAR (2)        NULL,
     [DocType]           CHAR (4)        NULL,
     [DocOrigin]         CHAR (2)        NULL,
-    [DocNum]            CHAR (9)        NULL,
+    [DocNum]            VARCHAR (14)    NULL,
     [DocTrackNum]       CHAR (10)       NULL,
     [InitrID]           CHAR (8)        NULL,
     [InitDate]          SMALLDATETIME   NULL,
@@ -24,19 +24,21 @@
     [OrgRefNum]         CHAR (8)        NULL,
     [PriorDocTypeNum]   CHAR (4)        NULL,
     [PriorDocOriginCd]  CHAR (2)        NULL,
-    [PriorDocNum]       CHAR (9)        NULL,
+    [PriorDocNum]       VARCHAR (14)    NULL,
     [EncumUpdtCd]       CHAR (1)        NULL,
     [PostDate]          SMALLDATETIME   NULL,
     [ReversalDate]      SMALLDATETIME   NULL,
     [SrcTblCd]          CHAR (1)        NULL,
-    [OrganizationFK]    VARCHAR (14)    NULL,
-    [AccountsFK]        VARCHAR (17)    NULL,
-    [ObjectsFK]         VARCHAR (11)    NULL,
+    [OrganizationFK]    VARCHAR (15)    NULL,
+    [AccountsFK]        VARCHAR (18)    NULL,
+    [ObjectsFK]         VARCHAR (12)    NULL,
     [SubObjectFK]       VARCHAR (28)    NULL,
-    [SubAccountFK]      VARCHAR (23)    NULL,
+    [SubAccountFK]      VARCHAR (24)    NULL,
     [ProjectFK]         VARCHAR (21)    NULL,
     [IsCAES]            TINYINT         NULL
 );
+
+
 
 
 GO
@@ -100,7 +102,9 @@ EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'DaFIS Docum
 
 
 GO
-EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'DaFIS Document Number: System (either TP or service unit feeder) assigned unique FIS document number.', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'PendingTrans', @level2type = N'COLUMN', @level2name = N'DocNum';
+EXECUTE sp_addextendedproperty @name = N'MS_Description', @value = N'DaFIS Document Number: System (either TP or service unit feeder) assigned unique FIS document number. ', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = N'PendingTrans', @level2type = N'COLUMN', @level2name = N'DocNum';
+
+
 
 
 GO
