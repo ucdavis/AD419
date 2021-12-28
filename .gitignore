@@ -30,3 +30,4 @@ _ReSharper*/
 Commencement.SQL/Commencement.SQL.dbmdl
 *.dbmdl
 *.docstates
+.vs/AD419Solution12/v15/Server/sqlite3/db.lock
