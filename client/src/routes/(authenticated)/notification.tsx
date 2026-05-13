@@ -21,9 +21,9 @@ type NotificationResponse = {
 };
 
 type TableNotificationRow = {
-  title: string;
-  details: string;
   amount: number;
+  details: string;
+  title: string;
 };
 
 type TableNotificationRequest = {
@@ -66,7 +66,7 @@ function NotificationRoute() {
       header: 'Email notification is ready',
       message:
         'This notification shows how server.core can render a Razor template, convert MJML into responsive HTML, and send the final message through SMTP.',
-      subject: 'Notification from your template app',
+      subject: 'Notification from AD419',
       to: '',
     },
     onSubmit: async ({ value }) => {
@@ -117,8 +117,7 @@ function NotificationRoute() {
           <p className="mx-auto max-w-3xl text-xl text-base-content/70">
             This page exercises the reusable email notification system that
             lives in <code>server.core</code>. The page keeps the request path
-            easy to trace while showing where to add real templates and
-            service-level notification logic in a new app.
+            easy to trace while AD419-specific notification logic is defined.
           </p>
         </header>
 
@@ -178,7 +177,7 @@ function NotificationRoute() {
               <div className="card bg-base-200 shadow-sm">
                 <div className="card-body">
                   <h3 className="card-title text-lg">
-                    Starter files to inspect
+                    Notification files to inspect
                   </h3>
                   <div className="space-y-3 text-sm text-base-content/70">
                     <p>
@@ -206,7 +205,7 @@ function NotificationRoute() {
 
               <div className="alert alert-info">
                 <span>
-                  This template expects local SMTP testing to flow through
+                  AD419 expects local SMTP testing to flow through
                   Mailtrap. Leave the recipient blank to send to your signed-in
                   account, or enter another test inbox address.
                 </span>
@@ -370,29 +369,29 @@ function NotificationRoute() {
 function buildTableExampleRequest(): TableNotificationRequest {
   const rows: TableNotificationRow[] = [
     {
-      title: 'Discovery workshop',
-      details: 'Stakeholder interviews and scope alignment',
       amount: 125,
+      details: 'Stakeholder interviews and scope alignment',
+      title: 'Discovery workshop',
     },
     {
-      title: 'UI design',
-      details: 'Wireframes, review, and component specs',
       amount: 240,
+      details: 'Wireframes, review, and component specs',
+      title: 'UI design',
     },
     {
-      title: 'Frontend build',
-      details: 'Route wiring and shared component integration',
       amount: 180,
+      details: 'Route wiring and shared component integration',
+      title: 'Frontend build',
     },
     {
-      title: 'Backend API',
-      details: 'Notification endpoint and MJML template data',
       amount: 95,
+      details: 'Notification endpoint and MJML template data',
+      title: 'Backend API',
     },
     {
-      title: 'QA pass',
-      details: 'Template verification and regression checks',
       amount: 310,
+      details: 'Template verification and regression checks',
+      title: 'QA pass',
     },
   ];
 

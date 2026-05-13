@@ -19,7 +19,7 @@ public class RazorMjmlNotificationRendererTests
                 [$"{SmtpOptions.SectionName}:Username"] = "smtp-user",
                 [$"{SmtpOptions.SectionName}:Password"] = "smtp-password",
                 [$"{SmtpOptions.SectionName}:FromEmail"] = "no-reply@example.test",
-                [$"{SmtpOptions.SectionName}:FromName"] = "Template App",
+                [$"{SmtpOptions.SectionName}:FromName"] = "AD419",
             })
             .Build();
 
@@ -33,7 +33,7 @@ public class RazorMjmlNotificationRendererTests
 
         var html = await renderer.RenderAsync("/Views/Emails/DefaultNotification_mjml.cshtml", new DefaultNotificationTemplateModel
         {
-            AppName = "Template App",
+            AppName = "AD419",
             Header = "Render Test",
             Paragraphs =
             [
@@ -41,7 +41,7 @@ public class RazorMjmlNotificationRendererTests
             ],
         });
 
-        html.Should().Contain("Template App");
+        html.Should().Contain("AD419");
         html.Should().Contain("Render Test");
         html.Should().Contain("This is a rendered email body.");
         html.Should().NotContain("<mjml");
@@ -59,7 +59,7 @@ public class RazorMjmlNotificationRendererTests
                 [$"{SmtpOptions.SectionName}:Username"] = "smtp-user",
                 [$"{SmtpOptions.SectionName}:Password"] = "smtp-password",
                 [$"{SmtpOptions.SectionName}:FromEmail"] = "no-reply@example.test",
-                [$"{SmtpOptions.SectionName}:FromName"] = "Template App",
+                [$"{SmtpOptions.SectionName}:FromName"] = "AD419",
             })
             .Build();
 
@@ -73,7 +73,7 @@ public class RazorMjmlNotificationRendererTests
 
         var html = await renderer.RenderAsync("/Views/Emails/TableNotification_mjml.cshtml", new TableNotificationTemplateModel
         {
-            AppName = "Template App",
+            AppName = "AD419",
             Header = "Statement",
             LayoutWidth = "640px",
             Message = "A dynamic table is rendered below.",

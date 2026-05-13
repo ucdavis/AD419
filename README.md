@@ -1,6 +1,6 @@
-# Web App Template
+# AD419
 
-A full-stack web application template featuring a .NET 10 backend with React/Vite frontend, using OIDC authentication with Microsoft Entra ID.
+AD419 is a full-stack web application built with a .NET 10 backend and a React/Vite frontend. The product description is still being defined.
 
 ## Architecture
 
@@ -13,11 +13,10 @@ A full-stack web application template featuring a .NET 10 backend with React/Vit
 
 ## Quick Start
 
-1. **Clone the repository**
+1. **Clone or open the repository**
 
    ```bash
-   git clone https://github.com/ucdavis/web-app-template/
-   cd web-app-template
+   cd AD419
    ```
 
 2. **Open In DevContainer**
@@ -29,14 +28,19 @@ _Using the DevContainer is optional, but it will get you the right version of do
 
 3. **Start the application**
 
-   **Prerequisites outside DevContainer**:
-   - Install the .NET 10 SDK.
-   - For Visual Studio on Windows, use Visual Studio 2026 version 18.0 or later for `net10.0` support.
+   **Inside DevContainer**: The application starts automatically via `postStartCommand` — no manual steps required.
 
-   **Inside DevContainer**: The application starts automatically via `postStartCommand`
-   
-   **Outside DevContainer**:
+   **Outside DevContainer (command line)**:
+
+   Prerequisites:
+   - [.NET 10 SDK](https://dotnet.microsoft.com/download)
+   - [Node.js 22+](https://nodejs.org/) (includes npm)
+   - Docker (for the local SQL Server container)
+
+   Install dependencies and start the app:
    ```bash
+   npm install
+   cd client && npm install && cd ..
    npm run db:up
    npm start
    ```
@@ -44,18 +48,37 @@ _Using the DevContainer is optional, but it will get you the right version of do
    `npm run db:up` starts the SQL Server container from the same Compose file used by the DevContainer. `npm start` starts the .NET backend on port `5165` with a CLI-specific launch profile, waits for health check, and then starts the Vite dev server on port `5173` which opens the browser.
 
    **Visual Studio (Windows)**:
-   - Open `app.sln`.
-   - Set the `server` project as the startup project.
-   - Press `F5`.
-   - `SpaProxy` starts Vite if needed and redirects the browser to the frontend dev server.
+
+   Prerequisites:
+   - Visual Studio 2026 version 18.0 or later (for `net10.0` support)
+   - [Node.js 22+](https://nodejs.org/) (includes npm)
+   - Docker (for the local SQL Server container)
+
+   Install dependencies and start the database:
+   ```bash
+   npm install
+   cd client && npm install && cd ..
+   npm run db:up
+   ```
+
+   Then open `app.sln`, set the `server` project as the startup project, and press `F5`. `SpaProxy` starts Vite if needed and redirects the browser to the frontend dev server.
 
    **Visual Studio Code**:
-   - Install the recommended extensions when prompted, or at minimum the Microsoft C# extension.
-   - Open the repo root in VS Code.
-   - In **Run and Debug**, choose `Full Stack: VS Code` and press `F5`.
-   - VS Code builds and launches the backend with the `http-cli` launch profile, starts Vite after the backend health check passes, and opens the app in your default external browser at `http://localhost:5173`.
-   - For backend-only debugging, choose `Backend: ASP.NET Core + Swagger`.
 
+   Prerequisites:
+   - [.NET 10 SDK](https://dotnet.microsoft.com/download)
+   - [Node.js 22+](https://nodejs.org/) (includes npm)
+   - Docker (for the local SQL Server container)
+
+   Install dependencies and start the database:
+   ```bash
+   npm install
+   cd client && npm install && cd ..
+   npm run db:up
+   ```
+
+   Then open the repo root in VS Code, install the recommended extensions when prompted (at minimum the Microsoft C# extension), choose `Full Stack: VS Code` in **Run and Debug**, and press `F5`. VS Code builds and launches the backend with the `http-cli` launch profile, starts Vite after the backend health check passes, and opens the app in your default external browser at `http://localhost:5173`. For backend-only debugging, choose `Backend: ASP.NET Core + Swagger`.
+   
 4. **Access the application**
 
 In development, the frontend runs from **http://localhost:5173** and proxies backend requests to ASP.NET Core on **http://localhost:5165**.
@@ -104,7 +127,7 @@ You might also want to set the publisher domain to ucdavis.edu and fill in the o
 
 ### Google Analytics (GA4)
 
-This template includes GA4 wiring:
+AD419 includes GA4 wiring:
 
 - GA bootstrap script is in `client/index.html`
 - Route-change page view tracking is in `client/src/shared/analytics/AnalyticsListener.tsx`
@@ -113,7 +136,7 @@ A placeholder measurement ID is included by default:
 
 - `G-XXXXXXXXXX`
 
-Before using this template in a real app, replace `G-XXXXXXXXXX` in `client/index.html` with your real GA4 measurement ID in **both** places:
+Before production use, replace `G-XXXXXXXXXX` in `client/index.html` with the real GA4 measurement ID in **both** places:
 
 1. `https://www.googletagmanager.com/gtag/js?id=...`
 2. `gtag('config', '...')`

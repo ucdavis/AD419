@@ -51,7 +51,7 @@ public class SmtpOptionsValidatorTests
             Username = "smtp-user",
             Password = "smtp-password",
             FromEmail = "not-an-email",
-            FromName = "Template App",
+            FromName = "AD419",
             ReplyToEmail = "bad-reply-to",
             BccEmail = "bad-bcc",
         });
@@ -77,7 +77,7 @@ public class SmtpOptionsValidatorTests
             Username = "smtp-user",
             Password = "smtp-password",
             FromEmail = "no-reply@example.test",
-            FromName = "Template App",
+            FromName = "AD419",
             ReplyToEmail = "reply-to@example.test",
             BccEmail = "audit@example.test",
         });

@@ -26,15 +26,17 @@ function RouteComponent() {
           <div className="mb-8">
             <h1 className="text-5xl font-bold mb-4">Hello {user.name}!</h1>
             <p className="text-xl max-w-2xl mx-auto text-base-content/70">
-              Welcome to your modern app template. Built with Vite, React,
-              TypeScript, and TanStack Router for rapid development.
+              Welcome to AD419. The application purpose is still being defined,
+              with the core full-stack foundation ready for development.
             </p>
           </div>
         </header>
 
         {/* Sample Section */}
         <section className="mb-16">
-          <h2 className="text-3xl font-bold text-center mb-12">Sample Pages</h2>
+          <h2 className="text-3xl font-bold text-center mb-12">
+            Available Pages
+          </h2>
           <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
             <div className="card bg-base-100 shadow-md">
               <div className="card-body">
@@ -83,8 +85,8 @@ function RouteComponent() {
               <div className="card-body">
                 <h3 className="card-title">Style Guide</h3>
                 <p className="text-base-content/70">
-                  Explore the design system and UI components available in this
-                  template.
+                  Explore the design system and UI components available in
+                  AD419.
                 </p>
                 <div className="card-actions justify-end">
                   <Link className="btn btn-primary" to="/styles">
@@ -126,7 +128,7 @@ function RouteComponent() {
         {/* Features Grid */}
         <section className="mb-16">
           <h2 className="text-3xl font-bold text-center mb-12">
-            What is Included
+            Technical Foundation
           </h2>
           <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
             <div className="card bg-base-100 shadow-md text-center">
@@ -209,51 +211,6 @@ function RouteComponent() {
           </div>
         </section>
 
-        {/* Getting Started Section */}
-        <section className="text-center mb-16">
-          <div className="card bg-base-200 shadow-xl max-w-2xl mx-auto">
-            <div className="card-body">
-              <h2 className="card-title text-2xl font-bold justify-center mb-4">
-                Getting Started
-              </h2>
-              <p className="text-base-content/70 mb-6">
-                Start building your own app with this template in just one
-                command:
-              </p>
-              <div className="mockup-code mb-6">
-                <pre data-prefix="$">
-                  <code>
-                    git clone https://github.com/ucdavis/web-app-template/
-                    my-app
-                  </code>
-                </pre>
-              </div>
-              <p className="text-base-content/70 mb-8">
-                This will scaffold a new project using this template, so you can
-                get started quickly with all the best practices and tools
-                already set up.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <a
-                  className="btn btn-primary"
-                  href="https://vitejs.dev/guide/"
-                  rel="noopener noreferrer"
-                  target="_blank"
-                >
-                  View Vite Documentation
-                </a>
-                <a
-                  className="btn btn-outline"
-                  href="https://github.com/ucdavis/web-app-template"
-                  rel="noopener noreferrer"
-                  target="_blank"
-                >
-                  View Source
-                </a>
-              </div>
-            </div>
-          </div>
-        </section>
       </div>
     </div>
   );

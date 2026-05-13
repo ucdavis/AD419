@@ -22,7 +22,7 @@ public class NotificationServiceTests
             }),
             Options.Create(new SmtpOptions
             {
-                FromName = "Template App",
+                FromName = "AD419",
             }));
 
         await service.SendAsync(new EmailRecipients
@@ -97,7 +97,7 @@ public class NotificationServiceTests
             }),
             Options.Create(new SmtpOptions
             {
-                FromName = "Template App",
+                FromName = "AD419",
             }));
 
         await service.SendTableAsync(new EmailRecipients

@@ -1,15 +1,10 @@
-This file records how the frontend is wired into the template.
+This file records how the AD419 frontend is wired into the .NET host.
 
-The client app was originally created with:
+The client app uses:
 
-- `create-vite`
-- the `react-ts` template
+- Vite on port `5173` during development.
+- `client/vite.config.ts` proxy rules for `/api`, `/login`, `/signin-oidc`, and `/health`.
+- ASP.NET Core `SpaProxy` in `server/server.csproj` so Visual Studio can start Vite without a separate `.esproj`.
+- `server/server.csproj` publish targets that build `client/dist` and copy the output into `server/wwwroot`.
 
-The template now integrates the frontend like this:
-
-- Vite serves the React app on port `5173` during development.
-- `client/vite.config.ts` proxies `/api`, `/login`, `/signin-oidc`, and `/health` to the ASP.NET Core backend.
-- `server/server.csproj` uses ASP.NET Core `SpaProxy` so Visual Studio can start Vite without a separate `.esproj`.
-- `server/server.csproj` also builds `client/dist` during publish and copies the output into `server/wwwroot`.
-
-There is intentionally no standalone JavaScript project file in the solution anymore.
+There is intentionally no standalone JavaScript project file in the solution.

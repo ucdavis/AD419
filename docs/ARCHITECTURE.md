@@ -2,7 +2,7 @@
 
 ## Overview
 
-This template uses:
+AD419 uses:
 
 - ASP.NET Core on port `5165` for API, auth, health checks, and Swagger
 - Vite on port `5173` for the React frontend during development
@@ -160,7 +160,7 @@ Check:
 
 ### Backend exits immediately during startup
 
-This template runs database initialization at startup. If SQL Server is not available, the app exits before the browser handoff completes.
+AD419 runs database initialization at startup. If SQL Server is not available, the app exits before the browser handoff completes.
 
 Common local fix:
 

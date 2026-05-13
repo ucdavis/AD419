@@ -1,6 +1,6 @@
 # GitHub Copilot Instructions
 
-This is a full-stack web application template using modern React and .NET technologies. Please follow these guidelines when generating code suggestions.
+This is the AD419 full-stack web application, using modern React and .NET technologies. Please follow these guidelines when generating code suggestions.
 
 ## Architecture Overview
 
