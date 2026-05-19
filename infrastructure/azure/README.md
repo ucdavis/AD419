@@ -6,7 +6,7 @@ AD419 deploys to Linux Azure App Service with Azure SQL Database and workspace-b
 
 `.github/workflows/ci-cd.yml` runs on pull requests to `main` and pushes to `main`.
 
-Pull requests run build, server tests, client tests, package creation, and artifact upload. Pushes to `main` run the same validation, deploy to the `test` GitHub Environment, then deploy to the `prod` GitHub Environment after test succeeds.
+Pull requests run build, server tests, client tests, package creation, and artifact upload. Pushes to `main` run the same validation and deploy to the `test` GitHub Environment. Production deploys are gated behind a manual `workflow_dispatch` run with `deploy_prod` enabled.
 
 The reusable deploy workflow `.github/workflows/deploy-azure-appservice.yml` authenticates to Azure with GitHub OIDC, optionally deploys Bicep infrastructure, resolves `webAppName` from the deployment outputs, applies runtime app settings, and deploys the published zip with `azure/webapps-deploy`.
 

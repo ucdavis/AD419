@@ -7,6 +7,13 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      deploy_prod:
+        description: Deploy to the prod GitHub Environment after build and test succeeds.
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -82,8 +89,8 @@ jobs:
 
   deploy-prod:
     name: Deploy prod
-    if: github.event_name == 'push'
-    needs: deploy-test
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_prod
+    needs: build-test-package
     permissions:
       contents: read
       id-token: write
