@@ -11,6 +11,9 @@ param appName string = 'ad419'
 @description('Deployment environment name.')
 param env string = 'dev'
 
+@description('Expected Azure subscription ID for non-dev deployments. Required for test and prod deployments.')
+param expectedSubscriptionId string = ''
+
 @description('Azure region for all resources.')
 param location string = resourceGroup().location
 
@@ -37,6 +40,10 @@ param notificationBaseUrl string = ''
 
 var appNameSafe = toLower(replace(replace(appName, ' ', ''), '_', ''))
 var nameToken = substring(uniqueString(resourceGroup().id, appName, env), 0, 6)
+var expectedResourceGroupSuffix = '-${env}'
+var normalizedExpectedSubscriptionId = toLower(expectedSubscriptionId)
+var normalizedCurrentSubscriptionId = toLower(subscription().subscriptionId)
+var deploymentGuardPassed = env == 'dev' || (!empty(expectedSubscriptionId) && normalizedCurrentSubscriptionId == normalizedExpectedSubscriptionId && endsWith(resourceGroup().name, expectedResourceGroupSuffix))
 
 var sqlServerName = toLower('sql-${appNameSafe}-${env}-${nameToken}')
 var webPlanName = toLower('asp-${appNameSafe}-${env}-${nameToken}')
@@ -53,7 +60,7 @@ var resourceTags = union(tags, {
   application: appName
 })
 
-resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = if (deploymentGuardPassed) {
   name: logAnalyticsWorkspaceName
   location: location
   tags: resourceTags
@@ -65,18 +72,18 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09
   }
 }
 
-resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
+resource appInsights 'Microsoft.Insights/components@2020-02-02' = if (deploymentGuardPassed) {
   name: appInsightsName
   location: location
   kind: 'web'
   tags: resourceTags
   properties: {
     Application_Type: 'web'
-    WorkspaceResourceId: logAnalyticsWorkspace.id
+    WorkspaceResourceId: logAnalyticsWorkspace!.id
   }
 }
 
-module sql 'modules/sql.bicep' = {
+module sql 'modules/sql.bicep' = if (deploymentGuardPassed) {
   name: 'sql'
   params: {
     name: sqlServerName
@@ -94,7 +101,7 @@ var sqlServerHostnameSuffix = environment().suffixes.sqlServerHostname
 var sqlServerFqdn = '${sqlServerName}${startsWith(sqlServerHostnameSuffix, '.') ? '' : '.'}${sqlServerHostnameSuffix}'
 var sqlConnectionString = 'Server=tcp:${sqlServerFqdn},1433;Initial Catalog=${sqlDatabaseName};Persist Security Info=False;User ID=${sqlAdminLogin};Password=${sqlAdminPassword};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
 
-module compute 'modules/compute.bicep' = {
+module compute 'modules/compute.bicep' = if (deploymentGuardPassed) {
   name: 'compute'
   params: {
     location: location
@@ -105,17 +112,18 @@ module compute 'modules/compute.bicep' = {
     webSkuTier: webSkuTier
     sqlConnectionString: sqlConnectionString
     environmentName: env
-    appInsightsConnectionString: appInsights.properties.ConnectionString
-    appInsightsInstrumentationKey: appInsights.properties.InstrumentationKey
+    appInsightsConnectionString: appInsights!.properties.ConnectionString
+    appInsightsInstrumentationKey: appInsights!.properties.InstrumentationKey
     notificationBaseUrl: empty(notificationBaseUrl) ? 'https://${webAppName}.azurewebsites.net' : notificationBaseUrl
   }
 }
 
-output appServiceDefaultHostName string = compute.outputs.defaultHostName
-output appServicePrincipalId string = compute.outputs.principalId
-output appInsightsName string = appInsights.name
-output appInsightsConnectionString string = appInsights.properties.ConnectionString
-output logAnalyticsWorkspaceName string = logAnalyticsWorkspace.name
+output appServiceDefaultHostName string = deploymentGuardPassed ? compute!.outputs.defaultHostName : ''
+output appServicePrincipalId string = deploymentGuardPassed ? compute!.outputs.principalId : ''
+output appInsightsName string = deploymentGuardPassed ? appInsights!.name : ''
+output appInsightsConnectionString string = deploymentGuardPassed ? appInsights!.properties.ConnectionString : ''
+output logAnalyticsWorkspaceName string = deploymentGuardPassed ? logAnalyticsWorkspace!.name : ''
 output sqlDatabaseName string = sqlDatabaseName
-output sqlServerName string = sql.outputs.serverName
-output webAppName string = compute.outputs.webAppName
+output sqlServerName string = deploymentGuardPassed ? sql!.outputs.serverName : ''
+output webAppName string = deploymentGuardPassed ? compute!.outputs.webAppName : ''
+output deploymentGuardPassed bool = deploymentGuardPassed

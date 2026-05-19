@@ -1,0 +1,180 @@
+name: Deploy Azure App Service
+
+on:
+  workflow_call:
+    inputs:
+      environment_name:
+        description: GitHub Environment to deploy.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.environment_name }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment_name }}
+
+    env:
+      APP_NAME: ${{ vars.APP_NAME || 'ad419' }}
+      DEPLOY_INFRA: ${{ vars.DEPLOY_INFRA || 'true' }}
+      DEPLOYMENT_NAME: ${{ vars.DEPLOYMENT_NAME || format('ad419-{0}', inputs.environment_name) }}
+      ENVIRONMENT: ${{ vars.ENVIRONMENT || inputs.environment_name }}
+      EXPECTED_ENVIRONMENT: ${{ inputs.environment_name }}
+      EXPECTED_SUBSCRIPTION_ID: ${{ inputs.environment_name == 'prod' && vars.PROD_AZURE_SUBSCRIPTION_ID || vars.TEST_AZURE_SUBSCRIPTION_ID }}
+      LOCATION: ${{ vars.LOCATION || 'westus2' }}
+      RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+      SQL_ADMIN_LOGIN: ${{ vars.SQL_ADMIN_LOGIN || 'ad419' }}
+      SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
+      NOTIFICATION_BASE_URL: ${{ vars.Notification__BaseUrl }}
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download deploy package
+        uses: actions/download-artifact@v4
+        with:
+          name: webapp
+          path: packages
+
+      - name: Validate required deployment settings
+        run: |
+          set -euo pipefail
+
+          required_vars=(
+            AZURE_CLIENT_ID
+            AZURE_TENANT_ID
+            AZURE_SUBSCRIPTION_ID
+            EXPECTED_SUBSCRIPTION_ID
+            RESOURCE_GROUP
+            SQL_ADMIN_PASSWORD
+          )
+
+          missing_vars=()
+          for var in "${required_vars[@]}"; do
+            if [[ -z "${!var:-}" ]]; then
+              missing_vars+=("$var")
+            fi
+          done
+
+          if (( ${#missing_vars[@]} > 0 )); then
+            echo "Missing required GitHub Environment variables/secrets: ${missing_vars[*]}" >&2
+            exit 1
+          fi
+
+          if [[ "$ENVIRONMENT" != "$EXPECTED_ENVIRONMENT" ]]; then
+            echo "ENVIRONMENT '$ENVIRONMENT' does not match GitHub Environment '$EXPECTED_ENVIRONMENT'." >&2
+            exit 1
+          fi
+
+          if [[ "$AZURE_SUBSCRIPTION_ID" != "$EXPECTED_SUBSCRIPTION_ID" ]]; then
+            echo "AZURE_SUBSCRIPTION_ID does not match the expected subscription for '$EXPECTED_ENVIRONMENT'." >&2
+            exit 1
+          fi
+
+          expected_resource_group_suffix="-$EXPECTED_ENVIRONMENT"
+          if [[ "$RESOURCE_GROUP" != *"$expected_resource_group_suffix" ]]; then
+            echo "RESOURCE_GROUP '$RESOURCE_GROUP' must end with '$expected_resource_group_suffix'." >&2
+            exit 1
+          fi
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy infra
+        if: env.DEPLOY_INFRA != 'false'
+        run: infrastructure/azure/scripts/deploy.sh
+
+      - name: Resolve app name from infra outputs
+        id: resolve
+        run: |
+          set -euo pipefail
+
+          web_app_name=$(az deployment group show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$DEPLOYMENT_NAME" \
+            --query "properties.outputs.webAppName.value" \
+            --output tsv)
+
+          if [[ -z "$web_app_name" ]]; then
+            echo "Deployment output webAppName was empty." >&2
+            exit 1
+          fi
+
+          echo "Resolved web app: $web_app_name"
+          echo "web_app_name=$web_app_name" >> "$GITHUB_OUTPUT"
+
+      - name: Set Web App runtime settings
+        env:
+          ENVIRONMENT_NAME: ${{ env.ENVIRONMENT }}
+          WEB_APP_NAME: ${{ steps.resolve.outputs.web_app_name }}
+          SMTP_HOST: ${{ vars.Smtp__Host }}
+          SMTP_PORT: ${{ vars.Smtp__Port }}
+          SMTP_TIMEOUT: ${{ vars.Smtp__Timeout }}
+          SMTP_USE_SSL: ${{ vars.Smtp__UseSsl }}
+          SMTP_USERNAME: ${{ secrets.Smtp__Username || vars.Smtp__Username }}
+          SMTP_PASSWORD: ${{ secrets.Smtp__Password }}
+          SMTP_FROM_EMAIL: ${{ vars.Smtp__FromEmail }}
+          SMTP_FROM_NAME: ${{ vars.Smtp__FromName }}
+          SMTP_REPLY_TO_EMAIL: ${{ vars.Smtp__ReplyToEmail }}
+          SMTP_BCC_EMAIL: ${{ vars.Smtp__BccEmail }}
+          OTEL_EXPORTER_OTLP_ENDPOINT_VALUE: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS_VALUE: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS || vars.OTEL_EXPORTER_OTLP_HEADERS }}
+          OTEL_EXPORTER_OTLP_PROTOCOL_VALUE: ${{ vars.OTEL_EXPORTER_OTLP_PROTOCOL }}
+        run: |
+          set -euo pipefail
+
+          settings=(
+            "ASPNETCORE_ENVIRONMENT=$ENVIRONMENT_NAME"
+            "OTEL_SERVICE_NAME=ad419.web"
+            "OTEL_RESOURCE_ATTRIBUTES=service.name=ad419.web,service.environment=$ENVIRONMENT_NAME,deployment.environment.name=$ENVIRONMENT_NAME"
+          )
+
+          append_setting() {
+            local name="$1"
+            local value="${2:-}"
+
+            if [[ -z "$value" ]]; then
+              return
+            fi
+
+            settings+=("$name=$value")
+          }
+
+          append_setting "Notification__BaseUrl" "$NOTIFICATION_BASE_URL"
+          append_setting "Smtp__Host" "$SMTP_HOST"
+          append_setting "Smtp__Port" "$SMTP_PORT"
+          append_setting "Smtp__Timeout" "$SMTP_TIMEOUT"
+          append_setting "Smtp__UseSsl" "$SMTP_USE_SSL"
+          append_setting "Smtp__Username" "$SMTP_USERNAME"
+          append_setting "Smtp__Password" "$SMTP_PASSWORD"
+          append_setting "Smtp__FromEmail" "$SMTP_FROM_EMAIL"
+          append_setting "Smtp__FromName" "$SMTP_FROM_NAME"
+          append_setting "Smtp__ReplyToEmail" "$SMTP_REPLY_TO_EMAIL"
+          append_setting "Smtp__BccEmail" "$SMTP_BCC_EMAIL"
+          append_setting "OTEL_EXPORTER_OTLP_ENDPOINT" "$OTEL_EXPORTER_OTLP_ENDPOINT_VALUE"
+          append_setting "OTEL_EXPORTER_OTLP_HEADERS" "$OTEL_EXPORTER_OTLP_HEADERS_VALUE"
+          append_setting "OTEL_EXPORTER_OTLP_PROTOCOL" "$OTEL_EXPORTER_OTLP_PROTOCOL_VALUE"
+
+          az webapp config appsettings set \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$WEB_APP_NAME" \
+            --settings "${settings[@]}" \
+            --output none
+
+      - name: Deploy web app
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ steps.resolve.outputs.web_app_name }}
+          package: packages/webapp.zip

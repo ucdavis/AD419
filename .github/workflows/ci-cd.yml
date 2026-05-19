@@ -1,0 +1,93 @@
+name: Build, Test, and Deploy
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  BUILD_CONFIGURATION: Release
+  DOTNET_VERSION: 10.x
+  NODE_VERSION: 22.x
+
+jobs:
+  build-test-package:
+    name: Build, test, and package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Restore .NET dependencies
+        run: dotnet restore app.sln
+
+      - name: Build .NET solution
+        run: dotnet build app.sln -c "$BUILD_CONFIGURATION" --no-restore /m:1
+
+      - name: Test .NET solution
+        run: dotnet test app.sln -c "$BUILD_CONFIGURATION" --no-build
+
+      - name: Test client
+        working-directory: client
+        run: |
+          npm ci
+          npm test -- --run
+
+      - name: Publish web app
+        run: dotnet publish server/server.csproj -c "$BUILD_CONFIGURATION" -o publish/web
+
+      - name: Package web app
+        run: |
+          mkdir -p packages
+          cd publish/web
+          zip -r ../../packages/webapp.zip .
+
+      - name: Upload deploy package
+        uses: actions/upload-artifact@v4
+        with:
+          name: webapp
+          path: packages/webapp.zip
+          if-no-files-found: error
+
+  deploy-test:
+    name: Deploy test
+    if: github.event_name == 'push'
+    needs: build-test-package
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/deploy-azure-appservice.yml
+    with:
+      environment_name: test
+    secrets: inherit
+
+  deploy-prod:
+    name: Deploy prod
+    if: github.event_name == 'push'
+    needs: deploy-test
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/deploy-azure-appservice.yml
+    with:
+      environment_name: prod
+    secrets: inherit
