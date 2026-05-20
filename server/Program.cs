@@ -76,61 +76,64 @@ builder.Services.AddDataProtection()
 
 var app = builder.Build();
 
-// do db migrations at startup
-using (var scope = app.Services.CreateScope())
+await StartupLogging.RunAsync(app, async cancellationToken =>
 {
-    var init = scope.ServiceProvider.GetRequiredService<IDbInitializer>();
-    var env = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
-    await init.InitializeAsync(env.IsDevelopment());
-}
+    // do db migrations at startup
+    using (var scope = app.Services.CreateScope())
+    {
+        var init = scope.ServiceProvider.GetRequiredService<IDbInitializer>();
+        var env = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
+        await init.InitializeAsync(env.IsDevelopment());
+    }
 
-app.UseForwardedHeaders();
+    app.UseForwardedHeaders();
 
-app.UseStaticFiles();
+    app.UseStaticFiles();
 
-app.UseResponseCaching();
+    app.UseResponseCaching();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    // swagger only in development
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-else
-{
-    app.UseDefaultFiles();
+    // Configure the HTTP request pipeline.
+    if (app.Environment.IsDevelopment())
+    {
+        // swagger only in development
+        app.UseSwagger();
+        app.UseSwaggerUI();
+    }
+    else
+    {
+        app.UseDefaultFiles();
 
-    // only use HTTPS redirection in non-development environments
-    app.UseHttpsRedirection();
-}
+        // only use HTTPS redirection in non-development environments
+        app.UseHttpsRedirection();
+    }
 
 
-app.UseAuthentication();
-app.UseAuthorization();
+    app.UseAuthentication();
+    app.UseAuthorization();
 
-// enrich every log with request context
-app.UseRequestContextLogging();
+    // enrich every log with request context
+    app.UseRequestContextLogging();
 
-// app.UseHttpLogging(); // if you want extra logging. It's a little overkill though with the current logging setup
+    // app.UseHttpLogging(); // if you want extra logging. It's a little overkill though with the current logging setup
 
-app.MapControllers();
+    app.MapControllers();
 
-var healthEndpoint = app.MapHealthChecks("/health");
+    var healthEndpoint = app.MapHealthChecks("/health");
 
-// Cache the health check response for 10 seconds to protect the database from rapid polling.
-healthEndpoint.WithMetadata(new ResponseCacheAttribute
-{
-    Duration = 10,
-    Location = ResponseCacheLocation.Any,
-    NoStore = false,
+    // Cache the health check response for 10 seconds to protect the database from rapid polling.
+    healthEndpoint.WithMetadata(new ResponseCacheAttribute
+    {
+        Duration = 10,
+        Location = ResponseCacheLocation.Any,
+        NoStore = false,
+    });
+
+
+    if (!app.Environment.IsDevelopment())
+    {
+        // In production, fallback to index.html for SPA routing
+        app.MapFallbackToFile("/index.html");
+    }
+
+    await app.RunAsync(cancellationToken);
 });
-
-
-if (!app.Environment.IsDevelopment())
-{
-    // In production, fallback to index.html for SPA routing
-    app.MapFallbackToFile("/index.html");
-}
-
-app.Run();
