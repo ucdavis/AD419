@@ -115,13 +115,21 @@ Useful companion commands:
 
 We use OIDC with Microsoft Entra ID (Azure AD) for authentication. The auth flow doesn't use any secrets and the settings in `appsettings.*.json` are sufficient for local development.
 
-When you are ready to get your own, go to [Microsoft Entra ID](https://entra.microsoft.com/) and create a new application registration. For local development, set the redirect URL to the origin you actually launch from:
+When you are ready to get your own, go to [Microsoft Entra ID](https://entra.microsoft.com/) and create a new application registration. Add a **Web** platform under **Authentication**, then configure redirect URIs for every origin that will complete the server-side OIDC callback.
+
+For local development, set the redirect URL to the origin you actually launch from:
 
 - `http://localhost:5173/signin-oidc` for the default Vite dev flow
 - `http://localhost:5165/signin-oidc` if you are testing directly against the backend origin
 - `https://localhost:44322/signin-oidc` if you use the default IIS Express profile
 
-Check the box for "ID tokens".
+For deployed Azure App Service environments, also add the deployed callback URL:
+
+- `https://<app-service-hostname>/signin-oidc`
+
+Under **Implicit grant and hybrid flows**, check **ID tokens**. The application uses a secretless OIDC login flow and sends `response_type=id_token`; if ID tokens are not enabled on the app registration, deployed login fails with `AADSTS700054: response_type 'id_token' is not enabled for the application`.
+
+You do not need to enable **Access tokens** for this app's current cookie-based login flow.
 
 You might also want to set the publisher domain to ucdavis.edu and fill in the other general branding info.
 
