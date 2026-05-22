@@ -18,6 +18,7 @@ import { Route as authenticatedNotificationRouteImport } from './routes/(authent
 import { Route as authenticatedMeRouteImport } from './routes/(authenticated)/me'
 import { Route as authenticatedFormRouteImport } from './routes/(authenticated)/form'
 import { Route as authenticatedFetchRouteImport } from './routes/(authenticated)/fetch'
+import { Route as authenticatedWorkflowStageIdRouteImport } from './routes/(authenticated)/workflow.$stageId'
 
 const AboutRoute = AboutRouteImport.update({
   id: '/about',
@@ -65,6 +66,12 @@ const authenticatedFetchRoute = authenticatedFetchRouteImport.update({
   path: '/fetch',
   getParentRoute: () => authenticatedRouteRoute,
 } as any)
+const authenticatedWorkflowStageIdRoute =
+  authenticatedWorkflowStageIdRouteImport.update({
+    id: '/workflow/$stageId',
+    path: '/workflow/$stageId',
+    getParentRoute: () => authenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/about': typeof AboutRoute
@@ -75,6 +82,7 @@ export interface FileRoutesByFullPath {
   '/styles': typeof authenticatedStylesRoute
   '/table-export': typeof authenticatedTableExportRoute
   '/': typeof authenticatedIndexRoute
+  '/workflow/$stageId': typeof authenticatedWorkflowStageIdRoute
 }
 export interface FileRoutesByTo {
   '/about': typeof AboutRoute
@@ -85,6 +93,7 @@ export interface FileRoutesByTo {
   '/styles': typeof authenticatedStylesRoute
   '/table-export': typeof authenticatedTableExportRoute
   '/': typeof authenticatedIndexRoute
+  '/workflow/$stageId': typeof authenticatedWorkflowStageIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -97,6 +106,7 @@ export interface FileRoutesById {
   '/(authenticated)/styles': typeof authenticatedStylesRoute
   '/(authenticated)/table-export': typeof authenticatedTableExportRoute
   '/(authenticated)/': typeof authenticatedIndexRoute
+  '/(authenticated)/workflow/$stageId': typeof authenticatedWorkflowStageIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -109,6 +119,7 @@ export interface FileRouteTypes {
     | '/styles'
     | '/table-export'
     | '/'
+    | '/workflow/$stageId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/about'
@@ -119,6 +130,7 @@ export interface FileRouteTypes {
     | '/styles'
     | '/table-export'
     | '/'
+    | '/workflow/$stageId'
   id:
     | '__root__'
     | '/(authenticated)'
@@ -130,6 +142,7 @@ export interface FileRouteTypes {
     | '/(authenticated)/styles'
     | '/(authenticated)/table-export'
     | '/(authenticated)/'
+    | '/(authenticated)/workflow/$stageId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -202,6 +215,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof authenticatedFetchRouteImport
       parentRoute: typeof authenticatedRouteRoute
     }
+    '/(authenticated)/workflow/$stageId': {
+      id: '/(authenticated)/workflow/$stageId'
+      path: '/workflow/$stageId'
+      fullPath: '/workflow/$stageId'
+      preLoaderRoute: typeof authenticatedWorkflowStageIdRouteImport
+      parentRoute: typeof authenticatedRouteRoute
+    }
   }
 }
 
@@ -213,6 +233,7 @@ interface authenticatedRouteRouteChildren {
   authenticatedStylesRoute: typeof authenticatedStylesRoute
   authenticatedTableExportRoute: typeof authenticatedTableExportRoute
   authenticatedIndexRoute: typeof authenticatedIndexRoute
+  authenticatedWorkflowStageIdRoute: typeof authenticatedWorkflowStageIdRoute
 }
 
 const authenticatedRouteRouteChildren: authenticatedRouteRouteChildren = {
@@ -223,6 +244,7 @@ const authenticatedRouteRouteChildren: authenticatedRouteRouteChildren = {
   authenticatedStylesRoute: authenticatedStylesRoute,
   authenticatedTableExportRoute: authenticatedTableExportRoute,
   authenticatedIndexRoute: authenticatedIndexRoute,
+  authenticatedWorkflowStageIdRoute: authenticatedWorkflowStageIdRoute,
 }
 
 const authenticatedRouteRouteWithChildren =
