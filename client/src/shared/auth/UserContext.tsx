@@ -1,4 +1,5 @@
 import { useMeQuery, User } from '@/queries/user.ts';
+import { HttpError } from '@/lib/api.ts';
 import { createContext, useContext } from 'react';
 
 /**
@@ -6,6 +7,58 @@ import { createContext, useContext } from 'react';
  * We'll use it in (authenticated) routes where components can call useUser() to get the current user.
  */
 const UserContext = createContext<User | undefined>(undefined);
+
+const isForbidden = (error: unknown) =>
+  error instanceof HttpError && error.status === 403;
+
+export const UserLoadError = ({ error }: { error: unknown }) => {
+  if (isForbidden(error)) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="alert alert-warning max-w-md">
+          <svg
+            className="h-6 w-6 shrink-0 stroke-current"
+            fill="none"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+            />
+          </svg>
+          <span>
+            You are not authorized to access AD419. Please contact your
+            administrator if you need access.
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="alert alert-error max-w-md">
+        <svg
+          className="h-6 w-6 shrink-0 stroke-current"
+          fill="none"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+          />
+        </svg>
+        <span>Failed to load user data. Please try again later.</span>
+      </div>
+    </div>
+  );
+};
 
 /**
  * Provider component that wraps the application and provides user context to all child components.
@@ -24,26 +77,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (error) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="alert alert-error max-w-md">
-          <svg
-            className="h-6 w-6 shrink-0 stroke-current"
-            fill="none"
-            viewBox="0 0 24 24"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-            />
-          </svg>
-          <span>Failed to load user data. Please try again later.</span>
-        </div>
-      </div>
-    );
+    return <UserLoadError error={error} />;
   }
 
   return <UserContext.Provider value={data}>{children}</UserContext.Provider>;

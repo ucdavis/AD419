@@ -5,11 +5,19 @@ namespace Server.Core.Data;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
-    public DbSet<WeatherForecast> WeatherForecasts => Set<WeatherForecast>();
+    public DbSet<User> Users => Set<User>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // Configure entity properties and relationships here if needed
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.Property(user => user.Id)
+                .ValueGeneratedOnAdd();
+
+            entity.HasIndex(user => user.EntraId)
+                .IsUnique();
+        });
     }
 }
