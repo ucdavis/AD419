@@ -1,12 +1,13 @@
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Server.Authorization;
 using Server.Core.Data;
 using Server.Core.Notification;
 using Server.Helpers;
-using Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,6 +31,14 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
 
 // Add auth config (entra)
 builder.Services.AddAuthenticationServices(builder.Configuration);
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(AuthorizationPolicies.AuthorizedUser, policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.Requirements.Add(new AuthorizedUserRequirement());
+    });
+});
 
 builder.Services.AddControllers();
 builder.Services.AddNotificationServices(builder.Configuration);
@@ -40,7 +49,7 @@ builder.Services.AddResponseCaching();
 
 // add scoped services here
 builder.Services.AddScoped<IDbInitializer, DbInitializer>();
-builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IAuthorizationHandler, AuthorizedUserHandler>();
 // add auth policies here
 
 // add db context (check secrets first, then config, then default)

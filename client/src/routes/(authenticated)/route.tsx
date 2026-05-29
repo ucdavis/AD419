@@ -1,7 +1,10 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router';
 import { RouterContext } from '../../main.tsx';
 import { meQueryOptions } from '../../queries/user.ts';
-import { UserProvider } from '@/shared/auth/UserContext.tsx';
+import {
+  UserLoadError,
+  UserProvider,
+} from '@/shared/auth/UserContext.tsx';
 
 export const Route = createFileRoute('/(authenticated)')({
   beforeLoad: async ({ context }: { context: RouterContext }) => {
@@ -12,4 +15,5 @@ export const Route = createFileRoute('/(authenticated)')({
       <Outlet />
     </UserProvider>
   ),
+  errorComponent: ({ error }) => <UserLoadError error={error} />,
 });
