@@ -13,10 +13,18 @@ public class AppDbContextTests
         using var db = TestDbContextFactory.CreateInMemory();
 
         var entityType = db.Model.FindEntityType(typeof(User));
-        var primaryKey = entityType?.FindPrimaryKey();
+        if (entityType is null)
+        {
+            throw new InvalidOperationException("User entity type should be configured.");
+        }
 
-        primaryKey.Should().NotBeNull();
-        primaryKey!.Properties.Should().ContainSingle();
+        var primaryKey = entityType.FindPrimaryKey();
+        if (primaryKey is null)
+        {
+            throw new InvalidOperationException("User should have a primary key.");
+        }
+
+        primaryKey.Properties.Should().ContainSingle();
         primaryKey.Properties[0].Name.Should().Be(nameof(User.Id));
         primaryKey.Properties[0].ClrType.Should().Be(typeof(int));
         primaryKey.Properties[0].ValueGenerated.Should().Be(ValueGenerated.OnAdd);
@@ -46,6 +54,6 @@ public class AppDbContextTests
 
         entraIdProperty.Should().NotBeNull();
         entraIdProperty!.ClrType.Should().Be(typeof(Guid));
-        entraIdProperty.IsNullable.Should().BeFalse();
+        entraIdProperty!.IsNullable.Should().BeFalse();
     }
 }
