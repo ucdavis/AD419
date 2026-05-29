@@ -35,4 +35,17 @@ public class AppDbContextTests
         entraIdIndex.Should().NotBeNull();
         entraIdIndex!.IsUnique.Should().BeTrue();
     }
+
+    [Fact]
+    public void User_entra_id_is_required_guid()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+
+        var entityType = db.Model.FindEntityType(typeof(User));
+        var entraIdProperty = entityType?.FindProperty(nameof(User.EntraId));
+
+        entraIdProperty.Should().NotBeNull();
+        entraIdProperty!.ClrType.Should().Be(typeof(Guid));
+        entraIdProperty.IsNullable.Should().BeFalse();
+    }
 }

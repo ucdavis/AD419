@@ -8,7 +8,7 @@ namespace Server.Tests.Authorization;
 
 public class AuthorizedUserHandlerTests
 {
-    private const string EntraId = "11111111-1111-1111-1111-111111111111";
+    private static readonly Guid EntraId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private const string MappedObjectIdentifierClaim = "http://schemas.microsoft.com/identity/claims/objectidentifier";
 
     [Fact]
@@ -18,7 +18,7 @@ public class AuthorizedUserHandlerTests
         db.Users.Add(new Server.Core.Domain.User { EntraId = EntraId });
         await db.SaveChangesAsync();
 
-        var context = CreateContext(new Claim(MappedObjectIdentifierClaim, EntraId));
+        var context = CreateContext(new Claim(MappedObjectIdentifierClaim, EntraId.ToString()));
         var handler = new AuthorizedUserHandler(db);
 
         await handler.HandleAsync(context);
@@ -33,7 +33,7 @@ public class AuthorizedUserHandlerTests
         db.Users.Add(new Server.Core.Domain.User { EntraId = EntraId });
         await db.SaveChangesAsync();
 
-        var context = CreateContext(new Claim("oid", EntraId));
+        var context = CreateContext(new Claim("oid", EntraId.ToString()));
         var handler = new AuthorizedUserHandler(db);
 
         await handler.HandleAsync(context);
@@ -45,7 +45,7 @@ public class AuthorizedUserHandlerTests
     public async Task HandleRequirementAsync_denies_user_not_in_users_table()
     {
         using var db = TestDbContextFactory.CreateInMemory();
-        var context = CreateContext(new Claim(MappedObjectIdentifierClaim, EntraId));
+        var context = CreateContext(new Claim(MappedObjectIdentifierClaim, EntraId.ToString()));
         var handler = new AuthorizedUserHandler(db);
 
         await handler.HandleAsync(context);
@@ -60,7 +60,22 @@ public class AuthorizedUserHandlerTests
         db.Users.Add(new Server.Core.Domain.User { EntraId = EntraId });
         await db.SaveChangesAsync();
 
-        var context = CreateContext(new Claim(ClaimTypes.NameIdentifier, EntraId));
+        var context = CreateContext(new Claim(ClaimTypes.NameIdentifier, EntraId.ToString()));
+        var handler = new AuthorizedUserHandler(db);
+
+        await handler.HandleAsync(context);
+
+        context.HasSucceeded.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task HandleRequirementAsync_denies_user_with_malformed_entra_id_claim()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+        db.Users.Add(new Server.Core.Domain.User { EntraId = EntraId });
+        await db.SaveChangesAsync();
+
+        var context = CreateContext(new Claim(MappedObjectIdentifierClaim, "not-a-guid"));
         var handler = new AuthorizedUserHandler(db);
 
         await handler.HandleAsync(context);

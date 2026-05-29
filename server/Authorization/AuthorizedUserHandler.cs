@@ -17,9 +17,7 @@ public class AuthorizedUserHandler : AuthorizationHandler<AuthorizedUserRequirem
         AuthorizationHandlerContext context,
         AuthorizedUserRequirement requirement)
     {
-        var entraId = context.User.GetEntraId();
-
-        if (string.IsNullOrWhiteSpace(entraId))
+        if (context.User.GetEntraId() is not { } entraId)
         {
             return;
         }

@@ -16,6 +16,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(user => user.Id)
                 .ValueGeneratedOnAdd();
 
+            entity.Property(user => user.EntraId)
+                .IsRequired();
+
             entity.HasIndex(user => user.EntraId)
                 .IsUnique();
         });

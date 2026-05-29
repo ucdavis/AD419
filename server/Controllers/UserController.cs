@@ -15,14 +15,14 @@ public class UserController : ApiControllerBase
 
         var userRoles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
 
-        if (userId == null)
+        if (userId is null)
         {
             return Unauthorized();
         }
 
         var userInfo = new
         {
-            Id = userId,
+            Id = userId.Value,
             Name = userName,
             Email = userEmail,
             Roles = userRoles,

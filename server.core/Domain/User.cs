@@ -7,8 +7,7 @@ public class User
     [Key]
     public int Id { get; set; }
 
-    [MaxLength(64)]
-    public string EntraId { get; set; } = string.Empty;
+    public Guid EntraId { get; set; }
 
     [Required]
     [MaxLength(200)]
