@@ -1,12 +1,17 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
 namespace Server.Core.Domain;
 
+[Index(nameof(EntraId), IsUnique = true)]
 public class User
 {
     [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public int Id { get; set; }
 
+    [Required]
     public Guid EntraId { get; set; }
 
     [Required]
