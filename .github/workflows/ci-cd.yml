@@ -75,6 +75,13 @@ jobs:
           path: packages/webapp.zip
           if-no-files-found: error
 
+      - name: Upload data DACPAC
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-dacpac
+          path: database/data/bin/${{ env.BUILD_CONFIGURATION }}/*.dacpac
+          if-no-files-found: error
+
   deploy-test:
     name: Deploy test
     if: github.event_name == 'push'
