@@ -66,7 +66,9 @@ if (string.IsNullOrWhiteSpace(conn))
     throw new InvalidOperationException(message);
 }
 
-builder.Services.AddDbContextPool<AppDbContext>(o => o.UseSqlServer(conn, opt => opt.MigrationsAssembly("server.core")));
+builder.Services.AddDbContextPool<AppDbContext>(o => o.UseSqlServer(conn, opt => opt
+    .MigrationsAssembly("server.core")
+    .MigrationsHistoryTable(AppDbContext.MigrationsHistoryTable, AppDbContext.AppSchema)));
 
 builder.Services
     .AddHealthChecks()
