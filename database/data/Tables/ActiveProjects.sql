@@ -8,5 +8,6 @@ CREATE TABLE [data].[ActiveProjects]
     [ExcludeFromUi] BIT NULL,
     [Notes] NVARCHAR(MAX) NULL,
     [ProjectDirector] NVARCHAR(200) NOT NULL,
-    [PdEmailAddress] NVARCHAR(320) NOT NULL
+    [PdEmailAddress] NVARCHAR(320) NOT NULL,
+    CONSTRAINT [PK_ActiveProjects] PRIMARY KEY CLUSTERED ([ProjectNumber], [AccessionNumber])
 );

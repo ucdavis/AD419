@@ -1,5 +1,6 @@
 CREATE TABLE [data].[AllProjects]
 (
+    [AllProjectId] INT IDENTITY(1, 1) NOT NULL,
     [AccessionNumber] NVARCHAR(50) NULL,
     [ProjectNumber] NVARCHAR(50) NULL,
     [ProposalNumber] NVARCHAR(50) NULL,
@@ -28,5 +29,6 @@ CREATE TABLE [data].[AllProjects]
     [ProgressReportStatus] NVARCHAR(100) NULL,
     [ProjectStatus] NVARCHAR(100) NOT NULL,
     [ProjectFinancialReportStatus] NVARCHAR(100) NULL,
-    [Source] NVARCHAR(100) NOT NULL
+    [Source] NVARCHAR(100) NOT NULL,
+    CONSTRAINT [PK_AllProjects] PRIMARY KEY CLUSTERED ([AllProjectId])
 );

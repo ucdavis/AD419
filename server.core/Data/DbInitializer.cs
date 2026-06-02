@@ -5,6 +5,8 @@ using Server.Core.Data;
 public interface IDbInitializer
 {
     Task InitializeAsync(bool includeDevSeed, CancellationToken cancellationToken = default);
+
+    Task MoveMigrationsHistoryToAppSchemaAsync(CancellationToken cancellationToken = default);
 }
 
 public class DbInitializer : IDbInitializer
@@ -44,7 +46,7 @@ public class DbInitializer : IDbInitializer
     private Task SeedProductionSafeAsync(CancellationToken ct)
         => Task.CompletedTask;
 
-    private async Task MoveMigrationsHistoryToAppSchemaAsync(CancellationToken cancellationToken)
+    public async Task MoveMigrationsHistoryToAppSchemaAsync(CancellationToken cancellationToken = default)
     {
         if (!await _db.Database.CanConnectAsync(cancellationToken))
         {

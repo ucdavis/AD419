@@ -37,5 +37,6 @@ CREATE TABLE [data].[AssistanceListingNumbers]
     [PublishedDate] DATE NOT NULL,
     [ParentShortname] NVARCHAR(100) NULL,
     [Url] NVARCHAR(2000) NOT NULL,
-    [Recovery] BIT NOT NULL
+    [Recovery] BIT NOT NULL,
+    CONSTRAINT [PK_AssistanceListingNumbers] PRIMARY KEY CLUSTERED ([ProgramNumber])
 );
