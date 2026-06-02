@@ -145,7 +145,9 @@ To publish the data DACPAC to the local SQL Server container:
 
 `publish-local.sh` uses `BUILD_CONFIGURATION` to choose `Debug` or `Release`, `SQLPACKAGE` to locate the `sqlpackage` executable, and `DB_CONNECTION` for the target connection string. If `DB_CONNECTION` is not set, it targets the local container database at `localhost:14333`.
 
-In GitHub Actions, `ci-cd.yml` builds the solution, uploads the web app package and data DACPAC, and `deploy-azure-appservice.yml` publishes the data DACPAC before deploying the web app. The DACPAC publish uses conservative settings: it does not drop objects that are missing from the data project, blocks possible data loss, does not create the database, and does not script database options.
+In GitHub Actions, `ci-cd.yml` builds the solution, verifies schema ownership boundaries, uploads the web app package and `data.dacpac`, and `deploy-azure-appservice.yml` publishes the data DACPAC before deploying the web app. The DACPAC publish uses conservative settings: it does not drop objects that are missing from the data project, blocks possible data loss, does not create the database, and does not script database options.
+
+For production deployments, the workflow first generates and uploads a `prod-data-dacpac-script` artifact with SQLPackage `/Action:Script`. Review that script before approving the gated production publish job.
 
 ### Auth Configuration
 

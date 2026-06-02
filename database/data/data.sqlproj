@@ -4,6 +4,7 @@
 
   <PropertyGroup>
     <Name>Data</Name>
+    <DefaultSchema>data</DefaultSchema>
     <DSP>Microsoft.Data.Tools.Schema.Sql.Sql160DatabaseSchemaProvider</DSP>
     <ModelCollation>1033, CI</ModelCollation>
     <SuppressTSqlWarnings>71502</SuppressTSqlWarnings>

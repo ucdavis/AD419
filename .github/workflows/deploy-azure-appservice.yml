@@ -236,17 +236,15 @@ jobs:
           SQL_DATABASE_NAME: ${{ steps.resolve.outputs.sql_database_name }}
         run: |
           set -euo pipefail
-          shopt -s nullglob
 
-          dacpac_files=(packages/data/*.dacpac)
-          if [[ ${#dacpac_files[@]} -ne 1 ]]; then
-            echo "Expected exactly one data DACPAC artifact, found ${#dacpac_files[@]}." >&2
+          if [[ ! -f packages/data/data.dacpac ]]; then
+            echo "Expected data DACPAC artifact at packages/data/data.dacpac." >&2
             exit 1
           fi
 
           /usr/local/sqlpackage/sqlpackage \
             /Action:Publish \
-            /SourceFile:"${dacpac_files[0]}" \
+            /SourceFile:packages/data/data.dacpac \
             /TargetServerName:"$SQL_SERVER_FQDN" \
             /TargetDatabaseName:"$SQL_DATABASE_NAME" \
             /TargetUser:"$SQL_ADMIN_LOGIN" \

@@ -92,7 +92,7 @@ The SQL project builds `database/data/bin/<Configuration>/data.dacpac`. For loca
 
 The script uses `SQLPACKAGE` when set, otherwise `/usr/local/sqlpackage/sqlpackage`. It uses `DB_CONNECTION` when set, otherwise the local development SQL Server connection string for `localhost:14333`.
 
-CI builds the SQL project through `app.sln`, uploads the DACPAC as a `data-dacpac` artifact, and the reusable Azure deployment workflow publishes it before deploying the web app. DACPAC publish settings are intentionally conservative:
+CI builds the SQL project through `app.sln`, uploads `data.dacpac` as a `data-dacpac` artifact, and the reusable Azure deployment workflow publishes it before deploying the web app. DACPAC publish settings are intentionally conservative:
 
 - `DropObjectsNotInSource=False`
 - `BlockOnPossibleDataLoss=True`
@@ -100,6 +100,8 @@ CI builds the SQL project through `app.sln`, uploads the DACPAC as a `data-dacpa
 - `ScriptDatabaseOptions=False`
 
 This lets the data DACPAC add and update the `[data]` schema without deleting unrelated database objects or replacing EF's `[app]` schema responsibilities.
+
+The CI workflow also enforces the schema boundary by failing if EF migrations reference the `data` schema or the data SQL project references the `app` schema. Production deploys add one review step before publishing: a separate job generates a `prod-data-dacpac-script` artifact with SQLPackage `/Action:Script`, then the production publish runs behind the `deploy_prod` workflow input and `prod` GitHub Environment gate.
 
 ## Key Files
 
@@ -175,6 +177,8 @@ Responsibilities:
 - Builds and tests the solution and client
 - Publishes the web app package
 - Uploads the web app and data DACPAC artifacts
+- Generates a production data DACPAC script artifact before the gated production publish job
+- Fails if EF migrations or the data SQL project cross their schema ownership boundary
 
 ### `.github/workflows/deploy-azure-appservice.yml`
 
