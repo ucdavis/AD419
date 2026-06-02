@@ -1,12 +1,12 @@
 CREATE TABLE [data].[ActiveProjects]
 (
-    [ProjectNumber] NVARCHAR(50) NULL,
-    [AccessionNumber] NVARCHAR(50) NULL,
-    [UcpEmployeeId] NVARCHAR(50) NULL,
-    [UcPathName] NVARCHAR(200) NULL,
-    [Is204] BIT NULL,
+    [ProjectNumber] NVARCHAR(50) NOT NULL,
+    [AccessionNumber] NVARCHAR(50) NOT NULL,
+    [UcpEmployeeId] NVARCHAR(50) NOT NULL,
+    [UcPathName] NVARCHAR(200) NOT NULL,
+    [Is204] BIT NOT NULL,
     [ExcludeFromUi] BIT NULL,
     [Notes] NVARCHAR(MAX) NULL,
-    [ProjectDirector] NVARCHAR(200) NULL,
-    [PdEmailAddress] NVARCHAR(320) NULL
+    [ProjectDirector] NVARCHAR(200) NOT NULL,
+    [PdEmailAddress] NVARCHAR(320) NOT NULL
 );
