@@ -1,13 +1,13 @@
 CREATE TABLE [data].[AssistanceListingNumbers]
 (
     [ProgramTitle] NVARCHAR(500) NOT NULL,
-    [ProgramNumber] NVARCHAR(50) NOT NULL,
+    [ProgramNumber] NVARCHAR(6) NOT NULL,
     [PopularName020] NVARCHAR(500) NULL,
     [FederalAgency030] NVARCHAR(500) NOT NULL,
     [Authorization040] NVARCHAR(MAX) NOT NULL,
     [Objectives050] NVARCHAR(MAX) NOT NULL,
     [TypesOfAssistance060] NVARCHAR(MAX) NOT NULL,
-    [UsesAndUseRestrictions070] NVARCHAR(MAX) NOT NULL,
+    [UsesAndUseRestrictions070] NVARCHAR(50) NOT NULL,
     [ApplicantEligibility081] NVARCHAR(MAX) NOT NULL,
     [BeneficiaryEligibility082] NVARCHAR(MAX) NOT NULL,
     [CredentialsDocumentation083] NVARCHAR(MAX) NOT NULL,
