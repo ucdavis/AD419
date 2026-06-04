@@ -8,6 +8,7 @@ AD419 is a full-stack web application built with a .NET 10 backend and a React/V
 - **Frontend**: React 19 with Vite, TypeScript, and TanStack Router/Query/Table
 - **Authentication**: OIDC with Microsoft Entra ID (Azure AD)
 - **Styling**: Tailwind CSS
+- **Database**: SQL Server, with EF Core migrations for application tables and a SQL project/DACPAC for reference/import data tables
 - **Development**: Hot reload for both frontend and backend
 - **Development Integration**: ASP.NET Core `SpaProxy` launches Vite for Visual Studio users, while Vite proxies API and auth routes back to ASP.NET Core during development
 
@@ -110,6 +111,43 @@ Useful companion commands:
 
 - `npm run db:logs` to watch SQL Server startup logs
 - `npm run db:down` to stop the container when you're done
+
+### Database schema and deployment
+
+AD419 has two database schema-management paths with different ownership boundaries:
+
+- EF Core migrations in `server.core/Migrations/` manage the application schema, currently the `[app]` schema and application tables such as `[app].[Users]`.
+- The SQL project in `database/data/data.sqlproj` builds a DACPAC for the `[data]` schema and data-import/reference tables such as `[data].[AllProjects]`, `[data].[ActiveProjects]`, and `[data].[AssistanceListingNumbers]`.
+
+The backend runs EF Core migrations at startup through `DbInitializer` and `AppDbContext.Database.MigrateAsync()`. The EF migrations assembly is `server.core`, and the EF migrations history table is stored as `[app].[__EFMigrationsHistory]`. The startup initializer also moves an older `[dbo].[__EFMigrationsHistory]` table into `[app]` when needed.
+
+For local EF migration work:
+
+```bash
+./server.core/createMigration.sh MigrationName
+./server.core/updateDatabase.sh
+./server.core/updateDatabase.sh MigrationName
+```
+
+Create a migration only when the `AppDbContext` model changes and the application schema needs to change. Do not edit existing migrations after they have been shared.
+
+The data DACPAC is built as part of the solution because `database/data/data.sqlproj` is included in `app.sln`:
+
+```bash
+dotnet build database/data/data.sqlproj -c Release
+```
+
+To publish the data DACPAC to the local SQL Server container:
+
+```bash
+./database/data/publish-local.sh
+```
+
+`publish-local.sh` uses `BUILD_CONFIGURATION` to choose `Debug` or `Release`, `SQLPACKAGE` to locate the `sqlpackage` executable, and `DB_CONNECTION` for the target connection string. If `DB_CONNECTION` is not set, it targets the local container database at `localhost:14333`.
+
+In GitHub Actions, `ci-cd.yml` builds the solution, verifies schema ownership boundaries, uploads the web app package and `data.dacpac`, and `deploy-azure-appservice.yml` publishes the data DACPAC before deploying the web app. The DACPAC publish uses conservative settings: it does not drop objects that are missing from the data project, blocks possible data loss, does not create the database, and does not script database options.
+
+For production deployments, the workflow first generates and uploads a `prod-data-dacpac-script` artifact with SQLPackage `/Action:Script`. Review that script before approving the gated production publish job.
 
 ### Auth Configuration
 
@@ -252,6 +290,11 @@ And as always, after updating dependencies, make sure to run `dotnet build` and 
 │   ├── Properties/          # Launch settings
 │   ├── Program.cs           # Application entry point
 │   └── server.csproj        # SpaProxy + publish integration
+├── server.core/             # Shared domain/data code and EF Core migrations
+│   ├── Data/                # AppDbContext and database initialization
+│   └── Migrations/          # EF Core migrations for the app schema
+├── database/
+│   └── data/                # SQL project that builds the data DACPAC
 ├── package.json             # Root dev orchestration scripts
 └── app.sln                  # Visual Studio solution file
 ```
@@ -263,6 +306,9 @@ And as always, after updating dependencies, make sure to run `dotnet build` and 
 - `npm start` - Starts both backend and frontend with hot reload
 - `npm run start:server` - Starts only the ASP.NET Core backend
 - `npm run start:client` - Starts only the Vite dev server
+- `npm run db:up` - Starts the local SQL Server container
+- `npm run db:logs` - Tails local SQL Server container logs
+- `npm run db:down` - Stops the local SQL Server container
 
 ### Client Directory
 

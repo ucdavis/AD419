@@ -30,15 +30,35 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Validate database schema ownership
+        run: |
+          set -euo pipefail
+
+          failed=0
+
+          if find server.core/Migrations -type f -name '*.cs' -print0 \
+            | xargs -0 grep -nE "(\\[data\\]|\"data\"|'data'|(^|[^[:alnum:]_])data[.])"; then
+            echo "::error::EF migrations must not reference the data schema. The DACPAC owns [data]."
+            failed=1
+          fi
+
+          if find database/data -type f \( -name '*.sql' -o -name '*.sqlproj' \) -print0 \
+            | xargs -0 grep -nE "(\\[app\\]|\"app\"|'app'|(^|[^[:alnum:]_])app[.])"; then
+            echo "::error::The data SQL project must not reference the app schema. EF owns [app]."
+            failed=1
+          fi
+
+          exit "$failed"
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -69,10 +89,183 @@ jobs:
           zip -r ../../packages/webapp.zip .
 
       - name: Upload deploy package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: webapp
           path: packages/webapp.zip
+          if-no-files-found: error
+
+      - name: Upload data DACPAC
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: data-dacpac
+          path: database/data/bin/${{ env.BUILD_CONFIGURATION }}/data.dacpac
+          if-no-files-found: error
+
+  script-prod-data-dacpac:
+    name: Generate prod data DACPAC script
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_prod
+    needs: build-test-package
+    runs-on: ubuntu-latest
+    environment: prod
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      DEPLOYMENT_NAME: ${{ vars.DEPLOYMENT_NAME || 'ad419-prod' }}
+      ENVIRONMENT: ${{ vars.ENVIRONMENT || 'prod' }}
+      EXPECTED_ENVIRONMENT: prod
+      EXPECTED_SUBSCRIPTION_ID: ${{ vars.PROD_AZURE_SUBSCRIPTION_ID }}
+      RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+      SQL_ADMIN_LOGIN: ${{ vars.SQL_ADMIN_LOGIN || 'ad419' }}
+      SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Download data DACPAC
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: data-dacpac
+          path: packages/data
+
+      - name: Validate required deployment settings
+        run: |
+          set -euo pipefail
+
+          required_vars=(
+            AZURE_CLIENT_ID
+            AZURE_TENANT_ID
+            AZURE_SUBSCRIPTION_ID
+            EXPECTED_SUBSCRIPTION_ID
+            RESOURCE_GROUP
+            SQL_ADMIN_PASSWORD
+          )
+
+          missing_vars=()
+          for var in "${required_vars[@]}"; do
+            if [[ -z "${!var:-}" ]]; then
+              missing_vars+=("$var")
+            fi
+          done
+
+          if (( ${#missing_vars[@]} > 0 )); then
+            echo "Missing required GitHub Environment variables/secrets: ${missing_vars[*]}" >&2
+            exit 1
+          fi
+
+          if [[ "$ENVIRONMENT" != "$EXPECTED_ENVIRONMENT" ]]; then
+            echo "ENVIRONMENT '$ENVIRONMENT' does not match GitHub Environment '$EXPECTED_ENVIRONMENT'." >&2
+            exit 1
+          fi
+
+          if [[ "$AZURE_SUBSCRIPTION_ID" != "$EXPECTED_SUBSCRIPTION_ID" ]]; then
+            echo "AZURE_SUBSCRIPTION_ID does not match the expected subscription for '$EXPECTED_ENVIRONMENT'." >&2
+            exit 1
+          fi
+
+          expected_resource_group_suffix="-$EXPECTED_ENVIRONMENT"
+          if [[ "$RESOURCE_GROUP" != *"$expected_resource_group_suffix" ]]; then
+            echo "RESOURCE_GROUP '$RESOURCE_GROUP' must end with '$expected_resource_group_suffix'." >&2
+            exit 1
+          fi
+
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve deployment outputs
+        id: resolve
+        run: |
+          set -euo pipefail
+
+          sql_server_name=$(az deployment group show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$DEPLOYMENT_NAME" \
+            --query "properties.outputs.sqlServerName.value" \
+            --output tsv)
+
+          sql_database_name=$(az deployment group show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$DEPLOYMENT_NAME" \
+            --query "properties.outputs.sqlDatabaseName.value" \
+            --output tsv)
+
+          if [[ -z "$sql_server_name" ]]; then
+            echo "Deployment output sqlServerName was empty." >&2
+            exit 1
+          fi
+
+          if [[ -z "$sql_database_name" ]]; then
+            echo "Deployment output sqlDatabaseName was empty." >&2
+            exit 1
+          fi
+
+          sql_server_fqdn=$(az sql server show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$sql_server_name" \
+            --query "fullyQualifiedDomainName" \
+            --output tsv)
+
+          if [[ -z "$sql_server_fqdn" ]]; then
+            echo "SQL server fully qualified domain name was empty." >&2
+            exit 1
+          fi
+
+          echo "Resolved SQL database: $sql_server_fqdn/$sql_database_name"
+          echo "sql_server_fqdn=$sql_server_fqdn" >> "$GITHUB_OUTPUT"
+          echo "sql_database_name=$sql_database_name" >> "$GITHUB_OUTPUT"
+
+      - name: Install SQLPackage
+        run: |
+          set -euo pipefail
+
+          if [[ -x /usr/local/sqlpackage/sqlpackage ]]; then
+            /usr/local/sqlpackage/sqlpackage /Version
+            exit 0
+          fi
+
+          wget --quiet https://aka.ms/sqlpackage-linux --output-document sqlpackage.zip
+          sudo mkdir -p /usr/local/sqlpackage
+          sudo unzip -q sqlpackage.zip -d /usr/local/sqlpackage
+          sudo chmod +x /usr/local/sqlpackage/sqlpackage
+          /usr/local/sqlpackage/sqlpackage /Version
+
+      - name: Generate prod data DACPAC script
+        env:
+          SQL_SERVER_FQDN: ${{ steps.resolve.outputs.sql_server_fqdn }}
+          SQL_DATABASE_NAME: ${{ steps.resolve.outputs.sql_database_name }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p packages/scripts
+
+          /usr/local/sqlpackage/sqlpackage \
+            /Action:Script \
+            /SourceFile:packages/data/data.dacpac \
+            /TargetServerName:"$SQL_SERVER_FQDN" \
+            /TargetDatabaseName:"$SQL_DATABASE_NAME" \
+            /TargetUser:"$SQL_ADMIN_LOGIN" \
+            /TargetPassword:"$SQL_ADMIN_PASSWORD" \
+            /OutputPath:packages/scripts/prod-data-dacpac.sql \
+            /p:DropObjectsNotInSource=False \
+            /p:BlockOnPossibleDataLoss=True \
+            /p:CreateNewDatabase=False \
+            /p:ScriptDatabaseOptions=False
+
+      - name: Upload prod data DACPAC script
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: prod-data-dacpac-script
+          path: packages/scripts/prod-data-dacpac.sql
           if-no-files-found: error
 
   deploy-test:
@@ -89,8 +282,10 @@ jobs:
 
   deploy-prod:
     name: Deploy prod
-    if: github.event_name == 'workflow_dispatch' && inputs.deploy_prod
-    needs: build-test-package
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_prod && github.ref == 'refs/heads/main'
+    needs:
+      - build-test-package
+      - script-prod-data-dacpac
     permissions:
       contents: read
       id-token: write

@@ -36,13 +36,19 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Download deploy package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: webapp
           path: packages
+
+      - name: Download data DACPAC
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: data-dacpac
+          path: packages/data
 
       - name: Validate required deployment settings
         run: |
@@ -86,7 +92,7 @@ jobs:
           fi
 
       - name: Azure login
-        uses: azure/login@v2
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5
         with:
           client-id: ${{ env.AZURE_CLIENT_ID }}
           tenant-id: ${{ env.AZURE_TENANT_ID }}
@@ -96,7 +102,7 @@ jobs:
         if: env.DEPLOY_INFRA != 'false'
         run: infrastructure/azure/scripts/deploy.sh
 
-      - name: Resolve app name from infra outputs
+      - name: Resolve deployment outputs
         id: resolve
         run: |
           set -euo pipefail
@@ -107,13 +113,64 @@ jobs:
             --query "properties.outputs.webAppName.value" \
             --output tsv)
 
+          sql_server_name=$(az deployment group show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$DEPLOYMENT_NAME" \
+            --query "properties.outputs.sqlServerName.value" \
+            --output tsv)
+
+          sql_database_name=$(az deployment group show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$DEPLOYMENT_NAME" \
+            --query "properties.outputs.sqlDatabaseName.value" \
+            --output tsv)
+
           if [[ -z "$web_app_name" ]]; then
             echo "Deployment output webAppName was empty." >&2
             exit 1
           fi
 
+          if [[ -z "$sql_server_name" ]]; then
+            echo "Deployment output sqlServerName was empty." >&2
+            exit 1
+          fi
+
+          if [[ -z "$sql_database_name" ]]; then
+            echo "Deployment output sqlDatabaseName was empty." >&2
+            exit 1
+          fi
+
+          sql_server_fqdn=$(az sql server show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$sql_server_name" \
+            --query "fullyQualifiedDomainName" \
+            --output tsv)
+
+          if [[ -z "$sql_server_fqdn" ]]; then
+            echo "SQL server fully qualified domain name was empty." >&2
+            exit 1
+          fi
+
           echo "Resolved web app: $web_app_name"
+          echo "Resolved SQL database: $sql_server_fqdn/$sql_database_name"
           echo "web_app_name=$web_app_name" >> "$GITHUB_OUTPUT"
+          echo "sql_server_fqdn=$sql_server_fqdn" >> "$GITHUB_OUTPUT"
+          echo "sql_database_name=$sql_database_name" >> "$GITHUB_OUTPUT"
+
+      - name: Install SQLPackage
+        run: |
+          set -euo pipefail
+
+          if [[ -x /usr/local/sqlpackage/sqlpackage ]]; then
+            /usr/local/sqlpackage/sqlpackage /Version
+            exit 0
+          fi
+
+          wget --quiet https://aka.ms/sqlpackage-linux --output-document sqlpackage.zip
+          sudo mkdir -p /usr/local/sqlpackage
+          sudo unzip -q sqlpackage.zip -d /usr/local/sqlpackage
+          sudo chmod +x /usr/local/sqlpackage/sqlpackage
+          /usr/local/sqlpackage/sqlpackage /Version
 
       - name: Set Web App runtime settings
         env:
@@ -173,8 +230,32 @@ jobs:
             --settings "${settings[@]}" \
             --output none
 
+      - name: Publish data DACPAC
+        env:
+          SQL_SERVER_FQDN: ${{ steps.resolve.outputs.sql_server_fqdn }}
+          SQL_DATABASE_NAME: ${{ steps.resolve.outputs.sql_database_name }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f packages/data/data.dacpac ]]; then
+            echo "Expected data DACPAC artifact at packages/data/data.dacpac." >&2
+            exit 1
+          fi
+
+          /usr/local/sqlpackage/sqlpackage \
+            /Action:Publish \
+            /SourceFile:packages/data/data.dacpac \
+            /TargetServerName:"$SQL_SERVER_FQDN" \
+            /TargetDatabaseName:"$SQL_DATABASE_NAME" \
+            /TargetUser:"$SQL_ADMIN_LOGIN" \
+            /TargetPassword:"$SQL_ADMIN_PASSWORD" \
+            /p:DropObjectsNotInSource=False \
+            /p:BlockOnPossibleDataLoss=True \
+            /p:CreateNewDatabase=False \
+            /p:ScriptDatabaseOptions=False
+
       - name: Deploy web app
-        uses: azure/webapps-deploy@v3
+        uses: azure/webapps-deploy@02a81bead70021f5284939794bcec79c271ab383
         with:
           app-name: ${{ steps.resolve.outputs.web_app_name }}
           package: packages/webapp.zip

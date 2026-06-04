@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Server.Core.Data;
 using Server.Core.Domain;
@@ -28,6 +29,18 @@ public class AppDbContextTests
         primaryKey.Properties[0].Name.Should().Be(nameof(User.Id));
         primaryKey.Properties[0].ClrType.Should().Be(typeof(int));
         primaryKey.Properties[0].ValueGenerated.Should().Be(ValueGenerated.OnAdd);
+    }
+
+    [Fact]
+    public void User_maps_to_app_schema()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+
+        var entityType = db.Model.FindEntityType(typeof(User));
+
+        entityType.Should().NotBeNull();
+        entityType!.GetSchema().Should().Be(AppDbContext.AppSchema);
+        entityType.GetTableName().Should().Be("Users");
     }
 
     [Fact]

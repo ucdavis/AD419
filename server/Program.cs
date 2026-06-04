@@ -66,7 +66,9 @@ if (string.IsNullOrWhiteSpace(conn))
     throw new InvalidOperationException(message);
 }
 
-builder.Services.AddDbContextPool<AppDbContext>(o => o.UseSqlServer(conn, opt => opt.MigrationsAssembly("server.core")));
+builder.Services.AddDbContextPool<AppDbContext>(o => o.UseSqlServer(conn, opt => opt
+    .MigrationsAssembly("server.core")
+    .MigrationsHistoryTable(AppDbContext.MigrationsHistoryTable, AppDbContext.AppSchema)));
 
 builder.Services
     .AddHealthChecks()
@@ -84,6 +86,14 @@ builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(keysPath));
 
 var app = builder.Build();
+
+if (args.Contains("--move-migrations-history-to-app-schema", StringComparer.Ordinal))
+{
+    using var scope = app.Services.CreateScope();
+    var init = scope.ServiceProvider.GetRequiredService<IDbInitializer>();
+    await init.MoveMigrationsHistoryToAppSchemaAsync();
+    return;
+}
 
 await StartupLogging.RunAsync(app, async cancellationToken =>
 {
