@@ -14,7 +14,7 @@ if [[ ! -x "$sqlpackage" ]]; then
   exit 1
 fi
 
-dotnet build "$project" -c "$configuration"
+dotnet build "$project" -c "$configuration" /p:DSP=Microsoft.Data.Tools.Schema.Sql.Sql160DatabaseSchemaProvider
 
 "$sqlpackage" \
   /Action:Publish \

@@ -5,7 +5,7 @@
   <PropertyGroup>
     <Name>Data</Name>
     <DefaultSchema>data</DefaultSchema>
-    <DSP>Microsoft.Data.Tools.Schema.Sql.Sql160DatabaseSchemaProvider</DSP>
+    <DSP Condition="'$(DSP)' == ''">Microsoft.Data.Tools.Schema.Sql.SqlAzureV12DatabaseSchemaProvider</DSP>
     <ModelCollation>1033, CI</ModelCollation>
     <SuppressTSqlWarnings>71502</SuppressTSqlWarnings>
     <ProjectGuid>{9B6F568A-8D6F-4F85-8F38-9079F2DAF6FD}</ProjectGuid>
