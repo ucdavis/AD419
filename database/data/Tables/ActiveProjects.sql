@@ -1,6 +1,6 @@
 CREATE TABLE [data].[ActiveProjects]
 (
-    [ProjectNumber] NVARCHAR(50) NOT NULL,
+    [ProjectNumber] NVARCHAR(20) NOT NULL,
     [AccessionNumber] NVARCHAR(7) NOT NULL,
     [UcpEmployeeId] NVARCHAR(8) NOT NULL,
     [UcPathName] NVARCHAR(200) NOT NULL,
@@ -9,5 +9,6 @@ CREATE TABLE [data].[ActiveProjects]
     [Notes] NVARCHAR(MAX) NULL,
     [ProjectDirector] NVARCHAR(200) NOT NULL,
     [PdEmailAddress] NVARCHAR(320) NOT NULL,
-    CONSTRAINT [PK_ActiveProjects] PRIMARY KEY CLUSTERED ([ProjectNumber], [AccessionNumber])
+    CONSTRAINT [PK_ActiveProjects] PRIMARY KEY CLUSTERED ([AccessionNumber]),
+    CONSTRAINT [UQ_ActiveProjects_ProjectNumber] UNIQUE ([ProjectNumber])
 );

@@ -282,7 +282,7 @@ jobs:
 
   deploy-prod:
     name: Deploy prod
-    if: github.event_name == 'workflow_dispatch' && inputs.deploy_prod
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_prod && github.ref == 'refs/heads/main'
     needs:
       - build-test-package
       - script-prod-data-dacpac

@@ -1,8 +1,8 @@
 CREATE TABLE [data].[AllProjects]
 (
     [AllProjectId] INT IDENTITY(1, 1) NOT NULL,
-    [AccessionNumber] NVARCHAR(50) NULL,
-    [ProjectNumber] NVARCHAR(50) NULL,
+    [AccessionNumber] NVARCHAR(50) NOT NULL,
+    [ProjectNumber] NVARCHAR(20) NULL,
     [ProposalNumber] NVARCHAR(10) NULL,
     [AwardNumber] NVARCHAR(16) NULL,
     [Title] NVARCHAR(MAX) NULL,
@@ -30,5 +30,6 @@ CREATE TABLE [data].[AllProjects]
     [ProjectStatus] NVARCHAR(100) NOT NULL,
     [ProjectFinancialReportStatus] NVARCHAR(50) NULL,
     [Source] NVARCHAR(3) NOT NULL,
-    CONSTRAINT [PK_AllProjects] PRIMARY KEY CLUSTERED ([AllProjectId])
+    CONSTRAINT [PK_AllProjects] PRIMARY KEY CLUSTERED ([AccessionNumber]),
+    CONSTRAINT [UQ_AllProjects_ProjectNumber] UNIQUE ([ProjectNumber])
 );
