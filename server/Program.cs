@@ -87,14 +87,6 @@ builder.Services.AddDataProtection()
 
 var app = builder.Build();
 
-if (args.Contains("--move-migrations-history-to-app-schema", StringComparer.Ordinal))
-{
-    using var scope = app.Services.CreateScope();
-    var init = scope.ServiceProvider.GetRequiredService<IDbInitializer>();
-    await init.MoveMigrationsHistoryToAppSchemaAsync();
-    return;
-}
-
 await StartupLogging.RunAsync(app, async cancellationToken =>
 {
     // do db migrations at startup

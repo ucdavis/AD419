@@ -119,7 +119,7 @@ AD419 has two database schema-management paths with different ownership boundari
 - EF Core migrations in `server.core/Migrations/` manage the application schema, currently the `[app]` schema and application tables such as `[app].[Users]`.
 - The SQL project in `database/data/data.sqlproj` builds a DACPAC for the `[data]` schema and data-import/reference tables such as `[data].[AllProjects]`, `[data].[ActiveProjects]`, and `[data].[AssistanceListingNumbers]`.
 
-The backend runs EF Core migrations at startup through `DbInitializer` and `AppDbContext.Database.MigrateAsync()`. The EF migrations assembly is `server.core`, and the EF migrations history table is stored as `[app].[__EFMigrationsHistory]`. The startup initializer also moves an older `[dbo].[__EFMigrationsHistory]` table into `[app]` when needed.
+The backend runs EF Core migrations at startup through `DbInitializer` and `AppDbContext.Database.MigrateAsync()`. The EF migrations assembly is `server.core`, and the EF migrations history table is stored as `[app].[__EFMigrationsHistory]`.
 
 For local EF migration work:
 
