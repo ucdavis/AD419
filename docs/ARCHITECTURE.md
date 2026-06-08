@@ -62,7 +62,7 @@ AD419 keeps the application schema and import/reference data schema separate.
 
 EF Core owns the `[app]` schema. `server.core/Data/AppDbContext.cs` sets the default schema to `[app]`, and migrations live in `server.core/Migrations/`.
 
-At startup, `server/Program.cs` resolves `IDbInitializer`, which runs `AppDbContext.Database.MigrateAsync()`. This means application deployments apply pending EF migrations when the web app starts. EF's migrations history table is configured as `[app].[__EFMigrationsHistory]`; the initializer also transfers an older `[dbo].[__EFMigrationsHistory]` table into `[app]` if it exists.
+At startup, `server/Program.cs` resolves `IDbInitializer`, which runs `AppDbContext.Database.MigrateAsync()`. This means application deployments apply pending EF migrations when the web app starts. EF's migrations history table is configured as `[app].[__EFMigrationsHistory]`.
 
 Local helpers:
 
@@ -158,8 +158,6 @@ Responsibilities:
 
 Responsibilities:
 
-- Ensures the `[app]` schema exists before EF migration history is accessed
-- Moves legacy EF migration history from `[dbo]` to `[app]` when necessary
 - Applies pending EF Core migrations during application startup
 
 ### `database/data/data.sqlproj`

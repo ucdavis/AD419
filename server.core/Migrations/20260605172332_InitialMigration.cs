@@ -3,24 +3,25 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Server.Core.Migrations
+namespace server.core.Migrations
 {
     /// <inheritdoc />
-    public partial class Users : Migration
+    public partial class InitialMigration : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "WeatherForecasts");
+            migrationBuilder.EnsureSchema(
+                name: "app");
 
             migrationBuilder.CreateTable(
                 name: "Users",
+                schema: "app",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    EntraId = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    EntraId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                     Email = table.Column<string>(type: "nvarchar(320)", maxLength: 320, nullable: false)
                 },
@@ -31,6 +32,7 @@ namespace Server.Core.Migrations
 
             migrationBuilder.CreateIndex(
                 name: "IX_Users_EntraId",
+                schema: "app",
                 table: "Users",
                 column: "EntraId",
                 unique: true);
@@ -40,22 +42,8 @@ namespace Server.Core.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "Users");
-
-            migrationBuilder.CreateTable(
-                name: "WeatherForecasts",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    Date = table.Column<DateOnly>(type: "date", nullable: false),
-                    Summary = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    TemperatureC = table.Column<int>(type: "int", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_WeatherForecasts", x => x.Id);
-                });
+                name: "Users",
+                schema: "app");
         }
     }
 }

@@ -8,7 +8,7 @@ using Server.Core.Data;
 
 #nullable disable
 
-namespace Server.Core.Migrations
+namespace server.core.Migrations
 {
     [DbContext(typeof(AppDbContext))]
     partial class AppDbContextModelSnapshot : ModelSnapshot
