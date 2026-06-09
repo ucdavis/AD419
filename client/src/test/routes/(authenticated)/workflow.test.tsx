@@ -12,7 +12,7 @@ const mockUser = {
 };
 
 describe('AD419 workflow routes', () => {
-  it('redirects the authenticated homepage to the current workflow stage', async () => {
+  it('redirects the authenticated homepage to the first workflow stage', async () => {
     server.use(
       http.get('/api/user/me', () => {
         return HttpResponse.json(mockUser);
@@ -23,18 +23,25 @@ describe('AD419 workflow routes', () => {
 
     try {
       expect(
-        await screen.findByRole('heading', { name: 'Expense Review' })
+        await screen.findByRole('heading', { name: 'Project Identification' })
+      ).toBeInTheDocument();
+
+      // Every step is a "Coming soon" placeholder.
+      expect(
+        await screen.findByRole('heading', { name: 'Coming soon' })
       ).toBeInTheDocument();
 
       await waitFor(() => {
-        expect(router.state.location.pathname).toBe('/workflow/expense-review');
+        expect(router.state.location.pathname).toBe(
+          '/workflow/project-identification'
+        );
       });
     } finally {
       cleanup();
     }
   });
 
-  it('redirects locked workflow stage URLs to the current workflow stage', async () => {
+  it('loads any workflow stage directly without locking', async () => {
     server.use(
       http.get('/api/user/me', () => {
         return HttpResponse.json(mockUser);
@@ -47,11 +54,15 @@ describe('AD419 workflow routes', () => {
 
     try {
       expect(
-        await screen.findByRole('heading', { name: 'Expense Review' })
+        await screen.findByRole('heading', { name: 'Final Reports' })
+      ).toBeInTheDocument();
+
+      expect(
+        await screen.findByRole('heading', { name: 'Coming soon' })
       ).toBeInTheDocument();
 
       await waitFor(() => {
-        expect(router.state.location.pathname).toBe('/workflow/expense-review');
+        expect(router.state.location.pathname).toBe('/workflow/final-reports');
       });
     } finally {
       cleanup();

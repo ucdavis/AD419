@@ -15,7 +15,7 @@ describe('authenticated route authorization', () => {
       )
     );
 
-    const { cleanup } = renderRoute({ initialPath: '/me' });
+    const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });
 
     try {
       expect(

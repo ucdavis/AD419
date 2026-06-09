@@ -6,25 +6,19 @@ import { WorkflowTopBar } from './WorkflowTopBar.tsx';
 
 export function WorkflowShell({
   children,
-  headerActions,
   snapshot,
   stage,
 }: {
   children: ReactNode;
-  headerActions?: ReactNode;
   snapshot: WorkflowSnapshot;
   stage: WorkflowStage;
 }) {
   return (
     <div className="workflow-app">
-      <WorkflowTopBar snapshot={snapshot} />
+      <WorkflowTopBar />
       <WorkflowStepper activeStageId={stage.id} snapshot={snapshot} />
       <main className="workflow-main">
-        <StageHeader
-          actions={headerActions}
-          snapshot={snapshot}
-          stage={stage}
-        />
+        <StageHeader stage={stage} />
         {children}
       </main>
     </div>
