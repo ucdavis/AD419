@@ -98,9 +98,10 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
         await destination.OpenAsync(cancellationToken);
         await using var transaction = (SqlTransaction)await destination.BeginTransactionAsync(cancellationToken);
 
-        await using (var truncate = new SqlCommand($"TRUNCATE TABLE {DestinationTable};", destination, transaction))
+        await using (var delete = new SqlCommand($"DELETE FROM {DestinationTable};", destination, transaction))
         {
-            await truncate.ExecuteNonQueryAsync(cancellationToken);
+            delete.CommandTimeout = CommandTimeoutSeconds;
+            await delete.ExecuteNonQueryAsync(cancellationToken);
         }
 
         using var bulkCopy = new SqlBulkCopy(destination, SqlBulkCopyOptions.Default, transaction)
