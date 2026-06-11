@@ -178,6 +178,89 @@ describe('SpreadsheetImportPanel', () => {
     }
   });
 
+  it('pages validation failures with direct navigation and selectable page size', async () => {
+    const user = userEvent.setup();
+    const rows = Array.from({ length: 31 }, (_, index) => {
+      const rowNum = index + 1;
+
+      return {
+        cellErrors: [
+          {
+            code: 'required',
+            message: `OrganizationName is required for row ${rowNum}.`,
+            rawValue: '',
+            sourceHeader: 'Organization Name',
+            targetColumn: 'OrganizationName',
+          },
+        ],
+        errors: [],
+        rowNum,
+        values: {
+          AccessionNumber: `A-${rowNum}`,
+          OrganizationName: '',
+        },
+      };
+    });
+
+    server.use(
+      http.get('/api/imports/recent', () => HttpResponse.json([])),
+      http.post('/api/imports/:dataset', () =>
+        HttpResponse.json(
+          {
+            attemptedRows: rows.length,
+            dataset: 'all-projects',
+            fileErrors: [],
+            filename: 'all-projects.xlsx',
+            importLogId: 46,
+            rows,
+            succeeded: false,
+          },
+          { status: 400 }
+        )
+      )
+    );
+
+    const { cleanup } = renderPanel();
+
+    try {
+      await user.upload(
+        screen.getByLabelText('Workbook'),
+        new File(['test'], 'all-projects.xlsx', {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+      );
+      await user.click(screen.getByRole('button', { name: 'Upload' }));
+
+      expect(
+        await screen.findByText(
+          'Import failed validation for 31 of 31 attempted rows.'
+        )
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText('Page')).toHaveValue(1);
+      expect(screen.getByText('of 4')).toBeInTheDocument();
+      expect(screen.getByLabelText('Rows per page')).toHaveValue('10');
+
+      await user.click(screen.getByRole('button', { name: 'Last' }));
+      expect(screen.getByLabelText('Page')).toHaveValue(4);
+      expect(screen.getByText('31')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'First' }));
+      expect(screen.getByLabelText('Page')).toHaveValue(1);
+      expect(screen.getByText('1')).toBeInTheDocument();
+
+      await user.clear(screen.getByLabelText('Page'));
+      await user.type(screen.getByLabelText('Page'), '3');
+      expect(screen.getByLabelText('Page')).toHaveValue(3);
+      expect(screen.getByText('21')).toBeInTheDocument();
+
+      await user.selectOptions(screen.getByLabelText('Rows per page'), '25');
+      expect(screen.getByLabelText('Rows per page')).toHaveValue('25');
+      expect(screen.getByText('of 2')).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
   it('downloads validation errors as CSV', async () => {
     const user = userEvent.setup();
     const createObjectUrl = vi
