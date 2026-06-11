@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Server.Authorization;
 using Server.Core.Data;
+using Server.Import;
 using Server.Core.Notification;
 using Server.Helpers;
 
@@ -50,6 +51,8 @@ builder.Services.AddResponseCaching();
 // add scoped services here
 builder.Services.AddScoped<IDbInitializer, DbInitializer>();
 builder.Services.AddScoped<IAuthorizationHandler, AuthorizedUserHandler>();
+builder.Services.AddSingleton<ISpreadsheetImportRegistry, SpreadsheetImportRegistry>();
+builder.Services.AddScoped<ISpreadsheetImportService, SpreadsheetImportService>();
 // add auth policies here
 
 // add db context (check secrets first, then config, then default)

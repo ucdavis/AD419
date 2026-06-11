@@ -16,6 +16,9 @@ describe('AD419 workflow routes', () => {
     server.use(
       http.get('/api/user/me', () => {
         return HttpResponse.json(mockUser);
+      }),
+      http.get('/api/imports/recent', () => {
+        return HttpResponse.json([]);
       })
     );
 
@@ -26,10 +29,11 @@ describe('AD419 workflow routes', () => {
         await screen.findByRole('heading', { name: 'Project Identification' })
       ).toBeInTheDocument();
 
-      // Every step is a "Coming soon" placeholder.
       expect(
-        await screen.findByRole('heading', { name: 'Coming soon' })
+        await screen.findByRole('heading', { name: 'Load required data' })
       ).toBeInTheDocument();
+      expect(screen.getByLabelText('Dataset')).toBeInTheDocument();
+      expect(screen.getByLabelText('Workbook')).toBeInTheDocument();
 
       await waitFor(() => {
         expect(router.state.location.pathname).toBe(
@@ -45,6 +49,9 @@ describe('AD419 workflow routes', () => {
     server.use(
       http.get('/api/user/me', () => {
         return HttpResponse.json(mockUser);
+      }),
+      http.get('/api/imports/recent', () => {
+        return HttpResponse.json([]);
       })
     );
 

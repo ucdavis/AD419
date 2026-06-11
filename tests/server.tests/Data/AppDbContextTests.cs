@@ -44,6 +44,18 @@ public class AppDbContextTests
     }
 
     [Fact]
+    public void ImportLog_maps_to_app_schema()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+
+        var entityType = db.Model.FindEntityType(typeof(ImportLog));
+
+        entityType.Should().NotBeNull();
+        entityType!.GetSchema().Should().Be(AppDbContext.AppSchema);
+        entityType.GetTableName().Should().Be("ImportLog");
+    }
+
+    [Fact]
     public void User_has_unique_index_on_entra_id()
     {
         using var db = TestDbContextFactory.CreateInMemory();

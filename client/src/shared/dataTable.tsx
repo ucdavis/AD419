@@ -7,9 +7,17 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   InitialTableState,
+  type RowData,
   type Table,
   useReactTable,
 } from '@tanstack/react-table';
+
+declare module '@tanstack/react-table' {
+  interface ColumnMeta<TData extends RowData, TValue> {
+    cellClassName?: string;
+    headerClassName?: string;
+  }
+}
 
 type TableActionsRenderer<TData extends object> =
   | ReactNode
@@ -22,6 +30,7 @@ interface DataTableProps<TData extends object> {
   globalFilter?: 'left' | 'right' | 'none'; // Controls the position of the search box
   initialState?: InitialTableState; // Optional initial state for the table, use for stuff like setting page size or sorting
   tableActions?: TableActionsRenderer<TData>;
+  tableClassName?: string;
 }
 
 export const DataTable = <TData extends object>({
@@ -31,6 +40,7 @@ export const DataTable = <TData extends object>({
   globalFilter = 'right',
   initialState,
   tableActions,
+  tableClassName = 'table-zebra',
 }: DataTableProps<TData>) => {
   // TanStack Table is not yet marked compatible with the React Compiler.
   // Keep this suppression until the library compatibility guidance changes.
@@ -114,13 +124,18 @@ export const DataTable = <TData extends object>({
       <div className="overflow-x-auto">
         {' '}
         {/* enables horizontal scroll on small screens */}
-        <table className="table table-zebra w-full">
+        <table className={`table w-full ${tableClassName}`}>
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
                   <th
-                    className="cursor-pointer"
+                    className={[
+                      'cursor-pointer',
+                      header.column.columnDef.meta?.headerClassName,
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
                     key={header.id}
                     onClick={header.column.getToggleSortingHandler?.()}
                   >
@@ -145,7 +160,10 @@ export const DataTable = <TData extends object>({
             {table.getRowModel().rows.map((row) => (
               <tr key={row.id}>
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id}>
+                  <td
+                    className={cell.column.columnDef.meta?.cellClassName}
+                    key={cell.id}
+                  >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}
