@@ -3,10 +3,10 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SpreadsheetImportPanel } from '@/components/SpreadsheetImportPanel.tsx';
+import { FlatFileImportPanel } from '@/components/FlatFileImportPanel.tsx';
 import { server } from '@/test/mswUtils.ts';
 
-describe('SpreadsheetImportPanel', () => {
+describe('FlatFileImportPanel', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -22,7 +22,7 @@ describe('SpreadsheetImportPanel', () => {
 
         return HttpResponse.json({
           dataset: postedDataset,
-          filename: 'active-projects.xlsx',
+          filename: 'active-projects.csv',
           importedAt: '2026-06-09T18:30:00Z',
           importLogId: 12,
           rowsImported: 42,
@@ -37,16 +37,20 @@ describe('SpreadsheetImportPanel', () => {
       await user.selectOptions(screen.getByLabelText('Dataset'), [
         'active-projects',
       ]);
+      expect(screen.getByLabelText('Import file')).toHaveAttribute(
+        'accept',
+        '.csv,.xlsx'
+      );
       await user.upload(
-        screen.getByLabelText('Workbook'),
-        new File(['test'], 'active-projects.xlsx', {
-          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        screen.getByLabelText('Import file'),
+        new File(['test'], 'active-projects.csv', {
+          type: 'text/csv',
         })
       );
       await user.click(screen.getByRole('button', { name: 'Upload' }));
 
       expect(
-        await screen.findByText('Imported 42 rows from active-projects.xlsx.')
+        await screen.findByText('Imported 42 rows from active-projects.csv.')
       ).toBeInTheDocument();
       expect(postedDataset).toBe('active-projects');
     } finally {
@@ -137,7 +141,7 @@ describe('SpreadsheetImportPanel', () => {
 
     try {
       await user.upload(
-        screen.getByLabelText('Workbook'),
+        screen.getByLabelText('Import file'),
         new File(['test'], 'all-projects.xlsx', {
           type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         })
@@ -224,7 +228,7 @@ describe('SpreadsheetImportPanel', () => {
 
     try {
       await user.upload(
-        screen.getByLabelText('Workbook'),
+        screen.getByLabelText('Import file'),
         new File(['test'], 'all-projects.xlsx', {
           type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         })
@@ -322,7 +326,7 @@ describe('SpreadsheetImportPanel', () => {
 
     try {
       await user.upload(
-        screen.getByLabelText('Workbook'),
+        screen.getByLabelText('Import file'),
         new File(['test'], 'all-projects.xlsx', {
           type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         })
@@ -356,7 +360,7 @@ function renderPanel() {
 
   const view = render(
     <QueryClientProvider client={queryClient}>
-      <SpreadsheetImportPanel />
+      <FlatFileImportPanel />
     </QueryClientProvider>
   );
 

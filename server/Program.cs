@@ -51,8 +51,8 @@ builder.Services.AddResponseCaching();
 // add scoped services here
 builder.Services.AddScoped<IDbInitializer, DbInitializer>();
 builder.Services.AddScoped<IAuthorizationHandler, AuthorizedUserHandler>();
-builder.Services.AddSingleton<ISpreadsheetImportRegistry, SpreadsheetImportRegistry>();
-builder.Services.AddScoped<ISpreadsheetImportService, SpreadsheetImportService>();
+builder.Services.AddSingleton<IFlatFileImportRegistry, FlatFileImportRegistry>();
+builder.Services.AddScoped<IFlatFileImportService, FlatFileImportService>();
 // add auth policies here
 
 // add db context (check secrets first, then config, then default)

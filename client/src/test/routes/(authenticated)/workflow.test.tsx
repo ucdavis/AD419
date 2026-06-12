@@ -33,7 +33,7 @@ describe('AD419 workflow routes', () => {
         await screen.findByRole('heading', { name: 'Load required data' })
       ).toBeInTheDocument();
       expect(screen.getByLabelText('Dataset')).toBeInTheDocument();
-      expect(screen.getByLabelText('Workbook')).toBeInTheDocument();
+      expect(screen.getByLabelText('Import file')).toBeInTheDocument();
 
       await waitFor(() => {
         expect(router.state.location.pathname).toBe(

@@ -1,12 +1,12 @@
 namespace Server.Import;
 
-public interface ISpreadsheetImportRegistry
+public interface IFlatFileImportRegistry
 {
     IReadOnlyList<ImportDatasetDefinition> Datasets { get; }
     ImportDatasetDefinition? Find(string datasetId);
 }
 
-public sealed class SpreadsheetImportRegistry : ISpreadsheetImportRegistry
+public sealed class FlatFileImportRegistry : IFlatFileImportRegistry
 {
     private static readonly IReadOnlyList<ImportDatasetDefinition> DatasetDefinitions =
     [

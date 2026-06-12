@@ -6,7 +6,7 @@ using Server.Import;
 
 namespace Server.Tests.Import;
 
-public class SpreadsheetImportServiceTests
+public class FlatFileImportServiceTests
 {
     [Theory]
     [InlineData("Accession Number", "AccessionNumber")]
@@ -14,7 +14,7 @@ public class SpreadsheetImportServiceTests
     [InlineData("Project Director Email", "ProjectDirectorEmail")]
     public void Registry_normalizes_known_headers(string sourceHeader, string expectedTargetColumn)
     {
-        var registry = new SpreadsheetImportRegistry();
+        var registry = new FlatFileImportRegistry();
         var dataset = registry.Find("all-projects");
 
         var column = dataset?.FindColumnBySourceHeader(sourceHeader);
@@ -24,11 +24,11 @@ public class SpreadsheetImportServiceTests
     }
 
     [Fact]
-    public async Task Import_rejects_non_xlsx_files()
+    public async Task Import_rejects_unsupported_file_types()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         var service = CreateService(db);
-        var file = CreateTextFile("projects.csv", "not,xlsx");
+        var file = CreateTextFile("projects.txt", "not,a,supported,type");
 
         var result = await service.ImportAsync("all-projects", file, null, CancellationToken.None);
 
@@ -59,7 +59,7 @@ public class SpreadsheetImportServiceTests
     }
 
     [Fact]
-    public async Task Import_rejects_workbooks_without_data_rows()
+    public async Task Import_rejects_flat_files_without_data_rows()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         var service = CreateService(db);
@@ -83,11 +83,11 @@ public class SpreadsheetImportServiceTests
     }
 
     [Fact]
-    public async Task Import_collects_required_type_length_and_duplicate_errors_before_persistence()
+    public async Task Import_collects_csv_required_type_length_and_duplicate_errors_before_persistence()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         var service = CreateService(db);
-        var file = CreateWorkbook("active-projects.xlsx",
+        var file = CreateCsvFile("active-projects.csv",
             [
                 "Project Number",
                 "Accession Number",
@@ -189,18 +189,36 @@ public class SpreadsheetImportServiceTests
             log.ErrorPayload.Contains("database_validation_failed", StringComparison.Ordinal));
     }
 
-    private static SpreadsheetImportService CreateService(Server.Core.Data.AppDbContext db)
+    private static FlatFileImportService CreateService(Server.Core.Data.AppDbContext db)
     {
-        return new SpreadsheetImportService(
+        return new FlatFileImportService(
             db,
-            new SpreadsheetImportRegistry(),
-            NullLogger<SpreadsheetImportService>.Instance);
+            new FlatFileImportRegistry(),
+            NullLogger<FlatFileImportService>.Instance);
     }
 
     private static IFormFile CreateTextFile(string filename, string contents)
     {
         var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(contents));
         return new FormFile(stream, 0, stream.Length, "file", filename);
+    }
+
+    private static IFormFile CreateCsvFile(string filename, string[] headers, string[][] rows)
+    {
+        var lines = new List<string>
+        {
+            string.Join(",", headers.Select(EscapeCsvValue)),
+        };
+        lines.AddRange(rows.Select(row => string.Join(",", row.Select(EscapeCsvValue))));
+
+        return CreateTextFile(filename, string.Join(Environment.NewLine, lines));
+    }
+
+    private static string EscapeCsvValue(string value)
+    {
+        return value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r')
+            ? $"\"{value.Replace("\"", "\"\"")}\""
+            : value;
     }
 
     private static IFormFile CreateWorkbook(string filename, string[] headers, string[][] rows)

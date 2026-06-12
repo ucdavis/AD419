@@ -7,8 +7,8 @@ using Server.Models.Imports;
 namespace Server.Controllers;
 
 public sealed class ImportsController(
-    ISpreadsheetImportService importService,
-    ISpreadsheetImportRegistry registry,
+    IFlatFileImportService importService,
+    IFlatFileImportRegistry registry,
     AppDbContext dbContext) : ApiControllerBase
 {
     [HttpGet("recent")]

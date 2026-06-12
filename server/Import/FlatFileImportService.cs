@@ -1,7 +1,10 @@
 using System.Data;
+using System.Globalization;
 using System.Security.Claims;
 using System.Text.Json;
 using ClosedXML.Excel;
+using CsvHelper;
+using CsvHelper.Configuration;
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +15,7 @@ using Server.Models.Imports;
 
 namespace Server.Import;
 
-public interface ISpreadsheetImportService
+public interface IFlatFileImportService
 {
     Task<ImportResult> ImportAsync(
         string datasetId,
@@ -27,12 +30,12 @@ public sealed record ImportSucceeded(ImportSuccessResponse Response) : ImportRes
 
 public sealed record ImportValidationFailed(ImportValidationResponse Response) : ImportResult;
 
-public sealed class SpreadsheetImportService(
+public sealed class FlatFileImportService(
     AppDbContext dbContext,
-    ISpreadsheetImportRegistry registry,
-    ILogger<SpreadsheetImportService> logger) : ISpreadsheetImportService
+    IFlatFileImportRegistry registry,
+    ILogger<FlatFileImportService> logger) : IFlatFileImportService
 {
-    private const string TempTableName = "#SpreadsheetImportRows";
+    private const string TempTableName = "#FlatFileImportRows";
     private const string StatusSucceeded = "Succeeded";
     private const string StatusValidationFailed = "ValidationFailed";
     private const string StatusPersistenceFailed = "PersistenceFailed";
@@ -61,7 +64,7 @@ public sealed class SpreadsheetImportService(
             return await ValidationAsync(definition.Id, file?.FileName, 0, fileErrors, [], user, startedAt, cancellationToken);
         }
 
-        var parseResult = ParseWorkbook(definition, file!);
+        var parseResult = ParseFile(definition, file!);
         if (parseResult.FileErrors.Count > 0 || parseResult.Rows.Any(row => row.Errors.Count > 0 || row.CellErrors.Count > 0))
         {
             return await ValidationAsync(
@@ -133,7 +136,7 @@ public sealed class SpreadsheetImportService(
 
         if (file is null)
         {
-            errors.Add(new ImportFileError("missing_file", "Choose an .xlsx file to import."));
+            errors.Add(new ImportFileError("missing_file", "Choose an .xlsx or .csv file to import."));
             return errors;
         }
 
@@ -142,15 +145,26 @@ public sealed class SpreadsheetImportService(
             errors.Add(new ImportFileError("empty_file", "The selected file is empty."));
         }
 
-        if (!string.Equals(Path.GetExtension(file.FileName), ".xlsx", StringComparison.OrdinalIgnoreCase))
+        var extension = Path.GetExtension(file.FileName);
+        if (!string.Equals(extension, ".xlsx", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(extension, ".csv", StringComparison.OrdinalIgnoreCase))
         {
-            errors.Add(new ImportFileError("invalid_file_type", "Only .xlsx files can be imported."));
+            errors.Add(new ImportFileError("invalid_file_type", "Only .xlsx and .csv files can be imported."));
         }
 
         return errors;
     }
 
-    private static WorkbookParseResult ParseWorkbook(ImportDatasetDefinition definition, IFormFile file)
+    private static FlatFileParseResult ParseFile(ImportDatasetDefinition definition, IFormFile file)
+    {
+        return Path.GetExtension(file.FileName).ToLowerInvariant() switch
+        {
+            ".csv" => ParseCsv(definition, file),
+            _ => ParseWorkbook(definition, file),
+        };
+    }
+
+    private static FlatFileParseResult ParseWorkbook(ImportDatasetDefinition definition, IFormFile file)
     {
         using var stream = file.OpenReadStream();
         using var workbook = new XLWorkbook(stream);
@@ -158,7 +172,7 @@ public sealed class SpreadsheetImportService(
 
         if (worksheet is null)
         {
-            return new WorkbookParseResult(
+            return new FlatFileParseResult(
                 [new ImportFileError("missing_headers", "The workbook does not contain a header row.")],
                 [],
                 []);
@@ -167,7 +181,7 @@ public sealed class SpreadsheetImportService(
         var headerRow = worksheet.FirstRowUsed();
         if (headerRow is null)
         {
-            return new WorkbookParseResult(
+            return new FlatFileParseResult(
                 [new ImportFileError("missing_headers", "The workbook does not contain a header row.")],
                 [],
                 []);
@@ -177,28 +191,22 @@ public sealed class SpreadsheetImportService(
         var lastHeaderCell = headerRow.LastCellUsed();
         if (lastHeaderCell is null)
         {
-            return new WorkbookParseResult(
+            return new FlatFileParseResult(
                 [new ImportFileError("missing_headers", "The workbook does not contain a header row.")],
                 [],
                 []);
         }
 
         var fileErrors = new List<ImportFileError>();
-        var headersByColumnNumber = MapHeaders(definition, headerRow, lastHeaderCell.Address.ColumnNumber, fileErrors);
-        foreach (var requiredColumn in definition.Columns.Where(column => column.Required))
-        {
-            if (!headersByColumnNumber.Values.Any(header => header.Column.TargetColumn == requiredColumn.TargetColumn))
-            {
-                fileErrors.Add(new ImportFileError(
-                    "missing_required_header",
-                    $"Missing required header for {requiredColumn.TargetColumn}.",
-                    TargetColumn: requiredColumn.TargetColumn));
-            }
-        }
+        var sourceHeaders = Enumerable.Range(1, lastHeaderCell.Address.ColumnNumber)
+            .Select(columnNumber => headerRow.Cell(columnNumber).GetString())
+            .ToList();
+        var headersByColumnNumber = MapHeaders(definition, sourceHeaders, fileErrors);
+        AddMissingRequiredHeaderErrors(definition, headersByColumnNumber, fileErrors);
 
         if (fileErrors.Count > 0)
         {
-            return new WorkbookParseResult(fileErrors, [], []);
+            return new FlatFileParseResult(fileErrors, [], []);
         }
 
         var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? headerRowNumber;
@@ -213,7 +221,7 @@ public sealed class SpreadsheetImportService(
                 continue;
             }
 
-            var parsedRow = ParseRow(definition, worksheetRow, rowNumber, headersByColumnNumber);
+            var parsedRow = ParseWorkbookRow(definition, worksheetRow, rowNumber, headersByColumnNumber);
             rows.Add(parsedRow.Result);
             parsedRows.Add(parsedRow);
         }
@@ -221,27 +229,88 @@ public sealed class SpreadsheetImportService(
         if (rows.Count == 0)
         {
             fileErrors.Add(new ImportFileError("no_data_rows", "The workbook does not contain any data rows to import."));
-            return new WorkbookParseResult(fileErrors, rows, parsedRows);
+            return new FlatFileParseResult(fileErrors, rows, parsedRows);
         }
 
         AddDuplicateKeyErrors(definition, parsedRows);
 
-        return new WorkbookParseResult(fileErrors, rows, parsedRows);
+        return new FlatFileParseResult(fileErrors, rows, parsedRows);
+    }
+
+    private static FlatFileParseResult ParseCsv(ImportDatasetDefinition definition, IFormFile file)
+    {
+        try
+        {
+            using var stream = file.OpenReadStream();
+            using var reader = new StreamReader(stream);
+            using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
+            {
+                TrimOptions = TrimOptions.Trim,
+            });
+
+            if (!csv.Read() || !csv.ReadHeader())
+            {
+                return new FlatFileParseResult(
+                    [new ImportFileError("missing_headers", "The CSV file does not contain a header row.")],
+                    [],
+                    []);
+            }
+
+            var fileErrors = new List<ImportFileError>();
+            var headersByColumnNumber = MapHeaders(definition, csv.HeaderRecord ?? [], fileErrors);
+            AddMissingRequiredHeaderErrors(definition, headersByColumnNumber, fileErrors);
+
+            if (fileErrors.Count > 0)
+            {
+                return new FlatFileParseResult(fileErrors, [], []);
+            }
+
+            var rows = new List<ImportRowResult>();
+            var parsedRows = new List<ParsedImportRow>();
+
+            while (csv.Read())
+            {
+                if (IsBlankCsvRow(csv, headersByColumnNumber.Keys))
+                {
+                    continue;
+                }
+
+                var parsedRow = ParseCsvRow(definition, csv, csv.Parser.Row, headersByColumnNumber);
+                rows.Add(parsedRow.Result);
+                parsedRows.Add(parsedRow);
+            }
+
+            if (rows.Count == 0)
+            {
+                fileErrors.Add(new ImportFileError("no_data_rows", "The CSV file does not contain any data rows to import."));
+                return new FlatFileParseResult(fileErrors, rows, parsedRows);
+            }
+
+            AddDuplicateKeyErrors(definition, parsedRows);
+
+            return new FlatFileParseResult(fileErrors, rows, parsedRows);
+        }
+        catch (CsvHelperException)
+        {
+            return new FlatFileParseResult(
+                [new ImportFileError("invalid_csv", "The CSV file could not be parsed.")],
+                [],
+                []);
+        }
     }
 
     private static Dictionary<int, HeaderBinding> MapHeaders(
         ImportDatasetDefinition definition,
-        IXLRow headerRow,
-        int lastColumnNumber,
+        IReadOnlyList<string> sourceHeaders,
         List<ImportFileError> fileErrors)
     {
         var bindings = new Dictionary<int, HeaderBinding>();
         var seenHeaders = new Dictionary<string, string>();
         var seenTargetColumns = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        for (var columnNumber = 1; columnNumber <= lastColumnNumber; columnNumber++)
+        for (var columnNumber = 1; columnNumber <= sourceHeaders.Count; columnNumber++)
         {
-            var sourceHeader = headerRow.Cell(columnNumber).GetString().Trim();
+            var sourceHeader = sourceHeaders[columnNumber - 1].Trim();
             if (string.IsNullOrWhiteSpace(sourceHeader))
             {
                 continue;
@@ -286,12 +355,34 @@ public sealed class SpreadsheetImportService(
         return bindings;
     }
 
+    private static void AddMissingRequiredHeaderErrors(
+        ImportDatasetDefinition definition,
+        IReadOnlyDictionary<int, HeaderBinding> headersByColumnNumber,
+        List<ImportFileError> fileErrors)
+    {
+        foreach (var requiredColumn in definition.Columns.Where(column => column.Required))
+        {
+            if (!headersByColumnNumber.Values.Any(header => header.Column.TargetColumn == requiredColumn.TargetColumn))
+            {
+                fileErrors.Add(new ImportFileError(
+                    "missing_required_header",
+                    $"Missing required header for {requiredColumn.TargetColumn}.",
+                    TargetColumn: requiredColumn.TargetColumn));
+            }
+        }
+    }
+
     private static bool IsBlankRow(IXLRow row, IEnumerable<int> columnNumbers)
     {
         return columnNumbers.All(columnNumber => string.IsNullOrWhiteSpace(row.Cell(columnNumber).GetString()));
     }
 
-    private static ParsedImportRow ParseRow(
+    private static bool IsBlankCsvRow(CsvReader csv, IEnumerable<int> columnNumbers)
+    {
+        return columnNumbers.All(columnNumber => string.IsNullOrWhiteSpace(ReadCsvField(csv, columnNumber)));
+    }
+
+    private static ParsedImportRow ParseWorkbookRow(
         ImportDatasetDefinition definition,
         IXLRow worksheetRow,
         int rowNumber,
@@ -343,6 +434,64 @@ public sealed class SpreadsheetImportService(
         return new ParsedImportRow(rowNumber, result, parsedValues, sourceHeaders);
     }
 
+    private static ParsedImportRow ParseCsvRow(
+        ImportDatasetDefinition definition,
+        CsvReader csv,
+        int rowNumber,
+        IReadOnlyDictionary<int, HeaderBinding> headersByColumnNumber)
+    {
+        var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        var parsedValues = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        var sourceHeaders = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        var rowErrors = new List<string>();
+        var cellErrors = new List<ImportCellError>();
+
+        foreach (var binding in headersByColumnNumber.Values)
+        {
+            values[binding.Column.TargetColumn] = null;
+            sourceHeaders[binding.Column.TargetColumn] = binding.SourceHeader;
+        }
+
+        foreach (var (columnNumber, binding) in headersByColumnNumber)
+        {
+            var rawValue = ReadCsvField(csv, columnNumber).Trim();
+            values[binding.Column.TargetColumn] = rawValue;
+
+            var parsed = ParseCsvCell(rawValue, binding.Column, binding.SourceHeader);
+            if (parsed.Error is not null)
+            {
+                cellErrors.Add(parsed.Error);
+            }
+
+            parsedValues[binding.Column.TargetColumn] = parsed.Value;
+        }
+
+        foreach (var column in definition.Columns.Where(column => column.Required))
+        {
+            if (!parsedValues.TryGetValue(column.TargetColumn, out var value) || IsMissing(value))
+            {
+                var sourceHeader = headersByColumnNumber.Values
+                    .FirstOrDefault(header => header.Column.TargetColumn == column.TargetColumn)?.SourceHeader;
+                cellErrors.Add(new ImportCellError(
+                    column.TargetColumn,
+                    sourceHeader,
+                    "required",
+                    $"{column.TargetColumn} is required.",
+                    values.GetValueOrDefault(column.TargetColumn)));
+            }
+        }
+
+        var result = new ImportRowResult(rowNumber, values, rowErrors, cellErrors);
+        return new ParsedImportRow(rowNumber, result, parsedValues, sourceHeaders);
+    }
+
+    private static string ReadCsvField(CsvReader csv, int columnNumber)
+    {
+        return columnNumber <= csv.Parser.Count
+            ? csv.GetField(columnNumber - 1) ?? string.Empty
+            : string.Empty;
+    }
+
     private static ParsedCell ParseCell(IXLCell cell, string rawValue, ImportColumn column, string sourceHeader)
     {
         if (string.IsNullOrWhiteSpace(rawValue))
@@ -362,6 +511,30 @@ public sealed class SpreadsheetImportService(
                 return ParseDate(cell, rawValue, column, sourceHeader);
             case ImportColumnType.Int16:
                 return ParseInt16(cell, rawValue, column, sourceHeader);
+            default:
+                throw new ArgumentOutOfRangeException(nameof(column), column.Type, "Unsupported import column type.");
+        }
+    }
+
+    private static ParsedCell ParseCsvCell(string rawValue, ImportColumn column, string sourceHeader)
+    {
+        if (string.IsNullOrWhiteSpace(rawValue))
+        {
+            return new ParsedCell(null, null);
+        }
+
+        switch (column.Type)
+        {
+            case ImportColumnType.String:
+                return ParseString(rawValue, column, sourceHeader);
+            case ImportColumnType.Boolean:
+                return ParseBoolean(rawValue, column, sourceHeader);
+            case ImportColumnType.Decimal:
+                return ParseDecimal(rawValue, column, sourceHeader);
+            case ImportColumnType.Date:
+                return ParseDate(rawValue, column, sourceHeader);
+            case ImportColumnType.Int16:
+                return ParseInt16(rawValue, column, sourceHeader);
             default:
                 throw new ArgumentOutOfRangeException(nameof(column), column.Type, "Unsupported import column type.");
         }
@@ -389,6 +562,11 @@ public sealed class SpreadsheetImportService(
             return new ParsedCell(boolValue, null);
         }
 
+        return ParseBoolean(rawValue, column, sourceHeader);
+    }
+
+    private static ParsedCell ParseBoolean(string rawValue, ImportColumn column, string sourceHeader)
+    {
         var normalized = rawValue.Trim().ToLowerInvariant();
         if (normalized is "true" or "yes" or "y" or "1" or "x")
         {
@@ -406,7 +584,17 @@ public sealed class SpreadsheetImportService(
     private static ParsedCell ParseDecimal(IXLCell cell, string rawValue, ImportColumn column, string sourceHeader)
     {
         if (cell.TryGetValue<decimal>(out var decimalValue) ||
-            decimal.TryParse(rawValue, out decimalValue))
+            decimal.TryParse(rawValue, NumberStyles.Number, CultureInfo.InvariantCulture, out decimalValue))
+        {
+            return new ParsedCell(decimalValue, null);
+        }
+
+        return ConversionError(column, sourceHeader, rawValue, "a decimal number");
+    }
+
+    private static ParsedCell ParseDecimal(string rawValue, ImportColumn column, string sourceHeader)
+    {
+        if (decimal.TryParse(rawValue, NumberStyles.Number, CultureInfo.InvariantCulture, out var decimalValue))
         {
             return new ParsedCell(decimalValue, null);
         }
@@ -417,7 +605,17 @@ public sealed class SpreadsheetImportService(
     private static ParsedCell ParseDate(IXLCell cell, string rawValue, ImportColumn column, string sourceHeader)
     {
         if (cell.TryGetValue<DateTime>(out var dateValue) ||
-            DateTime.TryParse(rawValue, out dateValue))
+            DateTime.TryParse(rawValue, CultureInfo.InvariantCulture, DateTimeStyles.None, out dateValue))
+        {
+            return new ParsedCell(DateOnly.FromDateTime(dateValue), null);
+        }
+
+        return ConversionError(column, sourceHeader, rawValue, "a date");
+    }
+
+    private static ParsedCell ParseDate(string rawValue, ImportColumn column, string sourceHeader)
+    {
+        if (DateTime.TryParse(rawValue, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dateValue))
         {
             return new ParsedCell(DateOnly.FromDateTime(dateValue), null);
         }
@@ -428,7 +626,17 @@ public sealed class SpreadsheetImportService(
     private static ParsedCell ParseInt16(IXLCell cell, string rawValue, ImportColumn column, string sourceHeader)
     {
         if (cell.TryGetValue<short>(out var shortValue) ||
-            short.TryParse(rawValue, out shortValue))
+            short.TryParse(rawValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out shortValue))
+        {
+            return new ParsedCell(shortValue, null);
+        }
+
+        return ConversionError(column, sourceHeader, rawValue, "a whole number");
+    }
+
+    private static ParsedCell ParseInt16(string rawValue, ImportColumn column, string sourceHeader)
+    {
+        if (short.TryParse(rawValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var shortValue))
         {
             return new ParsedCell(shortValue, null);
         }
@@ -773,7 +981,7 @@ public sealed class SpreadsheetImportService(
 
     private sealed record ParsedCell(object? Value, ImportCellError? Error);
 
-    private sealed record WorkbookParseResult(
+    private sealed record FlatFileParseResult(
         List<ImportFileError> FileErrors,
         List<ImportRowResult> Rows,
         List<ParsedImportRow> ParsedRows);

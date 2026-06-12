@@ -128,7 +128,7 @@ async function fetchRecentImports(): Promise<ImportDatasetSummaryResponse[]> {
   return fetchJson<ImportDatasetSummaryResponse[]>('/api/imports/recent');
 }
 
-export function SpreadsheetImportPanel() {
+export function FlatFileImportPanel() {
   const queryClient = useQueryClient();
   const [dataset, setDataset] = useState<ImportDatasetId>('all-projects');
   const [file, setFile] = useState<File | null>(null);
@@ -203,9 +203,9 @@ export function SpreadsheetImportPanel() {
         </label>
 
         <label className="form-control w-full">
-          <span className="label-text">Workbook</span>
+          <span className="label-text">Import file</span>
           <input
-            accept=".xlsx"
+            accept=".csv,.xlsx"
             className="file-input file-input-bordered w-full"
             onChange={(event) => {
               setFile(event.target.files?.[0] ?? null);
