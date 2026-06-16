@@ -16,9 +16,20 @@ public sealed class ImportsController(
     {
         var datasetIds = registry.Datasets.Select(dataset => dataset.Id).ToList();
         var recentLogs = await dbContext.ImportLogs
+            .AsNoTracking()
             .Where(log => datasetIds.Contains(log.Dataset))
             .OrderByDescending(log => log.CompletedAt)
             .Take(datasetIds.Count * 10)
+            .Select(log => new RecentImportLog(
+                log.Id,
+                log.Dataset,
+                log.Filename,
+                log.Status,
+                log.AttemptedRows,
+                log.RowsImported,
+                log.CompletedAt,
+                log.UploadedByName,
+                log.UploadedByEmail))
             .ToListAsync(cancellationToken);
 
         var latestByDataset = recentLogs
@@ -45,6 +56,17 @@ public sealed class ImportsController(
 
         return Ok(summaries);
     }
+
+    private sealed record RecentImportLog(
+        int Id,
+        string Dataset,
+        string Filename,
+        string Status,
+        int AttemptedRows,
+        int? RowsImported,
+        DateTimeOffset CompletedAt,
+        string? UploadedByName,
+        string? UploadedByEmail);
 
     [HttpPost("{dataset}")]
     [RequestSizeLimit(50 * 1024 * 1024)]

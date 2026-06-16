@@ -189,6 +189,40 @@ public class FlatFileImportServiceTests
             log.ErrorPayload.Contains("database_validation_failed", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task Import_logs_compact_validation_payload_without_row_values()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var service = CreateService(db);
+        var file = CreateCsvFile("active-projects.csv",
+            [
+                "Project Number",
+                "Accession Number",
+                "UCP Employee ID",
+                "UCPath Name",
+                "Is 204",
+                "Project Director",
+                "PD Email Address",
+            ],
+            [
+                ["PRJ-1", "1234567", "00000001", "Path Person", "maybe", "Director", "pd@example.com"],
+                ["PRJ-1", "123456789", "", "Second Person", "yes", "Director", "pd2@example.com"],
+            ]);
+
+        var result = await service.ImportAsync("active-projects", file, null, CancellationToken.None);
+
+        var validation = result.Should().BeOfType<ImportValidationFailed>().Subject.Response;
+        var log = db.ImportLogs.Single(item => item.Id == validation.ImportLogId);
+        log.ErrorPayload.Should().NotBeNull();
+        log.ErrorPayload.Should().Contain("\"RowCount\":2");
+        log.ErrorPayload.Should().Contain("\"RowsWithErrors\":2");
+        log.ErrorPayload.Should().Contain("\"SampleRows\"");
+        log.ErrorPayload.Should().Contain("duplicate_key");
+        log.ErrorPayload.Should().NotContain("\"Values\"");
+        log.ErrorPayload.Should().NotContain("Path Person");
+        log.ErrorPayload.Should().NotContain("Second Person");
+    }
+
     private static FlatFileImportService CreateService(Server.Core.Data.AppDbContext db)
     {
         return new FlatFileImportService(

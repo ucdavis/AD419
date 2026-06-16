@@ -9,6 +9,7 @@ import { server } from '@/test/mswUtils.ts';
 describe('FlatFileImportPanel', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('uploads the selected file to the selected dataset and shows success', async () => {
@@ -53,6 +54,203 @@ describe('FlatFileImportPanel', () => {
         await screen.findByText('Imported 42 rows from active-projects.csv.')
       ).toBeInTheDocument();
       expect(postedDataset).toBe('active-projects');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('requires files to be reselected before another upload', async () => {
+    const user = userEvent.setup();
+    let postCount = 0;
+
+    server.use(
+      http.get('/api/imports/recent', () => HttpResponse.json([])),
+      http.post('/api/imports/:dataset', () => {
+        postCount += 1;
+
+        return HttpResponse.json({
+          dataset: 'all-projects',
+          filename: 'all-projects.csv',
+          importedAt: '2026-06-09T18:30:00Z',
+          importLogId: postCount,
+          rowsImported: postCount,
+          succeeded: true,
+        });
+      })
+    );
+
+    const { cleanup } = renderPanel();
+
+    try {
+      await user.upload(
+        screen.getByLabelText('Import file'),
+        new File(['test'], 'all-projects.csv', {
+          type: 'text/csv',
+        })
+      );
+
+      await user.click(screen.getByRole('button', { name: 'Upload' }));
+      expect(
+        await screen.findByText('Imported 1 rows from all-projects.csv.')
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText('Import file')).toHaveValue('');
+      expect(screen.getByRole('button', { name: 'Upload' })).toBeDisabled();
+      expect(
+        screen.queryByText(/Select all-projects\.csv again/)
+      ).not.toBeInTheDocument();
+
+      await user.upload(
+        screen.getByLabelText('Import file'),
+        new File(['test again'], 'all-projects.csv', {
+          type: 'text/csv',
+        })
+      );
+      await user.click(screen.getByRole('button', { name: 'Upload' }));
+      expect(
+        await screen.findByText('Imported 2 rows from all-projects.csv.')
+      ).toBeInTheDocument();
+
+      expect(postCount).toBe(2);
+      expect(
+        screen.queryByText('The import could not be completed.')
+      ).not.toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('clears the selected file after success even when refreshed import data is still loading', async () => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.get('/api/imports/recent', () => new Promise(() => {})),
+      http.post('/api/imports/:dataset', () =>
+        HttpResponse.json({
+          dataset: 'all-projects',
+          filename: 'all-projects.csv',
+          importedAt: '2026-06-09T18:30:00Z',
+          importLogId: 48,
+          rowsImported: 1,
+          succeeded: true,
+        })
+      )
+    );
+
+    const { cleanup } = renderPanel();
+
+    try {
+      await user.upload(
+        screen.getByLabelText('Import file'),
+        new File(['test'], 'all-projects.csv', {
+          type: 'text/csv',
+        })
+      );
+      await user.click(screen.getByRole('button', { name: 'Upload' }));
+
+      expect(
+        await screen.findByText('Imported 1 rows from all-projects.csv.')
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText('Import file')).toHaveValue('');
+      expect(screen.getByRole('button', { name: 'Upload' })).toBeDisabled();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('uploads a reselected file when the corrected file has the same name', async () => {
+    const user = userEvent.setup();
+    let uploadedText = '';
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = getRequestUrl(input);
+
+      if (url === '/api/imports/recent') {
+        return Response.json([]);
+      }
+
+      if (url === '/api/imports/all-projects') {
+        const formData = init?.body as FormData;
+        const postedFile = formData.get('file');
+        uploadedText =
+          postedFile && typeof postedFile === 'object' && isBlobLike(postedFile)
+            ? await readBlobText(postedFile)
+            : String(postedFile);
+
+        return Response.json({
+          dataset: 'all-projects',
+          filename: 'all-projects.csv',
+          importedAt: '2026-06-09T18:30:00Z',
+          importLogId: 49,
+          rowsImported: 1,
+          succeeded: true,
+        });
+      }
+
+      return new Response(null, { status: 404 });
+    });
+
+    const { cleanup } = renderPanel();
+
+    try {
+      await user.upload(
+        screen.getByLabelText('Import file'),
+        new File(['old contents'], 'all-projects.csv', {
+          type: 'text/csv',
+        })
+      );
+      await user.upload(
+        screen.getByLabelText('Import file'),
+        new File(['corrected contents'], 'all-projects.csv', {
+          type: 'text/csv',
+        })
+      );
+      await user.click(screen.getByRole('button', { name: 'Upload' }));
+
+      expect(
+        await screen.findByText('Imported 1 rows from all-projects.csv.')
+      ).toBeInTheDocument();
+      expect(uploadedText).toBe('corrected contents');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('shows a generic failure when an upload is rejected before validation', async () => {
+    const user = userEvent.setup();
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = getRequestUrl(input);
+
+      if (url === '/api/imports/recent') {
+        return Response.json([]);
+      }
+
+      if (url === '/api/imports/all-projects') {
+        return new Response('Bad Request', { status: 400 });
+      }
+
+      return new Response(null, { status: 404 });
+    });
+
+    const { cleanup } = renderPanel();
+
+    try {
+      await user.upload(
+        screen.getByLabelText('Import file'),
+        new File(['test'], 'all-projects.xlsx', {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+      );
+      await user.click(screen.getByRole('button', { name: 'Upload' }));
+
+      expect(
+        await screen.findByText('The import could not be completed.')
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/all-projects\.xlsx could not be uploaded/)
+      ).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Import file')).toHaveValue('');
+      expect(screen.getByRole('button', { name: 'Upload' })).toBeDisabled();
     } finally {
       cleanup();
     }
@@ -380,4 +578,16 @@ function readBlobText(blob: Blob) {
     reader.onload = () => resolve(String(reader.result));
     reader.readAsText(blob);
   });
+}
+
+function getRequestUrl(input: RequestInfo | URL) {
+  if (typeof input === 'string') {
+    return input;
+  }
+
+  return 'url' in input ? input.url : input.toString();
+}
+
+function isBlobLike(value: object): value is Blob {
+  return 'size' in value && 'slice' in value && 'type' in value;
 }

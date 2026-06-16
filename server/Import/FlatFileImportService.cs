@@ -720,34 +720,62 @@ public sealed class FlatFileImportService(
 
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
-        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
 
-        await connection.ExecuteAsync(
-            CreateTempTableSql(definition),
-            transaction: transaction);
-
-        var table = CreateDataTable(definition, rows);
-        using (var bulkCopy = new SqlBulkCopy(connection, SqlBulkCopyOptions.CheckConstraints, transaction))
+        await DropTempTableIfExistsAsync(connection, cancellationToken);
+        try
         {
-            bulkCopy.DestinationTableName = TempTableName;
-            bulkCopy.BatchSize = Math.Max(rows.Count, 1);
+            await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
 
-            bulkCopy.ColumnMappings.Add("ImportRowNumber", "ImportRowNumber");
-            foreach (var column in definition.Columns)
+            await connection.ExecuteAsync(
+                CreateTempTableSql(definition),
+                transaction: transaction);
+
+            var table = CreateDataTable(definition, rows);
+            using (var bulkCopy = new SqlBulkCopy(connection, SqlBulkCopyOptions.CheckConstraints, transaction))
             {
-                bulkCopy.ColumnMappings.Add(column.TargetColumn, column.TargetColumn);
+                bulkCopy.DestinationTableName = TempTableName;
+                bulkCopy.BatchSize = Math.Max(rows.Count, 1);
+
+                bulkCopy.ColumnMappings.Add("ImportRowNumber", "ImportRowNumber");
+                foreach (var column in definition.Columns)
+                {
+                    bulkCopy.ColumnMappings.Add(column.TargetColumn, column.TargetColumn);
+                }
+
+                await bulkCopy.WriteToServerAsync(table, cancellationToken);
             }
 
-            await bulkCopy.WriteToServerAsync(table, cancellationToken);
+            await RunStagingValidationAsync(connection, transaction, definition, rows, cancellationToken);
+
+            await connection.ExecuteAsync(
+                ReplaceTableSql(definition),
+                transaction: transaction);
+
+            await transaction.CommitAsync(cancellationToken);
         }
+        finally
+        {
+            await DropTempTableIfExistsBestEffortAsync(connection);
+        }
+    }
 
-        await RunStagingValidationAsync(connection, transaction, definition, rows, cancellationToken);
+    private static Task DropTempTableIfExistsAsync(SqlConnection connection, CancellationToken cancellationToken)
+    {
+        return connection.ExecuteAsync(new CommandDefinition(
+            $"DROP TABLE IF EXISTS {TempTableName};",
+            cancellationToken: cancellationToken));
+    }
 
-        await connection.ExecuteAsync(
-            ReplaceTableSql(definition),
-            transaction: transaction);
-
-        await transaction.CommitAsync(cancellationToken);
+    private async Task DropTempTableIfExistsBestEffortAsync(SqlConnection connection)
+    {
+        try
+        {
+            await DropTempTableIfExistsAsync(connection, CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is SqlException or InvalidOperationException)
+        {
+            logger.LogWarning(ex, "Failed to clean up import staging table {TempTableName}.", TempTableName);
+        }
     }
 
     private static async Task RunStagingValidationAsync(
@@ -927,12 +955,36 @@ public sealed class FlatFileImportService(
             attemptedRows,
             rowsImported: null,
             status,
-            JsonSerializer.Serialize(response),
+            SerializeValidationLogPayload(response),
             user,
             startedAt,
             cancellationToken);
 
         return new ImportValidationFailed(response with { ImportLogId = importLogId });
+    }
+
+    private static string SerializeValidationLogPayload(ImportValidationResponse response)
+    {
+        const int maxRowsToLog = 100;
+        var rowsWithErrors = response.Rows.Where(row => row.Errors.Count > 0 || row.CellErrors.Count > 0).ToList();
+        var loggedRows = rowsWithErrors
+            .Take(maxRowsToLog)
+            .Select(row => new ImportValidationLogRow(
+                row.RowNum,
+                row.Errors,
+                row.CellErrors))
+            .ToList();
+
+        return JsonSerializer.Serialize(new ImportValidationLogPayload(
+            response.Dataset,
+            response.Filename,
+            response.AttemptedRows,
+            response.FileErrors,
+            response.Rows.Count,
+            rowsWithErrors.Count,
+            response.Rows.Sum(row => row.Errors.Count + row.CellErrors.Count),
+            loggedRows,
+            rowsWithErrors.Count > loggedRows.Count));
     }
 
     private async Task<int> LogImportAttemptAsync(
@@ -991,6 +1043,22 @@ public sealed class FlatFileImportService(
         ImportRowResult Result,
         Dictionary<string, object?> ParsedValues,
         Dictionary<string, string?> SourceHeaders);
+
+    private sealed record ImportValidationLogPayload(
+        string Dataset,
+        string? Filename,
+        int AttemptedRows,
+        List<ImportFileError> FileErrors,
+        int RowCount,
+        int RowsWithErrors,
+        int ErrorCount,
+        List<ImportValidationLogRow> SampleRows,
+        bool Truncated);
+
+    private sealed record ImportValidationLogRow(
+        int RowNum,
+        List<string> Errors,
+        List<ImportCellError> CellErrors);
 
     private sealed class StagingValidationException() : InvalidOperationException("Staging validation failed.");
 }

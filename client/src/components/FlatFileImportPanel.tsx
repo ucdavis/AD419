@@ -2,7 +2,7 @@ import { downloadExcelCsv, toExcelCsv } from '@/lib/csv.ts';
 import { fetchJson, HttpError } from '@/lib/api.ts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { DataTable } from '@/shared/dataTable.tsx';
 
 type ImportDatasetId =
@@ -58,6 +58,11 @@ interface ImportSuccessResponse {
 
 type ImportResponse = ImportSuccessResponse | ImportValidationResponse;
 
+interface ImportUploadVariables {
+  dataset: ImportDatasetId;
+  file: File;
+}
+
 interface RecentImportResponse {
   attemptedRows: number;
   dataset: string;
@@ -88,10 +93,7 @@ const datasetOptions: ImportDatasetOption[] = [
 async function uploadImport({
   dataset,
   file,
-}: {
-  dataset: ImportDatasetId;
-  file: File;
-}): Promise<ImportSuccessResponse> {
+}: ImportUploadVariables): Promise<ImportSuccessResponse> {
   const formData = new FormData();
   formData.append('file', file);
 
@@ -114,7 +116,7 @@ async function uploadImport({
     window.location.href = `/login?returnUrl=${encodeURIComponent(
       window.location.pathname + window.location.search
     )}`;
-    return new Promise<ImportSuccessResponse>(() => {});
+    throw new HttpError(res.status, `/api/imports/${dataset}`, data);
   }
 
   if (!res.ok) {
@@ -130,6 +132,7 @@ async function fetchRecentImports(): Promise<ImportDatasetSummaryResponse[]> {
 
 export function FlatFileImportPanel() {
   const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [dataset, setDataset] = useState<ImportDatasetId>('all-projects');
   const [file, setFile] = useState<File | null>(null);
   const [validation, setValidation] = useState<ImportValidationResponse | null>(
@@ -144,9 +147,16 @@ export function FlatFileImportPanel() {
     (summary) => summary.dataset === dataset
   )?.lastImport;
 
+  const clearInputFileSelection = () => {
+    setFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const mutation = useMutation({
     mutationFn: uploadImport,
-    onError: (error) => {
+    onError: (error, variables) => {
       setSuccess(null);
       if (error instanceof HttpError && isValidationResponse(error.body)) {
         setValidation(error.body);
@@ -163,22 +173,32 @@ export function FlatFileImportPanel() {
             message: 'The import could not be completed.',
           },
         ],
-        filename: file?.name,
+        filename: variables.file.name,
         rows: [],
         succeeded: false,
       });
     },
-    onSuccess: async (response) => {
+    onSuccess: (response) => {
       setValidation(null);
       setSuccess(response);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['ad419Workflow'] }),
-        queryClient.invalidateQueries({ queryKey: ['imports', 'recent'] }),
-      ]);
+      void queryClient.invalidateQueries({ queryKey: ['ad419Workflow'] });
+      void queryClient.invalidateQueries({ queryKey: ['imports', 'recent'] });
     },
   });
 
   const canUpload = Boolean(file) && !mutation.isPending;
+
+  const handleUpload = () => {
+    if (!file || mutation.isPending) {
+      return;
+    }
+
+    const selectedFile = file;
+    clearInputFileSelection();
+    setValidation(null);
+    setSuccess(null);
+    mutation.mutate({ dataset, file: selectedFile });
+  };
 
   return (
     <div className="space-y-5">
@@ -208,10 +228,19 @@ export function FlatFileImportPanel() {
             accept=".csv,.xlsx"
             className="file-input file-input-bordered w-full"
             onChange={(event) => {
-              setFile(event.target.files?.[0] ?? null);
+              const selectedFile = event.target.files?.[0];
+              if (!selectedFile) {
+                return;
+              }
+
+              setFile(selectedFile);
               setValidation(null);
               setSuccess(null);
             }}
+            onClick={(event) => {
+              event.currentTarget.value = '';
+            }}
+            ref={fileInputRef}
             type="file"
           />
         </label>
@@ -219,11 +248,7 @@ export function FlatFileImportPanel() {
         <button
           className="btn btn-primary"
           disabled={!canUpload}
-          onClick={() => {
-            if (file) {
-              mutation.mutate({ dataset, file });
-            }
-          }}
+          onClick={handleUpload}
           type="button"
         >
           {mutation.isPending ? 'Importing' : 'Upload'}
