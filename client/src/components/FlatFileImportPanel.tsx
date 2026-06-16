@@ -1,6 +1,11 @@
 import { downloadExcelCsv, toExcelCsv } from '@/lib/csv.ts';
 import { fetchJson, HttpError } from '@/lib/api.ts';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseQueryResult,
+} from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useRef, useState } from 'react';
 import { DataTable } from '@/shared/dataTable.tsx';
@@ -73,12 +78,51 @@ interface RecentImportResponse {
   status: string;
   uploadedByEmail?: string | null;
   uploadedByName?: string | null;
+  validationStats?: ImportValidationStatsResponse | null;
 }
 
 interface ImportDatasetSummaryResponse {
   dataset: ImportDatasetId;
   displayName: string;
   lastImport?: RecentImportResponse | null;
+}
+
+interface ImportValidationStatsResponse {
+  errorCount: number;
+  fileErrorCount: number;
+  rowCount: number;
+  rowsWithErrors: number;
+}
+
+interface ImportValidationHistoryRow {
+  cellErrors: ImportCellError[];
+  errors: string[];
+  rowNum: number;
+}
+
+interface ImportValidationHistoryResponse {
+  attemptedRows: number;
+  dataset: string;
+  errorCount: number;
+  fileErrors: ImportFileError[];
+  filename?: string | null;
+  rowCount: number;
+  rows: ImportValidationHistoryRow[];
+  rowsWithErrors: number;
+  truncated: boolean;
+}
+
+interface ImportLogDetailResponse extends RecentImportResponse {
+  validation?: ImportValidationHistoryResponse | null;
+}
+
+interface HistoricalValidationErrorRow {
+  code: string;
+  location: string;
+  message: string;
+  rawValue: string;
+  rowLabel: string;
+  sourceHeader: string;
 }
 
 const datasetOptions: ImportDatasetOption[] = [
@@ -130,11 +174,16 @@ async function fetchRecentImports(): Promise<ImportDatasetSummaryResponse[]> {
   return fetchJson<ImportDatasetSummaryResponse[]>('/api/imports/recent');
 }
 
+async function fetchImportDetail(id: number): Promise<ImportLogDetailResponse> {
+  return fetchJson<ImportLogDetailResponse>(`/api/imports/${id}`);
+}
+
 export function FlatFileImportPanel() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dataset, setDataset] = useState<ImportDatasetId>('all-projects');
   const [file, setFile] = useState<File | null>(null);
+  const [selectedImportId, setSelectedImportId] = useState<number | null>(null);
   const [validation, setValidation] = useState<ImportValidationResponse | null>(
     null
   );
@@ -143,9 +192,12 @@ export function FlatFileImportPanel() {
     queryFn: fetchRecentImports,
     queryKey: ['imports', 'recent'],
   });
-  const selectedRecentImport = recentImportsQuery.data?.find(
-    (summary) => summary.dataset === dataset
-  )?.lastImport;
+  const importSummaries = getImportSummaries(recentImportsQuery.data);
+  const importDetailQuery = useQuery({
+    enabled: selectedImportId !== null,
+    queryFn: () => fetchImportDetail(selectedImportId!),
+    queryKey: ['imports', 'detail', selectedImportId],
+  });
 
   const clearInputFileSelection = () => {
     setFile(null);
@@ -197,6 +249,7 @@ export function FlatFileImportPanel() {
     clearInputFileSelection();
     setValidation(null);
     setSuccess(null);
+    setSelectedImportId(null);
     mutation.mutate({ dataset, file: selectedFile });
   };
 
@@ -255,8 +308,16 @@ export function FlatFileImportPanel() {
         </button>
       </div>
 
-      {selectedRecentImport && (
-        <RecentImportSummary importLog={selectedRecentImport} />
+      <RecentImportSummaryList
+        isError={recentImportsQuery.isError}
+        isLoading={recentImportsQuery.isLoading}
+        onSelectImport={setSelectedImportId}
+        selectedImportId={selectedImportId}
+        summaries={importSummaries}
+      />
+
+      {selectedImportId !== null && (
+        <HistoricalImportDetails query={importDetailQuery} />
       )}
 
       {success && (
@@ -273,26 +334,98 @@ export function FlatFileImportPanel() {
   );
 }
 
+function RecentImportSummaryList({
+  isError,
+  isLoading,
+  onSelectImport,
+  selectedImportId,
+  summaries,
+}: {
+  isError: boolean;
+  isLoading: boolean;
+  onSelectImport: (id: number) => void;
+  selectedImportId: number | null;
+  summaries: ImportDatasetSummaryResponse[];
+}) {
+  return (
+    <div className="rounded-box border border-base-300 bg-base-100 p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="font-semibold">Last import status</h3>
+        {isLoading ? (
+          <span className="loading loading-spinner loading-sm" />
+        ) : null}
+      </div>
+      {isError ? (
+        <p className="text-sm text-error">Import status is unavailable.</p>
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-3">
+          {summaries.map((summary) => (
+            <RecentImportSummary
+              importLog={summary.lastImport}
+              key={summary.dataset}
+              label={summary.displayName}
+              onSelectImport={onSelectImport}
+              selected={summary.lastImport?.id === selectedImportId}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RecentImportSummary({
   importLog,
+  label,
+  onSelectImport,
+  selected,
 }: {
-  importLog: RecentImportResponse;
+  importLog?: RecentImportResponse | null;
+  label: string;
+  onSelectImport: (id: number) => void;
+  selected: boolean;
 }) {
-  const succeeded = importLog.status === 'Succeeded';
-  const rowCount = succeeded
+  if (!importLog) {
+    return (
+      <div
+        aria-label={`${label} import status`}
+        className="min-w-0 rounded-box border border-base-300 bg-base-200/40 p-3 text-sm"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="badge badge-neutral">No imports yet</span>
+          <span className="font-medium">{label}</span>
+        </div>
+        <p className="mt-2 text-base-content/60">No import attempts found.</p>
+      </div>
+    );
+  }
+
+  const status = getImportStatusPresentation(importLog.status);
+  const rowCount = status.succeeded
     ? (importLog.rowsImported ?? 0)
     : importLog.attemptedRows;
+  const validationStats =
+    importLog.status === 'ValidationFailed' ? importLog.validationStats : null;
 
   return (
-    <div className="flex flex-col gap-2 rounded-box border border-base-300 bg-base-100 p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+    <button
+      aria-label={`${label} import status`}
+      aria-pressed={selected}
+      className={[
+        'flex min-w-0 flex-col gap-3 rounded-box border bg-base-200/40 p-3 text-left text-sm transition hover:border-primary hover:bg-base-200 focus:outline-none focus:ring-2 focus:ring-primary',
+        selected ? 'border-primary ring-2 ring-primary' : 'border-base-300',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      onClick={() => onSelectImport(importLog.id)}
+      type="button"
+    >
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={`badge ${succeeded ? 'badge-success' : 'badge-error'}`}
-          >
-            {succeeded ? 'Succeeded' : 'Failed'}
+          <span className={`badge ${status.badgeClassName}`}>
+            {status.label}
           </span>
-          <span className="font-medium">Last import attempt</span>
+          <span className="font-medium">{label}</span>
         </div>
         <p
           className="mt-1 truncate text-base-content/70"
@@ -301,14 +434,227 @@ function RecentImportSummary({
           {importLog.filename}
         </p>
       </div>
-      <div className="shrink-0 text-base-content/70 sm:text-right">
+      <div className="text-base-content/70">
         <div>{rowCount.toLocaleString()} rows</div>
+        {validationStats ? (
+          <div>{formatValidationStats(validationStats)}</div>
+        ) : null}
         <time dateTime={importLog.importedAt}>
           {formatImportDate(importLog.importedAt)}
         </time>
       </div>
+    </button>
+  );
+}
+
+function formatValidationStats(stats: ImportValidationStatsResponse) {
+  const rowLabel = stats.rowsWithErrors === 1 ? 'row' : 'rows';
+  const fileIssueLabel =
+    stats.fileErrorCount === 1 ? 'file issue' : 'file issues';
+  const fileIssues =
+    stats.fileErrorCount > 0
+      ? `; ${stats.fileErrorCount.toLocaleString()} ${fileIssueLabel}`
+      : '';
+  const rowErrors = `${stats.errorCount.toLocaleString()} errors across ${stats.rowsWithErrors.toLocaleString()} ${rowLabel}`;
+
+  return `${rowErrors}${fileIssues}`;
+}
+
+function HistoricalImportDetails({
+  query,
+}: {
+  query: UseQueryResult<ImportLogDetailResponse>;
+}) {
+  if (query.isLoading) {
+    return (
+      <div className="rounded-box border border-base-300 bg-base-100 p-4 text-sm text-base-content/70">
+        Loading import details...
+      </div>
+    );
+  }
+
+  if (query.isError || !query.data) {
+    return (
+      <div className="alert alert-error">
+        <span>Import details could not be loaded.</span>
+      </div>
+    );
+  }
+
+  const detail = query.data;
+  const validation = detail.validation;
+  if (!validation || validation.errorCount === 0) {
+    return (
+      <div className="rounded-box border border-base-300 bg-base-100 p-4">
+        <h3 className="font-semibold">Validation history</h3>
+        <p className="mt-2 text-sm text-base-content/70">
+          No validation errors were recorded for {detail.filename}.
+        </p>
+      </div>
+    );
+  }
+
+  const rows = getHistoricalValidationRows(validation);
+  const columns: ColumnDef<HistoricalValidationErrorRow>[] = [
+    {
+      accessorKey: 'rowLabel',
+      header: 'Row',
+      meta: {
+        cellClassName: 'h-12 w-24 min-w-24 align-middle',
+        headerClassName: 'w-24 min-w-24 whitespace-nowrap',
+      },
+    },
+    {
+      accessorKey: 'location',
+      header: 'Column',
+      meta: {
+        cellClassName: 'h-12 min-w-56 align-middle',
+        headerClassName: 'min-w-56 whitespace-nowrap',
+      },
+    },
+    {
+      accessorKey: 'sourceHeader',
+      header: 'Source Header',
+      meta: {
+        cellClassName: 'h-12 min-w-56 align-middle',
+        headerClassName: 'min-w-56 whitespace-nowrap',
+      },
+    },
+    {
+      accessorKey: 'rawValue',
+      cell: ({ row }) => (
+        <span className="block max-w-64 truncate" title={row.original.rawValue}>
+          {row.original.rawValue || ' '}
+        </span>
+      ),
+      header: 'Raw Value',
+      meta: {
+        cellClassName: 'h-12 max-w-64 align-middle',
+        headerClassName: 'min-w-48 whitespace-nowrap',
+      },
+    },
+    {
+      accessorKey: 'message',
+      cell: ({ row }) => (
+        <span className="block max-w-96 truncate" title={row.original.message}>
+          {row.original.message}
+        </span>
+      ),
+      header: 'Error',
+      meta: {
+        cellClassName: 'h-12 max-w-96 align-middle',
+        headerClassName: 'min-w-96 whitespace-nowrap',
+      },
+    },
+    {
+      accessorKey: 'code',
+      header: 'Code',
+      meta: {
+        cellClassName: 'h-12 min-w-48 align-middle',
+        headerClassName: 'min-w-48 whitespace-nowrap',
+      },
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="font-semibold">Validation history</h3>
+        <p className="mt-1 text-sm text-base-content/70">
+          {validation.errorCount.toLocaleString()} validation errors across{' '}
+          {validation.rowsWithErrors.toLocaleString()} rows in {detail.filename}.
+        </p>
+      </div>
+
+      <DataTable
+        columns={columns}
+        data={rows}
+        filterPlaceholder="Search validation errors..."
+        initialState={{
+          pagination: {
+            pageSize: 10,
+          },
+        }}
+        tableClassName="table-zebra"
+      />
     </div>
   );
+}
+
+function getHistoricalValidationRows(
+  validation: ImportValidationHistoryResponse
+): HistoricalValidationErrorRow[] {
+  const fileErrors = validation.fileErrors.map((error) => ({
+    code: error.code,
+    location: error.targetColumn ?? 'File',
+    message: error.message,
+    rawValue: '',
+    rowLabel: 'File',
+    sourceHeader: error.sourceHeader ?? '',
+  }));
+  const rowErrors = validation.rows.flatMap((row) => [
+    ...row.errors.map((message) => ({
+      code: 'row_error',
+      location: 'Row',
+      message,
+      rawValue: '',
+      rowLabel: row.rowNum.toLocaleString(),
+      sourceHeader: '',
+    })),
+    ...row.cellErrors.map((error) => ({
+      code: error.code,
+      location: error.targetColumn,
+      message: error.message,
+      rawValue: error.rawValue ?? '',
+      rowLabel: row.rowNum.toLocaleString(),
+      sourceHeader: error.sourceHeader ?? '',
+    })),
+  ]);
+
+  return [...fileErrors, ...rowErrors];
+}
+
+function getImportSummaries(
+  summaries?: ImportDatasetSummaryResponse[]
+): ImportDatasetSummaryResponse[] {
+  return datasetOptions.map((option) => {
+    const summary = summaries?.find((item) => item.dataset === option.id);
+
+    return {
+      dataset: option.id,
+      displayName: summary?.displayName ?? option.label,
+      lastImport: summary?.lastImport ?? null,
+    };
+  });
+}
+
+function getImportStatusPresentation(status: string) {
+  switch (status) {
+    case 'Succeeded':
+      return {
+        badgeClassName: 'badge-success',
+        label: 'Succeeded',
+        succeeded: true,
+      };
+    case 'ValidationFailed':
+      return {
+        badgeClassName: 'badge-error',
+        label: 'Validation failed',
+        succeeded: false,
+      };
+    case 'PersistenceFailed':
+      return {
+        badgeClassName: 'badge-error',
+        label: 'Save failed',
+        succeeded: false,
+      };
+    default:
+      return {
+        badgeClassName: 'badge-error',
+        label: 'Failed',
+        succeeded: false,
+      };
+  }
 }
 
 function ValidationResults({

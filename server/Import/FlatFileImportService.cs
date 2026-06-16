@@ -965,17 +965,15 @@ public sealed class FlatFileImportService(
 
     private static string SerializeValidationLogPayload(ImportValidationResponse response)
     {
-        const int maxRowsToLog = 100;
         var rowsWithErrors = response.Rows.Where(row => row.Errors.Count > 0 || row.CellErrors.Count > 0).ToList();
-        var loggedRows = rowsWithErrors
-            .Take(maxRowsToLog)
-            .Select(row => new ImportValidationLogRow(
+        var rows = rowsWithErrors
+            .Select(row => new ImportValidationHistoryRow(
                 row.RowNum,
                 row.Errors,
                 row.CellErrors))
             .ToList();
 
-        return JsonSerializer.Serialize(new ImportValidationLogPayload(
+        return JsonSerializer.Serialize(new ImportValidationHistoryResponse(
             response.Dataset,
             response.Filename,
             response.AttemptedRows,
@@ -983,8 +981,8 @@ public sealed class FlatFileImportService(
             response.Rows.Count,
             rowsWithErrors.Count,
             response.Rows.Sum(row => row.Errors.Count + row.CellErrors.Count),
-            loggedRows,
-            rowsWithErrors.Count > loggedRows.Count));
+            rows,
+            Truncated: false));
     }
 
     private async Task<int> LogImportAttemptAsync(
@@ -1043,22 +1041,6 @@ public sealed class FlatFileImportService(
         ImportRowResult Result,
         Dictionary<string, object?> ParsedValues,
         Dictionary<string, string?> SourceHeaders);
-
-    private sealed record ImportValidationLogPayload(
-        string Dataset,
-        string? Filename,
-        int AttemptedRows,
-        List<ImportFileError> FileErrors,
-        int RowCount,
-        int RowsWithErrors,
-        int ErrorCount,
-        List<ImportValidationLogRow> SampleRows,
-        bool Truncated);
-
-    private sealed record ImportValidationLogRow(
-        int RowNum,
-        List<string> Errors,
-        List<ImportCellError> CellErrors);
 
     private sealed class StagingValidationException() : InvalidOperationException("Staging validation failed.");
 }

@@ -49,9 +49,44 @@ public sealed record RecentImportResponse(
     int? RowsImported,
     DateTimeOffset ImportedAt,
     string? UploadedByName,
-    string? UploadedByEmail);
+    string? UploadedByEmail,
+    ImportValidationStatsResponse? ValidationStats = null);
+
+public sealed record ImportValidationStatsResponse(
+    int RowCount,
+    int RowsWithErrors,
+    int ErrorCount,
+    int FileErrorCount);
 
 public sealed record ImportDatasetSummaryResponse(
     string Dataset,
     string DisplayName,
     RecentImportResponse? LastImport);
+
+public sealed record ImportLogDetailResponse(
+    int Id,
+    string Dataset,
+    string Filename,
+    string Status,
+    int AttemptedRows,
+    int? RowsImported,
+    DateTimeOffset ImportedAt,
+    string? UploadedByName,
+    string? UploadedByEmail,
+    ImportValidationHistoryResponse? Validation);
+
+public sealed record ImportValidationHistoryResponse(
+    string Dataset,
+    string? Filename,
+    int AttemptedRows,
+    List<ImportFileError> FileErrors,
+    int RowCount,
+    int RowsWithErrors,
+    int ErrorCount,
+    List<ImportValidationHistoryRow> Rows,
+    bool Truncated);
+
+public sealed record ImportValidationHistoryRow(
+    int RowNum,
+    List<string> Errors,
+    List<ImportCellError> CellErrors);

@@ -3,6 +3,8 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Server.Import;
+using Server.Models.Imports;
+using System.Text.Json;
 
 namespace Server.Tests.Import;
 
@@ -190,10 +192,22 @@ public class FlatFileImportServiceTests
     }
 
     [Fact]
-    public async Task Import_logs_compact_validation_payload_without_row_values()
+    public async Task Import_logs_all_validation_errors_without_row_values()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         var service = CreateService(db);
+        var rows = Enumerable.Range(1, 105)
+            .Select(index => new[]
+            {
+                $"PRJ-{index}",
+                index.ToString("D7"),
+                index.ToString("D8"),
+                $"Person {index}",
+                "maybe",
+                "Director",
+                $"pd{index}@example.com",
+            })
+            .ToArray();
         var file = CreateCsvFile("active-projects.csv",
             [
                 "Project Number",
@@ -204,23 +218,28 @@ public class FlatFileImportServiceTests
                 "Project Director",
                 "PD Email Address",
             ],
-            [
-                ["PRJ-1", "1234567", "00000001", "Path Person", "maybe", "Director", "pd@example.com"],
-                ["PRJ-1", "123456789", "", "Second Person", "yes", "Director", "pd2@example.com"],
-            ]);
+            rows);
 
         var result = await service.ImportAsync("active-projects", file, null, CancellationToken.None);
 
         var validation = result.Should().BeOfType<ImportValidationFailed>().Subject.Response;
         var log = db.ImportLogs.Single(item => item.Id == validation.ImportLogId);
         log.ErrorPayload.Should().NotBeNull();
-        log.ErrorPayload.Should().Contain("\"RowCount\":2");
-        log.ErrorPayload.Should().Contain("\"RowsWithErrors\":2");
-        log.ErrorPayload.Should().Contain("\"SampleRows\"");
-        log.ErrorPayload.Should().Contain("duplicate_key");
+        var payload = JsonSerializer.Deserialize<ImportValidationHistoryResponse>(log.ErrorPayload!);
+
+        payload.Should().NotBeNull();
+        payload!.RowCount.Should().Be(105);
+        payload.RowsWithErrors.Should().Be(105);
+        payload.Rows.Should().HaveCount(105);
+        payload.ErrorCount.Should().Be(payload.Rows.Sum(row =>
+            row.Errors.Count + row.CellErrors.Count));
+        payload.ErrorCount.Should().BeGreaterThan(105);
+        payload.Truncated.Should().BeFalse();
+        payload.Rows.Should().OnlyContain(row =>
+            row.CellErrors.Any(error => error.Code == "type_conversion"));
         log.ErrorPayload.Should().NotContain("\"Values\"");
-        log.ErrorPayload.Should().NotContain("Path Person");
-        log.ErrorPayload.Should().NotContain("Second Person");
+        log.ErrorPayload.Should().NotContain("Person 1");
+        log.ErrorPayload.Should().NotContain("Person 105");
     }
 
     private static FlatFileImportService CreateService(Server.Core.Data.AppDbContext db)

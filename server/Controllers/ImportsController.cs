@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Server.Core.Data;
@@ -29,7 +30,8 @@ public sealed class ImportsController(
                 log.RowsImported,
                 log.CompletedAt,
                 log.UploadedByName,
-                log.UploadedByEmail))
+                log.UploadedByEmail,
+                log.ErrorPayload))
             .ToListAsync(cancellationToken);
 
         var latestByDataset = recentLogs
@@ -50,11 +52,87 @@ public sealed class ImportsController(
                         log.RowsImported,
                         log.CompletedAt,
                         log.UploadedByName,
-                        log.UploadedByEmail)
+                        log.UploadedByEmail,
+                        DeserializeValidationStats(log.ErrorPayload))
                     : null))
             .ToList();
 
         return Ok(summaries);
+    }
+
+    [HttpGet("{id:int}")]
+    public async Task<ActionResult<ImportLogDetailResponse>> Detail(
+        [FromRoute] int id,
+        CancellationToken cancellationToken)
+    {
+        var log = await dbContext.ImportLogs
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+
+        if (log is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(new ImportLogDetailResponse(
+            log.Id,
+            log.Dataset,
+            log.Filename,
+            log.Status,
+            log.AttemptedRows,
+            log.RowsImported,
+            log.CompletedAt,
+            log.UploadedByName,
+            log.UploadedByEmail,
+            DeserializeValidationHistory(log.ErrorPayload)));
+    }
+
+    private static ImportValidationHistoryResponse? DeserializeValidationHistory(string? errorPayload)
+    {
+        if (string.IsNullOrWhiteSpace(errorPayload))
+        {
+            return null;
+        }
+
+        try
+        {
+            var payload = JsonSerializer.Deserialize<ImportValidationHistoryReadModel>(errorPayload);
+            if (payload is null)
+            {
+                return null;
+            }
+
+            var rows = payload.Rows.Count > 0 ? payload.Rows : payload.SampleRows;
+            return new ImportValidationHistoryResponse(
+                payload.Dataset,
+                payload.Filename,
+                payload.AttemptedRows,
+                payload.FileErrors,
+                payload.RowCount,
+                payload.RowsWithErrors,
+                payload.ErrorCount,
+                rows,
+                payload.Truncated);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static ImportValidationStatsResponse? DeserializeValidationStats(string? errorPayload)
+    {
+        var validation = DeserializeValidationHistory(errorPayload);
+        if (validation is null)
+        {
+            return null;
+        }
+
+        return new ImportValidationStatsResponse(
+            validation.RowCount,
+            validation.RowsWithErrors,
+            validation.ErrorCount,
+            validation.FileErrors.Count);
     }
 
     private sealed record RecentImportLog(
@@ -66,7 +144,22 @@ public sealed class ImportsController(
         int? RowsImported,
         DateTimeOffset CompletedAt,
         string? UploadedByName,
-        string? UploadedByEmail);
+        string? UploadedByEmail,
+        string? ErrorPayload);
+
+    private sealed class ImportValidationHistoryReadModel
+    {
+        public string Dataset { get; set; } = string.Empty;
+        public string? Filename { get; set; }
+        public int AttemptedRows { get; set; }
+        public List<ImportFileError> FileErrors { get; set; } = [];
+        public int RowCount { get; set; }
+        public int RowsWithErrors { get; set; }
+        public int ErrorCount { get; set; }
+        public List<ImportValidationHistoryRow> Rows { get; set; } = [];
+        public List<ImportValidationHistoryRow> SampleRows { get; set; } = [];
+        public bool Truncated { get; set; }
+    }
 
     [HttpPost("{dataset}")]
     [RequestSizeLimit(50 * 1024 * 1024)]

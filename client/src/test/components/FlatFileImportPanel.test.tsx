@@ -12,6 +12,198 @@ describe('FlatFileImportPanel', () => {
     vi.unstubAllGlobals();
   });
 
+  it('shows the last import status for every dataset', async () => {
+    server.use(
+      http.get('/api/imports/recent', () =>
+        HttpResponse.json([
+          {
+            dataset: 'all-projects',
+            displayName: 'All Projects',
+            lastImport: {
+              attemptedRows: 20,
+              dataset: 'all-projects',
+              filename: 'all-projects.csv',
+              id: 1,
+              importedAt: '2026-06-09T18:30:00Z',
+              rowsImported: 20,
+              status: 'Succeeded',
+            },
+          },
+          {
+            dataset: 'active-projects',
+            displayName: 'Active Projects',
+            lastImport: {
+              attemptedRows: 3,
+              dataset: 'active-projects',
+              filename: 'active-projects.csv',
+              id: 2,
+              importedAt: '2026-06-10T18:30:00Z',
+              rowsImported: null,
+              status: 'ValidationFailed',
+              validationStats: {
+                errorCount: 7,
+                fileErrorCount: 1,
+                rowCount: 3,
+                rowsWithErrors: 2,
+              },
+            },
+          },
+          {
+            dataset: 'assistance-listing-numbers',
+            displayName: 'Assistance Listing Numbers',
+            lastImport: null,
+          },
+        ])
+      )
+    );
+
+    const { cleanup } = renderPanel();
+
+    try {
+      await screen.findByText('Succeeded');
+      const allProjects = screen.getByLabelText('All Projects import status');
+      const activeProjects = screen.getByLabelText(
+        'Active Projects import status'
+      );
+      const assistanceListingNumbers = screen.getByLabelText(
+        'Assistance Listing Numbers import status'
+      );
+
+      expect(within(allProjects).getByText('Succeeded')).toBeInTheDocument();
+      expect(
+        within(allProjects).getByText('all-projects.csv')
+      ).toBeInTheDocument();
+      expect(within(allProjects).getByText('20 rows')).toBeInTheDocument();
+
+      expect(
+        within(activeProjects).getByText('Validation failed')
+      ).toBeInTheDocument();
+      expect(
+        within(activeProjects).getByText('active-projects.csv')
+      ).toBeInTheDocument();
+      expect(within(activeProjects).getByText('3 rows')).toBeInTheDocument();
+      expect(
+        within(activeProjects).getByText(/7 errors across 2 rows/)
+      ).toBeInTheDocument();
+      expect(
+        within(activeProjects).getByText(/1 file issue/)
+      ).toBeInTheDocument();
+
+      expect(
+        within(assistanceListingNumbers).getByText('No imports yet')
+      ).toBeInTheDocument();
+      expect(
+        within(assistanceListingNumbers).getByText('No import attempts found.')
+      ).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('loads validation history when an import status is clicked', async () => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.get('/api/imports/recent', () =>
+        HttpResponse.json([
+          {
+            dataset: 'all-projects',
+            displayName: 'All Projects',
+            lastImport: null,
+          },
+          {
+            dataset: 'active-projects',
+            displayName: 'Active Projects',
+            lastImport: {
+              attemptedRows: 3,
+              dataset: 'active-projects',
+              filename: 'active-projects.csv',
+              id: 2,
+              importedAt: '2026-06-10T18:30:00Z',
+              rowsImported: null,
+              status: 'ValidationFailed',
+            },
+          },
+          {
+            dataset: 'assistance-listing-numbers',
+            displayName: 'Assistance Listing Numbers',
+            lastImport: null,
+          },
+        ])
+      ),
+      http.get('/api/imports/2', () =>
+        HttpResponse.json({
+          attemptedRows: 3,
+          dataset: 'active-projects',
+          filename: 'active-projects.csv',
+          id: 2,
+          importedAt: '2026-06-10T18:30:00Z',
+          rowsImported: null,
+          status: 'ValidationFailed',
+          validation: {
+            attemptedRows: 3,
+            dataset: 'active-projects',
+            errorCount: 3,
+            fileErrors: [
+              {
+                code: 'unknown_header',
+                message: 'Header Mystery Column is not recognized.',
+                sourceHeader: 'Mystery Column',
+              },
+            ],
+            filename: 'active-projects.csv',
+            rowCount: 3,
+            rows: [
+              {
+                cellErrors: [
+                  {
+                    code: 'required',
+                    message: 'ProjectDirector is required.',
+                    rawValue: '',
+                    sourceHeader: 'Project Director',
+                    targetColumn: 'ProjectDirector',
+                  },
+                ],
+                errors: ['Row failed a cross-check.'],
+                rowNum: 2,
+              },
+            ],
+            rowsWithErrors: 1,
+            truncated: false,
+          },
+        })
+      )
+    );
+
+    const { cleanup } = renderPanel();
+
+    try {
+      await user.click(
+        await screen.findByRole('button', {
+          name: 'Active Projects import status',
+        })
+      );
+
+      expect(
+        await screen.findByText(
+          '3 validation errors across 1 rows in active-projects.csv.'
+        )
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText('Header Mystery Column is not recognized.')
+      ).toBeInTheDocument();
+      expect(screen.getByText('Row failed a cross-check.')).toBeInTheDocument();
+      expect(
+        screen.getByText('ProjectDirector is required.')
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('columnheader', { name: 'Raw Value' })
+      ).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
   it('uploads the selected file to the selected dataset and shows success', async () => {
     const user = userEvent.setup();
     let postedDataset = '';
