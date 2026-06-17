@@ -1,8 +1,14 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
 namespace Server.Core.Domain;
 
+[Index(
+    nameof(Dataset),
+    nameof(CompletedAt),
+    nameof(Id),
+    IsDescending = [false, true, true])]
 public class ImportLog
 {
     [Key]

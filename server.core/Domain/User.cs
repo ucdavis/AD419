@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Server.Core.Domain;
 
 [Index(nameof(EntraId), IsUnique = true)]
+[Index(nameof(Email))]
+[Index(nameof(Name))]
 public class User
 {
     [Key]

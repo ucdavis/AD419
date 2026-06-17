@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Server.Core.Data;
 using Server.Core.Domain;
@@ -53,6 +54,24 @@ public class AppDbContextTests
         entityType.Should().NotBeNull();
         entityType!.GetSchema().Should().Be(AppDbContext.AppSchema);
         entityType.GetTableName().Should().Be("ImportLog");
+    }
+
+    [Fact]
+    public void ImportLog_has_index_for_latest_log_by_dataset()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+
+        var entityType = db.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(ImportLog));
+        var latestByDatasetIndex = entityType?.GetIndexes()
+            .SingleOrDefault(index => index.Properties.Select(property => property.Name)
+                .SequenceEqual([
+                    nameof(ImportLog.Dataset),
+                    nameof(ImportLog.CompletedAt),
+                    nameof(ImportLog.Id),
+                ]));
+
+        latestByDatasetIndex.Should().NotBeNull();
+        latestByDatasetIndex!.IsDescending.Should().Equal([false, true, true]);
     }
 
     [Fact]
