@@ -409,11 +409,13 @@ describe('FlatFileImportPanel', () => {
 
   it('shows a generic failure when an upload is rejected before validation', async () => {
     const user = userEvent.setup();
+    let recentRequests = 0;
 
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = getRequestUrl(input);
 
       if (url === '/api/imports/recent') {
+        recentRequests += 1;
         return Response.json([]);
       }
 
@@ -443,6 +445,7 @@ describe('FlatFileImportPanel', () => {
       ).not.toBeInTheDocument();
       expect(screen.getByLabelText('Import file')).toHaveValue('');
       expect(screen.getByRole('button', { name: 'Upload' })).toBeDisabled();
+      await waitFor(() => expect(recentRequests).toBeGreaterThanOrEqual(2));
     } finally {
       cleanup();
     }

@@ -26,6 +26,42 @@ public class FlatFileImportServiceTests
     }
 
     [Fact]
+    public void Dataset_definition_rejects_normalized_header_collisions_between_columns()
+    {
+        var act = () => new ImportDatasetDefinition(
+            "test",
+            "Test",
+            "data",
+            "Test",
+            [
+                new ImportColumn("ProjectId", ImportColumnType.String, true, null, ["Project ID"]),
+                new ImportColumn("ProjectID", ImportColumnType.String, true, null, []),
+            ],
+            []);
+
+        act.Should()
+            .Throw<InvalidOperationException>()
+            .WithMessage("*ProjectID*Project ID*ProjectId*");
+    }
+
+    [Fact]
+    public void Dataset_definition_allows_normalized_aliases_for_the_same_column()
+    {
+        var dataset = new ImportDatasetDefinition(
+            "test",
+            "Test",
+            "data",
+            "Test",
+            [
+                new ImportColumn("ProjectID", ImportColumnType.String, true, null, ["Project ID"]),
+            ],
+            []);
+
+        dataset.FindColumnBySourceHeader("Project ID")?.TargetColumn.Should().Be("ProjectID");
+        dataset.FindColumnBySourceHeader("ProjectID")?.TargetColumn.Should().Be("ProjectID");
+    }
+
+    [Fact]
     public async Task Import_rejects_unsupported_file_types()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
@@ -41,6 +77,25 @@ public class FlatFileImportServiceTests
         db.ImportLogs.Should().ContainSingle(log =>
             log.Id == validation.ImportLogId &&
             log.Dataset == "all-projects" &&
+            log.Status == "ValidationFailed");
+    }
+
+    [Fact]
+    public async Task Import_reports_malformed_workbooks_as_validation_failures()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var service = CreateService(db);
+        var file = CreateTextFile("active-projects.xlsx", "not a workbook");
+
+        var result = await service.ImportAsync("active-projects", file, null, CancellationToken.None);
+
+        var validation = result.Should().BeOfType<ImportValidationFailed>().Subject.Response;
+        validation.FileErrors.Should().ContainSingle(error => error.Code == "invalid_workbook");
+        validation.AttemptedRows.Should().Be(0);
+        validation.ImportLogId.Should().NotBeNull();
+        db.ImportLogs.Should().ContainSingle(log =>
+            log.Id == validation.ImportLogId &&
+            log.Dataset == "active-projects" &&
             log.Status == "ValidationFailed");
     }
 

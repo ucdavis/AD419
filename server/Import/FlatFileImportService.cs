@@ -6,6 +6,7 @@ using ClosedXML.Excel;
 using CsvHelper;
 using CsvHelper.Configuration;
 using Dapper;
+using DocumentFormat.OpenXml.Packaging;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Server.Authorization;
@@ -166,6 +167,21 @@ public sealed class FlatFileImportService(
 
     private static FlatFileParseResult ParseWorkbook(ImportDatasetDefinition definition, IFormFile file)
     {
+        try
+        {
+            return ParseWorkbookCore(definition, file);
+        }
+        catch (Exception exception) when (IsWorkbookParseException(exception))
+        {
+            return new FlatFileParseResult(
+                [new ImportFileError("invalid_workbook", "The workbook could not be parsed.")],
+                [],
+                []);
+        }
+    }
+
+    private static FlatFileParseResult ParseWorkbookCore(ImportDatasetDefinition definition, IFormFile file)
+    {
         using var stream = file.OpenReadStream();
         using var workbook = new XLWorkbook(stream);
         var worksheet = workbook.Worksheets.FirstOrDefault();
@@ -235,6 +251,14 @@ public sealed class FlatFileImportService(
         AddDuplicateKeyErrors(definition, parsedRows);
 
         return new FlatFileParseResult(fileErrors, rows, parsedRows);
+    }
+
+    private static bool IsWorkbookParseException(Exception exception)
+    {
+        return exception is IOException ||
+            exception is InvalidDataException ||
+            exception is FormatException ||
+            exception is OpenXmlPackageException;
     }
 
     private static FlatFileParseResult ParseCsv(ImportDatasetDefinition definition, IFormFile file)

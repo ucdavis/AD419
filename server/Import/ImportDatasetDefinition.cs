@@ -40,6 +40,7 @@ public sealed partial class ImportDatasetDefinition
         UniqueKeys = uniqueKeys;
 
         columnsByNormalizedHeader = [];
+        var normalizedHeaderSources = new Dictionary<string, (ImportColumn Column, string SourceHeader)>();
         foreach (var column in columns)
         {
             foreach (var sourceHeader in column.SourceHeaders.Append(column.TargetColumn))
@@ -47,6 +48,19 @@ public sealed partial class ImportDatasetDefinition
                 var normalized = NormalizeHeader(sourceHeader);
                 if (!string.IsNullOrWhiteSpace(normalized))
                 {
+                    if (normalizedHeaderSources.TryGetValue(normalized, out var existing))
+                    {
+                        if (!ReferenceEquals(existing.Column, column))
+                        {
+                            throw new InvalidOperationException(
+                                $"Normalized header '{normalized}' from source '{sourceHeader}' in column '{column.TargetColumn}' " +
+                                $"conflicts with source '{existing.SourceHeader}' in column '{existing.Column.TargetColumn}'.");
+                        }
+
+                        continue;
+                    }
+
+                    normalizedHeaderSources[normalized] = (column, sourceHeader);
                     columnsByNormalizedHeader[normalized] = column;
                 }
             }

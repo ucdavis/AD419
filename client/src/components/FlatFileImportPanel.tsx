@@ -212,13 +212,12 @@ export function FlatFileImportPanel() {
       setSuccess(null);
       if (error instanceof HttpError && isValidationResponse(error.body)) {
         setValidation(error.body);
-        void queryClient.invalidateQueries({ queryKey: ['imports', 'recent'] });
         return;
       }
 
       setValidation({
         attemptedRows: 0,
-        dataset,
+        dataset: variables.dataset,
         fileErrors: [
           {
             code: 'upload_failed',
@@ -230,11 +229,13 @@ export function FlatFileImportPanel() {
         succeeded: false,
       });
     },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['imports', 'recent'] });
+    },
     onSuccess: (response) => {
       setValidation(null);
       setSuccess(response);
       void queryClient.invalidateQueries({ queryKey: ['ad419Workflow'] });
-      void queryClient.invalidateQueries({ queryKey: ['imports', 'recent'] });
     },
   });
 

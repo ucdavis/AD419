@@ -19,8 +19,14 @@ public sealed class ImportsController(
         var recentLogs = await dbContext.ImportLogs
             .AsNoTracking()
             .Where(log => datasetIds.Contains(log.Dataset))
+            .Where(log => log.Id == dbContext.ImportLogs
+                .Where(candidate => candidate.Dataset == log.Dataset)
+                .OrderByDescending(candidate => candidate.CompletedAt)
+                .ThenByDescending(candidate => candidate.Id)
+                .Select(candidate => candidate.Id)
+                .First())
             .OrderByDescending(log => log.CompletedAt)
-            .Take(datasetIds.Count * 10)
+            .ThenByDescending(log => log.Id)
             .Select(log => new RecentImportLog(
                 log.Id,
                 log.Dataset,
