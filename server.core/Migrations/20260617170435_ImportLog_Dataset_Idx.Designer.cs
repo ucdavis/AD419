@@ -12,8 +12,8 @@ using Server.Core.Data;
 namespace server.core.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260617161705_AddIndexes")]
-    partial class AddIndexes
+    [Migration("20260617170435_ImportLog_Dataset_Idx")]
+    partial class ImportLog_Dataset_Idx
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -106,12 +106,8 @@ namespace server.core.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Email");
-
                     b.HasIndex("EntraId")
                         .IsUnique();
-
-                    b.HasIndex("Name");
 
                     b.ToTable("Users", "app");
                 });

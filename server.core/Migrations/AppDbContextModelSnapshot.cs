@@ -103,12 +103,8 @@ namespace server.core.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Email");
-
                     b.HasIndex("EntraId")
                         .IsUnique();
-
-                    b.HasIndex("Name");
 
                     b.ToTable("Users", "app");
                 });

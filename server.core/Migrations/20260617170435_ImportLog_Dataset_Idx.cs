@@ -5,23 +5,11 @@
 namespace server.core.Migrations
 {
     /// <inheritdoc />
-    public partial class AddIndexes : Migration
+    public partial class ImportLog_Dataset_Idx : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.CreateIndex(
-                name: "IX_Users_Email",
-                schema: "app",
-                table: "Users",
-                column: "Email");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Users_Name",
-                schema: "app",
-                table: "Users",
-                column: "Name");
-
             migrationBuilder.CreateIndex(
                 name: "IX_ImportLog_Dataset_CompletedAt_Id",
                 schema: "app",
@@ -33,16 +21,6 @@ namespace server.core.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_Users_Email",
-                schema: "app",
-                table: "Users");
-
-            migrationBuilder.DropIndex(
-                name: "IX_Users_Name",
-                schema: "app",
-                table: "Users");
-
             migrationBuilder.DropIndex(
                 name: "IX_ImportLog_Dataset_CompletedAt_Id",
                 schema: "app",
