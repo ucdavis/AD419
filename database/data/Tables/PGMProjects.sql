@@ -34,6 +34,6 @@ CREATE TABLE [data].[PGMProjects]
     [ProjectManagerNames] NVARCHAR(MAX) NULL,
     [GrantAdministrators] NVARCHAR(MAX) NULL,
     [ContractAdmins] NVARCHAR(MAX) NULL,
-    [LoadedAt] DATETIME2(3) NULL,
+    [LoadedAt] DATETIME2(3) NULL CONSTRAINT [DF_PGMProjects_LoadedAt] DEFAULT (SYSUTCDATETIME()),
     CONSTRAINT [PK_PGMProjects] PRIMARY KEY CLUSTERED ([ProjectId])
 );
