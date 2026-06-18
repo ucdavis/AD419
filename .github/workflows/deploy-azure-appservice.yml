@@ -186,6 +186,7 @@ jobs:
           SMTP_FROM_NAME: ${{ vars.Smtp__FromName }}
           SMTP_REPLY_TO_EMAIL: ${{ vars.Smtp__ReplyToEmail }}
           SMTP_BCC_EMAIL: ${{ vars.Smtp__BccEmail }}
+          DATAMART_CONNECTION_VALUE: ${{ secrets.DATAMART_CONNECTION }}
           OTEL_EXPORTER_OTLP_ENDPOINT_VALUE: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS_VALUE: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS || vars.OTEL_EXPORTER_OTLP_HEADERS }}
           OTEL_EXPORTER_OTLP_PROTOCOL_VALUE: ${{ vars.OTEL_EXPORTER_OTLP_PROTOCOL }}
@@ -220,6 +221,7 @@ jobs:
           append_setting "Smtp__FromName" "$SMTP_FROM_NAME"
           append_setting "Smtp__ReplyToEmail" "$SMTP_REPLY_TO_EMAIL"
           append_setting "Smtp__BccEmail" "$SMTP_BCC_EMAIL"
+          append_setting "DATAMART_CONNECTION" "$DATAMART_CONNECTION_VALUE"
           append_setting "OTEL_EXPORTER_OTLP_ENDPOINT" "$OTEL_EXPORTER_OTLP_ENDPOINT_VALUE"
           append_setting "OTEL_EXPORTER_OTLP_HEADERS" "$OTEL_EXPORTER_OTLP_HEADERS_VALUE"
           append_setting "OTEL_EXPORTER_OTLP_PROTOCOL" "$OTEL_EXPORTER_OTLP_PROTOCOL_VALUE"
