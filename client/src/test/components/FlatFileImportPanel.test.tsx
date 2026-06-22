@@ -575,6 +575,77 @@ describe('FlatFileImportPanel', () => {
     }
   });
 
+  it('keeps validation value columns in flat-file order', async () => {
+    const user = userEvent.setup();
+
+    server.use(
+      http.get('/api/imports/recent', () => HttpResponse.json([])),
+      http.post('/api/imports/:dataset', () =>
+        HttpResponse.json(
+          {
+            attemptedRows: 1,
+            dataset: 'all-projects',
+            fileErrors: [],
+            filename: 'all-projects.xlsx',
+            importLogId: 47,
+            rows: [
+              {
+                cellErrors: [
+                  {
+                    code: 'required',
+                    message: 'OrganizationName is required.',
+                    rawValue: '',
+                    sourceHeader: 'Organization Name',
+                    targetColumn: 'OrganizationName',
+                  },
+                ],
+                errors: [],
+                rowNum: 2,
+                values: {
+                  ProjectNumber: 'PRJ-1',
+                  AccessionNumber: 'A-2',
+                  OrganizationName: '',
+                },
+              },
+            ],
+            succeeded: false,
+          },
+          { status: 400 }
+        )
+      )
+    );
+
+    const { cleanup } = renderPanel();
+
+    try {
+      await user.upload(
+        screen.getByLabelText('Import file'),
+        new File(['test'], 'all-projects.xlsx', {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+      );
+      await user.click(screen.getByRole('button', { name: 'Upload' }));
+
+      await screen.findByText(
+        'Import failed validation for 1 of 1 attempted rows.'
+      );
+
+      const headers = within(screen.getByRole('table'))
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent?.trim());
+
+      expect(headers[0]).toMatch(/^Row/);
+      expect(headers.slice(1)).toEqual([
+        'Errors',
+        'ProjectNumber',
+        'AccessionNumber',
+        'OrganizationName',
+      ]);
+    } finally {
+      cleanup();
+    }
+  });
+
   it('pages validation failures with direct navigation and selectable page size', async () => {
     const user = userEvent.setup();
     const rows = Array.from({ length: 31 }, (_, index) => {

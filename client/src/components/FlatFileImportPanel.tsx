@@ -667,7 +667,7 @@ function ValidationResults({
   const failedRows = rows.filter(rowHasErrors).length;
   const valueColumns = Array.from(
     new Set(rows.flatMap((row) => Object.keys(row.values)))
-  ).sort();
+  );
   const columnsWithErrors = new Set(
     rows.flatMap((row) => row.cellErrors.map((error) => error.targetColumn))
   );

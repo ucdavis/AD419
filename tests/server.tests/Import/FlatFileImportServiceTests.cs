@@ -184,6 +184,40 @@ public class FlatFileImportServiceTests
     }
 
     [Fact]
+    public async Task Import_preserves_flat_file_column_order_in_validation_values()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var service = CreateService(db);
+        var file = CreateCsvFile("active-projects.csv",
+            [
+                "PD Email Address",
+                "Project Director",
+                "Is 204",
+                "UCPath Name",
+                "UCP Employee ID",
+                "Accession Number",
+                "Project Number",
+            ],
+            [
+                ["pd@example.com", "Director", "maybe", "Path Person", "00000001", "1234567", "PRJ-1"],
+            ]);
+
+        var result = await service.ImportAsync("active-projects", file, null, CancellationToken.None);
+
+        var validation = result.Should().BeOfType<ImportValidationFailed>().Subject.Response;
+        validation.Rows.Should().ContainSingle();
+        validation.Rows[0].Values.Keys.Should().Equal([
+            "PdEmailAddress",
+            "ProjectDirector",
+            "Is204",
+            "UcPathName",
+            "UcpEmployeeId",
+            "AccessionNumber",
+            "ProjectNumber",
+        ]);
+    }
+
+    [Fact]
     public async Task Import_reports_duplicate_headers_before_row_parsing()
     {
         await using var db = TestDbContextFactory.CreateInMemory();

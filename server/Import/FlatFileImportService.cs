@@ -418,13 +418,13 @@ public sealed class FlatFileImportService(
         var rowErrors = new List<string>();
         var cellErrors = new List<ImportCellError>();
 
-        foreach (var binding in headersByColumnNumber.Values)
+        foreach (var (_, binding) in headersByColumnNumber.OrderBy(header => header.Key))
         {
             values[binding.Column.TargetColumn] = null;
             sourceHeaders[binding.Column.TargetColumn] = binding.SourceHeader;
         }
 
-        foreach (var (columnNumber, binding) in headersByColumnNumber)
+        foreach (var (columnNumber, binding) in headersByColumnNumber.OrderBy(header => header.Key))
         {
             var cell = worksheetRow.Cell(columnNumber);
             var rawValue = cell.GetFormattedString().Trim();
@@ -470,13 +470,13 @@ public sealed class FlatFileImportService(
         var rowErrors = new List<string>();
         var cellErrors = new List<ImportCellError>();
 
-        foreach (var binding in headersByColumnNumber.Values)
+        foreach (var (_, binding) in headersByColumnNumber.OrderBy(header => header.Key))
         {
             values[binding.Column.TargetColumn] = null;
             sourceHeaders[binding.Column.TargetColumn] = binding.SourceHeader;
         }
 
-        foreach (var (columnNumber, binding) in headersByColumnNumber)
+        foreach (var (columnNumber, binding) in headersByColumnNumber.OrderBy(header => header.Key))
         {
             var rawValue = ReadCsvField(csv, columnNumber).Trim();
             values[binding.Column.TargetColumn] = rawValue;
