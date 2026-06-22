@@ -7,6 +7,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Server.Authorization;
 using Server.Core.Data;
 using Server.Import;
+using Server.Core.Import;
 using Server.Core.Notification;
 using Server.Helpers;
 
@@ -51,6 +52,7 @@ builder.Services.AddResponseCaching();
 // add scoped services here
 builder.Services.AddScoped<IDbInitializer, DbInitializer>();
 builder.Services.AddScoped<IAuthorizationHandler, AuthorizedUserHandler>();
+builder.Services.AddScoped<IPgmProjectsImportService, PgmProjectsImportService>();
 builder.Services.AddSingleton<IFlatFileImportRegistry, FlatFileImportRegistry>();
 builder.Services.AddScoped<IFlatFileImportService, FlatFileImportService>();
 // add auth policies here
