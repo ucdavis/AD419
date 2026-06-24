@@ -5,6 +5,12 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    IF @cycleStart IS NULL OR @cycleEnd IS NULL
+        THROW 50000, '@cycleStart and @cycleEnd are required.', 1;
+
+    IF @cycleStart > @cycleEnd
+        THROW 50000, '@cycleStart must not be after @cycleEnd.', 1;
+
     WITH PgmClassified AS
     (
         -- Each PGM award classified to an SFN bucket from its CFDA.
@@ -56,6 +62,7 @@ BEGIN
                 WHEN a.ProjectNumber LIKE '%-RR' THEN '202'
                 WHEN a.ProjectNumber LIKE '%-CG' THEN '204'
                 WHEN a.ProjectNumber LIKE '%-AH' THEN '205'
+                ELSE 'UNKNOWN'  -- unrecognized suffix: fail closed below, never silently Clean
             END AS NifaSfn
         FROM [data].[ActiveProjects] a
         LEFT JOIN [data].[AllProjects] ap ON ap.ProjectNumber = a.ProjectNumber
@@ -97,6 +104,7 @@ BEGIN
                                              WHEN '202' THEN 'HATCH'
                                              WHEN '204' THEN '204'
                                              WHEN '205' THEN '205'
+                                             ELSE '__UNMAPPED__'  -- unknown NIFA SFN never equals a real bucket: fail closed
                                          END
             ) THEN 1 ELSE 0 END AS HasSfnMismatch
         FROM ActiveCore ac
