@@ -35,7 +35,7 @@ public class DbInitializer : IDbInitializer
     }
 
     private Task SeedDevelopmentAsync(CancellationToken ct)
-        => Task.CompletedTask;
+        => ChartStringSegmentSeed.EnsureSeededAsync(_db, ct);
 
     // just a placeholder for any production-safe seeding
     private Task SeedProductionSafeAsync(CancellationToken ct)
