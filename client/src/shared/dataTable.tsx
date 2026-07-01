@@ -36,6 +36,7 @@ export const DataTable = <TData extends object>({
   // Keep this suppression until the library compatibility guidance changes.
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
+    autoResetPageIndex: false, // keep the current page when data updates in place
     columns,
     data,
     getCoreRowModel: getCoreRowModel(), // basic rendering

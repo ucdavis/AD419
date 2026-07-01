@@ -15,6 +15,12 @@ public static class ChartStringSegmentSeed
     // work to do; the rest are classified (include/exclude) below.
     private const int UnsetPerType = 10;
 
+    // Valid SFN values (mirrors the server's FundSfns / client FUND_SFNS list, plus the
+    // "Multiple" marker). Used to give seeded, included funds a real SFN so the Fund
+    // dropdown reflects a classified state rather than reading "Unset".
+    private static readonly string[] FundSfnPool =
+        ["201", "202", "203", "205", "220", "221", "223", "Multiple"];
+
     public static async Task EnsureSeededAsync(AppDbContext db, CancellationToken ct = default)
     {
         if (await db.ChartStringSegments.AnyAsync(ct))
@@ -64,16 +70,26 @@ public static class ChartStringSegmentSeed
         var rows = await hierarchy.ToListAsync(ct);
         return rows
             .OrderBy(row => row.Code, StringComparer.Ordinal)
-            .Select((row, index) => new ChartStringSegment
+            .Select((row, index) =>
             {
-                SegmentType = type,
-                Code = row.Code,
-                Description = row.Description,
-                // First few stay unset; the rest are classified include/exclude with
-                // a stable pseudo-random split so dev data looks partially worked.
-                IncludeInReport = index < UnsetPerType
-                    ? null
-                    : (StableHash(row.Code) & 1) == 0,
+                // First few stay unset; the rest are classified include/exclude with a
+                // stable pseudo-random split so dev data looks partially worked.
+                bool? include = index < UnsetPerType ? null : (StableHash(row.Code) & 1) == 0;
+
+                // An included fund must carry a valid SFN, otherwise the Fund dropdown
+                // has no matching option and shows "Unset" despite being classified.
+                var sfn = type == SegmentType.Fund && include == true
+                    ? FundSfnPool[(StableHash(row.Code) & int.MaxValue) % FundSfnPool.Length]
+                    : null;
+
+                return new ChartStringSegment
+                {
+                    SegmentType = type,
+                    Code = row.Code,
+                    Description = row.Description,
+                    IncludeInReport = include,
+                    Sfn = sfn,
+                };
             })
             .ToList();
     }
