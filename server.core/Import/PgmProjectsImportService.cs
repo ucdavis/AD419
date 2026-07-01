@@ -45,7 +45,8 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
         ("awardfundcode", "AwardFundCode"),
         ("fund", "Fund"),
         ("owning_org_name", "OwningOrgName"),
-        ("organization", "Organization"),
+        ("financial_dept_code", "FinancialDeptCode"),
+        ("financial_dept_name", "FinancialDeptName"),
         ("budget_period", "BudgetPeriod"),
         ("budget_start_date", "BudgetStartDate"),
         ("budget_end_date", "BudgetEndDate"),
@@ -192,7 +193,11 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
             r.award_number, r.award_name, r.award_status, r.award_type, r.award_purpose,
             r.award_start_date, r.award_end_date, r.cfda, r.sponsor_award_number,
             r.primary_sponsor, r.primary_sponsor_name, r.funding_source_name, r.funding_source_number,
-            r.awardfundcode, r.fund, r.owning_org_name, r.organization,
+            r.awardfundcode, r.fund, r.owning_org_name,
+            NULLIF(LEFT(r.organization, 7), '') AS financial_dept_code,
+            CASE WHEN POSITION(' - ' IN r.organization) > 0
+                 THEN SUBSTRING(r.organization FROM POSITION(' - ' IN r.organization) + 3)
+            END AS financial_dept_name,
             r.budget_period, r.budget_start_date, r.budget_end_date,
             p.principal_investigator_names, p.pi_persons, p.award_copi_names,
             p.project_manager_names, p.grant_administrators, p.contract_admins
