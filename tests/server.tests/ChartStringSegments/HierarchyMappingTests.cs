@@ -38,4 +38,16 @@ public class HierarchyMappingTests
             new HierarchyLevel("A", "CAES", "Ag & Env Sciences"),
             new HierarchyLevel("B", "DIV1", "Division One"));
     }
+
+    [Fact]
+    public void Fund_level_properties_have_max_lengths()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+        var entity = db.Model.FindEntityType(typeof(FundHierarchy))!;
+
+        entity.FindProperty("ParentLevel0Code")!.GetMaxLength().Should().Be(20);
+        entity.FindProperty("ParentLevel0Name")!.GetMaxLength().Should().Be(1000);
+        entity.FindProperty("Description")!.GetMaxLength().Should().Be(1000);
+        entity.FindProperty("Code")!.GetMaxLength().Should().Be(20);
+    }
 }

@@ -48,8 +48,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             entity.ToTable(table, DataSchema, t => t.ExcludeFromMigrations());
             entity.HasKey(e => e.Code);
-            entity.Property(e => e.Code).HasMaxLength(20);
-            entity.Property(e => e.Description).HasMaxLength(1000);
+
+            foreach (var property in entity.Metadata.GetProperties()
+                         .Where(p => p.ClrType == typeof(string)))
+            {
+                var isName = property.Name == "Description" || property.Name.EndsWith("Name");
+                property.SetMaxLength(isName ? 1000 : 20);
+            }
         });
     }
 }
