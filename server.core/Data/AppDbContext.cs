@@ -27,7 +27,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(segment => segment.SegmentType).HasConversion<string>().HasMaxLength(20);
             entity.Property(segment => segment.Code).HasMaxLength(50);
             entity.Property(segment => segment.Description).HasMaxLength(300);
-            entity.Property(segment => segment.Sfn).HasMaxLength(3);
+            entity.Property(segment => segment.Sfn).HasMaxLength(10);
         });
     }
 }

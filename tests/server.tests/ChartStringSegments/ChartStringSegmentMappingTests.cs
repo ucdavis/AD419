@@ -31,4 +31,15 @@ public class ChartStringSegmentMappingTests
 
         property!.GetProviderClrType().Should().Be(typeof(string));
     }
+
+    [Fact]
+    public void Sfn_column_allows_ten_characters()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+
+        var property = db.Model.FindEntityType(typeof(ChartStringSegment))!
+            .FindProperty(nameof(ChartStringSegment.Sfn));
+
+        property!.GetMaxLength().Should().Be(10);
+    }
 }
