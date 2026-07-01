@@ -19,6 +19,9 @@ export interface ChartStringSegment {
   sfn: string | null;
 }
 
+export const FUND_SFNS = ['201', '202', '203', '205', '220', '221', '223'] as const;
+export const SFN_MULTIPLE = 'Multiple';
+
 const SEGMENTS_KEY = ['chartStringSegments'] as const;
 
 export const chartStringSegmentsQueryOptions = () =>
@@ -32,6 +35,7 @@ export interface UpdateClassificationInput {
   code: string;
   includeInReport: boolean;
   segmentType: SegmentType;
+  sfn: string | null;
 }
 
 export const useUpdateSegmentClassification = () => {
@@ -52,7 +56,7 @@ export const useUpdateSegmentClassification = () => {
         (old ?? []).map((segment) =>
           segment.segmentType === input.segmentType &&
           segment.code === input.code
-            ? { ...segment, includeInReport: input.includeInReport }
+            ? { ...segment, includeInReport: input.includeInReport, sfn: input.sfn }
             : segment
         )
       );
