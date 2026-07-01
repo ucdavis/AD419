@@ -36,9 +36,9 @@ describe('SegmentGrid', () => {
     expect(screen.getByRole('columnheader', { name: 'Level 1' })).toBeInTheDocument();
 
     const state = screen.getByText('STATE');
-    expect(state).toHaveAttribute('title', 'State Funds');
+    expect(state).toHaveAttribute('data-tip', 'State Funds');
     expect(state).toHaveClass('cursor-help');
-    expect(screen.getByText('APPROP')).toHaveAttribute('title', 'Appropriations');
+    expect(screen.getByText('APPROP')).toHaveAttribute('data-tip', 'Appropriations');
   });
 
   it('renders no level columns when no segment has a hierarchy', () => {

@@ -59,8 +59,8 @@ export function SegmentGrid({
         }
         return (
           <span
-            className="underline decoration-dotted cursor-help"
-            title={level.name ?? level.code}
+            className="tooltip tooltip-right underline decoration-dotted cursor-help"
+            data-tip={level.name ?? level.code}
           >
             {level.code}
           </span>
