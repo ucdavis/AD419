@@ -79,4 +79,24 @@ describe('Data Classification stage', () => {
       cleanup();
     }
   });
+
+  it('shows the FTE disclaimer only on the ERN tab', async () => {
+    mockApi();
+    const { cleanup } = renderRoute({ initialPath: '/workflow/data-classification' });
+
+    try {
+      await screen.findByRole('tab', { name: /Fund/ });
+      expect(
+        screen.queryByText(/affects fte calculations only/i)
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('tab', { name: /ERN/ }));
+
+      expect(
+        await screen.findByText(/affects fte calculations only/i)
+      ).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
 });

@@ -71,6 +71,15 @@ export function DataClassificationStage() {
         })}
       </div>
 
+      {activeType === 'Ern' && (
+        <div className="alert alert-info" role="note">
+          <span>
+            Note: ERN (earnings) code classification affects FTE calculations only — it
+            does not affect dollar-amount calculations.
+          </span>
+        </div>
+      )}
+
       <SegmentGrid
         onClassify={handleClassify}
         segments={segmentsForType(segments, activeType)}
