@@ -3,6 +3,20 @@ import { render, screen } from '@testing-library/react';
 import type { ChartStringSegment } from '@/queries/chartStringSegments.ts';
 import { SegmentGrid } from '@/components/dataClassification/SegmentGrid.tsx';
 
+function account(
+  code: string,
+  includeInReport: boolean | null
+): ChartStringSegment {
+  return { code, description: `Name ${code}`, hierarchy: [], includeInReport, segmentType: 'Account', sfn: null };
+}
+
+// True when `first` appears before `second` in the DOM.
+function isBefore(first: HTMLElement, second: HTMLElement): boolean {
+  return Boolean(
+    first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING
+  );
+}
+
 const fundSegments: ChartStringSegment[] = [
   {
     code: '45530',
@@ -46,5 +60,39 @@ describe('SegmentGrid', () => {
 
     expect(screen.queryByRole('columnheader', { name: /^Level / })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Include' })).toBeInTheDocument();
+  });
+
+  it('sorts unclassified rows to the top by default', () => {
+    render(
+      <SegmentGrid
+        onClassify={vi.fn()}
+        segments={[account('AAA', true), account('BBB', null)]}
+        segmentType="Account"
+      />
+    );
+
+    // BBB is unclassified, so it renders before the classified AAA.
+    expect(isBefore(screen.getByText('BBB'), screen.getByText('AAA'))).toBe(true);
+  });
+
+  it('keeps a row in place when it is classified in the same tab', () => {
+    const { rerender } = render(
+      <SegmentGrid
+        onClassify={vi.fn()}
+        segments={[account('AAA', true), account('BBB', null)]}
+        segmentType="Account"
+      />
+    );
+    expect(isBefore(screen.getByText('BBB'), screen.getByText('AAA'))).toBe(true);
+
+    // BBB gets classified: order is frozen for the tab, so it stays above AAA.
+    rerender(
+      <SegmentGrid
+        onClassify={vi.fn()}
+        segments={[account('AAA', true), account('BBB', false)]}
+        segmentType="Account"
+      />
+    );
+    expect(isBefore(screen.getByText('BBB'), screen.getByText('AAA'))).toBe(true);
   });
 });

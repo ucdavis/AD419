@@ -215,4 +215,21 @@ public class ChartStringSegmentsControllerTests
 
         result.Should().BeOfType<BadRequestObjectResult>();
     }
+
+    [Fact]
+    public async Task Patch_accepts_multiple_marker_for_included_fund()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+        db.ChartStringSegments.Add(new ChartStringSegment { SegmentType = SegmentType.Fund, Code = "70575", IncludeInReport = null });
+        await db.SaveChangesAsync();
+        var controller = new ChartStringSegmentsController(db);
+
+        var result = await controller.UpdateClassification(
+            new UpdateClassificationRequest("Fund", "70575", true, "Multiple"), CancellationToken.None);
+
+        result.Should().BeOfType<NoContentResult>();
+        var updated = await db.ChartStringSegments.FindAsync(SegmentType.Fund, "70575");
+        updated!.IncludeInReport.Should().BeTrue();
+        updated.Sfn.Should().Be("Multiple");
+    }
 }
