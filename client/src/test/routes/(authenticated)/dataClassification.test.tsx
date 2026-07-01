@@ -11,9 +11,15 @@ const mockUser = {
   roles: ['User'],
 };
 
-const segments = [
+const segments: {
+  code: string;
+  description: string;
+  includeInReport: boolean | null;
+  segmentType: string;
+  sfn: string | null;
+}[] = [
   { code: '45530', description: 'AES', includeInReport: true, segmentType: 'Fund', sfn: '220' },
-  { code: '70575', description: 'Berry', includeInReport: null, segmentType: 'Fund', sfn: '219' },
+  { code: '70575', description: 'Berry', includeInReport: null, segmentType: 'Fund', sfn: null },
 ];
 
 function mockApi() {
@@ -22,7 +28,7 @@ function mockApi() {
     http.get('/api/user/me', () => HttpResponse.json(mockUser)),
     http.get('/api/chartstringsegments', () => HttpResponse.json(current)),
     http.patch('/api/chartstringsegments', async ({ request }) => {
-      const body = await request.json() as { code: string; includeInReport: boolean; segmentType: string };
+      const body = await request.json() as { code: string; includeInReport: boolean; segmentType: string; sfn: string | null };
       current = current.map((s) =>
         s.code === body.code ? { ...s, includeInReport: body.includeInReport } : s
       );
@@ -59,8 +65,8 @@ describe('Data Classification stage', () => {
         screen.getByRole('button', { name: /Continue to Expense Review/ })
       ).toBeDisabled();
 
-      const includeButtons = screen.getAllByRole('button', { name: 'Include' });
-      fireEvent.click(includeButtons.at(-1)!);
+      const dropdowns = screen.getAllByRole('combobox');
+      fireEvent.change(dropdowns.at(-1)!, { target: { value: '201' } });
 
       await waitFor(() => {
         expect(

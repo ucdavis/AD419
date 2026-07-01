@@ -12,17 +12,19 @@ const accountSegments: ChartStringSegment[] = [
 ];
 
 describe('SegmentGrid', () => {
-  it('shows the SFN column for the Fund tab', () => {
+  it('renders the SFN dropdown for the Fund tab without a separate SFN column', () => {
     render(<SegmentGrid onClassify={vi.fn()} segments={fundSegments} segmentType="Fund" />);
 
-    expect(screen.getByText('SFN')).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'SFN' })).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox')).toBeInTheDocument();
     expect(screen.getByText('45530')).toBeInTheDocument();
   });
 
-  it('omits the SFN column for non-Fund tabs', () => {
+  it('renders Include/Exclude buttons for non-Fund tabs', () => {
     render(<SegmentGrid onClassify={vi.fn()} segments={accountSegments} segmentType="Account" />);
 
-    expect(screen.queryByText('SFN')).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Include' })).toBeInTheDocument();
     expect(screen.getByText('500000')).toBeInTheDocument();
   });
 });

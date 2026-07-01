@@ -11,20 +11,23 @@ export function SegmentGrid({
   segments,
   segmentType,
 }: {
-  onClassify: (segment: ChartStringSegment, include: boolean) => void;
+  onClassify: (
+    segment: ChartStringSegment,
+    includeInReport: boolean,
+    sfn: string | null
+  ) => void;
   segments: ChartStringSegment[];
   segmentType: SegmentType;
 }) {
   const columns: ColumnDef<ChartStringSegment>[] = [
     { accessorKey: 'code', header: 'Code' },
     { accessorKey: 'description', header: 'Name' },
-    ...(segmentType === 'Fund'
-      ? [{ accessorKey: 'sfn', header: 'SFN' } as ColumnDef<ChartStringSegment>]
-      : []),
     {
       cell: ({ row }) => (
         <SegmentClassificationControl
-          onClassify={(include) => onClassify(row.original, include)}
+          onClassify={(includeInReport, sfn) =>
+            onClassify(row.original, includeInReport, sfn)
+          }
           segment={row.original}
         />
       ),

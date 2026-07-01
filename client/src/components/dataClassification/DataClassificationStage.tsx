@@ -25,11 +25,16 @@ export function DataClassificationStage() {
     return <p>Loading segments...</p>;
   }
 
-  const handleClassify = (segment: ChartStringSegment, include: boolean) => {
+  const handleClassify = (
+    segment: ChartStringSegment,
+    includeInReport: boolean,
+    sfn: string | null
+  ) => {
     updateClassification.mutate({
       code: segment.code,
-      includeInReport: include,
+      includeInReport,
       segmentType: segment.segmentType,
+      sfn,
     });
   };
 
