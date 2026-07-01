@@ -14,13 +14,15 @@ const segments: ChartStringSegment[] = [
 ];
 
 describe('data classification segment helpers', () => {
-  it('exposes the four tabs in display order', () => {
+  it('exposes the tabs in display order, including ERN', () => {
     expect(SEGMENT_TABS.map((tab) => tab.type)).toEqual([
       'FinancialDepartment',
       'Account',
       'Fund',
       'Activity',
+      'Ern',
     ]);
+    expect(SEGMENT_TABS.at(-1)).toEqual({ label: 'ERN', type: 'Ern' });
   });
 
   it('filters segments by type', () => {

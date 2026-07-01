@@ -8,6 +8,7 @@ export const SEGMENT_TABS: { label: string; type: SegmentType }[] = [
   { label: 'Natural Account', type: 'Account' },
   { label: 'Fund', type: 'Fund' },
   { label: 'Activity', type: 'Activity' },
+  { label: 'ERN', type: 'Ern' },
 ];
 
 export function segmentsForType(

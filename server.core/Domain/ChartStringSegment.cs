@@ -6,6 +6,7 @@ public enum SegmentType
     Account,
     Fund,
     Activity,
+    Ern,
 }
 
 public class ChartStringSegment

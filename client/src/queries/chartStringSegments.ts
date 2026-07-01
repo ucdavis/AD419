@@ -9,7 +9,8 @@ export type SegmentType =
   | 'FinancialDepartment'
   | 'Account'
   | 'Fund'
-  | 'Activity';
+  | 'Activity'
+  | 'Ern';
 
 export interface HierarchyLevel {
   code: string;
