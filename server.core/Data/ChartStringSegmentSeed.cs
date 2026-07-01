@@ -3,20 +3,15 @@ using Server.Core.Domain;
 
 namespace Server.Core.Data;
 
+/// <summary>
+/// Seeds the chart-string segments that need classifying, derived from the hierarchy
+/// tables so every segment has a matching breadcrumb. Runs after <see cref="HierarchySeed"/>.
+/// Segments start unclassified (IncludeInReport = null); a couple per type are
+/// pre-classified so the grid shows a mix of unset and classified rows.
+/// </summary>
 public static class ChartStringSegmentSeed
 {
-    public static IReadOnlyList<ChartStringSegment> Rows { get; } =
-    [
-        new() { SegmentType = SegmentType.FinancialDepartment, Code = "031000", Description = "Plant Sciences", IncludeInReport = true },
-        new() { SegmentType = SegmentType.FinancialDepartment, Code = "031100", Description = "Entomology and Nematology", IncludeInReport = null },
-        new() { SegmentType = SegmentType.FinancialDepartment, Code = "031200", Description = "Land, Air and Water Resources", IncludeInReport = null },
-        new() { SegmentType = SegmentType.Account, Code = "500000", Description = "Supplies and Expense", IncludeInReport = null },
-        new() { SegmentType = SegmentType.Fund, Code = "45530", Description = "AES State Appropriations", IncludeInReport = true, Sfn = "220" },
-        new() { SegmentType = SegmentType.Fund, Code = "95981", Description = "USDA NIFA Hatch", IncludeInReport = true, Sfn = "201" },
-        new() { SegmentType = SegmentType.Fund, Code = "70575", Description = "USDA NIFA SCRI Berry 2026", IncludeInReport = null },
-        new() { SegmentType = SegmentType.Activity, Code = "44A100", Description = "Research", IncludeInReport = true },
-        new() { SegmentType = SegmentType.Activity, Code = "44A200", Description = "Extension", IncludeInReport = null },
-    ];
+    private const int PreClassifiedPerType = 2;
 
     public static async Task EnsureSeededAsync(AppDbContext db, CancellationToken ct = default)
     {
@@ -25,15 +20,32 @@ public static class ChartStringSegmentSeed
             return;
         }
 
-        db.ChartStringSegments.AddRange(Rows.Select(row => new ChartStringSegment
-        {
-            SegmentType = row.SegmentType,
-            Code = row.Code,
-            Description = row.Description,
-            IncludeInReport = row.IncludeInReport,
-            Sfn = row.Sfn,
-        }));
+        var segments = new List<ChartStringSegment>();
+        segments.AddRange(await BuildAsync(db.AccountHierarchies, SegmentType.Account, ct));
+        segments.AddRange(await BuildAsync(db.FundHierarchies, SegmentType.Fund, ct));
+        segments.AddRange(await BuildAsync(db.ActivityHierarchies, SegmentType.Activity, ct));
+        segments.AddRange(await BuildAsync(db.DepartmentHierarchies, SegmentType.FinancialDepartment, ct));
 
+        db.ChartStringSegments.AddRange(segments);
         await db.SaveChangesAsync(ct);
+    }
+
+    private static async Task<List<ChartStringSegment>> BuildAsync<T>(
+        DbSet<T> hierarchy,
+        SegmentType type,
+        CancellationToken ct)
+        where T : class, ISegmentHierarchy
+    {
+        var rows = await hierarchy.ToListAsync(ct);
+        return rows
+            .OrderBy(row => row.Code, StringComparer.Ordinal)
+            .Select((row, index) => new ChartStringSegment
+            {
+                SegmentType = type,
+                Code = row.Code,
+                Description = row.Description,
+                IncludeInReport = index < PreClassifiedPerType ? true : null,
+            })
+            .ToList();
     }
 }
