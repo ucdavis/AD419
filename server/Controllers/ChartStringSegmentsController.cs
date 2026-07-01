@@ -21,6 +21,27 @@ public class ChartStringSegmentsController : ApiControllerBase
     {
         var segments = await _db.ChartStringSegments.ToListAsync(cancellationToken);
 
+        var departments = await _db.DepartmentHierarchies.ToDictionaryAsync(h => h.Code, cancellationToken);
+        var accounts = await _db.AccountHierarchies.ToDictionaryAsync(h => h.Code, cancellationToken);
+        var funds = await _db.FundHierarchies.ToDictionaryAsync(h => h.Code, cancellationToken);
+        var activities = await _db.ActivityHierarchies.ToDictionaryAsync(h => h.Code, cancellationToken);
+
+        IReadOnlyList<HierarchyLevelDto> HierarchyFor(SegmentType type, string code)
+        {
+            ISegmentHierarchy? source = type switch
+            {
+                SegmentType.FinancialDepartment => departments.GetValueOrDefault(code),
+                SegmentType.Account => accounts.GetValueOrDefault(code),
+                SegmentType.Fund => funds.GetValueOrDefault(code),
+                SegmentType.Activity => activities.GetValueOrDefault(code),
+                _ => null,
+            };
+
+            return source is null
+                ? []
+                : source.Levels().Select(l => new HierarchyLevelDto(l.Level, l.Code, l.Name)).ToList();
+        }
+
         var dtos = segments
             .OrderBy(segment => segment.SegmentType)
             .ThenBy(segment => segment.Code)
@@ -29,7 +50,8 @@ public class ChartStringSegmentsController : ApiControllerBase
                 segment.Code,
                 segment.Description,
                 segment.IncludeInReport,
-                segment.Sfn))
+                segment.Sfn,
+                HierarchyFor(segment.SegmentType, segment.Code)))
             .ToList();
 
         return Ok(dtos);

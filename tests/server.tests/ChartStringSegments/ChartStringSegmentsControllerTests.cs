@@ -26,6 +26,44 @@ public class ChartStringSegmentsControllerTests
     }
 
     [Fact]
+    public async Task Get_includes_hierarchy_for_segment_with_matching_code()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+        db.ChartStringSegments.Add(new ChartStringSegment { SegmentType = SegmentType.Fund, Code = "45530", IncludeInReport = true, Sfn = "220" });
+        db.FundHierarchies.Add(new FundHierarchy
+        {
+            Code = "45530",
+            ParentLevel0Code = "STATE", ParentLevel0Name = "State Funds",
+            ParentLevel1Code = "APPROP", ParentLevel1Name = "Appropriations",
+        });
+        await db.SaveChangesAsync();
+        var controller = new ChartStringSegmentsController(db);
+
+        var result = await controller.Get(CancellationToken.None);
+
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var dto = ok.Value.Should().BeAssignableTo<IEnumerable<ChartStringSegmentDto>>().Subject.Single();
+        dto.Hierarchy.Should().Equal(
+            new HierarchyLevelDto("0", "STATE", "State Funds"),
+            new HierarchyLevelDto("1", "APPROP", "Appropriations"));
+    }
+
+    [Fact]
+    public async Task Get_returns_empty_hierarchy_when_no_matching_row()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+        db.ChartStringSegments.Add(new ChartStringSegment { SegmentType = SegmentType.Account, Code = "500000", IncludeInReport = null });
+        await db.SaveChangesAsync();
+        var controller = new ChartStringSegmentsController(db);
+
+        var result = await controller.Get(CancellationToken.None);
+
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var dto = ok.Value.Should().BeAssignableTo<IEnumerable<ChartStringSegmentDto>>().Subject.Single();
+        dto.Hierarchy.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Patch_updates_include_flag()
     {
         using var db = TestDbContextFactory.CreateInMemory();
