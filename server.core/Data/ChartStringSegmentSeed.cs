@@ -11,7 +11,9 @@ namespace Server.Core.Data;
 /// </summary>
 public static class ChartStringSegmentSeed
 {
-    private const int PreClassifiedPerType = 2;
+    // Leave roughly this many rows per segment type unclassified so there is still
+    // work to do; the rest are classified (include/exclude) below.
+    private const int UnsetPerType = 10;
 
     public static async Task EnsureSeededAsync(AppDbContext db, CancellationToken ct = default)
     {
@@ -44,8 +46,23 @@ public static class ChartStringSegmentSeed
                 SegmentType = type,
                 Code = row.Code,
                 Description = row.Description,
-                IncludeInReport = index < PreClassifiedPerType ? true : null,
+                // First few stay unset; the rest are classified include/exclude with
+                // a stable pseudo-random split so dev data looks partially worked.
+                IncludeInReport = index < UnsetPerType
+                    ? null
+                    : (StableHash(row.Code) & 1) == 0,
             })
             .ToList();
+    }
+
+    private static int StableHash(string value)
+    {
+        var hash = 17;
+        foreach (var c in value)
+        {
+            hash = (hash * 31) + c;
+        }
+
+        return hash;
     }
 }
