@@ -27,9 +27,32 @@ public static class ChartStringSegmentSeed
         segments.AddRange(await BuildAsync(db.FundHierarchies, SegmentType.Fund, ct));
         segments.AddRange(await BuildAsync(db.ActivityHierarchies, SegmentType.Activity, ct));
         segments.AddRange(await BuildAsync(db.DepartmentHierarchies, SegmentType.FinancialDepartment, ct));
+        segments.AddRange(BuildErn());
 
         db.ChartStringSegments.AddRange(segments);
         await db.SaveChangesAsync(ct);
+    }
+
+    // ErnCodes.csv columns: 0 DOS_Code, 1 Description, 2 IncludeInAD419FTE, 3 IsNewInUCP.
+    // IncludeInAD419FTE seeds the classification directly, except the first few (by DOS
+    // code) which stay unset for demo. IsNewInUCP is not consumed yet.
+    private static List<ChartStringSegment> BuildErn()
+    {
+        var rows = SeedCsv.ReadRows("ErnCodes.csv", fields => (
+            Code: fields[0].Trim(),
+            Description: SeedCsv.Nullable(fields[1]),
+            Include: string.Equals(fields[2].Trim(), "true", StringComparison.OrdinalIgnoreCase)));
+
+        return rows
+            .OrderBy(row => row.Code, StringComparer.Ordinal)
+            .Select((row, index) => new ChartStringSegment
+            {
+                SegmentType = SegmentType.Ern,
+                Code = row.Code,
+                Description = row.Description,
+                IncludeInReport = index < UnsetPerType ? null : row.Include,
+            })
+            .ToList();
     }
 
     private static async Task<List<ChartStringSegment>> BuildAsync<T>(

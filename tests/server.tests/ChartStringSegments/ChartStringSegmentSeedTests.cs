@@ -19,8 +19,34 @@ public class ChartStringSegmentSeedTests
             await db.AccountHierarchies.CountAsync() +
             await db.FundHierarchies.CountAsync() +
             await db.ActivityHierarchies.CountAsync() +
-            await db.DepartmentHierarchies.CountAsync();
+            await db.DepartmentHierarchies.CountAsync() +
+            db.ChartStringSegments.Count(segment => segment.SegmentType == SegmentType.Ern);
         (await db.ChartStringSegments.CountAsync()).Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task EnsureSeeded_loads_ern_codes_from_csv()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+        await HierarchySeed.EnsureSeededAsync(db);
+
+        await ChartStringSegmentSeed.EnsureSeededAsync(db);
+
+        var ern = db.ChartStringSegments
+            .Where(segment => segment.SegmentType == SegmentType.Ern)
+            .ToList();
+        ern.Count.Should().BeGreaterThan(200);
+
+        // REG (Regular Pay) has IncludeInAD419FTE = true and is not in the first 10 by code.
+        var reg = ern.Single(segment => segment.Code == "REG");
+        reg.IncludeInReport.Should().BeTrue();
+        reg.Description.Should().Be("Regular Pay");
+
+        // The first 10 by ordinal DOS code are left unset for demo.
+        ern.OrderBy(segment => segment.Code, StringComparer.Ordinal)
+            .Take(10)
+            .All(segment => segment.IncludeInReport == null)
+            .Should().BeTrue();
     }
 
     [Fact]
