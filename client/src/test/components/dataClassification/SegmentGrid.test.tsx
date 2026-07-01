@@ -29,8 +29,11 @@ const accountSegments: ChartStringSegment[] = [
 ];
 
 describe('SegmentGrid', () => {
-  it('renders each hierarchy level code with the description as a hover title', () => {
+  it('renders a column per hierarchy level with the code and hover title', () => {
     render(<SegmentGrid onClassify={vi.fn()} segments={fundSegments} segmentType="Fund" />);
+
+    expect(screen.getByRole('columnheader', { name: 'Level 0' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Level 1' })).toBeInTheDocument();
 
     const state = screen.getByText('STATE');
     expect(state).toHaveAttribute('title', 'State Funds');
@@ -38,10 +41,10 @@ describe('SegmentGrid', () => {
     expect(screen.getByText('APPROP')).toHaveAttribute('title', 'Appropriations');
   });
 
-  it('renders an em dash when a segment has no hierarchy', () => {
+  it('renders no level columns when no segment has a hierarchy', () => {
     render(<SegmentGrid onClassify={vi.fn()} segments={accountSegments} segmentType="Account" />);
 
-    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /^Level / })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Include' })).toBeInTheDocument();
   });
 });

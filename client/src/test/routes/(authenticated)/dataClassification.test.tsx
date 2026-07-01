@@ -66,8 +66,9 @@ describe('Data Classification stage', () => {
         screen.getByRole('button', { name: /Continue to Expense Review/ })
       ).toBeDisabled();
 
-      const dropdowns = screen.getAllByRole('combobox');
-      fireEvent.change(dropdowns.at(-1)!, { target: { value: '201' } });
+      const dropdowns = screen.getAllByRole<HTMLSelectElement>('combobox');
+      const unsetDropdown = dropdowns.find((dropdown) => dropdown.value === '');
+      fireEvent.change(unsetDropdown!, { target: { value: '201' } });
 
       await waitFor(() => {
         expect(
