@@ -1,6 +1,6 @@
 CREATE TABLE [data].[FundHierarchy]
 (
-    [Code]             VARCHAR(20)    NOT NULL,
+    [Code]             NVARCHAR(50)   NOT NULL,
     [Description]      NVARCHAR(1000) NULL,
     [ParentLevel0Code] VARCHAR(20)    NULL,
     [ParentLevel0Name] NVARCHAR(1000) NULL,

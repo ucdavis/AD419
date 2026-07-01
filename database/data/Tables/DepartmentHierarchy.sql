@@ -1,6 +1,6 @@
 CREATE TABLE [data].[DepartmentHierarchy]
 (
-    [Code]             VARCHAR(20)    NOT NULL,
+    [Code]             NVARCHAR(50)   NOT NULL,
     [Description]      NVARCHAR(1000) NULL,
     [ParentLevelACode] VARCHAR(20)    NULL,
     [ParentLevelAName] NVARCHAR(1000) NULL,

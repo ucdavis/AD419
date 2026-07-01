@@ -52,8 +52,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             foreach (var property in entity.Metadata.GetProperties()
                          .Where(p => p.ClrType == typeof(string)))
             {
-                var isName = property.Name == "Description" || property.Name.EndsWith("Name");
-                property.SetMaxLength(isName ? 1000 : 20);
+                var maxLength = property.Name switch
+                {
+                    // Match ChartStringSegment.Code so joins/lookups on Code stay aligned.
+                    nameof(ISegmentHierarchy.Code) => 50,
+                    "Description" => 1000,
+                    _ when property.Name.EndsWith("Name") => 1000,
+                    _ => 20,
+                };
+                property.SetMaxLength(maxLength);
             }
         });
     }
