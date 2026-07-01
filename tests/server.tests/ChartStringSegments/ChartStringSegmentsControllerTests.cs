@@ -48,6 +48,56 @@ public class ChartStringSegmentsControllerTests
             new HierarchyLevelDto("1", "APPROP", "Appropriations"));
     }
 
+    [Theory]
+    [InlineData(SegmentType.FinancialDepartment, "A")]
+    [InlineData(SegmentType.Account, "0")]
+    [InlineData(SegmentType.Fund, "0")]
+    [InlineData(SegmentType.Activity, "0")]
+    public async Task Get_reads_hierarchy_from_the_matching_segment_types_own_table(
+        SegmentType segmentType, string expectedLevel)
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+        const string code = "12345";
+        db.ChartStringSegments.Add(new ChartStringSegment { SegmentType = segmentType, Code = code, IncludeInReport = null });
+
+        switch (segmentType)
+        {
+            case SegmentType.FinancialDepartment:
+                db.DepartmentHierarchies.Add(new DepartmentHierarchy
+                {
+                    Code = code, ParentLevelACode = "X", ParentLevelAName = "XName",
+                });
+                break;
+            case SegmentType.Account:
+                db.AccountHierarchies.Add(new AccountHierarchy
+                {
+                    Code = code, ParentLevel0Code = "X", ParentLevel0Name = "XName",
+                });
+                break;
+            case SegmentType.Fund:
+                db.FundHierarchies.Add(new FundHierarchy
+                {
+                    Code = code, ParentLevel0Code = "X", ParentLevel0Name = "XName",
+                });
+                break;
+            case SegmentType.Activity:
+                db.ActivityHierarchies.Add(new ActivityHierarchy
+                {
+                    Code = code, ParentLevel0Code = "X", ParentLevel0Name = "XName",
+                });
+                break;
+        }
+
+        await db.SaveChangesAsync();
+        var controller = new ChartStringSegmentsController(db);
+
+        var result = await controller.Get(CancellationToken.None);
+
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var dto = ok.Value.Should().BeAssignableTo<IEnumerable<ChartStringSegmentDto>>().Subject.Single();
+        dto.Hierarchy.Should().Equal(new HierarchyLevelDto(expectedLevel, "X", "XName"));
+    }
+
     [Fact]
     public async Task Get_returns_empty_hierarchy_when_no_matching_row()
     {
