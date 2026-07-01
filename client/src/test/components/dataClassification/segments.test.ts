@@ -8,9 +8,9 @@ import {
 } from '@/components/dataClassification/segments.ts';
 
 const segments: ChartStringSegment[] = [
-  { code: '45530', description: 'AES', includeInReport: true, segmentType: 'Fund', sfn: '220' },
-  { code: '70575', description: 'Berry', includeInReport: null, segmentType: 'Fund', sfn: '219' },
-  { code: '500000', description: 'S and E', includeInReport: null, segmentType: 'Account', sfn: null },
+  { code: '45530', description: 'AES', hierarchy: [], includeInReport: true, segmentType: 'Fund', sfn: '220' },
+  { code: '70575', description: 'Berry', hierarchy: [], includeInReport: null, segmentType: 'Fund', sfn: '219' },
+  { code: '500000', description: 'S and E', hierarchy: [], includeInReport: null, segmentType: 'Account', sfn: null },
 ];
 
 describe('data classification segment helpers', () => {

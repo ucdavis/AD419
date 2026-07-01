@@ -23,6 +23,31 @@ export function SegmentGrid({
     { accessorKey: 'code', header: 'Code' },
     { accessorKey: 'description', header: 'Name' },
     {
+      cell: ({ row }) => {
+        const levels = row.original.hierarchy;
+        if (levels.length === 0) {
+          return <span className="text-base-content/40">—</span>;
+        }
+        return (
+          <span className="flex flex-wrap items-center gap-1">
+            {levels.map((level, index) => (
+              <span className="inline-flex items-center gap-1" key={level.level}>
+                {index > 0 && <span className="text-base-content/30">·</span>}
+                <span
+                  className="underline decoration-dotted cursor-help"
+                  title={level.name ?? level.code}
+                >
+                  {level.code}
+                </span>
+              </span>
+            ))}
+          </span>
+        );
+      },
+      header: 'Hierarchy',
+      id: 'hierarchy',
+    },
+    {
       cell: ({ row }) => (
         <SegmentClassificationControl
           onClassify={(includeInReport, sfn) =>

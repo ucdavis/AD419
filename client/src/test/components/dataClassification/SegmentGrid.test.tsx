@@ -4,27 +4,44 @@ import type { ChartStringSegment } from '@/queries/chartStringSegments.ts';
 import { SegmentGrid } from '@/components/dataClassification/SegmentGrid.tsx';
 
 const fundSegments: ChartStringSegment[] = [
-  { code: '45530', description: 'AES State Appropriations', includeInReport: true, segmentType: 'Fund', sfn: '220' },
+  {
+    code: '45530',
+    description: 'AES State Appropriations',
+    hierarchy: [
+      { code: 'STATE', level: '0', name: 'State Funds' },
+      { code: 'APPROP', level: '1', name: 'Appropriations' },
+    ],
+    includeInReport: true,
+    segmentType: 'Fund',
+    sfn: '220',
+  },
 ];
 
 const accountSegments: ChartStringSegment[] = [
-  { code: '500000', description: 'Supplies and Expense', includeInReport: null, segmentType: 'Account', sfn: null },
+  {
+    code: '500000',
+    description: 'Supplies and Expense',
+    hierarchy: [],
+    includeInReport: null,
+    segmentType: 'Account',
+    sfn: null,
+  },
 ];
 
 describe('SegmentGrid', () => {
-  it('renders the SFN dropdown for the Fund tab without a separate SFN column', () => {
+  it('renders each hierarchy level code with the description as a hover title', () => {
     render(<SegmentGrid onClassify={vi.fn()} segments={fundSegments} segmentType="Fund" />);
 
-    expect(screen.queryByRole('columnheader', { name: 'SFN' })).not.toBeInTheDocument();
-    expect(screen.getByRole('combobox')).toBeInTheDocument();
-    expect(screen.getByText('45530')).toBeInTheDocument();
+    const state = screen.getByText('STATE');
+    expect(state).toHaveAttribute('title', 'State Funds');
+    expect(state).toHaveClass('cursor-help');
+    expect(screen.getByText('APPROP')).toHaveAttribute('title', 'Appropriations');
   });
 
-  it('renders Include/Exclude buttons for non-Fund tabs', () => {
+  it('renders an em dash when a segment has no hierarchy', () => {
     render(<SegmentGrid onClassify={vi.fn()} segments={accountSegments} segmentType="Account" />);
 
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.getByText('—')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Include' })).toBeInTheDocument();
-    expect(screen.getByText('500000')).toBeInTheDocument();
   });
 });

@@ -14,12 +14,13 @@ const mockUser = {
 const segments: {
   code: string;
   description: string;
+  hierarchy: { code: string; level: string; name: string | null }[];
   includeInReport: boolean | null;
   segmentType: string;
   sfn: string | null;
 }[] = [
-  { code: '45530', description: 'AES', includeInReport: true, segmentType: 'Fund', sfn: '220' },
-  { code: '70575', description: 'Berry', includeInReport: null, segmentType: 'Fund', sfn: null },
+  { code: '45530', description: 'AES', hierarchy: [], includeInReport: true, segmentType: 'Fund', sfn: '220' },
+  { code: '70575', description: 'Berry', hierarchy: [], includeInReport: null, segmentType: 'Fund', sfn: null },
 ];
 
 function mockApi() {

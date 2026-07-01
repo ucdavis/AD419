@@ -6,6 +6,7 @@ import { SegmentClassificationControl } from '@/components/dataClassification/Se
 const unsetAccount: ChartStringSegment = {
   code: '500000',
   description: 'Supplies',
+  hierarchy: [],
   includeInReport: null,
   segmentType: 'Account',
   sfn: null,
@@ -14,6 +15,7 @@ const unsetAccount: ChartStringSegment = {
 const unsetFund: ChartStringSegment = {
   code: '70575',
   description: 'Berry',
+  hierarchy: [],
   includeInReport: null,
   segmentType: 'Fund',
   sfn: null,

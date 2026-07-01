@@ -11,9 +11,16 @@ export type SegmentType =
   | 'Fund'
   | 'Activity';
 
+export interface HierarchyLevel {
+  code: string;
+  level: string;
+  name: string | null;
+}
+
 export interface ChartStringSegment {
   code: string;
   description: string | null;
+  hierarchy: HierarchyLevel[];
   includeInReport: boolean | null;
   segmentType: SegmentType;
   sfn: string | null;
