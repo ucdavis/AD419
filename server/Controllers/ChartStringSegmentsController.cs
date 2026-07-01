@@ -55,7 +55,20 @@ public class ChartStringSegmentsController : ApiControllerBase
             return NotFound();
         }
 
+        var isFund = segmentType == SegmentType.Fund;
+
+        if (!isFund && request.Sfn is not null)
+        {
+            return BadRequest("SFN is only valid for Fund segments.");
+        }
+
+        if (isFund && request.IncludeInReport == true && !FundSfns.IsValidForInclusion(request.Sfn))
+        {
+            return BadRequest($"Invalid SFN '{request.Sfn}' for an included fund.");
+        }
+
         segment.IncludeInReport = request.IncludeInReport;
+        segment.Sfn = isFund && request.IncludeInReport == true ? request.Sfn : null;
         await _db.SaveChangesAsync(cancellationToken);
 
         return NoContent();

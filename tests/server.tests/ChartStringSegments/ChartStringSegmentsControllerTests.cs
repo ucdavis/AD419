@@ -34,11 +34,12 @@ public class ChartStringSegmentsControllerTests
         var controller = new ChartStringSegmentsController(db);
 
         var result = await controller.UpdateClassification(
-            new UpdateClassificationRequest("Fund", "70575", true), CancellationToken.None);
+            new UpdateClassificationRequest("Fund", "70575", true, "201"), CancellationToken.None);
 
         result.Should().BeOfType<NoContentResult>();
         var updated = await db.ChartStringSegments.FindAsync(SegmentType.Fund, "70575");
         updated!.IncludeInReport.Should().BeTrue();
+        updated.Sfn.Should().Be("201");
     }
 
     [Fact]
@@ -48,7 +49,7 @@ public class ChartStringSegmentsControllerTests
         var controller = new ChartStringSegmentsController(db);
 
         var result = await controller.UpdateClassification(
-            new UpdateClassificationRequest("Fund", "00000", false), CancellationToken.None);
+            new UpdateClassificationRequest("Fund", "00000", false, null), CancellationToken.None);
 
         result.Should().BeOfType<NotFoundResult>();
     }
@@ -60,7 +61,69 @@ public class ChartStringSegmentsControllerTests
         var controller = new ChartStringSegmentsController(db);
 
         var result = await controller.UpdateClassification(
-            new UpdateClassificationRequest("Nonsense", "00000", false), CancellationToken.None);
+            new UpdateClassificationRequest("Nonsense", "00000", false, null), CancellationToken.None);
+
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task Patch_sets_sfn_for_included_fund()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+        db.ChartStringSegments.Add(new ChartStringSegment { SegmentType = SegmentType.Fund, Code = "70575", IncludeInReport = null });
+        await db.SaveChangesAsync();
+        var controller = new ChartStringSegmentsController(db);
+
+        var result = await controller.UpdateClassification(
+            new UpdateClassificationRequest("Fund", "70575", true, "220"), CancellationToken.None);
+
+        result.Should().BeOfType<NoContentResult>();
+        var updated = await db.ChartStringSegments.FindAsync(SegmentType.Fund, "70575");
+        updated!.IncludeInReport.Should().BeTrue();
+        updated.Sfn.Should().Be("220");
+    }
+
+    [Fact]
+    public async Task Patch_clears_sfn_when_fund_excluded()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+        db.ChartStringSegments.Add(new ChartStringSegment { SegmentType = SegmentType.Fund, Code = "45530", IncludeInReport = true, Sfn = "220" });
+        await db.SaveChangesAsync();
+        var controller = new ChartStringSegmentsController(db);
+
+        var result = await controller.UpdateClassification(
+            new UpdateClassificationRequest("Fund", "45530", false, null), CancellationToken.None);
+
+        result.Should().BeOfType<NoContentResult>();
+        var updated = await db.ChartStringSegments.FindAsync(SegmentType.Fund, "45530");
+        updated!.IncludeInReport.Should().BeFalse();
+        updated.Sfn.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Patch_rejects_invalid_sfn_for_included_fund()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+        db.ChartStringSegments.Add(new ChartStringSegment { SegmentType = SegmentType.Fund, Code = "70575", IncludeInReport = null });
+        await db.SaveChangesAsync();
+        var controller = new ChartStringSegmentsController(db);
+
+        var result = await controller.UpdateClassification(
+            new UpdateClassificationRequest("Fund", "70575", true, "999"), CancellationToken.None);
+
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task Patch_rejects_sfn_on_non_fund_segment()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+        db.ChartStringSegments.Add(new ChartStringSegment { SegmentType = SegmentType.Account, Code = "500000", IncludeInReport = null });
+        await db.SaveChangesAsync();
+        var controller = new ChartStringSegmentsController(db);
+
+        var result = await controller.UpdateClassification(
+            new UpdateClassificationRequest("Account", "500000", true, "201"), CancellationToken.None);
 
         result.Should().BeOfType<BadRequestObjectResult>();
     }

@@ -10,4 +10,5 @@ public sealed record ChartStringSegmentDto(
 public sealed record UpdateClassificationRequest(
     string SegmentType,
     string Code,
-    bool? IncludeInReport);
+    bool? IncludeInReport,
+    string? Sfn);
