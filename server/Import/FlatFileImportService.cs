@@ -430,7 +430,12 @@ public sealed class FlatFileImportService(
             var rawValue = cell.GetFormattedString().Trim();
             values[binding.Column.TargetColumn] = rawValue;
 
-            var parsed = ParseCell(cell, rawValue, binding.Column, binding.SourceHeader);
+            var parsed = ParseCell(
+                cell,
+                rawValue,
+                binding.Column,
+                binding.SourceHeader,
+                definition.TruncateStringsToMaxLength);
             if (parsed.Error is not null)
             {
                 cellErrors.Add(parsed.Error);
@@ -481,7 +486,11 @@ public sealed class FlatFileImportService(
             var rawValue = ReadCsvField(csv, columnNumber).Trim();
             values[binding.Column.TargetColumn] = rawValue;
 
-            var parsed = ParseCsvCell(rawValue, binding.Column, binding.SourceHeader);
+            var parsed = ParseCsvCell(
+                rawValue,
+                binding.Column,
+                binding.SourceHeader,
+                definition.TruncateStringsToMaxLength);
             if (parsed.Error is not null)
             {
                 cellErrors.Add(parsed.Error);
@@ -516,7 +525,12 @@ public sealed class FlatFileImportService(
             : string.Empty;
     }
 
-    private static ParsedCell ParseCell(IXLCell cell, string rawValue, ImportColumn column, string sourceHeader)
+    private static ParsedCell ParseCell(
+        IXLCell cell,
+        string rawValue,
+        ImportColumn column,
+        string sourceHeader,
+        bool truncateStringsToMaxLength)
     {
         if (string.IsNullOrWhiteSpace(rawValue))
         {
@@ -526,7 +540,7 @@ public sealed class FlatFileImportService(
         switch (column.Type)
         {
             case ImportColumnType.String:
-                return ParseString(rawValue, column, sourceHeader);
+                return ParseString(rawValue, column, sourceHeader, truncateStringsToMaxLength);
             case ImportColumnType.Boolean:
                 return ParseBoolean(cell, rawValue, column, sourceHeader);
             case ImportColumnType.Decimal:
@@ -540,7 +554,11 @@ public sealed class FlatFileImportService(
         }
     }
 
-    private static ParsedCell ParseCsvCell(string rawValue, ImportColumn column, string sourceHeader)
+    private static ParsedCell ParseCsvCell(
+        string rawValue,
+        ImportColumn column,
+        string sourceHeader,
+        bool truncateStringsToMaxLength)
     {
         if (string.IsNullOrWhiteSpace(rawValue))
         {
@@ -550,7 +568,7 @@ public sealed class FlatFileImportService(
         switch (column.Type)
         {
             case ImportColumnType.String:
-                return ParseString(rawValue, column, sourceHeader);
+                return ParseString(rawValue, column, sourceHeader, truncateStringsToMaxLength);
             case ImportColumnType.Boolean:
                 return ParseBoolean(rawValue, column, sourceHeader);
             case ImportColumnType.Decimal:
@@ -564,10 +582,19 @@ public sealed class FlatFileImportService(
         }
     }
 
-    private static ParsedCell ParseString(string rawValue, ImportColumn column, string sourceHeader)
+    private static ParsedCell ParseString(
+        string rawValue,
+        ImportColumn column,
+        string sourceHeader,
+        bool truncateStringsToMaxLength)
     {
         if (column.MaxLength is not null && rawValue.Length > column.MaxLength.Value)
         {
+            if (truncateStringsToMaxLength)
+            {
+                return new ParsedCell(rawValue[..column.MaxLength.Value], null);
+            }
+
             return new ParsedCell(rawValue, new ImportCellError(
                 column.TargetColumn,
                 sourceHeader,

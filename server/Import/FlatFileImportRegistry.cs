@@ -16,7 +16,7 @@ public sealed class FlatFileImportRegistry : IFlatFileImportRegistry
             "data",
             "AllProjects",
             [
-                Text("AccessionNumber", true, 50, "Accession Number"),
+                Text("AccessionNumber", false, 50, "Accession Number"),
                 Text("ProjectNumber", false, 20, "Project Number"),
                 Text("ProposalNumber", false, 10, "Proposal Number"),
                 Text("AwardNumber", false, 16, "Award Number"),
@@ -47,8 +47,6 @@ public sealed class FlatFileImportRegistry : IFlatFileImportRegistry
                 Text("Source", true, 3),
             ],
             [
-                new("Accession Number", ["AccessionNumber"]),
-                new("Project Number", ["ProjectNumber"]),
                 new("Source and Proposal Number", ["Source", "ProposalNumber"]),
             ]),
         new(
@@ -77,14 +75,14 @@ public sealed class FlatFileImportRegistry : IFlatFileImportRegistry
             "data",
             "AssistanceListingNumbers",
             [
-                Text("ProgramTitle", true, 500, "Program Title", "Assistance Listing Title", "Title"),
-                Text("ProgramNumber", true, 6, "Program Number", "Assistance Listing Number", "ALN", "CFDA Number"),
-                Text("PopularName020", false, 500, "Popular Name 020", "020 Popular Name", "Popular Name"),
+                Text("ProgramTitle", true, null, "Program Title", "Assistance Listing Title", "Title"),
+                Text("ProgramNumber", false, 6, "Program Number", "Assistance Listing Number", "ALN", "CFDA Number"),
+                Text("PopularName020", false, null, "Popular Name 020", "020 Popular Name", "Popular Name"),
                 Text("FederalAgency030", false, 500, "Federal Agency 030", "030 Federal Agency", "Federal Agency"),
                 Text("Authorization040", false, null, "Authorization 040", "040 Authorization"),
                 Text("Objectives050", false, null, "Objectives 050", "050 Objectives"),
                 Text("TypesOfAssistance060", false, null, "Types Of Assistance 060", "060 Types Of Assistance"),
-                Text("UsesAndUseRestrictions070", false, 50, "Uses And Use Restrictions 070", "070 Uses And Use Restrictions"),
+                Text("UsesAndUseRestrictions070", false, 500, "Uses And Use Restrictions 070", "070 Uses And Use Restrictions"),
                 Text("ApplicantEligibility081", false, null, "Applicant Eligibility 081", "081 Applicant Eligibility"),
                 Text("BeneficiaryEligibility082", false, null, "Beneficiary Eligibility 082", "082 Beneficiary Eligibility"),
                 Text("CredentialsDocumentation083", false, null, "Credentials Documentation 083", "083 Credentials Documentation"),
@@ -111,14 +109,13 @@ public sealed class FlatFileImportRegistry : IFlatFileImportRegistry
                 Text("RelatedPrograms160", false, null, "Related Programs 160", "160 Related Programs"),
                 Text("ExamplesOfFundedProjects170", false, null, "Examples Of Funded Projects 170", "170 Examples Of Funded Projects"),
                 Text("CriteriaForSelectingProposals180", false, null, "Criteria For Selecting Proposals 180", "180 Criteria For Selecting Proposals"),
-                Date("PublishedDate", false, "Published Date"),
+                Text("PublishedDate", false, 50, "Published Date"),
                 Text("ParentShortname", false, 100, "Parent Shortname", "Parent Short Name"),
                 Text("Url", false, 2000, "URL"),
-                Flag("Recovery", false),
+                Text("Recovery", false, 50),
             ],
-            [
-                new("Program Number", ["ProgramNumber"]),
-            ]),
+            [],
+            truncateStringsToMaxLength: true),
     ];
 
     public IReadOnlyList<ImportDatasetDefinition> Datasets => DatasetDefinitions;

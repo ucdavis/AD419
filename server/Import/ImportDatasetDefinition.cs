@@ -30,7 +30,8 @@ public sealed partial class ImportDatasetDefinition
         string schemaName,
         string tableName,
         IReadOnlyList<ImportColumn> columns,
-        IReadOnlyList<ImportUniqueKey> uniqueKeys)
+        IReadOnlyList<ImportUniqueKey> uniqueKeys,
+        bool truncateStringsToMaxLength = false)
     {
         Id = id;
         DisplayName = displayName;
@@ -38,6 +39,7 @@ public sealed partial class ImportDatasetDefinition
         TableName = tableName;
         Columns = columns;
         UniqueKeys = uniqueKeys;
+        TruncateStringsToMaxLength = truncateStringsToMaxLength;
 
         columnsByNormalizedHeader = [];
         var normalizedHeaderSources = new Dictionary<string, (ImportColumn Column, string SourceHeader)>();
@@ -73,6 +75,7 @@ public sealed partial class ImportDatasetDefinition
     public string TableName { get; }
     public IReadOnlyList<ImportColumn> Columns { get; }
     public IReadOnlyList<ImportUniqueKey> UniqueKeys { get; }
+    public bool TruncateStringsToMaxLength { get; }
 
     public ImportColumn? FindColumnBySourceHeader(string sourceHeader)
     {

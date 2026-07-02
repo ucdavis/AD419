@@ -184,6 +184,106 @@ public class FlatFileImportServiceTests
     }
 
     [Fact]
+    public async Task Import_all_projects_allows_duplicate_accession_numbers_and_project_numbers()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var service = CreateService(db);
+        var file = CreateCsvFile("all-projects.csv",
+            AllProjectsHeaders(),
+            [
+                ["A-1", "PRJ-1", "", "Org", "Director", "Federal", "Initial", "Active", "NIF"],
+                ["A-1", "PRJ-1", "", "Org", "Director", "Federal", "Initial", "Active", "NIF"],
+            ]);
+
+        var result = await service.ImportAsync("all-projects", file, null, CancellationToken.None);
+
+        var validation = result.Should().BeOfType<ImportValidationFailed>().Subject.Response;
+        validation.FileErrors.Should().Contain(error => error.Code == "database_validation_failed");
+        validation.AttemptedRows.Should().Be(2);
+        validation.Rows.Should().OnlyContain(row =>
+            row.CellErrors.All(error => error.Code != "duplicate_key"));
+    }
+
+    [Fact]
+    public async Task Import_all_projects_still_rejects_duplicate_source_and_proposal_numbers()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var service = CreateService(db);
+        var file = CreateCsvFile("all-projects.csv",
+            AllProjectsHeaders(),
+            [
+                ["A-1", "PRJ-1", "P-1", "Org", "Director", "Federal", "Initial", "Active", "NIF"],
+                ["A-2", "PRJ-2", "P-1", "Org", "Director", "Federal", "Initial", "Active", "NIF"],
+            ]);
+
+        var result = await service.ImportAsync("all-projects", file, null, CancellationToken.None);
+
+        var validation = result.Should().BeOfType<ImportValidationFailed>().Subject.Response;
+        validation.AttemptedRows.Should().Be(2);
+        validation.FileErrors.Should().BeEmpty();
+        validation.Rows.Should().OnlyContain(row =>
+            row.CellErrors.Any(error =>
+                error.Code == "duplicate_key" &&
+                error.Message.Contains("Source and Proposal Number", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task Import_assistance_listing_numbers_allows_loosened_program_number_and_text_values()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var service = CreateService(db);
+        var longValue = new string('X', 501);
+        var file = CreateCsvFile("assistance-listing-numbers.csv",
+            [
+                "Program Title",
+                "Program Number",
+                "Popular Name 020",
+                "Federal Agency 030",
+                "Uses And Use Restrictions 070",
+                "Published Date",
+                "Recovery",
+                "URL",
+            ],
+            [
+                [longValue, "1234567", longValue, "Agency", new string('U', 51), "not a date", "maybe", "https://example.test/1"],
+                [longValue, "1234567", longValue, "Agency", new string('U', 51), "still not a date", "not yes no", "https://example.test/2"],
+                [longValue, "", longValue, "Agency", new string('U', 51), "", "", "https://example.test/3"],
+            ]);
+
+        var result = await service.ImportAsync("assistance-listing-numbers", file, null, CancellationToken.None);
+
+        var validation = result.Should().BeOfType<ImportValidationFailed>().Subject.Response;
+        validation.FileErrors.Should().Contain(error => error.Code == "database_validation_failed");
+        validation.AttemptedRows.Should().Be(3);
+        validation.Rows.Should().OnlyContain(row =>
+            row.CellErrors.All(error =>
+                error.Code != "required" &&
+                error.Code != "max_length" &&
+                error.Code != "type_conversion" &&
+                error.Code != "duplicate_key"));
+    }
+
+    [Fact]
+    public async Task Import_all_projects_still_rejects_overlong_strings()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var service = CreateService(db);
+        var file = CreateCsvFile("all-projects.csv",
+            AllProjectsHeaders(),
+            [
+                ["A-1", "PRJ-1", "", "Org", "Director", "Federal", "DocumentTooLong", "Active", "NIF"],
+            ]);
+
+        var result = await service.ImportAsync("all-projects", file, null, CancellationToken.None);
+
+        var validation = result.Should().BeOfType<ImportValidationFailed>().Subject.Response;
+        validation.Rows.Should().ContainSingle();
+        validation.Rows[0].CellErrors.Should().Contain(error =>
+            error.TargetColumn == "DocumentType" &&
+            error.Code == "max_length");
+    }
+
+    [Fact]
     public async Task Import_preserves_flat_file_column_order_in_validation_values()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
@@ -329,6 +429,22 @@ public class FlatFileImportServiceTests
         log.ErrorPayload.Should().NotContain("\"Values\"");
         log.ErrorPayload.Should().NotContain("Person 1");
         log.ErrorPayload.Should().NotContain("Person 105");
+    }
+
+    private static string[] AllProjectsHeaders()
+    {
+        return
+        [
+            "Accession Number",
+            "Project Number",
+            "Proposal Number",
+            "Organization Name",
+            "Project Director",
+            "Funding Source",
+            "Document Type",
+            "Project Status",
+            "Source",
+        ];
     }
 
     private static FlatFileImportService CreateService(Server.Core.Data.AppDbContext db)
