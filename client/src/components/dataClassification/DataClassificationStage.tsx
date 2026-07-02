@@ -74,8 +74,8 @@ export function DataClassificationStage() {
       {activeType === 'Ern' && (
         <div className="alert alert-info" role="note">
           <span>
-            Note: ERN (earnings) code classification affects FTE calculations only. It
-            does not affect dollar-amount calculations.
+            Note: ERN code classification affects FTE calculations only. It does not
+            affect dollar-amount calculations.
           </span>
         </div>
       )}
