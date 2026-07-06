@@ -453,7 +453,7 @@ public class FlatFileImportServiceTests
         return new FlatFileImportService(
             db,
             new FlatFileImportRegistry(),
-            new ConfigurationBuilder().Build(),
+            new Server.Core.Data.DataDatabaseTransactionFactory(db, new ConfigurationBuilder().Build()),
             NullLogger<FlatFileImportService>.Instance);
     }
 

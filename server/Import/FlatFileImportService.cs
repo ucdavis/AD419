@@ -35,7 +35,7 @@ public sealed record ImportValidationFailed(ImportValidationResponse Response) :
 public sealed class FlatFileImportService(
     AppDbContext dbContext,
     IFlatFileImportRegistry registry,
-    IConfiguration configuration,
+    IDataDatabaseTransactionFactory transactionFactory,
     ILogger<FlatFileImportService> logger) : IFlatFileImportService
 {
     private const string TempTableName = "#FlatFileImportRows";
@@ -81,9 +81,27 @@ public sealed class FlatFileImportService(
                 cancellationToken);
         }
 
+        var importLogId = 0;
         try
         {
-            await ReplaceTargetTableAsync(definition, parseResult.ParsedRows, cancellationToken);
+            await ReplaceTargetTableAsync(
+                definition,
+                parseResult.ParsedRows,
+                async (transaction, innerCancellationToken) =>
+                {
+                    importLogId = await LogImportAttemptAsync(
+                        definition.Id,
+                        file!.FileName,
+                        parseResult.Rows.Count,
+                        parseResult.Rows.Count,
+                        StatusSucceeded,
+                        null,
+                        user,
+                        startedAt,
+                        transaction,
+                        innerCancellationToken);
+                },
+                cancellationToken);
         }
         catch (StagingValidationException ex)
         {
@@ -113,17 +131,6 @@ public sealed class FlatFileImportService(
                 cancellationToken,
                 StatusPersistenceFailed);
         }
-
-        var importLogId = await LogImportAttemptAsync(
-            definition.Id,
-            file!.FileName,
-            parseResult.Rows.Count,
-            parseResult.Rows.Count,
-            StatusSucceeded,
-            null,
-            user,
-            startedAt,
-            cancellationToken);
 
         return new ImportSucceeded(new ImportSuccessResponse(
             definition.Id,
@@ -765,18 +772,22 @@ public sealed class FlatFileImportService(
         IReadOnlyList<ParsedImportRow> rows,
         CancellationToken cancellationToken)
     {
-        var connectionString = DataDatabaseConnection.Resolve(
-            configuration,
-            dbContext.Database.GetConnectionString());
+        await ReplaceTargetTableAsync(definition, rows, null, cancellationToken);
+    }
 
-        await using var connection = new SqlConnection(connectionString);
-        await connection.OpenAsync(cancellationToken);
+    private async Task ReplaceTargetTableAsync(
+        ImportDatasetDefinition definition,
+        IReadOnlyList<ParsedImportRow> rows,
+        Func<DataDatabaseTransaction, CancellationToken, Task>? beforeCommitAsync,
+        CancellationToken cancellationToken)
+    {
+        await using var dataTransaction = await transactionFactory.BeginTransactionAsync(cancellationToken);
+        var connection = dataTransaction.Connection;
+        var transaction = dataTransaction.Transaction;
 
         await DropTempTableIfExistsAsync(connection, cancellationToken);
         try
         {
-            await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
-
             await connection.ExecuteAsync(
                 CreateTempTableSql(definition),
                 transaction: transaction);
@@ -802,7 +813,12 @@ public sealed class FlatFileImportService(
                 ReplaceTableSql(definition),
                 transaction: transaction);
 
-            await transaction.CommitAsync(cancellationToken);
+            if (beforeCommitAsync is not null)
+            {
+                await beforeCommitAsync(dataTransaction, cancellationToken);
+            }
+
+            await dataTransaction.CommitAsync(cancellationToken);
         }
         finally
         {
@@ -1047,7 +1063,74 @@ public sealed class FlatFileImportService(
         DateTimeOffset startedAt,
         CancellationToken cancellationToken)
     {
-        var importLog = new ImportLog
+        var importLog = CreateImportLog(dataset, filename, attemptedRows, rowsImported, status, errorPayload, user, startedAt);
+
+        dbContext.ImportLogs.Add(importLog);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return importLog.Id;
+    }
+
+    private async Task<int> LogImportAttemptAsync(
+        string dataset,
+        string? filename,
+        int attemptedRows,
+        int? rowsImported,
+        string status,
+        string? errorPayload,
+        ClaimsPrincipal? user,
+        DateTimeOffset startedAt,
+        DataDatabaseTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        var importLog = CreateImportLog(dataset, filename, attemptedRows, rowsImported, status, errorPayload, user, startedAt);
+        var importLogTable = transaction.QualifiedAppTableName("ImportLog");
+        var sql = $"""
+            INSERT INTO {importLogTable} (
+                [Dataset],
+                [Filename],
+                [UploadedByEntraId],
+                [UploadedByName],
+                [UploadedByEmail],
+                [StartedAt],
+                [CompletedAt],
+                [AttemptedRows],
+                [RowsImported],
+                [Status],
+                [ErrorPayload])
+            OUTPUT INSERTED.[Id]
+            VALUES (
+                @Dataset,
+                @Filename,
+                @UploadedByEntraId,
+                @UploadedByName,
+                @UploadedByEmail,
+                @StartedAt,
+                @CompletedAt,
+                @AttemptedRows,
+                @RowsImported,
+                @Status,
+                @ErrorPayload);
+            """;
+
+        return await transaction.Connection.QuerySingleAsync<int>(new CommandDefinition(
+            sql,
+            importLog,
+            transaction.Transaction,
+            cancellationToken: cancellationToken));
+    }
+
+    private ImportLog CreateImportLog(
+        string dataset,
+        string? filename,
+        int attemptedRows,
+        int? rowsImported,
+        string status,
+        string? errorPayload,
+        ClaimsPrincipal? user,
+        DateTimeOffset startedAt)
+    {
+        return new ImportLog
         {
             Dataset = Truncate(dataset, 100),
             Filename = Truncate(Path.GetFileName(filename ?? string.Empty), 260),
@@ -1061,11 +1144,6 @@ public sealed class FlatFileImportService(
             Status = status,
             ErrorPayload = errorPayload,
         };
-
-        dbContext.ImportLogs.Add(importLog);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        return importLog.Id;
     }
 
     private static string Truncate(string? value, int maxLength)
