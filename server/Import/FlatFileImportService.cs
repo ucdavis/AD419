@@ -80,26 +80,9 @@ public sealed class FlatFileImportService(
                 cancellationToken);
         }
 
-        var importLogId = 0;
         try
         {
-            await ReplaceTargetTableAsync(
-                definition,
-                parseResult.ParsedRows,
-                async innerCancellationToken =>
-                {
-                    importLogId = await LogImportAttemptAsync(
-                        definition.Id,
-                        file!.FileName,
-                        parseResult.Rows.Count,
-                        parseResult.Rows.Count,
-                        StatusSucceeded,
-                        null,
-                        user,
-                        startedAt,
-                        innerCancellationToken);
-                },
-                cancellationToken);
+            await ReplaceTargetTableAsync(definition, parseResult.ParsedRows, cancellationToken);
         }
         catch (StagingValidationException ex)
         {
@@ -129,6 +112,17 @@ public sealed class FlatFileImportService(
                 cancellationToken,
                 StatusPersistenceFailed);
         }
+
+        var importLogId = await LogImportAttemptAsync(
+            definition.Id,
+            file!.FileName,
+            parseResult.Rows.Count,
+            parseResult.Rows.Count,
+            StatusSucceeded,
+            null,
+            user,
+            startedAt,
+            cancellationToken);
 
         return new ImportSucceeded(new ImportSuccessResponse(
             definition.Id,
@@ -770,26 +764,19 @@ public sealed class FlatFileImportService(
         IReadOnlyList<ParsedImportRow> rows,
         CancellationToken cancellationToken)
     {
-        await ReplaceTargetTableAsync(definition, rows, null, cancellationToken);
-    }
-
-    private async Task ReplaceTargetTableAsync(
-        ImportDatasetDefinition definition,
-        IReadOnlyList<ParsedImportRow> rows,
-        Func<CancellationToken, Task>? beforeCommitAsync,
-        CancellationToken cancellationToken)
-    {
         await using var dataTransaction = await transactionFactory.BeginTransactionAsync(cancellationToken);
         var connection = dataTransaction.Connection;
+        var transaction = dataTransaction.Transaction;
 
-        await DropTempTableIfExistsAsync(connection, cancellationToken);
+        await DropTempTableIfExistsAsync(connection, transaction, cancellationToken);
 
         await connection.ExecuteAsync(new CommandDefinition(
             CreateTempTableSql(definition),
+            transaction: transaction,
             cancellationToken: cancellationToken));
 
         var table = CreateDataTable(definition, rows);
-        using (var bulkCopy = new SqlBulkCopy(connection, SqlBulkCopyOptions.CheckConstraints, null))
+        using (var bulkCopy = new SqlBulkCopy(connection, SqlBulkCopyOptions.CheckConstraints, transaction))
         {
             bulkCopy.DestinationTableName = TempTableName;
             bulkCopy.BatchSize = Math.Max(rows.Count, 1);
@@ -803,29 +790,30 @@ public sealed class FlatFileImportService(
             await bulkCopy.WriteToServerAsync(table, cancellationToken);
         }
 
-        await RunStagingValidationAsync(connection, definition, rows, cancellationToken);
+        await RunStagingValidationAsync(connection, transaction, definition, rows, cancellationToken);
 
         await connection.ExecuteAsync(new CommandDefinition(
             ReplaceTableSql(definition),
+            transaction: transaction,
             cancellationToken: cancellationToken));
 
-        if (beforeCommitAsync is not null)
-        {
-            await beforeCommitAsync(cancellationToken);
-        }
-
-        dataTransaction.Complete();
+        await dataTransaction.CommitAsync(cancellationToken);
     }
 
-    private static Task DropTempTableIfExistsAsync(SqlConnection connection, CancellationToken cancellationToken)
+    private static Task DropTempTableIfExistsAsync(
+        SqlConnection connection,
+        SqlTransaction transaction,
+        CancellationToken cancellationToken)
     {
         return connection.ExecuteAsync(new CommandDefinition(
             $"DROP TABLE IF EXISTS {TempTableName};",
+            transaction: transaction,
             cancellationToken: cancellationToken));
     }
 
     private static async Task RunStagingValidationAsync(
         SqlConnection connection,
+        SqlTransaction transaction,
         ImportDatasetDefinition definition,
         IReadOnlyList<ParsedImportRow> rows,
         CancellationToken cancellationToken)
@@ -836,6 +824,7 @@ public sealed class FlatFileImportService(
         {
             var duplicateRowNumbers = await connection.QueryAsync<int>(new CommandDefinition(
                 DuplicateKeyValidationSql(uniqueKey, definition.Columns),
+                transaction: transaction,
                 cancellationToken: cancellationToken));
 
             foreach (var rowNumber in duplicateRowNumbers)

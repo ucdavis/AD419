@@ -1,7 +1,6 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using System.Transactions;
 
 namespace Server.Core.Data;
 
@@ -19,21 +18,17 @@ public sealed class DataDatabaseTransactionFactory(
         var dataConnectionString = DataDatabaseConnection.Resolve(
             configuration,
             dbContext.Database.GetConnectionString());
-        var scope = new TransactionScope(
-            TransactionScopeOption.Required,
-            new TransactionOptions { IsolationLevel = IsolationLevel.ReadCommitted },
-            TransactionScopeAsyncFlowOption.Enabled);
 
         var connection = new SqlConnection(dataConnectionString);
         try
         {
             await connection.OpenAsync(cancellationToken);
-            return new DataDatabaseTransaction(scope, connection);
+            var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
+            return new DataDatabaseTransaction(connection, transaction);
         }
         catch
         {
             await connection.DisposeAsync();
-            scope.Dispose();
             throw;
         }
     }
@@ -42,25 +37,31 @@ public sealed class DataDatabaseTransactionFactory(
 public sealed class DataDatabaseTransaction : IAsyncDisposable
 {
     internal DataDatabaseTransaction(
-        TransactionScope scope,
-        SqlConnection connection)
+        SqlConnection connection,
+        SqlTransaction transaction)
     {
-        Scope = scope;
         Connection = connection;
+        Transaction = transaction;
     }
 
     public SqlConnection Connection { get; }
 
-    private TransactionScope Scope { get; }
+    public SqlTransaction Transaction { get; }
 
-    public void Complete()
+    public Task CommitAsync(CancellationToken cancellationToken)
     {
-        Scope.Complete();
+        return Transaction.CommitAsync(cancellationToken);
     }
 
     public async ValueTask DisposeAsync()
     {
-        await Connection.DisposeAsync();
-        Scope.Dispose();
+        try
+        {
+            await Transaction.DisposeAsync();
+        }
+        finally
+        {
+            await Connection.DisposeAsync();
+        }
     }
 }
