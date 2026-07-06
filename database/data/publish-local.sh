@@ -7,7 +7,8 @@ project="$script_dir/data.sqlproj"
 dacpac="$script_dir/bin/$configuration/data.dacpac"
 sqlpackage="${SQLPACKAGE:-/usr/local/sqlpackage/sqlpackage}"
 connection_string="${DATA_DB_CONNECTION:-Server=localhost,14333;Database=DataDb;User ID=sa;Password=LocalDev123!;Encrypt=False;TrustServerCertificate=True;}"
-create_new_database="${CREATE_NEW_DATABASE:-True}"
+# Set CREATE_NEW_DATABASE=True only when you explicitly want sqlpackage to drop and recreate DataDb.
+create_new_database="${CREATE_NEW_DATABASE:-False}"
 
 if [[ ! -x "$sqlpackage" ]]; then
   echo "SQLPackage was not found or is not executable at '$sqlpackage'." >&2
