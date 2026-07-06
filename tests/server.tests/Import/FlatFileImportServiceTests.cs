@@ -1,6 +1,7 @@
 using ClosedXML.Excel;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Server.Import;
 using Server.Models.Imports;
@@ -452,6 +453,7 @@ public class FlatFileImportServiceTests
         return new FlatFileImportService(
             db,
             new FlatFileImportRegistry(),
+            new ConfigurationBuilder().Build(),
             NullLogger<FlatFileImportService>.Instance);
     }
 

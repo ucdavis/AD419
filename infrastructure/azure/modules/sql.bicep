@@ -14,8 +14,11 @@ param adminLogin string
 @description('SQL admin password for SQL authentication.')
 param adminPassword string
 
-@description('SQL database name.')
-param databaseName string
+@description('Application SQL database name.')
+param appDatabaseName string
+
+@description('Data SQL database name.')
+param dataDatabaseName string
 
 @description('SQL database SKU name.')
 param skuName string = 'S0'
@@ -47,8 +50,8 @@ resource allowAzureServicesFirewallRule 'Microsoft.Sql/servers/firewallRules@202
   }
 }
 
-resource database 'Microsoft.Sql/servers/databases@2023-08-01' = {
-  name: databaseName
+resource appDatabase 'Microsoft.Sql/servers/databases@2023-08-01' = {
+  name: appDatabaseName
   parent: sqlServer
   location: location
   sku: {
@@ -60,5 +63,19 @@ resource database 'Microsoft.Sql/servers/databases@2023-08-01' = {
   }
 }
 
-output databaseName string = database.name
+resource dataDatabase 'Microsoft.Sql/servers/databases@2023-08-01' = {
+  name: dataDatabaseName
+  parent: sqlServer
+  location: location
+  sku: {
+    name: skuName
+    tier: skuTier
+  }
+  properties: {
+    collation: 'SQL_Latin1_General_CP1_CI_AS'
+  }
+}
+
+output appDatabaseName string = appDatabase.name
+output dataDatabaseName string = dataDatabase.name
 output serverName string = sqlServer.name

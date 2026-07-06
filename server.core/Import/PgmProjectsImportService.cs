@@ -84,8 +84,9 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
                 $"or configure ConnectionStrings:{ConnectionStringName}.");
         }
 
-        var destinationConnectionString = _dbContext.Database.GetConnectionString()
-            ?? throw new InvalidOperationException("The application database connection string is not available.");
+        var destinationConnectionString = DataDatabaseConnection.Resolve(
+            _configuration,
+            _dbContext.Database.GetConnectionString());
 
         _logger.LogInformation("Importing PGM projects for report date {ReportDate}", reportDate);
 

@@ -6,7 +6,8 @@ configuration="${BUILD_CONFIGURATION:-Debug}"
 project="$script_dir/data.sqlproj"
 dacpac="$script_dir/bin/$configuration/data.dacpac"
 sqlpackage="${SQLPACKAGE:-/usr/local/sqlpackage/sqlpackage}"
-connection_string="${DB_CONNECTION:-Server=localhost,14333;Database=AppDb;User ID=sa;Password=LocalDev123!;Encrypt=False;TrustServerCertificate=True;}"
+connection_string="${DATA_DB_CONNECTION:-Server=localhost,14333;Database=DataDb;User ID=sa;Password=LocalDev123!;Encrypt=False;TrustServerCertificate=True;}"
+create_new_database="${CREATE_NEW_DATABASE:-True}"
 
 if [[ ! -x "$sqlpackage" ]]; then
   echo "SQLPackage was not found or is not executable at '$sqlpackage'." >&2
@@ -20,7 +21,7 @@ dotnet build "$project" -c "$configuration" /p:DSP=Microsoft.Data.Tools.Schema.S
   /Action:Publish \
   /SourceFile:"$dacpac" \
   "/TargetConnectionString:$connection_string" \
-  /p:DropObjectsNotInSource=False \
+  /p:DropObjectsNotInSource=True \
   /p:BlockOnPossibleDataLoss=True \
-  /p:CreateNewDatabase=False \
+  /p:CreateNewDatabase="$create_new_database" \
   /p:ScriptDatabaseOptions=False

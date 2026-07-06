@@ -8,7 +8,7 @@ AD419 is a full-stack web application built with a .NET 10 backend and a React/V
 - **Frontend**: React 19 with Vite, TypeScript, and TanStack Router/Query/Table
 - **Authentication**: OIDC with Microsoft Entra ID (Azure AD)
 - **Styling**: Tailwind CSS
-- **Database**: SQL Server, with EF Core migrations for application tables and a SQL project/DACPAC for reference/import data tables
+- **Database**: SQL Server, with EF Core migrations for application tables and a separate SQL database deployed from a SQL project/DACPAC for reference/import data tables
 - **Development**: Hot reload for both frontend and backend
 - **Development Integration**: ASP.NET Core `SpaProxy` launches Vite for Visual Studio users, while Vite proxies API and auth routes back to ASP.NET Core during development
 
@@ -92,12 +92,12 @@ In development, the frontend runs from **http://localhost:5173** and proxies bac
 
 ### Database configuration
 
-The backend requires a SQL Server connection string.
+The backend requires SQL Server connection strings for the app database and the data database.
 
-- Outside DevContainer, the default development connection points to the SQL Server container published on `localhost:14333`.
-- Inside DevContainer, `devcontainer.json` overrides `DB_CONNECTION` to use the internal Docker hostname `sql:1433`.
+- Outside DevContainer, the default development connections point to the SQL Server container published on `localhost:14333`. EF uses `AppDb`; the data DACPAC and imports use `DataDb`.
+- Inside DevContainer, `devcontainer.json` overrides `DB_CONNECTION` and `DATA_DB_CONNECTION` to use the internal Docker hostname `sql:1433`.
 
-When you want to specify your own DB connection, provide it by setting the `DB_CONNECTION` environment variable (for example in a `.env` file) or by updating `ConnectionStrings:DefaultConnection` in `appsettings.*.json` (`.env` is recommended)
+When you want to specify your own DB connections, provide them by setting the `DB_CONNECTION` and `DATA_DB_CONNECTION` environment variables (for example in a `.env` file) or by updating `ConnectionStrings:DefaultConnection` and `ConnectionStrings:DataConnection` in `appsettings.*.json` (`.env` is recommended).
 
 To run only the database outside DevContainer:
 
@@ -114,10 +114,10 @@ Useful companion commands:
 
 ### Database schema and deployment
 
-AD419 has two database schema-management paths with different ownership boundaries:
+AD419 has two database-management paths with different ownership boundaries:
 
-- EF Core migrations in `server.core/Migrations/` manage the application schema, currently the `[app]` schema and application tables such as `[app].[Users]`.
-- The SQL project in `database/data/data.sqlproj` builds a DACPAC for the `[data]` schema and data-import/reference tables such as `[data].[AllProjects]`, `[data].[ActiveProjects]`, and `[data].[AssistanceListingNumbers]`.
+- EF Core migrations in `server.core/Migrations/` manage the application database, currently the `[app]` schema and application tables such as `[app].[Users]`.
+- The SQL project in `database/data/data.sqlproj` builds a DACPAC for a separate data database containing the `[data]` schema and data-import/reference tables such as `[data].[AllProjects]`, `[data].[ActiveProjects]`, and `[data].[AssistanceListingNumbers]`.
 
 The backend runs EF Core migrations at startup through `DbInitializer` and `AppDbContext.Database.MigrateAsync()`. The EF migrations assembly is `server.core`, and the EF migrations history table is stored as `[app].[__EFMigrationsHistory]`.
 
@@ -143,9 +143,9 @@ To publish the data DACPAC to the local SQL Server container:
 ./database/data/publish-local.sh
 ```
 
-`publish-local.sh` uses `BUILD_CONFIGURATION` to choose `Debug` or `Release`, `SQLPACKAGE` to locate the `sqlpackage` executable, and `DB_CONNECTION` for the target connection string. If `DB_CONNECTION` is not set, it targets the local container database at `localhost:14333`.
+`publish-local.sh` uses `BUILD_CONFIGURATION` to choose `Debug` or `Release`, `SQLPACKAGE` to locate the `sqlpackage` executable, and `DATA_DB_CONNECTION` for the target connection string. If `DATA_DB_CONNECTION` is not set, it targets the local container `DataDb` database at `localhost:14333`. Local publish creates `DataDb` by default; set `CREATE_NEW_DATABASE=False` to require the database to already exist.
 
-In GitHub Actions, `ci-cd.yml` builds the solution, verifies schema ownership boundaries, uploads the web app package and `data.dacpac`, and `deploy-azure-appservice.yml` publishes the data DACPAC before deploying the web app. The DACPAC publish does not broadly drop objects that are missing from the data project; removed `[data]` objects that must be dropped are handled explicitly in SQL project deployment scripts. Publish blocks possible data loss, does not create the database, and does not script database options.
+In GitHub Actions, `ci-cd.yml` builds the solution, verifies schema ownership boundaries, uploads the web app package and `data.dacpac`, and `deploy-azure-appservice.yml` publishes the data DACPAC to the separate data database before deploying the web app. The DACPAC publish does not broadly drop objects that are missing from the data project; removed `[data]` objects that must be dropped are handled explicitly in SQL project deployment scripts. Azure infrastructure creates both databases on the same SQL server, so workflow publish blocks possible data loss, does not create the database, and does not script database options.
 
 For production deployments, the workflow first generates and uploads a `prod-data-dacpac-script` artifact with SQLPackage `/Action:Script`. Review that script before approving the gated production publish job.
 

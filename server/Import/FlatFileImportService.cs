@@ -9,6 +9,7 @@ using Dapper;
 using DocumentFormat.OpenXml.Packaging;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Server.Authorization;
 using Server.Core.Data;
 using Server.Core.Domain;
@@ -34,6 +35,7 @@ public sealed record ImportValidationFailed(ImportValidationResponse Response) :
 public sealed class FlatFileImportService(
     AppDbContext dbContext,
     IFlatFileImportRegistry registry,
+    IConfiguration configuration,
     ILogger<FlatFileImportService> logger) : IFlatFileImportService
 {
     private const string TempTableName = "#FlatFileImportRows";
@@ -763,11 +765,9 @@ public sealed class FlatFileImportService(
         IReadOnlyList<ParsedImportRow> rows,
         CancellationToken cancellationToken)
     {
-        var connectionString = dbContext.Database.GetConnectionString();
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException("No database connection string is configured.");
-        }
+        var connectionString = DataDatabaseConnection.Resolve(
+            configuration,
+            dbContext.Database.GetConnectionString());
 
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
