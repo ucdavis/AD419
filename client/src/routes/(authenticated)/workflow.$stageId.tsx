@@ -4,6 +4,7 @@ import {
 } from '@/mockData.ts';
 import { workflowSnapshotQueryOptions } from '@/queries.ts';
 import { SectionPanel } from '@/components/SectionPanel.tsx';
+import { FlatFileImportPanel } from '@/components/FlatFileImportPanel.tsx';
 import { WorkflowShell } from '@/components/WorkflowShell.tsx';
 import type { WorkflowStageId } from '@/types.ts';
 import type { RouterContext } from '@/main.tsx';
@@ -45,9 +46,15 @@ function WorkflowStageRoute() {
   return (
     <WorkflowShell snapshot={snapshot} stage={stage}>
       <div className="workflow-stack">
-        <SectionPanel title="Coming soon">
-          <p>This step is coming soon.</p>
-        </SectionPanel>
+        {workflowStageId === 'project-identification' ? (
+          <SectionPanel title="Load required data">
+            <FlatFileImportPanel />
+          </SectionPanel>
+        ) : (
+          <SectionPanel title="Coming soon">
+            <p>This step is coming soon.</p>
+          </SectionPanel>
+        )}
       </div>
     </WorkflowShell>
   );
