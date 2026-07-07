@@ -1,0 +1,251 @@
+DOS_Code,Description,IncludeInAD419FTE,IsNewInUCP
+8EF,Retro-EPSL-8EF,true,1
+901,Retro Regular Pay-Non Base,false,1
+92L,Retro Holiday-Premium Hourly,false,
+944,Retro Stipend-Admin-Academic,false,1
+94H,NRA Retro Regular Pay,false,1
+962,Retro Fellowship Qual Non-Tax,false,1
+968,Retro Neg Sal Plan-Additional,false,
+980,Retro Supplement-Post Doc,false,
+98J,NRA Retro Catastrophic Lv Sal,true,
+98N,NRA Retro Vacation Leave-SAL,true,
+99T,Terminal Vacation-Pay NRA19Ret,false,
+9A1,Retro Administrative Leave Hrl,false,1
+9AD,Retro Administrative Leave Sal,false,
+9AF,Retro Addl Comp-FY Research,false,1
+9AS,Retro Addl Comp-Summer-No 403,false,
+9CC,Retro Addl Comp-Research,false,1
+9CO,Retro - Comp Time Used Hrly,true,1
+9ET,Terminal Vacation-Pay NRA18Ret,false,
+9HL,Retro Holiday-Regular Hourly,false,1
+9HO,Retro Holiday-Regular Salaried,false,1
+9HS,Retro HSCP-Negotiated (Y),false,
+9J8,NRA Retro Sick Leave Salaried,true,
+9JN,Retro Jury Duty-Hourly,true,
+9JR,Retro Jury Duty Salaried,true,1
+9NC,Retro Negotiated Sal Plan-Reg All,false,
+9NE,Retro-EPSL-9NE,true,
+9OD,Retro Overtime Pay-Double,false,
+9OP,Retro - Overtime Pay Premium,false,1
+9OS,Retro - Overtime Pay Straight,false,1
+9PB,Retro-PFCB,false,
+9PL,Retro-EPSL-9PL,true,
+9PO,Retro Paid Time-Off Hourly,false,
+9PP,Retro - Premium Pay at Prem,false,
+9PS,Retro -Premium Pay at Straight,false,
+9R8,NRA Retro Regular Pay,false,1
+9R9,NRA Retro - Regular Pay,false,1
+9RC,RETRO Paid LV Salar,false,1
+9RG,Retro - Regular Pay,false,1
+9RT,Retro Paid Time-Off Salaried,true,
+9RV,RETRO Paid Lve-Hrly,false,1
+9SA,Retro Stipend-Admin-Staff,false,1
+9SF,Retro-EPSL-9SF,true,
+9SK,Retro Sick Leave Used Sal,true,1
+9SL,Retro - Sick Leave-Used Hrly,true,1
+9SO,Retro HSCP Off-Scale Earnings,false,
+9SP,Retro HSCP-Diff (X Prime),false,
+9SR,Retro HSCP-Regular (X),false,
+9TM,Terminal Vacation-Pay Retro,false,
+9VC,Retro-Vacation Leave-Used Sal,false,1
+9VL,Retro Catastrophic Leave Taken,true,
+9VN,Retro-Vacation Leave-Used Hrly,false,1
+9X0,NRA Retro HOL-Regular Hourly,false,
+9X1,NRA Retro HOL-Regular Hourly,false,
+A1N,Administrative Leave - Hourly,true,1
+A8R,NRA Additional Comp-Research,false,
+A9A,NRA Additional Comp-SumNo DCP,false,1
+A9N,NRA Additional CompGenNo RTMT,false,
+AAP,Academic Award Program,false,
+ACA,Additional Comp-Admin,false,1
+ACR,Additional Comp-Research,true,0
+ACS,Additional Comp-Summer-DCP,false,1
+ADC,Additional Comp-General,false,1
+ADM,Administrative Leave -Salaried,true,1
+AFR,Additional Comp-FY Research,true,0
+ASN,Additional Comp-Summer-No DCP,false,1
+AWD,Incentive Award,false,0
+B2B,Benefits Billing,false,1
+C08,NRA Comp-Time-Used Hrly,true,
+CCA,Child Care Assistance,false,1
+CON,Compensatory Time-Used Hrly,true,1
+CRT,Certification Pay,false,1
+CTO,Compensatory Time-Used Sal,true,1
+CTP,Compensatory Time-Paid,false,1
+CTT,Compensatory Time-Term,false,1
+DLP,Discretionary Lump Sum,false,1
+DM8,NRA Damage Payment,false,
+DM9,NRA Damage Payment,false,1
+DMG,Damage Payment,false,0
+E7F,Emergency Paid Sick Leave - Fa,true,1
+E8F,Emergency Paid Sick Leave - Fa,true,1
+E8P,Emergency Paid Sick Leave - EE,true,1
+E9F,Emergency Paid Sick Leave - Fa,true,1
+E9P,Emergency Paid Sick Leave - EE,true,1
+EDI,Education-On Site,false,
+EFL,Expanded Family Medical Leave,true,1
+EFN,Emergency Paid Sick Leave - Fa,true,1
+EMN,Expanded Family Medical Leave,true,1
+EN8,Emergency Paid Sick Leave - EE,true,
+EN9,Emergency Paid Sick Leave - EE,true,1
+EPS,Emergency Paid Sick Leave - EE,true,1
+ES8,NRA Evening Shift Differential,false,
+ESD,Evening Shift Differential,false,1
+ESF,Emergency Paid Sick Leave - Fa,true,1
+ESL,Extended Sick Leave,true,1
+ESN,Emergency Paid Sick Leave - EE,true,1
+ETW,Employee Taxable Wages,false,1
+FEL,Fellowship Qual NRA Taxable,false,1
+FEN,Fellowship Qual Non-Tax,false,1
+FRA,Faculty Recruitment Allowance,false,1
+H7L,NRA HOL-Regular Hourly,true,
+H8H,NRA Holiday-Regular Salaried,true,1
+H8I,NRA Holiday-Premium,false,
+H8L,NRA HOL-Regular Hourly,true,1
+H9H,NRA Holiday-Regular Salaried,true,1
+H9I,NRA Holiday-Premium,false,1
+H9L,NRA HOL-Regular Hourly,true,1
+HCP,Holiday-Comp-Time-Paid,false,
+HLN,Holiday-Regular Hourly,true,1
+HLP,Holiday-Premium,false,1
+HLS,Holiday-Straight,false,
+HN9,NRA Honorarium,false,
+HOL,Holiday-Regular Salaried,true,0
+HON,Honorarium,false,1
+HOS,HSCP Off-Scale X Earnings,true,1
+HPD,Holiday-Regular Salaried,true,
+HPH,Holiday-Regular Hourly,true,
+HSG,Housing Allowance,false,
+HSN,HSCP-Negotiated (Y),true,1
+HSP,HSCP-Differential (X Prime),false,1
+HSR,HSCP-Regular (X),true,1
+HSZ,HLTH Sciences-Z (General),false,
+HUN,Holiday-Comp-Time-Used Hrly,true,1
+IHT,Regular-Training Salaried,false,
+ITN,Regular-Training Hourly,false,
+ITP,Involuntary Term-Pay In Lieu,false,
+ITR,Involuntary Term-Regular,false,1
+ITS,Involuntary Term-Severance,false,1
+JRN,Jury Duty-Regular Hourly,true,1
+JUR,Jury Duty - Salaried,true,1
+L7P,NRA Leave-No Pay Salaried,false,
+L8F,NRA Leave-No Pay-FMLA Salaried,true,
+L8P,NRA Leave-No Pay Salaried,false,
+L9P,NRA Leave-No Pay Salaried,false,
+LEC,Leave - Emergency Closure,true,1
+LNF,Leave-No Pay-FMLA Salaried,true,1
+LNP,Leave-No Pay Salaried,true,1
+LS8,NRA Lump Sum-No RET,false,
+LS9,NRA Lump Sum-No RET,false,
+LSN,Lump Sum-No Retirement,false,0
+LSP,Lump Sum-Retirement,false,1
+MIL,Military Pay-Salaried,true,1
+MLN,Military Pay-Hourly,true,1
+NCB,Negotiated Sal Plan-Regular,false,
+NFT,Non-Taxable Fringe Benefit,false,1
+NNC,Negotiated Sal Plan-Additional,false,0
+NSD,Night Shift Differential *,false,1
+NTF,Non-Taxable Fringe Benefit,false,1
+O9D,NRA Overtime Pay-Double,false,
+ODH,Overtime Pay-Double,false,0
+OML,Overmax Lump,false,
+OS8,NRA Overtime Pay-Straight,false,
+OS9,NRA Overtime Pay-Straight,false,1
+OT8,NRA Overtime Pay-Premium,false,
+OT9,NRA Overtime Pay-Premium,false,1
+OTP,Overtime Pay-Premium,false,0
+OTS,Overtime Pay-Straight,false,0
+P18,Postdoc Child careNRA18,false,
+P8T,NRA Paid Time-Off Salaried,true,1
+P9D,NRA Award-Professional Develop,false,
+P9T,NRA Paid Time-Off Salaried,true,
+PB8,NRA-Paid Family Care & Bonding Hourly,true,
+PCA,Police ADV Certif. Pay Hourly,false,1
+PCC,Postdoc Child Care,false,1
+PCO,Police ADV Cert Pay Hourly OT,false,1
+PDA,Award-Professional Development,false,
+PFL,Paid Family Care & Bonding,true,
+PFN,Paid Family Care & Bonding,true,
+PON,Paid Time-Off Hourly,true,1
+PP8,NRA Premium Pay at Premium,false,
+PPP,Premium Pay at Premium,false,1
+PPS,Premium Pay at Straight,false,1
+PRQ,Perq-House-Meal-Deduction,false,1
+PS8,NRA Premium Pay at Straight,false,
+PS9,NRA Premium Pay at Straight,false,
+PTO,Paid Time-Off Salaried,true,0
+PTP,Paid Time Off Payout,false,
+R89,RETRO PAID LV Salar,false,
+RC7,NRA Paid Leave-Salaried,true,1
+RC8,NRA Paid Leave-Salaried,true,1
+RC9,NRA Paid Leave-Salaried,true,1
+REG,Regular Pay,true,0
+RF7,NRA Regular-Flat Amount,false,
+RF9,NRA Regular-Flat Amount,false,1
+RFA,Regular-Flat Amount,false,1
+RG7,NRA Regular Pay,true,1
+RG8,NRA Regular Pay,true,1
+RG9,NRA Regular Pay,true,1
+RGC,REG Paid Leave-Salaried,true,1
+RGN,Regular Pay-Non Base,false,1
+RIP,Relocation Payment,false,1
+RN8,NRA Regular Pay-Non Base,false,
+RN9,NRA Regular Pay-Non Base,false,
+RPC,Reg. Paid Continuation -Salary,true,
+RPN,Reg. Paid Continuation -Hourly,true,1
+RPY,Retention Pay,false,
+RSF,By Agreement - Self Supporting Program,false,
+RV8,REG Paid Leave-Hourly,true,
+RV9,REG Paid Leave-Hourly,true,1
+RVN,REG Paid Leave-Hourly,true,1
+S1L,Sick Leave-Paid Hourly,true,1
+S7N,NRA Sick Leave-Paid Hourly,true,1
+S7P,NRA Staff Physician PayReg,true,1
+S8N,NRA Sick Leave-Paid Hourly,true,1
+S8P,NRA Staff Physician PayReg,true,1
+S9N,NRA Sick Leave-Paid Hourly,true,1
+S9P,NRA Staff Physician PayReg,true,1
+SAS,Stipend-Admin-Staff,false,0
+SKA,PD Sck Leave Accrual,true,1
+SKL,Sick Leave Paid - Salaried,true,0
+SKP,Post Doc Sick Leave,true,1
+SL7,NRA Sick Leave Used-Salaried,true,1
+SL8,NRA Sick Leave Used-Salaried,true,1
+SL9,NRA Sick Leave Paid - Salaried,true,1
+SLA,Sick Leave-Accrued,true,0
+SPD,Stipend-Post Doc,false,1
+SPN,Staff Physician Pay-Non Base,false,1
+SPR,Staff Physician Pay-Regular,true,1
+STP,Stipend-Admin-Academic,false,1
+T20,Time On Call - 20% Hrly Rate,false,1
+TOC,Time On Call,false,0
+TR8,NRA Terminal Vacation-Pay,false,
+TR9,NRA Terminal Vacation-Pay,false,
+TRM,Terminal Vacation-Pay,false,0
+TT9,NRA Compensatory Time-Term,false,
+UNX,University Extensions,false,1
+V7N,NRA Vacation Leave-Used Hourly,true,1
+V8N,NRA Vacation Leave-Used Hourly,true,1
+V9N,NRA Vacation Leave-Used Hourly,true,1
+VAC,Vacation Leave-Used Salaried,true,0
+VC7,NRA Vacatn Leave-Paid Salaried,true,1
+VC8,NRA Vacatn Leave-Paid Salaried,true,1
+VC9,NRA Vacation Leave-Used Salard,true,1
+VCN,Vacation Leave-Used Hourly,true,1
+VL7,NRA Catastrophic Leave Sal,true,1
+VL8,NRA Catastrophic Leave Sal,true,1
+VL9,NRA Catastrophic Leave Taken,true,1
+VLA,Vacation Leave-Accrued,true,0
+VLC,Catastrophic Leave Taken Sal,true,1
+VLN,Catastrophic Leave Taken Hrly,true,1
+VN7,NRA Catastrophic LV Taken Hrly,true,1
+VN8,NRA Catastrophic LV Taken Hrly,true,1
+VN9,NRA Catastrophic LV Taken Hrly,true,1
+VPO,Vacation Payout,false,
+VTS,Voluntary Term-Severance,false,1
+WCP,Workers Comp-Regular,true,1
+WCR,Workers Comp-Reduction,false,0
+WDD,Weekend Day Shift Differential,false,1
+XCI,Clinical Incentive Plan,false,
+XSL,Star Award Local,false,0
+XXX,Not Applicable (N/A),false,1

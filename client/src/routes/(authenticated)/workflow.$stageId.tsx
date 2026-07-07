@@ -3,6 +3,7 @@ import {
   getCurrentAvailableStageId,
 } from '@/mockData.ts';
 import { workflowSnapshotQueryOptions } from '@/queries.ts';
+import { DataClassificationStage } from '@/components/dataClassification/DataClassificationStage.tsx';
 import { SectionPanel } from '@/components/SectionPanel.tsx';
 import { FlatFileImportPanel } from '@/components/FlatFileImportPanel.tsx';
 import { WorkflowShell } from '@/components/WorkflowShell.tsx';
@@ -50,6 +51,8 @@ function WorkflowStageRoute() {
           <SectionPanel title="Load required data">
             <FlatFileImportPanel />
           </SectionPanel>
+        ) : workflowStageId === 'data-classification' ? (
+          <DataClassificationStage />
         ) : (
           <SectionPanel title="Coming soon">
             <p>This step is coming soon.</p>
