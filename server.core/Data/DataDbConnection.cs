@@ -9,9 +9,10 @@ public static class DataDbConnection
 
     public static string Resolve(IConfiguration configuration, string? fallbackConnectionString)
     {
-        var connectionString = configuration[EnvironmentVariableName]
-            ?? configuration.GetConnectionString(ConnectionStringName)
-            ?? fallbackConnectionString;
+        var connectionString = Coalesce(
+            configuration[EnvironmentVariableName],
+            configuration.GetConnectionString(ConnectionStringName),
+            fallbackConnectionString);
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -21,5 +22,10 @@ public static class DataDbConnection
         }
 
         return connectionString;
+    }
+
+    private static string? Coalesce(params string?[] values)
+    {
+        return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
     }
 }
