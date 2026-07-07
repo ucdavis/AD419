@@ -1,6 +1,6 @@
 CREATE TABLE [data].[ChartStringSegments]
 (
-    [SegmentType]     NVARCHAR(20)  NOT NULL,  -- FinancialDepartment | Account | Fund | Activity
+    [SegmentType]     NVARCHAR(20)  NOT NULL,  -- FinancialDepartment | Account | Fund | Activity | Ern
     [Code]            NVARCHAR(50)  NOT NULL,
     [Description]     NVARCHAR(300) NULL,
     [IncludeInReport] BIT           NULL,       -- NULL = unclassified, needs review
