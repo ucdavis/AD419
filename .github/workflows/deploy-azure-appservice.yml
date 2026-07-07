@@ -125,6 +125,12 @@ jobs:
             --query "properties.outputs.sqlDatabaseName.value" \
             --output tsv)
 
+          data_sql_database_name=$(az deployment group show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$DEPLOYMENT_NAME" \
+            --query "properties.outputs.dataSqlDatabaseName.value" \
+            --output tsv)
+
           if [[ -z "$web_app_name" ]]; then
             echo "Deployment output webAppName was empty." >&2
             exit 1
@@ -140,6 +146,11 @@ jobs:
             exit 1
           fi
 
+          if [[ -z "$data_sql_database_name" ]]; then
+            echo "Deployment output dataSqlDatabaseName was empty." >&2
+            exit 1
+          fi
+
           sql_server_fqdn=$(az sql server show \
             --resource-group "$RESOURCE_GROUP" \
             --name "$sql_server_name" \
@@ -152,10 +163,12 @@ jobs:
           fi
 
           echo "Resolved web app: $web_app_name"
-          echo "Resolved SQL database: $sql_server_fqdn/$sql_database_name"
+          echo "Resolved app SQL database: $sql_server_fqdn/$sql_database_name"
+          echo "Resolved data SQL database: $sql_server_fqdn/$data_sql_database_name"
           echo "web_app_name=$web_app_name" >> "$GITHUB_OUTPUT"
           echo "sql_server_fqdn=$sql_server_fqdn" >> "$GITHUB_OUTPUT"
           echo "sql_database_name=$sql_database_name" >> "$GITHUB_OUTPUT"
+          echo "data_sql_database_name=$data_sql_database_name" >> "$GITHUB_OUTPUT"
 
       - name: Install SQLPackage
         run: |
@@ -176,6 +189,8 @@ jobs:
         env:
           ENVIRONMENT_NAME: ${{ env.ENVIRONMENT }}
           WEB_APP_NAME: ${{ steps.resolve.outputs.web_app_name }}
+          SQL_SERVER_FQDN: ${{ steps.resolve.outputs.sql_server_fqdn }}
+          DATA_SQL_DATABASE_NAME: ${{ steps.resolve.outputs.data_sql_database_name }}
           SMTP_HOST: ${{ vars.Smtp__Host }}
           SMTP_PORT: ${{ vars.Smtp__Port }}
           SMTP_TIMEOUT: ${{ vars.Smtp__Timeout }}
@@ -210,7 +225,10 @@ jobs:
             settings+=("$name=$value")
           }
 
+          data_db_connection="Server=tcp:$SQL_SERVER_FQDN,1433;Initial Catalog=$DATA_SQL_DATABASE_NAME;Persist Security Info=False;User ID=$SQL_ADMIN_LOGIN;Password=$SQL_ADMIN_PASSWORD;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+
           append_setting "Notification__BaseUrl" "$NOTIFICATION_BASE_URL"
+          append_setting "DATA_DB_CONNECTION" "$data_db_connection"
           append_setting "Smtp__Host" "$SMTP_HOST"
           append_setting "Smtp__Port" "$SMTP_PORT"
           append_setting "Smtp__Timeout" "$SMTP_TIMEOUT"
@@ -235,7 +253,7 @@ jobs:
       - name: Publish data DACPAC
         env:
           SQL_SERVER_FQDN: ${{ steps.resolve.outputs.sql_server_fqdn }}
-          SQL_DATABASE_NAME: ${{ steps.resolve.outputs.sql_database_name }}
+          DATA_SQL_DATABASE_NAME: ${{ steps.resolve.outputs.data_sql_database_name }}
         run: |
           set -euo pipefail
 
@@ -248,10 +266,10 @@ jobs:
             /Action:Publish \
             /SourceFile:packages/data/data.dacpac \
             /TargetServerName:"$SQL_SERVER_FQDN" \
-            /TargetDatabaseName:"$SQL_DATABASE_NAME" \
+            /TargetDatabaseName:"$DATA_SQL_DATABASE_NAME" \
             /TargetUser:"$SQL_ADMIN_LOGIN" \
             /TargetPassword:"$SQL_ADMIN_PASSWORD" \
-            /p:DropObjectsNotInSource=False \
+            /p:DropObjectsNotInSource=True \
             /p:BlockOnPossibleDataLoss=True \
             /p:CreateNewDatabase=False \
             /p:ScriptDatabaseOptions=False

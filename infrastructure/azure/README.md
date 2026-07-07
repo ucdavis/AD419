@@ -1,6 +1,6 @@
 # Azure infrastructure
 
-AD419 deploys to Linux Azure App Service with Azure SQL Database and workspace-based Application Insights. GitHub Actions now owns CI/CD.
+AD419 deploys to Linux Azure App Service with Azure SQL databases and workspace-based Application Insights. GitHub Actions now owns CI/CD.
 
 ## GitHub Actions
 
@@ -62,7 +62,7 @@ Suggested values:
 | `test` | same as `TEST_AZURE_SUBSCRIPTION_ID` | `rg-ad419-test` | `test` | `ad419-test` |
 | `prod` | same as `PROD_AZURE_SUBSCRIPTION_ID` | `rg-ad419-prod` | `prod` | `ad419-prod` |
 
-The Bicep deployment sets `DB_CONNECTION`, `WEBSITE_RUN_FROM_PACKAGE`, Application Insights settings, and a default `Notification__BaseUrl`. The workflow can override notification, SMTP, and OTLP settings from GitHub Environment configuration.
+The Bicep deployment creates an application database and a separate data database on the same SQL server. It sets `DB_CONNECTION`, `DATA_DB_CONNECTION`, `WEBSITE_RUN_FROM_PACKAGE`, Application Insights settings, and a default `Notification__BaseUrl`. The workflow can override notification, SMTP, and OTLP settings from GitHub Environment configuration.
 
 ## OIDC bootstrap
 

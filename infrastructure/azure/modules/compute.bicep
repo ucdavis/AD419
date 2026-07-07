@@ -23,6 +23,10 @@ param linuxFxVersion string = 'DOTNETCORE|10.0'
 @description('SQL connection string.')
 param sqlConnectionString string
 
+@secure()
+@description('Data SQL database connection string.')
+param dataSqlConnectionString string
+
 @description('Environment name for app settings.')
 param environmentName string
 
@@ -77,6 +81,10 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
         {
           name: 'DB_CONNECTION'
           value: sqlConnectionString
+        }
+        {
+          name: 'DATA_DB_CONNECTION'
+          value: dataSqlConnectionString
         }
         {
           name: 'Notification__BaseUrl'

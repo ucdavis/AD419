@@ -9,6 +9,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public const string DataSchema = "data";
     public const string MigrationsHistoryTable = "__EFMigrationsHistory";
 
+    public DbSet<ImportLog> ImportLogs => Set<ImportLog>();
     public DbSet<User> Users => Set<User>();
 
     public DbSet<ChartStringSegment> ChartStringSegments => Set<ChartStringSegment>();
@@ -23,6 +24,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.HasDefaultSchema(AppSchema);
+        modelBuilder.Entity<ImportLog>().ToTable("ImportLog", AppSchema);
         modelBuilder.Entity<User>().ToTable("Users", AppSchema);
 
         modelBuilder.Entity<ChartStringSegment>(entity =>

@@ -8,7 +8,7 @@ AD419 uses:
 - Vite on port `5173` for the React frontend during development
 - ASP.NET Core `SpaProxy` so Visual Studio can launch the frontend without a separate `.esproj`
 - Vite proxy rules so frontend requests to `/api`, `/login`, `/signin-oidc`, and `/health` are forwarded to ASP.NET Core
-- SQL Server schema management split between EF Core migrations for application-owned tables and a SQL project/DACPAC for data-import/reference tables
+- SQL Server database management split between EF Core migrations for application-owned tables and a SQL project/DACPAC for data-import/reference tables
 
 In production, ASP.NET Core serves the built frontend from `server/wwwroot`.
 
@@ -56,11 +56,11 @@ Browser → :5165 (ASP.NET Core)
 
 ## Database Schema Ownership
 
-AD419 keeps the application schema and import/reference data schema separate.
+AD419 keeps the application database and import/reference data database separate.
 
 ### EF Core application schema
 
-EF Core owns the `[app]` schema. `server.core/Data/AppDbContext.cs` sets the default schema to `[app]`, and migrations live in `server.core/Migrations/`.
+EF Core owns the application database and its `[app]` schema. `server.core/Data/AppDbContext.cs` sets the default schema to `[app]`, and migrations live in `server.core/Migrations/`.
 
 At startup, `server/Program.cs` resolves `IDbInitializer`, which runs `AppDbContext.Database.MigrateAsync()`. This means application deployments apply pending EF migrations when the web app starts. EF's migrations history table is configured as `[app].[__EFMigrationsHistory]`.
 
@@ -74,9 +74,9 @@ Local helpers:
 
 Only create EF migrations for model changes that affect the application-owned schema. Shared migrations should not be edited in place.
 
-### Data DACPAC schema
+### Data DACPAC database
 
-The SQL project at `database/data/data.sqlproj` owns the `[data]` schema and data-import/reference tables. It currently includes:
+The SQL project at `database/data/data.sqlproj` owns the separate data database, including its `[data]` schema and data-import/reference tables. It currently includes:
 
 - `database/data/Schemas/data.sql`
 - `database/data/Tables/AllProjects.sql`
@@ -90,16 +90,16 @@ The SQL project builds `database/data/bin/<Configuration>/data.dacpac`. For loca
 ./database/data/publish-local.sh
 ```
 
-The script uses `SQLPACKAGE` when set, otherwise `/usr/local/sqlpackage/sqlpackage`. It uses `DB_CONNECTION` when set, otherwise the local development SQL Server connection string for `localhost:14333`.
+The script uses `SQLPACKAGE` when set, otherwise `/usr/local/sqlpackage/sqlpackage`. It uses `DATA_DB_CONNECTION` when set, otherwise the local development SQL Server connection string for `DataDb` on `localhost:14333`. Local publish creates `DataDb` by default; set `CREATE_NEW_DATABASE=False` to require it to already exist.
 
-CI builds the SQL project through `app.sln`, uploads `data.dacpac` as a `data-dacpac` artifact, and the reusable Azure deployment workflow publishes it before deploying the web app. DACPAC publish settings are intentionally conservative:
+CI builds the SQL project through `app.sln`, uploads `data.dacpac` as a `data-dacpac` artifact, and the reusable Azure deployment workflow publishes it before deploying the web app. DACPAC publish settings are:
 
-- `DropObjectsNotInSource=False`
+- `DropObjectsNotInSource=True`
 - `BlockOnPossibleDataLoss=True`
 - `CreateNewDatabase=False`
 - `ScriptDatabaseOptions=False`
 
-This lets the data DACPAC add and update the `[data]` schema without deleting unrelated database objects or replacing EF's `[app]` schema responsibilities.
+Azure infrastructure creates both the EF application database and the data database on the same SQL server. The data DACPAC is published only to the data database, which avoids DACPAC's database-wide deployment scope colliding with EF-owned objects. Removed `[data]` objects that must be dropped are handled explicitly in SQL project deployment scripts.
 
 The CI workflow also enforces the schema boundary by failing if EF migrations reference the `data` schema or the data SQL project references the `app` schema. Production deploys add one review step before publishing: a separate job generates a `prod-data-dacpac-script` artifact with SQLPackage `/Action:Script`, then the production publish runs behind the `deploy_prod` workflow input and `prod` GitHub Environment gate.
 
@@ -165,7 +165,7 @@ Responsibilities:
 Responsibilities:
 
 - Builds the `data.dacpac`
-- Defines the `[data]` schema and data/import tables
+- Defines the data database's `[data]` schema and data/import tables
 - Includes the post-deployment script hook
 
 ### `.github/workflows/ci-cd.yml`
@@ -183,7 +183,7 @@ Responsibilities:
 Responsibilities:
 
 - Deploys or updates Azure infrastructure
-- Resolves the target App Service and SQL Database from deployment outputs
+- Resolves the target App Service, application SQL database, and data SQL database from deployment outputs
 - Publishes the data DACPAC with SQLPackage
 - Deploys the web app package
 

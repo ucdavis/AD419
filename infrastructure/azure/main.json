@@ -58,7 +58,14 @@
       "type": "string",
       "defaultValue": "[parameters('appName')]",
       "metadata": {
-        "description": "SQL database name."
+        "description": "Application SQL database name."
+      }
+    },
+    "dataSqlDatabaseName": {
+      "type": "string",
+      "defaultValue": "[format('{0}-data', parameters('appName'))]",
+      "metadata": {
+        "description": "Data SQL database name."
       }
     },
     "tags": {
@@ -104,7 +111,8 @@
     "resourceTags": "[union(parameters('tags'), createObject('environment', parameters('env'), 'application', parameters('appName')))]",
     "sqlServerHostnameSuffix": "[environment().suffixes.sqlServerHostname]",
     "sqlServerFqdn": "[format('{0}{1}{2}', variables('sqlServerName'), if(startsWith(variables('sqlServerHostnameSuffix'), '.'), '', '.'), variables('sqlServerHostnameSuffix'))]",
-    "sqlConnectionString": "[format('Server=tcp:{0},1433;Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;', variables('sqlServerFqdn'), parameters('sqlDatabaseName'), parameters('sqlAdminLogin'), parameters('sqlAdminPassword'))]"
+    "sqlConnectionString": "[format('Server=tcp:{0},1433;Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;', variables('sqlServerFqdn'), parameters('sqlDatabaseName'), parameters('sqlAdminLogin'), parameters('sqlAdminPassword'))]",
+    "dataSqlConnectionString": "[format('Server=tcp:{0},1433;Initial Catalog={1};Persist Security Info=False;User ID={2};Password={3};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;', variables('sqlServerFqdn'), parameters('dataSqlDatabaseName'), parameters('sqlAdminLogin'), parameters('sqlAdminPassword'))]"
   },
   "resources": [
     {
@@ -163,8 +171,11 @@
           "adminPassword": {
             "value": "[parameters('sqlAdminPassword')]"
           },
-          "databaseName": {
+          "appDatabaseName": {
             "value": "[parameters('sqlDatabaseName')]"
+          },
+          "dataDatabaseName": {
+            "value": "[parameters('dataSqlDatabaseName')]"
           },
           "skuName": {
             "value": "[variables('sqlSkuName')]"
@@ -214,10 +225,16 @@
                 "description": "SQL admin password for SQL authentication."
               }
             },
-            "databaseName": {
+            "appDatabaseName": {
               "type": "string",
               "metadata": {
-                "description": "SQL database name."
+                "description": "Application SQL database name."
+              }
+            },
+            "dataDatabaseName": {
+              "type": "string",
+              "metadata": {
+                "description": "Data SQL database name."
               }
             },
             "skuName": {
@@ -272,7 +289,23 @@
             {
               "type": "Microsoft.Sql/servers/databases",
               "apiVersion": "2023-08-01",
-              "name": "[format('{0}/{1}', parameters('name'), parameters('databaseName'))]",
+              "name": "[format('{0}/{1}', parameters('name'), parameters('appDatabaseName'))]",
+              "location": "[parameters('location')]",
+              "sku": {
+                "name": "[parameters('skuName')]",
+                "tier": "[parameters('skuTier')]"
+              },
+              "properties": {
+                "collation": "SQL_Latin1_General_CP1_CI_AS"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Sql/servers', parameters('name'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Sql/servers/databases",
+              "apiVersion": "2023-08-01",
+              "name": "[format('{0}/{1}', parameters('name'), parameters('dataDatabaseName'))]",
               "location": "[parameters('location')]",
               "sku": {
                 "name": "[parameters('skuName')]",
@@ -287,9 +320,13 @@
             }
           ],
           "outputs": {
-            "databaseName": {
+            "appDatabaseName": {
               "type": "string",
-              "value": "[parameters('databaseName')]"
+              "value": "[parameters('appDatabaseName')]"
+            },
+            "dataDatabaseName": {
+              "type": "string",
+              "value": "[parameters('dataDatabaseName')]"
             },
             "serverName": {
               "type": "string",
@@ -330,6 +367,9 @@
           },
           "sqlConnectionString": {
             "value": "[variables('sqlConnectionString')]"
+          },
+          "dataSqlConnectionString": {
+            "value": "[variables('dataSqlConnectionString')]"
           },
           "environmentName": {
             "value": "[parameters('env')]"
@@ -402,6 +442,12 @@
               "type": "securestring",
               "metadata": {
                 "description": "SQL connection string."
+              }
+            },
+            "dataSqlConnectionString": {
+              "type": "securestring",
+              "metadata": {
+                "description": "Data SQL database connection string."
               }
             },
             "environmentName": {
@@ -477,6 +523,10 @@
                       "value": "[parameters('sqlConnectionString')]"
                     },
                     {
+                      "name": "DATA_DB_CONNECTION",
+                      "value": "[parameters('dataSqlConnectionString')]"
+                    },
+                    {
                       "name": "Notification__BaseUrl",
                       "value": "[parameters('notificationBaseUrl')]"
                     },
@@ -521,7 +571,8 @@
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Insights/components', variables('appInsightsName'))]"
+        "[resourceId('Microsoft.Insights/components', variables('appInsightsName'))]",
+        "[resourceId('Microsoft.Resources/deployments', 'sql')]"
       ]
     }
   ],
@@ -549,6 +600,10 @@
     "sqlDatabaseName": {
       "type": "string",
       "value": "[parameters('sqlDatabaseName')]"
+    },
+    "dataSqlDatabaseName": {
+      "type": "string",
+      "value": "[parameters('dataSqlDatabaseName')]"
     },
     "sqlServerName": {
       "type": "string",
