@@ -9,6 +9,7 @@ using Dapper;
 using DocumentFormat.OpenXml.Packaging;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Server.Authorization;
 using Server.Core.Data;
 using Server.Core.Domain;
@@ -34,6 +35,7 @@ public sealed record ImportValidationFailed(ImportValidationResponse Response) :
 public sealed class FlatFileImportService(
     AppDbContext dbContext,
     IFlatFileImportRegistry registry,
+    IConfiguration configuration,
     ILogger<FlatFileImportService> logger) : IFlatFileImportService
 {
     private const string TempTableName = "#FlatFileImportRows";
@@ -763,70 +765,55 @@ public sealed class FlatFileImportService(
         IReadOnlyList<ParsedImportRow> rows,
         CancellationToken cancellationToken)
     {
-        var connectionString = dbContext.Database.GetConnectionString();
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException("No database connection string is configured.");
-        }
+        var connectionString = DataDbConnection.Resolve(
+            configuration,
+            dbContext.Database.GetConnectionString());
 
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
 
-        await DropTempTableIfExistsAsync(connection, cancellationToken);
-        try
+        await DropTempTableIfExistsAsync(connection, transaction, cancellationToken);
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            CreateTempTableSql(definition),
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        var table = CreateDataTable(definition, rows);
+        using (var bulkCopy = new SqlBulkCopy(connection, SqlBulkCopyOptions.CheckConstraints, transaction))
         {
-            await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
+            bulkCopy.DestinationTableName = TempTableName;
+            bulkCopy.BatchSize = Math.Max(rows.Count, 1);
 
-            await connection.ExecuteAsync(
-                CreateTempTableSql(definition),
-                transaction: transaction);
-
-            var table = CreateDataTable(definition, rows);
-            using (var bulkCopy = new SqlBulkCopy(connection, SqlBulkCopyOptions.CheckConstraints, transaction))
+            bulkCopy.ColumnMappings.Add("ImportRowNumber", "ImportRowNumber");
+            foreach (var column in definition.Columns)
             {
-                bulkCopy.DestinationTableName = TempTableName;
-                bulkCopy.BatchSize = Math.Max(rows.Count, 1);
-
-                bulkCopy.ColumnMappings.Add("ImportRowNumber", "ImportRowNumber");
-                foreach (var column in definition.Columns)
-                {
-                    bulkCopy.ColumnMappings.Add(column.TargetColumn, column.TargetColumn);
-                }
-
-                await bulkCopy.WriteToServerAsync(table, cancellationToken);
+                bulkCopy.ColumnMappings.Add(column.TargetColumn, column.TargetColumn);
             }
 
-            await RunStagingValidationAsync(connection, transaction, definition, rows, cancellationToken);
-
-            await connection.ExecuteAsync(
-                ReplaceTableSql(definition),
-                transaction: transaction);
-
-            await transaction.CommitAsync(cancellationToken);
+            await bulkCopy.WriteToServerAsync(table, cancellationToken);
         }
-        finally
-        {
-            await DropTempTableIfExistsBestEffortAsync(connection);
-        }
+
+        await RunStagingValidationAsync(connection, transaction, definition, rows, cancellationToken);
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            ReplaceTableSql(definition),
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        await transaction.CommitAsync(cancellationToken);
     }
 
-    private static Task DropTempTableIfExistsAsync(SqlConnection connection, CancellationToken cancellationToken)
+    private static Task DropTempTableIfExistsAsync(
+        SqlConnection connection,
+        SqlTransaction transaction,
+        CancellationToken cancellationToken)
     {
         return connection.ExecuteAsync(new CommandDefinition(
             $"DROP TABLE IF EXISTS {TempTableName};",
+            transaction: transaction,
             cancellationToken: cancellationToken));
-    }
-
-    private async Task DropTempTableIfExistsBestEffortAsync(SqlConnection connection)
-    {
-        try
-        {
-            await DropTempTableIfExistsAsync(connection, CancellationToken.None);
-        }
-        catch (Exception ex) when (ex is SqlException or InvalidOperationException)
-        {
-            logger.LogWarning(ex, "Failed to clean up import staging table {TempTableName}.", TempTableName);
-        }
     }
 
     private static async Task RunStagingValidationAsync(
@@ -1047,7 +1034,25 @@ public sealed class FlatFileImportService(
         DateTimeOffset startedAt,
         CancellationToken cancellationToken)
     {
-        var importLog = new ImportLog
+        var importLog = CreateImportLog(dataset, filename, attemptedRows, rowsImported, status, errorPayload, user, startedAt);
+
+        dbContext.ImportLogs.Add(importLog);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return importLog.Id;
+    }
+
+    private ImportLog CreateImportLog(
+        string dataset,
+        string? filename,
+        int attemptedRows,
+        int? rowsImported,
+        string status,
+        string? errorPayload,
+        ClaimsPrincipal? user,
+        DateTimeOffset startedAt)
+    {
+        return new ImportLog
         {
             Dataset = Truncate(dataset, 100),
             Filename = Truncate(Path.GetFileName(filename ?? string.Empty), 260),
@@ -1061,11 +1066,6 @@ public sealed class FlatFileImportService(
             Status = status,
             ErrorPayload = errorPayload,
         };
-
-        dbContext.ImportLogs.Add(importLog);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        return importLog.Id;
     }
 
     private static string Truncate(string? value, int maxLength)

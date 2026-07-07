@@ -24,8 +24,11 @@ param sqlAdminLogin string
 @description('SQL admin password for SQL authentication.')
 param sqlAdminPassword string
 
-@description('SQL database name.')
+@description('Application SQL database name.')
 param sqlDatabaseName string = appName
+
+@description('Data SQL database name.')
+param dataSqlDatabaseName string = '${appName}-data'
 
 @description('Additional resource tags to apply.')
 param tags object = {}
@@ -91,7 +94,8 @@ module sql 'modules/sql.bicep' = if (deploymentGuardPassed) {
     tags: resourceTags
     adminLogin: sqlAdminLogin
     adminPassword: sqlAdminPassword
-    databaseName: sqlDatabaseName
+    appDatabaseName: sqlDatabaseName
+    dataDatabaseName: dataSqlDatabaseName
     skuName: sqlSkuName
     skuTier: sqlSkuTier
   }
@@ -100,6 +104,7 @@ module sql 'modules/sql.bicep' = if (deploymentGuardPassed) {
 var sqlServerHostnameSuffix = environment().suffixes.sqlServerHostname
 var sqlServerFqdn = '${sqlServerName}${startsWith(sqlServerHostnameSuffix, '.') ? '' : '.'}${sqlServerHostnameSuffix}'
 var sqlConnectionString = 'Server=tcp:${sqlServerFqdn},1433;Initial Catalog=${sqlDatabaseName};Persist Security Info=False;User ID=${sqlAdminLogin};Password=${sqlAdminPassword};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
+var dataSqlConnectionString = 'Server=tcp:${sqlServerFqdn},1433;Initial Catalog=${dataSqlDatabaseName};Persist Security Info=False;User ID=${sqlAdminLogin};Password=${sqlAdminPassword};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
 
 module compute 'modules/compute.bicep' = if (deploymentGuardPassed) {
   name: 'compute'
@@ -111,11 +116,15 @@ module compute 'modules/compute.bicep' = if (deploymentGuardPassed) {
     webSkuName: webSkuName
     webSkuTier: webSkuTier
     sqlConnectionString: sqlConnectionString
+    dataSqlConnectionString: dataSqlConnectionString
     environmentName: env
     appInsightsConnectionString: appInsights!.properties.ConnectionString
     appInsightsInstrumentationKey: appInsights!.properties.InstrumentationKey
     notificationBaseUrl: empty(notificationBaseUrl) ? 'https://${webAppName}.azurewebsites.net' : notificationBaseUrl
   }
+  dependsOn: [
+    sql
+  ]
 }
 
 output appServiceDefaultHostName string = deploymentGuardPassed ? compute!.outputs.defaultHostName : ''
@@ -124,6 +133,7 @@ output appInsightsName string = deploymentGuardPassed ? appInsights!.name : ''
 output appInsightsConnectionString string = deploymentGuardPassed ? appInsights!.properties.ConnectionString : ''
 output logAnalyticsWorkspaceName string = deploymentGuardPassed ? logAnalyticsWorkspace!.name : ''
 output sqlDatabaseName string = sqlDatabaseName
+output dataSqlDatabaseName string = dataSqlDatabaseName
 output sqlServerName string = deploymentGuardPassed ? sql!.outputs.serverName : ''
 output webAppName string = deploymentGuardPassed ? compute!.outputs.webAppName : ''
 output deploymentGuardPassed bool = deploymentGuardPassed
