@@ -40,7 +40,7 @@ jobs:
 
           if find server.core/Migrations -type f -name '*.cs' -print0 \
             | xargs -0 grep -nE "(\\[data\\]|\"data\"|'data'|(^|[^[:alnum:]_])data[.])"; then
-            echo "::error::EF migrations must not reference the data schema. The DACPAC owns [data]."
+            echo "::error::EF migrations must not reference the data schema. The data database is deployed from the DACPAC."
             failed=1
           fi
 
@@ -196,7 +196,7 @@ jobs:
           sql_database_name=$(az deployment group show \
             --resource-group "$RESOURCE_GROUP" \
             --name "$DEPLOYMENT_NAME" \
-            --query "properties.outputs.sqlDatabaseName.value" \
+            --query "properties.outputs.dataSqlDatabaseName.value" \
             --output tsv)
 
           if [[ -z "$sql_server_name" ]]; then
@@ -205,7 +205,7 @@ jobs:
           fi
 
           if [[ -z "$sql_database_name" ]]; then
-            echo "Deployment output sqlDatabaseName was empty." >&2
+            echo "Deployment output dataSqlDatabaseName was empty." >&2
             exit 1
           fi
 
@@ -220,7 +220,7 @@ jobs:
             exit 1
           fi
 
-          echo "Resolved SQL database: $sql_server_fqdn/$sql_database_name"
+          echo "Resolved data SQL database: $sql_server_fqdn/$sql_database_name"
           echo "sql_server_fqdn=$sql_server_fqdn" >> "$GITHUB_OUTPUT"
           echo "sql_database_name=$sql_database_name" >> "$GITHUB_OUTPUT"
 
@@ -256,7 +256,7 @@ jobs:
             /TargetUser:"$SQL_ADMIN_LOGIN" \
             /TargetPassword:"$SQL_ADMIN_PASSWORD" \
             /OutputPath:packages/scripts/prod-data-dacpac.sql \
-            /p:DropObjectsNotInSource=False \
+            /p:DropObjectsNotInSource=True \
             /p:BlockOnPossibleDataLoss=True \
             /p:CreateNewDatabase=False \
             /p:ScriptDatabaseOptions=False

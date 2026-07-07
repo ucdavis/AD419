@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   ColumnDef,
   flexRender,
@@ -7,9 +7,17 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   InitialTableState,
+  type RowData,
   type Table,
   useReactTable,
 } from '@tanstack/react-table';
+
+declare module '@tanstack/react-table' {
+  interface ColumnMeta<TData extends RowData, TValue> {
+    cellClassName?: string;
+    headerClassName?: string;
+  }
+}
 
 type TableActionsRenderer<TData extends object> =
   | ReactNode
@@ -21,7 +29,9 @@ interface DataTableProps<TData extends object> {
   filterPlaceholder?: string;
   globalFilter?: 'left' | 'right' | 'none'; // Controls the position of the search box
   initialState?: InitialTableState; // Optional initial state for the table, use for stuff like setting page size or sorting
+  pageSizeOptions?: number[];
   tableActions?: TableActionsRenderer<TData>;
+  tableClassName?: string;
 }
 
 export const DataTable = <TData extends object>({
@@ -30,12 +40,17 @@ export const DataTable = <TData extends object>({
   filterPlaceholder = 'Search all columns...',
   globalFilter = 'right',
   initialState,
+  pageSizeOptions = [10, 25, 50, 100],
   tableActions,
+  tableClassName = 'table-zebra',
 }: DataTableProps<TData>) => {
+  const [pageInputValue, setPageInputValue] = useState('');
+
   // TanStack Table is not yet marked compatible with the React Compiler.
   // Keep this suppression until the library compatibility guidance changes.
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
+    autoResetPageIndex: false, // keep the current page when data updates in place
     columns,
     data,
     getCoreRowModel: getCoreRowModel(), // basic rendering
@@ -100,6 +115,17 @@ export const DataTable = <TData extends object>({
       ? [filterControl, resolvedTableActions]
       : [resolvedTableActions, filterControl];
   const hasToolbar = toolbarItems.some(Boolean);
+  const pageCount = table.getPageCount();
+  const currentPage =
+    pageCount === 0 ? 0 : table.getState().pagination.pageIndex + 1;
+  const currentPageSize = table.getState().pagination.pageSize;
+  const selectablePageSizes = Array.from(
+    new Set([...pageSizeOptions, currentPageSize])
+  ).sort((a, b) => a - b);
+
+  useEffect(() => {
+    setPageInputValue(currentPage === 0 ? '' : String(currentPage));
+  }, [currentPage]);
 
   return (
     <div className="space-y-4">
@@ -114,13 +140,18 @@ export const DataTable = <TData extends object>({
       <div className="overflow-x-auto">
         {' '}
         {/* enables horizontal scroll on small screens */}
-        <table className="table table-zebra w-full">
+        <table className={`table w-full ${tableClassName}`}>
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
                   <th
-                    className="cursor-pointer"
+                    className={[
+                      'cursor-pointer',
+                      header.column.columnDef.meta?.headerClassName,
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
                     key={header.id}
                     onClick={header.column.getToggleSortingHandler?.()}
                   >
@@ -145,7 +176,10 @@ export const DataTable = <TData extends object>({
             {table.getRowModel().rows.map((row) => (
               <tr key={row.id}>
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id}>
+                  <td
+                    className={cell.column.columnDef.meta?.cellClassName}
+                    key={cell.id}
+                  >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}
@@ -153,22 +187,96 @@ export const DataTable = <TData extends object>({
             ))}
           </tbody>
         </table>
-        {/* (Optional) Pagination controls */}
-        <div className="flex justify-end space-x-2 py-2">
-          <button
-            className="btn btn-xs"
-            disabled={!table.getCanPreviousPage()}
-            onClick={() => table.previousPage()}
-          >
-            Previous
-          </button>
-          <button
-            className="btn btn-xs"
-            disabled={!table.getCanNextPage()}
-            onClick={() => table.nextPage()}
-          >
-            Next
-          </button>
+        <div className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <label className="flex items-center gap-2 text-sm">
+            <span>Rows per page</span>
+            <select
+              aria-label="Rows per page"
+              className="select select-bordered select-xs w-20"
+              onChange={(event) => table.setPageSize(Number(event.target.value))}
+              value={currentPageSize}
+            >
+              {selectablePageSizes.map((pageSize) => (
+                <option key={pageSize} value={pageSize}>
+                  {pageSize}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <label className="flex items-center gap-2 text-sm">
+              <span>Page</span>
+              <input
+                aria-label="Page"
+                className="input input-bordered input-xs w-20"
+                disabled={pageCount === 0}
+                max={Math.max(pageCount, 1)}
+                min={1}
+                onBlur={() => {
+                  setPageInputValue(
+                    currentPage === 0 ? '' : String(currentPage)
+                  );
+                }}
+                onChange={(event) => {
+                  const { value } = event.target;
+                  setPageInputValue(value);
+
+                  if (value === '') {
+                    return;
+                  }
+
+                  const pageNumber = Number(value);
+
+                  if (!Number.isInteger(pageNumber)) {
+                    return;
+                  }
+
+                  table.setPageIndex(
+                    Math.min(Math.max(pageNumber, 1), pageCount) - 1
+                  );
+                }}
+                type="number"
+                value={pageInputValue}
+              />
+              <span>of {pageCount}</span>
+            </label>
+
+            <div className="join">
+              <button
+                className="btn join-item btn-xs"
+                disabled={!table.getCanPreviousPage()}
+                onClick={() => table.setPageIndex(0)}
+                type="button"
+              >
+                First
+              </button>
+              <button
+                className="btn join-item btn-xs"
+                disabled={!table.getCanPreviousPage()}
+                onClick={() => table.previousPage()}
+                type="button"
+              >
+                Previous
+              </button>
+              <button
+                className="btn join-item btn-xs"
+                disabled={!table.getCanNextPage()}
+                onClick={() => table.nextPage()}
+                type="button"
+              >
+                Next
+              </button>
+              <button
+                className="btn join-item btn-xs"
+                disabled={!table.getCanNextPage()}
+                onClick={() => table.setPageIndex(pageCount - 1)}
+                type="button"
+              >
+                Last
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
