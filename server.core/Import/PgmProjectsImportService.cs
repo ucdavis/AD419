@@ -13,7 +13,7 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
 
     public const string RemoteLinkedServer = "AE_Redshift_PROD";
 
-    private const int CommandTimeoutSeconds = 600;
+    private const int CommandTimeoutSeconds = DataDbConnection.ImportCommandTimeoutSeconds;
     private const string DestinationTable = "[data].[PGMProjects]";
 
     // source reader column -> destination table column.

@@ -39,7 +39,7 @@ public sealed class FlatFileImportService(
     IConfiguration configuration,
     ILogger<FlatFileImportService> logger) : IFlatFileImportService
 {
-    private const int DatabaseCommandTimeoutSeconds = 600;
+    private const int DatabaseCommandTimeoutSeconds = DataDbConnection.ImportCommandTimeoutSeconds;
     private const string TempTableName = "#FlatFileImportRows";
     private const string StatusSucceeded = "Succeeded";
     private const string StatusValidationFailed = "ValidationFailed";

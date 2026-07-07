@@ -66,7 +66,8 @@ public class FlatFileImportServiceTests
     public async Task Import_rejects_unsupported_file_types()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = CreateService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
         var file = CreateTextFile("projects.txt", "not,a,supported,type");
 
         var result = await service.ImportAsync("all-projects", file, null, CancellationToken.None);
@@ -85,7 +86,8 @@ public class FlatFileImportServiceTests
     public async Task Import_reports_malformed_workbooks_as_validation_failures()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = CreateService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
         var file = CreateTextFile("active-projects.xlsx", "not a workbook");
 
         var result = await service.ImportAsync("active-projects", file, null, CancellationToken.None);
@@ -104,7 +106,8 @@ public class FlatFileImportServiceTests
     public async Task Import_reports_missing_required_headers()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = CreateService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
         var file = CreateWorkbook("all-projects.xlsx",
             ["Accession Number"],
             [["A123"]]);
@@ -120,7 +123,8 @@ public class FlatFileImportServiceTests
     public async Task Import_rejects_flat_files_without_data_rows()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = CreateService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
         var file = CreateWorkbook("active-projects.xlsx",
             [
                 "Project Number",
@@ -144,7 +148,8 @@ public class FlatFileImportServiceTests
     public async Task Import_collects_csv_required_type_length_and_duplicate_errors_before_persistence()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = CreateService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
         var file = CreateCsvFile("active-projects.csv",
             [
                 "Project Number",
@@ -188,7 +193,8 @@ public class FlatFileImportServiceTests
     public async Task Import_all_projects_allows_duplicate_accession_numbers_and_project_numbers()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = CreateService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
         var file = CreateCsvFile("all-projects.csv",
             AllProjectsHeaders(),
             [
@@ -209,7 +215,8 @@ public class FlatFileImportServiceTests
     public async Task Import_all_projects_still_rejects_duplicate_source_and_proposal_numbers()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = CreateService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
         var file = CreateCsvFile("all-projects.csv",
             AllProjectsHeaders(),
             [
@@ -232,7 +239,8 @@ public class FlatFileImportServiceTests
     public async Task Import_assistance_listing_numbers_allows_loosened_program_number_and_text_values()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = CreateService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
         var longValue = new string('X', 501);
         var file = CreateCsvFile("assistance-listing-numbers.csv",
             [
@@ -268,7 +276,8 @@ public class FlatFileImportServiceTests
     public async Task Import_all_projects_still_rejects_overlong_strings()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = CreateService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
         var file = CreateCsvFile("all-projects.csv",
             AllProjectsHeaders(),
             [
@@ -288,7 +297,8 @@ public class FlatFileImportServiceTests
     public async Task Import_preserves_flat_file_column_order_in_validation_values()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = CreateService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
         var file = CreateCsvFile("active-projects.csv",
             [
                 "PD Email Address",
@@ -322,7 +332,8 @@ public class FlatFileImportServiceTests
     public async Task Import_reports_duplicate_headers_before_row_parsing()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = CreateService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
         var file = CreateWorkbook("active-projects.xlsx",
             [
                 "Project Number",
@@ -350,7 +361,8 @@ public class FlatFileImportServiceTests
     public async Task Import_logs_persistence_failures_without_marking_success()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = CreateService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
         var file = CreateWorkbook("active-projects.xlsx",
             [
                 "Project Number",
@@ -385,7 +397,8 @@ public class FlatFileImportServiceTests
     public async Task Import_logs_all_validation_errors_without_row_values()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = CreateService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
         var rows = Enumerable.Range(1, 105)
             .Select(index => new[]
             {
@@ -448,10 +461,10 @@ public class FlatFileImportServiceTests
         ];
     }
 
-    private static FlatFileImportService CreateService(Server.Core.Data.AppDbContext db)
+    private static FlatFileImportService CreateService(
+        Server.Core.Data.AppDbContext db,
+        Server.Core.Data.DataDbContext dataDb)
     {
-        var dataDb = TestDbContextFactory.CreateDataInMemory();
-
         return new FlatFileImportService(
             db,
             dataDb,
