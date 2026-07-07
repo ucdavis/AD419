@@ -9,6 +9,7 @@ using Dapper;
 using DocumentFormat.OpenXml.Packaging;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Server.Authorization;
 using Server.Core.Data;
 using Server.Core.Domain;
@@ -34,7 +35,7 @@ public sealed record ImportValidationFailed(ImportValidationResponse Response) :
 public sealed class FlatFileImportService(
     AppDbContext dbContext,
     IFlatFileImportRegistry registry,
-    IDataDatabaseTransactionFactory transactionFactory,
+    IConfiguration configuration,
     ILogger<FlatFileImportService> logger) : IFlatFileImportService
 {
     private const string TempTableName = "#FlatFileImportRows";
@@ -764,9 +765,13 @@ public sealed class FlatFileImportService(
         IReadOnlyList<ParsedImportRow> rows,
         CancellationToken cancellationToken)
     {
-        await using var dataTransaction = await transactionFactory.BeginTransactionAsync(cancellationToken);
-        var connection = dataTransaction.Connection;
-        var transaction = dataTransaction.Transaction;
+        var connectionString = DataDbConnection.Resolve(
+            configuration,
+            dbContext.Database.GetConnectionString());
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
 
         await DropTempTableIfExistsAsync(connection, transaction, cancellationToken);
 
@@ -797,7 +802,7 @@ public sealed class FlatFileImportService(
             transaction: transaction,
             cancellationToken: cancellationToken));
 
-        await dataTransaction.CommitAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     private static Task DropTempTableIfExistsAsync(

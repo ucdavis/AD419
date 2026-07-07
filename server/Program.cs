@@ -52,7 +52,6 @@ builder.Services.AddResponseCaching();
 // add scoped services here
 builder.Services.AddScoped<IDbInitializer, DbInitializer>();
 builder.Services.AddScoped<IAuthorizationHandler, AuthorizedUserHandler>();
-builder.Services.AddScoped<IDataDatabaseTransactionFactory, DataDatabaseTransactionFactory>();
 builder.Services.AddScoped<IPgmProjectsImportService, PgmProjectsImportService>();
 builder.Services.AddSingleton<IFlatFileImportRegistry, FlatFileImportRegistry>();
 builder.Services.AddScoped<IFlatFileImportService, FlatFileImportService>();

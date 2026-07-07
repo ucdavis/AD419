@@ -2,7 +2,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace Server.Core.Data;
 
-public static class DataDatabaseConnection
+public static class DataDbConnection
 {
     public const string EnvironmentVariableName = "DATA_DB_CONNECTION";
     public const string ConnectionStringName = "DataConnection";

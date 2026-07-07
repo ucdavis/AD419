@@ -84,7 +84,7 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
                 $"or configure ConnectionStrings:{ConnectionStringName}.");
         }
 
-        var destinationConnectionString = DataDatabaseConnection.Resolve(
+        var destinationConnectionString = DataDbConnection.Resolve(
             _configuration,
             _dbContext.Database.GetConnectionString());
 
