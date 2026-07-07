@@ -450,8 +450,11 @@ public class FlatFileImportServiceTests
 
     private static FlatFileImportService CreateService(Server.Core.Data.AppDbContext db)
     {
+        var dataDb = TestDbContextFactory.CreateDataInMemory();
+
         return new FlatFileImportService(
             db,
+            dataDb,
             new FlatFileImportRegistry(),
             new ConfigurationBuilder().Build(),
             NullLogger<FlatFileImportService>.Instance);

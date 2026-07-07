@@ -11,7 +11,7 @@ public class ChartStringSegmentsControllerTests
     [Fact]
     public async Task Get_returns_all_segments()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
         db.ChartStringSegments.AddRange(
             new ChartStringSegment { SegmentType = SegmentType.Fund, Code = "45530", Description = "AES", IncludeInReport = true, Sfn = "220" },
             new ChartStringSegment { SegmentType = SegmentType.Account, Code = "500000", Description = "S and E", IncludeInReport = null });
@@ -28,7 +28,7 @@ public class ChartStringSegmentsControllerTests
     [Fact]
     public async Task Get_includes_hierarchy_for_segment_with_matching_code()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
         db.ChartStringSegments.Add(new ChartStringSegment { SegmentType = SegmentType.Fund, Code = "45530", IncludeInReport = true, Sfn = "220" });
         db.FundHierarchies.Add(new FundHierarchy
         {
@@ -56,7 +56,7 @@ public class ChartStringSegmentsControllerTests
     public async Task Get_reads_hierarchy_from_the_matching_segment_types_own_table(
         SegmentType segmentType, string expectedLevel)
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
         const string code = "12345";
         db.ChartStringSegments.Add(new ChartStringSegment { SegmentType = segmentType, Code = code, IncludeInReport = null });
 
@@ -101,7 +101,7 @@ public class ChartStringSegmentsControllerTests
     [Fact]
     public async Task Get_returns_empty_hierarchy_when_no_matching_row()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
         db.ChartStringSegments.Add(new ChartStringSegment { SegmentType = SegmentType.Account, Code = "500000", IncludeInReport = null });
         await db.SaveChangesAsync();
         var controller = new ChartStringSegmentsController(db);
@@ -116,7 +116,7 @@ public class ChartStringSegmentsControllerTests
     [Fact]
     public async Task Patch_updates_include_flag()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
         db.ChartStringSegments.Add(new ChartStringSegment { SegmentType = SegmentType.Fund, Code = "70575", IncludeInReport = null, Sfn = "219" });
         await db.SaveChangesAsync();
         var controller = new ChartStringSegmentsController(db);
@@ -133,7 +133,7 @@ public class ChartStringSegmentsControllerTests
     [Fact]
     public async Task Patch_returns_not_found_for_missing_segment()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
         var controller = new ChartStringSegmentsController(db);
 
         var result = await controller.UpdateClassification(
@@ -145,7 +145,7 @@ public class ChartStringSegmentsControllerTests
     [Fact]
     public async Task Patch_returns_bad_request_for_unknown_segment_type()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
         var controller = new ChartStringSegmentsController(db);
 
         var result = await controller.UpdateClassification(
@@ -157,7 +157,7 @@ public class ChartStringSegmentsControllerTests
     [Fact]
     public async Task Patch_sets_sfn_for_included_fund()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
         db.ChartStringSegments.Add(new ChartStringSegment { SegmentType = SegmentType.Fund, Code = "70575", IncludeInReport = null });
         await db.SaveChangesAsync();
         var controller = new ChartStringSegmentsController(db);
@@ -174,7 +174,7 @@ public class ChartStringSegmentsControllerTests
     [Fact]
     public async Task Patch_clears_sfn_when_fund_excluded()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
         db.ChartStringSegments.Add(new ChartStringSegment { SegmentType = SegmentType.Fund, Code = "45530", IncludeInReport = true, Sfn = "220" });
         await db.SaveChangesAsync();
         var controller = new ChartStringSegmentsController(db);
@@ -191,7 +191,7 @@ public class ChartStringSegmentsControllerTests
     [Fact]
     public async Task Patch_rejects_invalid_sfn_for_included_fund()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
         db.ChartStringSegments.Add(new ChartStringSegment { SegmentType = SegmentType.Fund, Code = "70575", IncludeInReport = null });
         await db.SaveChangesAsync();
         var controller = new ChartStringSegmentsController(db);
@@ -205,7 +205,7 @@ public class ChartStringSegmentsControllerTests
     [Fact]
     public async Task Patch_rejects_sfn_on_non_fund_segment()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
         db.ChartStringSegments.Add(new ChartStringSegment { SegmentType = SegmentType.Account, Code = "500000", IncludeInReport = null });
         await db.SaveChangesAsync();
         var controller = new ChartStringSegmentsController(db);
@@ -219,7 +219,7 @@ public class ChartStringSegmentsControllerTests
     [Fact]
     public async Task Patch_accepts_multiple_marker_for_included_fund()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
         db.ChartStringSegments.Add(new ChartStringSegment { SegmentType = SegmentType.Fund, Code = "70575", IncludeInReport = null });
         await db.SaveChangesAsync();
         var controller = new ChartStringSegmentsController(db);

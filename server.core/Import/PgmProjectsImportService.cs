@@ -58,16 +58,16 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
         ("contract_admins", "ContractAdmins"),
     ];
 
-    private readonly AppDbContext _dbContext;
+    private readonly DataDbContext _dataDbContext;
     private readonly IConfiguration _configuration;
     private readonly ILogger<PgmProjectsImportService> _logger;
 
     public PgmProjectsImportService(
-        AppDbContext dbContext,
+        DataDbContext dataDbContext,
         IConfiguration configuration,
         ILogger<PgmProjectsImportService> logger)
     {
-        _dbContext = dbContext;
+        _dataDbContext = dataDbContext;
         _configuration = configuration;
         _logger = logger;
     }
@@ -86,7 +86,7 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
 
         var destinationConnectionString = DataDbConnection.Resolve(
             _configuration,
-            _dbContext.Database.GetConnectionString());
+            _dataDbContext.Database.GetConnectionString());
 
         _logger.LogInformation("Importing PGM projects for report date {ReportDate}", reportDate);
 

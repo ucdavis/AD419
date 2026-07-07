@@ -21,7 +21,7 @@ public static class ChartStringSegmentSeed
     private static readonly string[] FundSfnPool =
         ["201", "202", "203", "205", "220", "221", "223", "Multiple"];
 
-    public static async Task EnsureSeededAsync(AppDbContext db, CancellationToken ct = default)
+    public static async Task EnsureSeededAsync(DataDbContext db, CancellationToken ct = default)
     {
         if (await db.ChartStringSegments.AnyAsync(ct))
         {

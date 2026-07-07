@@ -34,6 +34,7 @@ public sealed record ImportValidationFailed(ImportValidationResponse Response) :
 
 public sealed class FlatFileImportService(
     AppDbContext dbContext,
+    DataDbContext dataDbContext,
     IFlatFileImportRegistry registry,
     IConfiguration configuration,
     ILogger<FlatFileImportService> logger) : IFlatFileImportService
@@ -767,7 +768,7 @@ public sealed class FlatFileImportService(
     {
         var connectionString = DataDbConnection.Resolve(
             configuration,
-            dbContext.Database.GetConnectionString());
+            dataDbContext.Database.GetConnectionString());
 
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken);

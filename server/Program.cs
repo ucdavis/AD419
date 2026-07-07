@@ -75,9 +75,13 @@ builder.Services.AddDbContextPool<AppDbContext>(o => o.UseSqlServer(conn, opt =>
     .MigrationsAssembly("server.core")
     .MigrationsHistoryTable(AppDbContext.MigrationsHistoryTable, AppDbContext.AppSchema)));
 
+var dataConn = DataDbConnection.Resolve(builder.Configuration, conn);
+builder.Services.AddDbContextPool<DataDbContext>(o => o.UseSqlServer(dataConn));
+
 builder.Services
     .AddHealthChecks()
-    .AddDbContextCheck<AppDbContext>();
+    .AddDbContextCheck<AppDbContext>()
+    .AddDbContextCheck<DataDbContext>("data_db");
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();

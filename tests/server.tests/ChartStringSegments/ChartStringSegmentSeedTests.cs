@@ -10,7 +10,7 @@ public class ChartStringSegmentSeedTests
     [Fact]
     public async Task EnsureSeeded_derives_one_segment_per_hierarchy_row()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
         await HierarchySeed.EnsureSeededAsync(db);
 
         await ChartStringSegmentSeed.EnsureSeededAsync(db);
@@ -27,7 +27,7 @@ public class ChartStringSegmentSeedTests
     [Fact]
     public async Task EnsureSeeded_loads_ern_codes_from_csv()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
         await HierarchySeed.EnsureSeededAsync(db);
 
         await ChartStringSegmentSeed.EnsureSeededAsync(db);
@@ -52,7 +52,7 @@ public class ChartStringSegmentSeedTests
     [Fact]
     public async Task EnsureSeeded_maps_segment_types_to_their_hierarchy()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
         await HierarchySeed.EnsureSeededAsync(db);
 
         await ChartStringSegmentSeed.EnsureSeededAsync(db);
@@ -67,7 +67,7 @@ public class ChartStringSegmentSeedTests
     [Fact]
     public async Task EnsureSeeded_is_idempotent()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
         await HierarchySeed.EnsureSeededAsync(db);
 
         await ChartStringSegmentSeed.EnsureSeededAsync(db);
