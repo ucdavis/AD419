@@ -39,6 +39,7 @@ public sealed class FlatFileImportService(
     IConfiguration configuration,
     ILogger<FlatFileImportService> logger) : IFlatFileImportService
 {
+    private const int DatabaseCommandTimeoutSeconds = 600;
     private const string TempTableName = "#FlatFileImportRows";
     private const string StatusSucceeded = "Succeeded";
     private const string StatusValidationFailed = "ValidationFailed";
@@ -779,6 +780,7 @@ public sealed class FlatFileImportService(
         await connection.ExecuteAsync(new CommandDefinition(
             CreateTempTableSql(definition),
             transaction: transaction,
+            commandTimeout: DatabaseCommandTimeoutSeconds,
             cancellationToken: cancellationToken));
 
         var table = CreateDataTable(definition, rows);
@@ -786,6 +788,7 @@ public sealed class FlatFileImportService(
         {
             bulkCopy.DestinationTableName = TempTableName;
             bulkCopy.BatchSize = Math.Max(rows.Count, 1);
+            bulkCopy.BulkCopyTimeout = DatabaseCommandTimeoutSeconds;
 
             bulkCopy.ColumnMappings.Add("ImportRowNumber", "ImportRowNumber");
             foreach (var column in definition.Columns)
@@ -801,6 +804,7 @@ public sealed class FlatFileImportService(
         await connection.ExecuteAsync(new CommandDefinition(
             ReplaceTableSql(definition),
             transaction: transaction,
+            commandTimeout: DatabaseCommandTimeoutSeconds,
             cancellationToken: cancellationToken));
 
         await transaction.CommitAsync(cancellationToken);
@@ -814,6 +818,7 @@ public sealed class FlatFileImportService(
         return connection.ExecuteAsync(new CommandDefinition(
             $"DROP TABLE IF EXISTS {TempTableName};",
             transaction: transaction,
+            commandTimeout: DatabaseCommandTimeoutSeconds,
             cancellationToken: cancellationToken));
     }
 
@@ -831,6 +836,7 @@ public sealed class FlatFileImportService(
             var duplicateRowNumbers = await connection.QueryAsync<int>(new CommandDefinition(
                 DuplicateKeyValidationSql(uniqueKey, definition.Columns),
                 transaction: transaction,
+                commandTimeout: DatabaseCommandTimeoutSeconds,
                 cancellationToken: cancellationToken));
 
             foreach (var rowNumber in duplicateRowNumbers)
