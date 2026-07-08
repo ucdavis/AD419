@@ -1,7 +1,7 @@
 using FluentAssertions;
-using Server.Models.ChartStringSegments;
+using Server.Models.SegmentClassifications;
 
-namespace Server.Tests.ChartStringSegments;
+namespace Server.Tests.SegmentClassifications;
 
 public class SfnCatalogTests
 {

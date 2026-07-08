@@ -1,8 +1,8 @@
 import {
   SFN_CATALOG,
   SFN_MULTIPLE,
-  type ChartStringSegment,
-} from '@/queries/chartStringSegments.ts';
+  type SegmentClassification,
+} from '@/queries/segmentClassifications.ts';
 
 const EXCLUDED = 'Excluded';
 
@@ -11,7 +11,7 @@ export function SegmentClassificationControl({
   segment,
 }: {
   onClassify: (includeInReport: boolean, sfn: string | null) => void;
-  segment: ChartStringSegment;
+  segment: SegmentClassification;
 }) {
   if (segment.segmentType === 'Fund') {
     const value =

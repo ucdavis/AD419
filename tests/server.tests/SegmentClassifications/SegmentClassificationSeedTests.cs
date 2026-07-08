@@ -3,9 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Server.Core.Data;
 using Server.Core.Domain;
 
-namespace Server.Tests.ChartStringSegments;
+namespace Server.Tests.SegmentClassifications;
 
-public class ChartStringSegmentSeedTests
+public class SegmentClassificationSeedTests
 {
     [Fact]
     public async Task EnsureSeeded_derives_one_segment_per_hierarchy_row()
@@ -13,7 +13,7 @@ public class ChartStringSegmentSeedTests
         using var db = TestDbContextFactory.CreateDataInMemory();
         await HierarchySeed.EnsureSeededAsync(db);
 
-        await ChartStringSegmentSeed.EnsureSeededAsync(db);
+        await SegmentClassificationSeed.EnsureSeededAsync(db);
 
         var expected =
             await db.AccountHierarchies.CountAsync() +
@@ -21,8 +21,8 @@ public class ChartStringSegmentSeedTests
             await db.ActivityHierarchies.CountAsync() +
             await db.DepartmentHierarchies.CountAsync() +
             await db.PurposeHierarchies.CountAsync() +
-            db.ChartStringSegments.Count(segment => segment.SegmentType == SegmentType.Ern);
-        (await db.ChartStringSegments.CountAsync()).Should().Be(expected);
+            db.SegmentClassifications.Count(segment => segment.SegmentType == SegmentType.Ern);
+        (await db.SegmentClassifications.CountAsync()).Should().Be(expected);
     }
 
     [Fact]
@@ -31,9 +31,9 @@ public class ChartStringSegmentSeedTests
         using var db = TestDbContextFactory.CreateDataInMemory();
         await HierarchySeed.EnsureSeededAsync(db);
 
-        await ChartStringSegmentSeed.EnsureSeededAsync(db);
+        await SegmentClassificationSeed.EnsureSeededAsync(db);
 
-        var ern = db.ChartStringSegments
+        var ern = db.SegmentClassifications
             .Where(segment => segment.SegmentType == SegmentType.Ern)
             .ToList();
         ern.Count.Should().BeGreaterThan(200);
@@ -56,13 +56,13 @@ public class ChartStringSegmentSeedTests
         using var db = TestDbContextFactory.CreateDataInMemory();
         await HierarchySeed.EnsureSeededAsync(db);
 
-        await ChartStringSegmentSeed.EnsureSeededAsync(db);
+        await SegmentClassificationSeed.EnsureSeededAsync(db);
 
         // Account 500000 comes from AccountHierarchy, so it is an Account segment.
-        var account = await db.ChartStringSegments.FindAsync(SegmentType.Account, "500000");
+        var account = await db.SegmentClassifications.FindAsync(SegmentType.Account, "500000");
         account.Should().NotBeNull();
         // Fund 71549 comes from FundHierarchy.
-        (await db.ChartStringSegments.FindAsync(SegmentType.Fund, "71549")).Should().NotBeNull();
+        (await db.SegmentClassifications.FindAsync(SegmentType.Fund, "71549")).Should().NotBeNull();
     }
 
     [Fact]
@@ -71,9 +71,9 @@ public class ChartStringSegmentSeedTests
         using var db = TestDbContextFactory.CreateDataInMemory();
         await HierarchySeed.EnsureSeededAsync(db);
 
-        await ChartStringSegmentSeed.EnsureSeededAsync(db);
+        await SegmentClassificationSeed.EnsureSeededAsync(db);
 
-        var purposes = db.ChartStringSegments
+        var purposes = db.SegmentClassifications
             .Where(s => s.SegmentType == SegmentType.Purpose)
             .ToDictionary(s => s.Code, s => s.IncludeInReport);
 
@@ -92,10 +92,10 @@ public class ChartStringSegmentSeedTests
         using var db = TestDbContextFactory.CreateDataInMemory();
         await HierarchySeed.EnsureSeededAsync(db);
 
-        await ChartStringSegmentSeed.EnsureSeededAsync(db);
-        var count = await db.ChartStringSegments.CountAsync();
-        await ChartStringSegmentSeed.EnsureSeededAsync(db);
+        await SegmentClassificationSeed.EnsureSeededAsync(db);
+        var count = await db.SegmentClassifications.CountAsync();
+        await SegmentClassificationSeed.EnsureSeededAsync(db);
 
-        (await db.ChartStringSegments.CountAsync()).Should().Be(count);
+        (await db.SegmentClassifications.CountAsync()).Should().Be(count);
     }
 }

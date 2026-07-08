@@ -9,16 +9,16 @@ import { buildSegmentExport } from './exportSegments.ts';
 import { SegmentGrid } from './SegmentGrid.tsx';
 import { ExportDataButton } from '@/shared/exportDataButton.tsx';
 import {
-  chartStringSegmentsQueryOptions,
-  type ChartStringSegment,
+  segmentClassificationsQueryOptions,
+  type SegmentClassification,
   useUpdateSegmentClassification,
-} from '@/queries/chartStringSegments.ts';
+} from '@/queries/segmentClassifications.ts';
 import { Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 
 export function DataClassificationStage() {
   const { data: segments = [], isLoading } = useQuery(
-    chartStringSegmentsQueryOptions()
+    segmentClassificationsQueryOptions()
   );
   const updateClassification = useUpdateSegmentClassification();
   const [activeType, setActiveType] = useState(SEGMENT_TABS[0].type);
@@ -28,7 +28,7 @@ export function DataClassificationStage() {
   }
 
   const handleClassify = (
-    segment: ChartStringSegment,
+    segment: SegmentClassification,
     includeInReport: boolean,
     sfn: string | null
   ) => {

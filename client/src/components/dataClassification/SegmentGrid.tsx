@@ -1,13 +1,13 @@
 import { useState, type ReactNode } from 'react';
 import { SegmentClassificationControl } from './SegmentClassificationControl.tsx';
 import type {
-  ChartStringSegment,
+  SegmentClassification,
   SegmentType,
-} from '@/queries/chartStringSegments.ts';
+} from '@/queries/segmentClassifications.ts';
 import { DataTable } from '@/shared/dataTable.tsx';
 import type { ColumnDef } from '@tanstack/react-table';
 
-function classificationSortValue(segment: ChartStringSegment): string {
+function classificationSortValue(segment: SegmentClassification): string {
   if (segment.includeInReport === null) {
     return '';
   }
@@ -15,7 +15,7 @@ function classificationSortValue(segment: ChartStringSegment): string {
 }
 
 // Codes ordered with unclassified (unset) rows first, otherwise stable.
-function unsetFirstCodes(segments: ChartStringSegment[]): string[] {
+function unsetFirstCodes(segments: SegmentClassification[]): string[] {
   return [...segments]
     .sort(
       (a, b) =>
@@ -34,11 +34,11 @@ export function SegmentGrid({
 }: {
   classificationHeader: string;
   onClassify: (
-    segment: ChartStringSegment,
+    segment: SegmentClassification,
     includeInReport: boolean,
     sfn: string | null
   ) => void;
-  segments: ChartStringSegment[];
+  segments: SegmentClassification[];
   segmentType: SegmentType;
   tableActions?: ReactNode;
 }) {
@@ -50,7 +50,7 @@ export function SegmentGrid({
     ),
   ].sort();
 
-  const levelColumns: ColumnDef<ChartStringSegment>[] = levelKeys.map(
+  const levelColumns: ColumnDef<SegmentClassification>[] = levelKeys.map(
     (levelKey) => ({
       accessorFn: (segment) =>
         segment.hierarchy.find((level) => level.level === levelKey)?.code ?? '',
@@ -75,7 +75,7 @@ export function SegmentGrid({
     })
   );
 
-  const columns: ColumnDef<ChartStringSegment>[] = [
+  const columns: ColumnDef<SegmentClassification>[] = [
     { accessorKey: 'code', header: 'Code' },
     { accessorKey: 'description', header: 'Name' },
     ...levelColumns,

@@ -1,4 +1,4 @@
-namespace Server.Models.ChartStringSegments;
+namespace Server.Models.SegmentClassifications;
 
 public sealed record SfnEntry(string Code, string Description);
 

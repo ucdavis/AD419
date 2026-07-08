@@ -10,7 +10,7 @@ public enum SegmentType
     Purpose,
 }
 
-public class ChartStringSegment
+public class SegmentClassification
 {
     public SegmentType SegmentType { get; set; }
 

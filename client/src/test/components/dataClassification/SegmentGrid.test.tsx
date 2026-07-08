@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import type { ChartStringSegment } from '@/queries/chartStringSegments.ts';
+import type { SegmentClassification } from '@/queries/segmentClassifications.ts';
 import { SegmentGrid } from '@/components/dataClassification/SegmentGrid.tsx';
 
 function account(
   code: string,
   includeInReport: boolean | null
-): ChartStringSegment {
+): SegmentClassification {
   return { code, description: `Name ${code}`, hierarchy: [], includeInReport, segmentType: 'Account', sfn: null };
 }
 
@@ -17,7 +17,7 @@ function isBefore(first: HTMLElement, second: HTMLElement): boolean {
   );
 }
 
-const fundSegments: ChartStringSegment[] = [
+const fundSegments: SegmentClassification[] = [
   {
     code: '45530',
     description: 'AES State Appropriations',
@@ -31,7 +31,7 @@ const fundSegments: ChartStringSegment[] = [
   },
 ];
 
-const accountSegments: ChartStringSegment[] = [
+const accountSegments: SegmentClassification[] = [
   {
     code: '500000',
     description: 'Supplies and Expense',

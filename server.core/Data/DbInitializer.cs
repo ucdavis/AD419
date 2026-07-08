@@ -40,7 +40,7 @@ public class DbInitializer : IDbInitializer
     {
         // Hierarchy first: chart-string segments are derived from the hierarchy tables.
         await HierarchySeed.EnsureSeededAsync(_dataDb, ct);
-        await ChartStringSegmentSeed.EnsureSeededAsync(_dataDb, ct);
+        await SegmentClassificationSeed.EnsureSeededAsync(_dataDb, ct);
     }
 
     // just a placeholder for any production-safe seeding

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { buildSegmentExport } from '@/components/dataClassification/exportSegments.ts';
 import { SEGMENT_TABS } from '@/components/dataClassification/segments.ts';
-import type { ChartStringSegment } from '@/queries/chartStringSegments.ts';
+import type { SegmentClassification } from '@/queries/segmentClassifications.ts';
 
 const fundTab = SEGMENT_TABS.find((tab) => tab.type === 'Fund')!;
 const deptTab = SEGMENT_TABS.find((tab) => tab.type === 'FinancialDepartment')!;
 
-const fund: ChartStringSegment = {
+const fund: SegmentClassification = {
   code: '45530',
   description: 'AES State Funds',
   hierarchy: [
@@ -46,7 +46,7 @@ describe('buildSegmentExport', () => {
   });
 
   it('omits SFN columns for non-fund types and labels unset rows', () => {
-    const dept: ChartStringSegment = {
+    const dept: SegmentClassification = {
       ...fund,
       code: 'APLS001',
       hierarchy: [],

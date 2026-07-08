@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Server.Core.Data;
 using Server.Core.Domain;
 
-namespace Server.Tests.ChartStringSegments;
+namespace Server.Tests.SegmentClassifications;
 
 public class HierarchySeedTests
 {

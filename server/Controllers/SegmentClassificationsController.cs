@@ -2,24 +2,24 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Server.Core.Data;
 using Server.Core.Domain;
-using Server.Models.ChartStringSegments;
+using Server.Models.SegmentClassifications;
 
 namespace Server.Controllers;
 
-public class ChartStringSegmentsController : ApiControllerBase
+public class SegmentClassificationsController : ApiControllerBase
 {
     private readonly DataDbContext _db;
 
-    public ChartStringSegmentsController(DataDbContext db)
+    public SegmentClassificationsController(DataDbContext db)
     {
         _db = db;
     }
 
-    // GET api/chartstringsegments
+    // GET api/segmentclassifications
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<ChartStringSegmentDto>>> Get(CancellationToken cancellationToken)
+    public async Task<ActionResult<IReadOnlyList<SegmentClassificationDto>>> Get(CancellationToken cancellationToken)
     {
-        var segments = await _db.ChartStringSegments.ToListAsync(cancellationToken);
+        var segments = await _db.SegmentClassifications.ToListAsync(cancellationToken);
 
         var departments = await _db.DepartmentHierarchies.ToDictionaryAsync(h => h.Code, cancellationToken);
         var accounts = await _db.AccountHierarchies.ToDictionaryAsync(h => h.Code, cancellationToken);
@@ -47,7 +47,7 @@ public class ChartStringSegmentsController : ApiControllerBase
         var dtos = segments
             .OrderBy(segment => segment.SegmentType)
             .ThenBy(segment => segment.Code)
-            .Select(segment => new ChartStringSegmentDto(
+            .Select(segment => new SegmentClassificationDto(
                 segment.SegmentType.ToString(),
                 segment.Code,
                 segment.Description,
@@ -59,7 +59,7 @@ public class ChartStringSegmentsController : ApiControllerBase
         return Ok(dtos);
     }
 
-    // PATCH api/chartstringsegments
+    // PATCH api/segmentclassifications
     [HttpPatch]
     public async Task<IActionResult> UpdateClassification(
         [FromBody] UpdateClassificationRequest request,
@@ -70,7 +70,7 @@ public class ChartStringSegmentsController : ApiControllerBase
             return BadRequest($"Unknown segment type '{request.SegmentType}'.");
         }
 
-        var segment = await _db.ChartStringSegments.FirstOrDefaultAsync(
+        var segment = await _db.SegmentClassifications.FirstOrDefaultAsync(
             candidate => candidate.SegmentType == segmentType && candidate.Code == request.Code,
             cancellationToken);
 

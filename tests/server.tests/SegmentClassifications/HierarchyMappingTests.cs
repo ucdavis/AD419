@@ -2,7 +2,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Server.Core.Domain;
 
-namespace Server.Tests.ChartStringSegments;
+namespace Server.Tests.SegmentClassifications;
 
 public class HierarchyMappingTests
 {
@@ -84,7 +84,7 @@ public class HierarchyMappingTests
         entity.FindProperty("ParentLevel0Code")!.GetMaxLength().Should().Be(20);
         entity.FindProperty("ParentLevel0Name")!.GetMaxLength().Should().Be(1000);
         entity.FindProperty("Description")!.GetMaxLength().Should().Be(1000);
-        // Code matches ChartStringSegment.Code (NVARCHAR(50)) so joins on Code align.
+        // Code matches SegmentClassification.Code (NVARCHAR(50)) so joins on Code align.
         entity.FindProperty("Code")!.GetMaxLength().Should().Be(50);
     }
 }

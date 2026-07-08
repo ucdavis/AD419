@@ -1,10 +1,10 @@
-CREATE PROCEDURE [data].[SeedChartStringSegments]
+CREATE PROCEDURE [data].[SeedSegmentClassifications]
 AS
 BEGIN
     SET NOCOUNT ON;
 
     -- Insert any segment value present in the imported transactions but missing
-    -- from ChartStringSegments, as an unclassified row (IncludeInReport NULL).
+    -- from SegmentClassifications, as an unclassified row (IncludeInReport NULL).
     -- Existing rows and their classifications are never modified: unclassified
     -- fails closed downstream until someone classifies the code in step 2.
     --
@@ -36,7 +36,7 @@ BEGIN
         UNION
         SELECT 'Ern', [DosCode] FROM [data].[UcPathTransactions] WHERE [DosCode] IS NOT NULL AND [DosCode] <> 'XXX'
     )
-    INSERT INTO [data].[ChartStringSegments] ([SegmentType], [Code], [Description])
+    INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description])
     OUTPUT inserted.[SegmentType] INTO @inserted ([SegmentType])
     SELECT
         tv.SegmentType,
@@ -48,7 +48,7 @@ BEGIN
     WHERE NOT EXISTS
     (
         SELECT 1
-        FROM [data].[ChartStringSegments] existing
+        FROM [data].[SegmentClassifications] existing
         WHERE existing.[SegmentType] = tv.SegmentType
           AND existing.[Code] = tv.Code
     );

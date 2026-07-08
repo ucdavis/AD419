@@ -1,7 +1,7 @@
 import type {
-  ChartStringSegment,
+  SegmentClassification,
   SegmentType,
-} from '@/queries/chartStringSegments.ts';
+} from '@/queries/segmentClassifications.ts';
 
 export interface SegmentTab {
   classificationHeader: string;
@@ -57,14 +57,14 @@ export const SEGMENT_TABS: SegmentTab[] = [
 ];
 
 export function segmentsForType(
-  segments: ChartStringSegment[],
+  segments: SegmentClassification[],
   type: SegmentType
-): ChartStringSegment[] {
+): SegmentClassification[] {
   return segments.filter((segment) => segment.segmentType === type);
 }
 
 export function unclassifiedCount(
-  segments: ChartStringSegment[],
+  segments: SegmentClassification[],
   type: SegmentType
 ): number {
   return segmentsForType(segments, type).filter(
@@ -72,6 +72,6 @@ export function unclassifiedCount(
   ).length;
 }
 
-export function allClassified(segments: ChartStringSegment[]): boolean {
+export function allClassified(segments: SegmentClassification[]): boolean {
   return segments.every((segment) => segment.includeInReport !== null);
 }

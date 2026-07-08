@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ChartStringSegment } from '@/queries/chartStringSegments.ts';
+import type { SegmentClassification } from '@/queries/segmentClassifications.ts';
 import {
   allClassified,
   SEGMENT_TABS,
@@ -7,7 +7,7 @@ import {
   unclassifiedCount,
 } from '@/components/dataClassification/segments.ts';
 
-const segments: ChartStringSegment[] = [
+const segments: SegmentClassification[] = [
   { code: '45530', description: 'AES', hierarchy: [], includeInReport: true, segmentType: 'Fund', sfn: '220' },
   { code: '70575', description: 'Berry', hierarchy: [], includeInReport: null, segmentType: 'Fund', sfn: '219' },
   { code: '500000', description: 'S and E', hierarchy: [], includeInReport: null, segmentType: 'Account', sfn: null },

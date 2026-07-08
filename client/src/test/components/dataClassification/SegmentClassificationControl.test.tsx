@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { ChartStringSegment } from '@/queries/chartStringSegments.ts';
+import type { SegmentClassification } from '@/queries/segmentClassifications.ts';
 import { SegmentClassificationControl } from '@/components/dataClassification/SegmentClassificationControl.tsx';
 
-const unsetAccount: ChartStringSegment = {
+const unsetAccount: SegmentClassification = {
   code: '500000',
   description: 'Supplies',
   hierarchy: [],
@@ -12,7 +12,7 @@ const unsetAccount: ChartStringSegment = {
   sfn: null,
 };
 
-const unsetFund: ChartStringSegment = {
+const unsetFund: SegmentClassification = {
   code: '70575',
   description: 'Berry',
   hierarchy: [],

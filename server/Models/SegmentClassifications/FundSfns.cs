@@ -1,4 +1,4 @@
-namespace Server.Models.ChartStringSegments;
+namespace Server.Models.SegmentClassifications;
 
 public static class FundSfns
 {

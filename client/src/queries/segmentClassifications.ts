@@ -19,7 +19,7 @@ export interface HierarchyLevel {
   name: string | null;
 }
 
-export interface ChartStringSegment {
+export interface SegmentClassification {
   code: string;
   description: string | null;
   hierarchy: HierarchyLevel[];
@@ -51,12 +51,12 @@ export const SFN_CATALOG: SfnEntry[] = [
 export const FUND_SFNS = SFN_CATALOG.map((entry) => entry.code);
 export const SFN_MULTIPLE = 'Multiple';
 
-const SEGMENTS_KEY = ['chartStringSegments'] as const;
+const SEGMENTS_KEY = ['segmentClassifications'] as const;
 
-export const chartStringSegmentsQueryOptions = () =>
+export const segmentClassificationsQueryOptions = () =>
   queryOptions({
     queryFn: () =>
-      fetchJson<ChartStringSegment[]>('/api/chartstringsegments'),
+      fetchJson<SegmentClassification[]>('/api/segmentclassifications'),
     queryKey: SEGMENTS_KEY,
   });
 
@@ -72,16 +72,16 @@ export const useUpdateSegmentClassification = () => {
 
   return useMutation({
     mutationFn: (input: UpdateClassificationInput) =>
-      fetchJson<void>('/api/chartstringsegments', {
+      fetchJson<void>('/api/segmentclassifications', {
         body: JSON.stringify(input),
         method: 'PATCH',
       }),
     onMutate: async (input) => {
       await queryClient.cancelQueries({ queryKey: SEGMENTS_KEY });
       const previous =
-        queryClient.getQueryData<ChartStringSegment[]>(SEGMENTS_KEY);
+        queryClient.getQueryData<SegmentClassification[]>(SEGMENTS_KEY);
 
-      queryClient.setQueryData<ChartStringSegment[]>(SEGMENTS_KEY, (old) =>
+      queryClient.setQueryData<SegmentClassification[]>(SEGMENTS_KEY, (old) =>
         (old ?? []).map((segment) =>
           segment.segmentType === input.segmentType &&
           segment.code === input.code

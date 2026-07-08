@@ -27,8 +27,8 @@ function mockApi() {
   let current = [...segments];
   server.use(
     http.get('/api/user/me', () => HttpResponse.json(mockUser)),
-    http.get('/api/chartstringsegments', () => HttpResponse.json(current)),
-    http.patch('/api/chartstringsegments', async ({ request }) => {
+    http.get('/api/segmentclassifications', () => HttpResponse.json(current)),
+    http.patch('/api/segmentclassifications', async ({ request }) => {
       const body = await request.json() as { code: string; includeInReport: boolean; segmentType: string; sfn: string | null };
       current = current.map((s) =>
         s.code === body.code ? { ...s, includeInReport: body.includeInReport } : s

@@ -9,7 +9,7 @@ namespace Server.Core.Data;
 /// Segments start unclassified (IncludeInReport = null); a couple per type are
 /// pre-classified so the grid shows a mix of unset and classified rows.
 /// </summary>
-public static class ChartStringSegmentSeed
+public static class SegmentClassificationSeed
 {
     // Leave roughly this many rows per segment type unclassified so there is still
     // work to do; the rest are classified (include/exclude) below.
@@ -23,12 +23,12 @@ public static class ChartStringSegmentSeed
 
     public static async Task EnsureSeededAsync(DataDbContext db, CancellationToken ct = default)
     {
-        if (await db.ChartStringSegments.AnyAsync(ct))
+        if (await db.SegmentClassifications.AnyAsync(ct))
         {
             return;
         }
 
-        var segments = new List<ChartStringSegment>();
+        var segments = new List<SegmentClassification>();
         segments.AddRange(await BuildAsync(db.AccountHierarchies, SegmentType.Account, ct));
         segments.AddRange(await BuildAsync(db.FundHierarchies, SegmentType.Fund, ct));
         segments.AddRange(await BuildAsync(db.ActivityHierarchies, SegmentType.Activity, ct));
@@ -36,14 +36,14 @@ public static class ChartStringSegmentSeed
         segments.AddRange(BuildErn());
         segments.AddRange(await BuildPurposeAsync(db, ct));
 
-        db.ChartStringSegments.AddRange(segments);
+        db.SegmentClassifications.AddRange(segments);
         await db.SaveChangesAsync(ct);
     }
 
     // ErnCodes.csv columns: 0 DOS_Code, 1 Description, 2 IncludeInAD419FTE, 3 IsNewInUCP.
     // IncludeInAD419FTE seeds the classification directly, except the first few (by DOS
     // code) which stay unset for demo. IsNewInUCP is not consumed yet.
-    private static List<ChartStringSegment> BuildErn()
+    private static List<SegmentClassification> BuildErn()
     {
         var rows = SeedCsv.ReadRows("ErnCodes.csv", fields => (
             Code: fields[0].Trim(),
@@ -52,7 +52,7 @@ public static class ChartStringSegmentSeed
 
         return rows
             .OrderBy(row => row.Code, StringComparer.Ordinal)
-            .Select((row, index) => new ChartStringSegment
+            .Select((row, index) => new SegmentClassification
             {
                 SegmentType = SegmentType.Ern,
                 Code = row.Code,
@@ -71,12 +71,12 @@ public static class ChartStringSegmentSeed
     private static readonly IReadOnlySet<string> IncludedPurposes =
         new HashSet<string> { "44", "45" };
 
-    private static async Task<List<ChartStringSegment>> BuildPurposeAsync(DataDbContext db, CancellationToken ct)
+    private static async Task<List<SegmentClassification>> BuildPurposeAsync(DataDbContext db, CancellationToken ct)
     {
         var rows = await db.PurposeHierarchies.ToListAsync(ct);
         return rows
             .OrderBy(row => row.Code, StringComparer.Ordinal)
-            .Select(row => new ChartStringSegment
+            .Select(row => new SegmentClassification
             {
                 SegmentType = SegmentType.Purpose,
                 Code = row.Code,
@@ -88,7 +88,7 @@ public static class ChartStringSegmentSeed
             .ToList();
     }
 
-    private static async Task<List<ChartStringSegment>> BuildAsync<T>(
+    private static async Task<List<SegmentClassification>> BuildAsync<T>(
         DbSet<T> hierarchy,
         SegmentType type,
         CancellationToken ct)
@@ -109,7 +109,7 @@ public static class ChartStringSegmentSeed
                     ? FundSfnPool[(StableHash(row.Code) & int.MaxValue) % FundSfnPool.Length]
                     : null;
 
-                return new ChartStringSegment
+                return new SegmentClassification
                 {
                     SegmentType = type,
                     Code = row.Code,

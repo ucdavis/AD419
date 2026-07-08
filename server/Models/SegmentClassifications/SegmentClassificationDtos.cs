@@ -1,6 +1,6 @@
-namespace Server.Models.ChartStringSegments;
+namespace Server.Models.SegmentClassifications;
 
-public sealed record ChartStringSegmentDto(
+public sealed record SegmentClassificationDto(
     string SegmentType,
     string Code,
     string? Description,

@@ -8,7 +8,7 @@ BEGIN
     -- Stamps the persisted exclusion columns on the imported transactions: the
     -- rules step 2 classification does not own. Step 2 based exclusions (fund,
     -- account, financial dept, activity, ern) are derived at read time from
-    -- ChartStringSegments and are never stamped here.
+    -- SegmentClassifications and are never stamped here.
 
     IF @cycleStart IS NULL OR @cycleEnd IS NULL
         THROW 50000, '@cycleStart and @cycleEnd are required.', 1;

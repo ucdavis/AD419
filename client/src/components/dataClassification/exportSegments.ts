@@ -2,12 +2,12 @@ import type { SegmentTab } from './segments.ts';
 import type { CsvColumn } from '@/lib/csv.ts';
 import {
   SFN_CATALOG,
-  type ChartStringSegment,
-} from '@/queries/chartStringSegments.ts';
+  type SegmentClassification,
+} from '@/queries/segmentClassifications.ts';
 
 type ExportRow = Record<string, string>;
 
-function classificationLabel(segment: ChartStringSegment): string {
+function classificationLabel(segment: SegmentClassification): string {
   if (segment.includeInReport === null) {
     return 'Unset';
   }
@@ -18,7 +18,7 @@ function classificationLabel(segment: ChartStringSegment): string {
 // search filter). SFN code and description stay separate columns; description
 // resolves through the catalog.
 export function buildSegmentExport(
-  segments: ChartStringSegment[],
+  segments: SegmentClassification[],
   tab: SegmentTab
 ): { columns: CsvColumn<ExportRow>[]; filename: string; rows: ExportRow[] } {
   const levelKeys = [

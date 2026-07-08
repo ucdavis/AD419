@@ -3,22 +3,22 @@ using Microsoft.EntityFrameworkCore;
 using Server.Core.Data;
 using Server.Core.Domain;
 
-namespace Server.Tests.ChartStringSegments;
+namespace Server.Tests.SegmentClassifications;
 
-public class ChartStringSegmentMappingTests
+public class SegmentClassificationMappingTests
 {
     [Fact]
     public void Maps_to_data_schema_with_composite_key()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
 
-        var entityType = db.Model.FindEntityType(typeof(ChartStringSegment));
+        var entityType = db.Model.FindEntityType(typeof(SegmentClassification));
 
         entityType.Should().NotBeNull();
         entityType!.GetSchema().Should().Be("data");
-        entityType.GetTableName().Should().Be("ChartStringSegments");
+        entityType.GetTableName().Should().Be("SegmentClassifications");
         entityType.FindPrimaryKey()!.Properties.Select(p => p.Name)
-            .Should().Equal(nameof(ChartStringSegment.SegmentType), nameof(ChartStringSegment.Code));
+            .Should().Equal(nameof(SegmentClassification.SegmentType), nameof(SegmentClassification.Code));
     }
 
     [Fact]
@@ -26,8 +26,8 @@ public class ChartStringSegmentMappingTests
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
 
-        var property = db.Model.FindEntityType(typeof(ChartStringSegment))!
-            .FindProperty(nameof(ChartStringSegment.SegmentType));
+        var property = db.Model.FindEntityType(typeof(SegmentClassification))!
+            .FindProperty(nameof(SegmentClassification.SegmentType));
 
         property!.GetProviderClrType().Should().Be(typeof(string));
     }
@@ -37,8 +37,8 @@ public class ChartStringSegmentMappingTests
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
 
-        var property = db.Model.FindEntityType(typeof(ChartStringSegment))!
-            .FindProperty(nameof(ChartStringSegment.Sfn));
+        var property = db.Model.FindEntityType(typeof(SegmentClassification))!
+            .FindProperty(nameof(SegmentClassification.Sfn));
 
         property!.GetMaxLength().Should().Be(10);
     }
