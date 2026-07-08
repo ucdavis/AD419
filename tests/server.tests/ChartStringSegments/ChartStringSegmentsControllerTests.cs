@@ -53,6 +53,7 @@ public class ChartStringSegmentsControllerTests
     [InlineData(SegmentType.Account, "A")]
     [InlineData(SegmentType.Fund, "A")]
     [InlineData(SegmentType.Activity, "A")]
+    [InlineData(SegmentType.Purpose, "A")]
     public async Task Get_reads_hierarchy_from_the_matching_segment_types_own_table(
         SegmentType segmentType, string expectedLevel)
     {
@@ -82,6 +83,12 @@ public class ChartStringSegmentsControllerTests
                 break;
             case SegmentType.Activity:
                 db.ActivityHierarchies.Add(new ActivityHierarchy
+                {
+                    Code = code, ParentLevel0Code = "X", ParentLevel0Name = "XName",
+                });
+                break;
+            case SegmentType.Purpose:
+                db.PurposeHierarchies.Add(new PurposeHierarchy
                 {
                     Code = code, ParentLevel0Code = "X", ParentLevel0Name = "XName",
                 });

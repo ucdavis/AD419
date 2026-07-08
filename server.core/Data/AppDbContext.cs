@@ -18,6 +18,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AccountHierarchy> AccountHierarchies => Set<AccountHierarchy>();
     public DbSet<FundHierarchy> FundHierarchies => Set<FundHierarchy>();
     public DbSet<ActivityHierarchy> ActivityHierarchies => Set<ActivityHierarchy>();
+    public DbSet<PurposeHierarchy> PurposeHierarchies => Set<PurposeHierarchy>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -41,6 +42,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         ConfigureHierarchy<AccountHierarchy>(modelBuilder, "AccountHierarchy");
         ConfigureHierarchy<FundHierarchy>(modelBuilder, "FundHierarchy");
         ConfigureHierarchy<ActivityHierarchy>(modelBuilder, "ActivityHierarchy");
+        ConfigureHierarchy<PurposeHierarchy>(modelBuilder, "PurposeHierarchy");
     }
 
     private static void ConfigureHierarchy<T>(ModelBuilder modelBuilder, string table)

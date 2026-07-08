@@ -63,6 +63,19 @@ public class HierarchyMappingTests
     }
 
     [Fact]
+    public void Purpose_levels_use_letter_keys()
+    {
+        var purpose = new PurposeHierarchy
+        {
+            Code = "44",
+            ParentLevel0Code = "1A", ParentLevel0Name = "Purpose Categories",
+            ParentLevel1Code = "1D", ParentLevel1Name = "Organized Research D",
+        };
+
+        purpose.Levels().Select(l => l.Level).Should().Equal("A", "B");
+    }
+
+    [Fact]
     public void Fund_level_properties_have_max_lengths()
     {
         using var db = TestDbContextFactory.CreateInMemory();

@@ -25,6 +25,7 @@ public class ChartStringSegmentsController : ApiControllerBase
         var accounts = await _db.AccountHierarchies.ToDictionaryAsync(h => h.Code, cancellationToken);
         var funds = await _db.FundHierarchies.ToDictionaryAsync(h => h.Code, cancellationToken);
         var activities = await _db.ActivityHierarchies.ToDictionaryAsync(h => h.Code, cancellationToken);
+        var purposes = await _db.PurposeHierarchies.ToDictionaryAsync(h => h.Code, cancellationToken);
 
         IReadOnlyList<HierarchyLevelDto> HierarchyFor(SegmentType type, string code)
         {
@@ -34,6 +35,7 @@ public class ChartStringSegmentsController : ApiControllerBase
                 SegmentType.Account => accounts.GetValueOrDefault(code),
                 SegmentType.Fund => funds.GetValueOrDefault(code),
                 SegmentType.Activity => activities.GetValueOrDefault(code),
+                SegmentType.Purpose => purposes.GetValueOrDefault(code),
                 _ => null,
             };
 
