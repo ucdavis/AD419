@@ -4,6 +4,37 @@ namespace Server.Helpers;
 
 public static class LoggingMiddlewareHelper
 {
+    public static void UseApiFailureLogging(this WebApplication app)
+    {
+        app.Use(async (ctx, next) =>
+        {
+            try
+            {
+                await next();
+            }
+            catch (Exception ex) when (ctx.Request.Path.StartsWithSegments("/api"))
+            {
+                app.Logger.LogError(
+                    ex,
+                    "API request failed with an unhandled exception: {Method} {Path}. ContentLength={ContentLength}.",
+                    ctx.Request.Method,
+                    ctx.Request.Path,
+                    ctx.Request.ContentLength);
+                throw;
+            }
+
+            if (ctx.Request.Path.StartsWithSegments("/api") && ctx.Response.StatusCode >= 400)
+            {
+                app.Logger.LogWarning(
+                    "API request completed with status {StatusCode}: {Method} {Path}. ContentLength={ContentLength}.",
+                    ctx.Response.StatusCode,
+                    ctx.Request.Method,
+                    ctx.Request.Path,
+                    ctx.Request.ContentLength);
+            }
+        });
+    }
+
     /// <summary>
     /// Adds request context enrichment middleware that includes trace info, user info, and client details in log scope
     /// </summary>
