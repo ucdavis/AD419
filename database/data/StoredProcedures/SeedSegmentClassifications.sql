@@ -34,6 +34,10 @@ BEGIN
         UNION
         SELECT 'Activity', [Activity] FROM [data].[UcPathTransactions] WHERE [Activity] IS NOT NULL
         UNION
+        SELECT 'Purpose', [Purpose] FROM [data].[AETransactions] WHERE [Purpose] IS NOT NULL
+        UNION
+        SELECT 'Purpose', [Purpose] FROM [data].[UcPathTransactions] WHERE [Purpose] IS NOT NULL
+        UNION
         SELECT 'Ern', [DosCode] FROM [data].[UcPathTransactions] WHERE [DosCode] IS NOT NULL AND [DosCode] <> 'XXX'
     )
     INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description])

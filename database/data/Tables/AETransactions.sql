@@ -43,7 +43,6 @@ CREATE TABLE [data].[AETransactions]
     -- Persisted exclusions for rules not owned by step 2 classification.
     -- NULL = not yet classified (fails closed downstream).
     [ExcludedByDate]                 BIT            NULL,
-    [ExcludedByPurpose]              BIT            NULL,
 
     [LoadedAt]                       DATETIME2(3)   NULL CONSTRAINT [DF_AETransactions_LoadedAt] DEFAULT (SYSUTCDATETIME()),
     CONSTRAINT [PK_AETransactions] PRIMARY KEY CLUSTERED ([Id])

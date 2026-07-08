@@ -39,7 +39,6 @@ CREATE TABLE [data].[UcPathTransactions]
     -- Persisted exclusions for rules not owned by step 2 classification.
     -- NULL = not yet classified (fails closed downstream).
     [ExcludedByDate]         BIT            NULL,
-    [ExcludedByPurpose]      BIT            NULL,
     [AccountNotInAE]         BIT            NULL,
 
     [LoadedAt]               DATETIME2(3)   NULL CONSTRAINT [DF_UcPathTransactions_LoadedAt] DEFAULT (SYSUTCDATETIME()),
