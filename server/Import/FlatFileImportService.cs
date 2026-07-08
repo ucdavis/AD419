@@ -74,7 +74,7 @@ public sealed class FlatFileImportService(
         logger.LogInformation(
             "Import started for dataset {DatasetId} from file {Filename} with {FileSizeBytes} bytes.",
             definition.Id,
-            file!.FileName,
+            Path.GetFileName(file!.FileName),
             file.Length);
 
         var parseResult = ParseFile(definition, file!);

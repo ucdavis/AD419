@@ -8,7 +8,20 @@ public static class LoggingMiddlewareHelper
     {
         app.Use(async (ctx, next) =>
         {
-            await next();
+            try
+            {
+                await next();
+            }
+            catch (Exception ex) when (ctx.Request.Path.StartsWithSegments("/api"))
+            {
+                app.Logger.LogError(
+                    ex,
+                    "API request failed with an unhandled exception: {Method} {Path}. ContentLength={ContentLength}.",
+                    ctx.Request.Method,
+                    ctx.Request.Path,
+                    ctx.Request.ContentLength);
+                throw;
+            }
 
             if (ctx.Request.Path.StartsWithSegments("/api") && ctx.Response.StatusCode >= 400)
             {
