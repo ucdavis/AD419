@@ -5,7 +5,9 @@ import {
   segmentsForType,
   unclassifiedCount,
 } from './segments.ts';
+import { buildSegmentExport } from './exportSegments.ts';
 import { SegmentGrid } from './SegmentGrid.tsx';
+import { ExportDataButton } from '@/shared/exportDataButton.tsx';
 import {
   chartStringSegmentsQueryOptions,
   type ChartStringSegment,
@@ -41,6 +43,8 @@ export function DataClassificationStage() {
   const gateOpen = allClassified(segments);
   const activeTab =
     SEGMENT_TABS.find((tab) => tab.type === activeType) ?? SEGMENT_TABS[0];
+  const tabSegments = segmentsForType(segments, activeType);
+  const exportData = buildSegmentExport(tabSegments, activeTab);
 
   return (
     <div className="space-y-4">
@@ -79,10 +83,19 @@ export function DataClassificationStage() {
         </div>
       )}
 
+      <div className="flex justify-end">
+        <ExportDataButton
+          columns={exportData.columns}
+          data={exportData.rows}
+          filename={exportData.filename}
+          label="Export All"
+        />
+      </div>
+
       <SegmentGrid
         classificationHeader={activeTab.classificationHeader}
         onClassify={handleClassify}
-        segments={segmentsForType(segments, activeType)}
+        segments={tabSegments}
         segmentType={activeType}
       />
 
