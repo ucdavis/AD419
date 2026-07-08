@@ -12,6 +12,17 @@ public static class LoggingMiddlewareHelper
             {
                 await next();
             }
+            catch (OperationCanceledException ex)
+                when (ctx.Request.Path.StartsWithSegments("/api") && ctx.RequestAborted.IsCancellationRequested)
+            {
+                app.Logger.LogInformation(
+                    ex,
+                    "API request was canceled by the client: {Method} {Path}. ContentLength={ContentLength}.",
+                    ctx.Request.Method,
+                    ctx.Request.Path,
+                    ctx.Request.ContentLength);
+                throw;
+            }
             catch (Exception ex) when (ctx.Request.Path.StartsWithSegments("/api"))
             {
                 app.Logger.LogError(
