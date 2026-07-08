@@ -12,12 +12,13 @@ CREATE TABLE [data].[Projects]
     [ProjectDirector]             NVARCHAR(200) NULL,
     [UcpEmployeeId]               NVARCHAR(8)   NULL,
     [Is204]                       BIT           NOT NULL,
-    [NifaSfn]                     NVARCHAR(7)   NULL,   -- from project number suffix: 201 | 202 | 204 | 205 | UNKNOWN
+    [Sfn]                         NVARCHAR(7)   NOT NULL, -- from project number suffix: 201 | 202 | 204 | 205 | UNKNOWN
 
-    -- AE side (from PGMProjects via award number match; NULL when no PGM match)
-    [AEProjectNumber]             NVARCHAR(50)  NULL,
+    -- AE side (from PGMProjects via award number match). Required: every
+    -- included active project has a PGM master data record by build time, and
+    -- NIFA/PGM SFN agreement is checked during Project Identification.
+    [AEProjectNumber]             NVARCHAR(50)  NOT NULL,
     [SponsorAwardNumber]          NVARCHAR(100) NULL,
-    [PgmSfnBucket]                NVARCHAR(10)  NULL,   -- CFDA-derived: HATCH | 203 | 204 | 205 | NON-NIFA | NULL
     [PrincipalInvestigatorNames]  NVARCHAR(MAX) NULL,
 
     [LoadedAt]                    DATETIME2(3)  NULL CONSTRAINT [DF_Projects_LoadedAt] DEFAULT (SYSUTCDATETIME()),

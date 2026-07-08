@@ -4,14 +4,31 @@ BEGIN
     SET NOCOUNT ON;
 
     -- Materializes the cycle's consolidated project list from ActiveProjects,
-    -- AllProjects and PGMProjects: one row per NIFA project x AE project pair
-    -- (a NIFA project with no PGM match is one row with NULL AE fields).
+    -- AllProjects and PGMProjects: one row per NIFA project x AE project pair.
     -- Runs as an import stage after step 1 settles the project list; downstream
-    -- consumers (classify sproc 204 carve-out, expense views, associations)
-    -- read this table instead of re-deriving the joins.
+    -- consumers (expense views, associations) read this table instead of
+    -- re-deriving the joins. SFN comes from the NIFA project number suffix;
+    -- NIFA/PGM SFN agreement is checked during Project Identification, so a
+    -- single SFN is stored.
 
     IF NOT EXISTS (SELECT 1 FROM [data].[ActiveProjects])
         THROW 50000, 'ActiveProjects is empty; complete Project Identification before building the project list.', 1;
+
+    -- Every included active project must map to a PGM master data record; an
+    -- unmatched project means Project Identification is not finished.
+    IF EXISTS
+    (
+        SELECT 1
+        FROM [data].[ActiveProjects] a
+        LEFT JOIN [data].[AllProjects] ap
+            ON ap.[ProjectNumber] = a.[ProjectNumber]
+        LEFT JOIN [data].[v_PgmProjectSfnBuckets] pc
+            ON ap.[AwardNumber] IS NOT NULL
+           AND pc.[AwardKey] = REPLACE(ap.[AwardNumber], '-', '')
+        WHERE ISNULL(a.[ExcludeFromUi], 0) = 0
+          AND pc.[ProjectNumber] IS NULL
+    )
+        THROW 50000, 'Active projects exist without a PGM master data match; resolve them in Project Identification first.', 1;
 
     DELETE FROM [data].[Projects];
 
@@ -26,10 +43,9 @@ BEGIN
         [ProjectDirector],
         [UcpEmployeeId],
         [Is204],
-        [NifaSfn],
+        [Sfn],
         [AEProjectNumber],
         [SponsorAwardNumber],
-        [PgmSfnBucket],
         [PrincipalInvestigatorNames]
     )
     SELECT
@@ -51,14 +67,12 @@ BEGIN
         END,
         pc.[ProjectNumber],
         pc.[SponsorAwardNumber],
-        pc.[PgmSfnBucket],
         pgm.[PrincipalInvestigatorNames]
     FROM [data].[ActiveProjects] a
-    LEFT JOIN [data].[AllProjects] ap
+    JOIN [data].[AllProjects] ap
         ON ap.[ProjectNumber] = a.[ProjectNumber]
-    LEFT JOIN [data].[v_PgmProjectSfnBuckets] pc
-        ON ap.[AwardNumber] IS NOT NULL
-       AND pc.[AwardKey] = REPLACE(ap.[AwardNumber], '-', '')
+    JOIN [data].[v_PgmProjectSfnBuckets] pc
+        ON pc.[AwardKey] = REPLACE(ap.[AwardNumber], '-', '')
     LEFT JOIN [data].[PGMProjects] pgm
         ON pgm.[ProjectId] = pc.[ProjectId]
     WHERE ISNULL(a.[ExcludeFromUi], 0) = 0;
