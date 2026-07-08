@@ -22,8 +22,8 @@ const fundSegments: ChartStringSegment[] = [
     code: '45530',
     description: 'AES State Appropriations',
     hierarchy: [
-      { code: 'STATE', level: '0', name: 'State Funds' },
-      { code: 'APPROP', level: '1', name: 'Appropriations' },
+      { code: 'STATE', level: 'A', name: 'State Funds' },
+      { code: 'APPROP', level: 'B', name: 'Appropriations' },
     ],
     includeInReport: true,
     segmentType: 'Fund',
@@ -44,10 +44,10 @@ const accountSegments: ChartStringSegment[] = [
 
 describe('SegmentGrid', () => {
   it('renders a column per hierarchy level with the code and hover title', () => {
-    render(<SegmentGrid onClassify={vi.fn()} segments={fundSegments} segmentType="Fund" />);
+    render(<SegmentGrid classificationHeader="SFN" onClassify={vi.fn()} segments={fundSegments} segmentType="Fund" />);
 
-    expect(screen.getByRole('columnheader', { name: 'Level 0' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Level 1' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Level A' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Level B' })).toBeInTheDocument();
 
     const state = screen.getByText('STATE');
     expect(state).toHaveAttribute('data-tip', 'State Funds');
@@ -55,8 +55,15 @@ describe('SegmentGrid', () => {
     expect(screen.getByText('APPROP')).toHaveAttribute('data-tip', 'Appropriations');
   });
 
+  it('renders the passed classification header', () => {
+    render(<SegmentGrid classificationHeader="Is AES?" onClassify={vi.fn()} segments={accountSegments} segmentType="Account" />);
+
+    expect(screen.getByRole('columnheader', { name: 'Is AES?' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Classification' })).not.toBeInTheDocument();
+  });
+
   it('renders no level columns when no segment has a hierarchy', () => {
-    render(<SegmentGrid onClassify={vi.fn()} segments={accountSegments} segmentType="Account" />);
+    render(<SegmentGrid classificationHeader="Include in AD419?" onClassify={vi.fn()} segments={accountSegments} segmentType="Account" />);
 
     expect(screen.queryByRole('columnheader', { name: /^Level / })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Include' })).toBeInTheDocument();
@@ -65,6 +72,7 @@ describe('SegmentGrid', () => {
   it('sorts unclassified rows to the top by default', () => {
     render(
       <SegmentGrid
+        classificationHeader="Include in AD419?"
         onClassify={vi.fn()}
         segments={[account('AAA', true), account('BBB', null)]}
         segmentType="Account"
@@ -78,6 +86,7 @@ describe('SegmentGrid', () => {
   it('keeps a row in place when it is classified in the same tab', () => {
     const { rerender } = render(
       <SegmentGrid
+        classificationHeader="Include in AD419?"
         onClassify={vi.fn()}
         segments={[account('AAA', true), account('BBB', null)]}
         segmentType="Account"
@@ -88,6 +97,7 @@ describe('SegmentGrid', () => {
     // BBB gets classified: order is frozen for the tab, so it stays above AAA.
     rerender(
       <SegmentGrid
+        classificationHeader="Include in AD419?"
         onClassify={vi.fn()}
         segments={[account('AAA', true), account('BBB', false)]}
         segmentType="Account"

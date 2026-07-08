@@ -1,5 +1,5 @@
 import {
-  FUND_SFNS,
+  SFN_CATALOG,
   SFN_MULTIPLE,
   type ChartStringSegment,
 } from '@/queries/chartStringSegments.ts';
@@ -36,9 +36,9 @@ export function SegmentClassificationControl({
         <option disabled value="">
           Unset
         </option>
-        {FUND_SFNS.map((sfn) => (
-          <option key={sfn} value={sfn}>
-            {sfn}
+        {SFN_CATALOG.map((entry) => (
+          <option key={entry.code} value={entry.code}>
+            {entry.code} - {entry.description}
           </option>
         ))}
         <option value={SFN_MULTIPLE}>Multiple</option>

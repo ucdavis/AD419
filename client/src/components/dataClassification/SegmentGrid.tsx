@@ -26,10 +26,12 @@ function unsetFirstCodes(segments: ChartStringSegment[]): string[] {
 }
 
 export function SegmentGrid({
+  classificationHeader,
   onClassify,
   segments,
   segmentType,
 }: {
+  classificationHeader: string;
   onClassify: (
     segment: ChartStringSegment,
     includeInReport: boolean,
@@ -85,7 +87,7 @@ export function SegmentGrid({
           segment={row.original}
         />
       ),
-      header: 'Classification',
+      header: classificationHeader,
       id: 'classification',
     },
   ];

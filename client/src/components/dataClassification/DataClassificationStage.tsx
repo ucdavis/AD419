@@ -39,6 +39,8 @@ export function DataClassificationStage() {
   };
 
   const gateOpen = allClassified(segments);
+  const activeTab =
+    SEGMENT_TABS.find((tab) => tab.type === activeType) ?? SEGMENT_TABS[0];
 
   return (
     <div className="space-y-4">
@@ -71,16 +73,14 @@ export function DataClassificationStage() {
         })}
       </div>
 
-      {activeType === 'Ern' && (
+      {activeTab.note && (
         <div className="alert alert-info" role="note">
-          <span>
-            Note: ERN code classification affects FTE calculations only. It does not
-            affect dollar-amount calculations.
-          </span>
+          <span>{activeTab.note}</span>
         </div>
       )}
 
       <SegmentGrid
+        classificationHeader={activeTab.classificationHeader}
         onClassify={handleClassify}
         segments={segmentsForType(segments, activeType)}
         segmentType={activeType}
