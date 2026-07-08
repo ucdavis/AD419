@@ -44,15 +44,15 @@ public class ChartStringSegmentsControllerTests
         var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         var dto = ok.Value.Should().BeAssignableTo<IEnumerable<ChartStringSegmentDto>>().Subject.Single();
         dto.Hierarchy.Should().Equal(
-            new HierarchyLevelDto("0", "STATE", "State Funds"),
-            new HierarchyLevelDto("1", "APPROP", "Appropriations"));
+            new HierarchyLevelDto("A", "STATE", "State Funds"),
+            new HierarchyLevelDto("B", "APPROP", "Appropriations"));
     }
 
     [Theory]
     [InlineData(SegmentType.FinancialDepartment, "A")]
-    [InlineData(SegmentType.Account, "0")]
-    [InlineData(SegmentType.Fund, "0")]
-    [InlineData(SegmentType.Activity, "0")]
+    [InlineData(SegmentType.Account, "A")]
+    [InlineData(SegmentType.Fund, "A")]
+    [InlineData(SegmentType.Activity, "A")]
     public async Task Get_reads_hierarchy_from_the_matching_segment_types_own_table(
         SegmentType segmentType, string expectedLevel)
     {

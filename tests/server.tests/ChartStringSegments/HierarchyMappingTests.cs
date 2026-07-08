@@ -40,6 +40,29 @@ public class HierarchyMappingTests
     }
 
     [Fact]
+    public void Fund_levels_use_letter_keys()
+    {
+        var fund = new FundHierarchy
+        {
+            Code = "45530",
+            ParentLevel0Code = "TOP", ParentLevel0Name = "Top",
+            ParentLevel1Code = "MID", ParentLevel1Name = "Mid",
+        };
+
+        fund.Levels().Select(l => l.Level).Should().Equal("A", "B");
+    }
+
+    [Fact]
+    public void Account_and_activity_levels_use_letter_keys()
+    {
+        var account = new AccountHierarchy { Code = "500000", ParentLevel0Code = "4X", ParentLevel5Code = "DEEP" };
+        var activity = new ActivityHierarchy { Code = "000000", ParentLevel0Code = "ROOT" };
+
+        account.Levels().Select(l => l.Level).Should().Equal("A", "F");
+        activity.Levels().Select(l => l.Level).Should().Equal("A");
+    }
+
+    [Fact]
     public void Fund_level_properties_have_max_lengths()
     {
         using var db = TestDbContextFactory.CreateInMemory();
