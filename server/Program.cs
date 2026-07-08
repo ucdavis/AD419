@@ -128,6 +128,7 @@ await StartupLogging.RunAsync(app, async cancellationToken =>
     }
 
 
+    app.UseApiFailureLogging();
     app.UseAuthentication();
     app.UseAuthorization();
 
