@@ -34,6 +34,7 @@ public static class ChartStringSegmentSeed
         segments.AddRange(await BuildAsync(db.ActivityHierarchies, SegmentType.Activity, ct));
         segments.AddRange(await BuildAsync(db.DepartmentHierarchies, SegmentType.FinancialDepartment, ct));
         segments.AddRange(BuildErn());
+        segments.AddRange(await BuildPurposeAsync(db, ct));
 
         db.ChartStringSegments.AddRange(segments);
         await db.SaveChangesAsync(ct);
@@ -57,6 +58,32 @@ public static class ChartStringSegmentSeed
                 Code = row.Code,
                 Description = row.Description,
                 IncludeInReport = index < UnsetPerType ? null : row.Include,
+            })
+            .ToList();
+    }
+
+    // Purpose classification defaults follow the 2025 processing rules: the known
+    // exclusion list is excluded, research purposes are included, and codes the 2025
+    // process never ruled on stay unset so they surface for review (fail closed).
+    private static readonly IReadOnlySet<string> ExcludedPurposes =
+        new HashSet<string> { "00", "40", "43", "60", "61", "62", "72", "76", "78", "80" };
+
+    private static readonly IReadOnlySet<string> IncludedPurposes =
+        new HashSet<string> { "44", "45" };
+
+    private static async Task<List<ChartStringSegment>> BuildPurposeAsync(AppDbContext db, CancellationToken ct)
+    {
+        var rows = await db.PurposeHierarchies.ToListAsync(ct);
+        return rows
+            .OrderBy(row => row.Code, StringComparer.Ordinal)
+            .Select(row => new ChartStringSegment
+            {
+                SegmentType = SegmentType.Purpose,
+                Code = row.Code,
+                Description = row.Description,
+                IncludeInReport = ExcludedPurposes.Contains(row.Code) ? false
+                    : IncludedPurposes.Contains(row.Code) ? true
+                    : null,
             })
             .ToList();
     }

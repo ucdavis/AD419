@@ -40,6 +40,20 @@ public class HierarchySeedTests
     }
 
     [Fact]
+    public async Task Seeds_purpose_hierarchy_leaves()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+
+        await HierarchySeed.EnsureSeededAsync(db);
+
+        db.PurposeHierarchies.Should().HaveCount(18);
+        var research = db.PurposeHierarchies.Single(p => p.Code == "44");
+        research.Levels().Should().Equal(
+            new HierarchyLevel("A", "1A", "Purpose Categories"),
+            new HierarchyLevel("B", "1D", "Organized Research D"));
+    }
+
+    [Fact]
     public async Task Seeding_nulls_levels_that_repeat_the_rows_own_code()
     {
         using var db = TestDbContextFactory.CreateInMemory();

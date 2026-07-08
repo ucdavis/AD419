@@ -20,6 +20,7 @@ public class ChartStringSegmentSeedTests
             await db.FundHierarchies.CountAsync() +
             await db.ActivityHierarchies.CountAsync() +
             await db.DepartmentHierarchies.CountAsync() +
+            await db.PurposeHierarchies.CountAsync() +
             db.ChartStringSegments.Count(segment => segment.SegmentType == SegmentType.Ern);
         (await db.ChartStringSegments.CountAsync()).Should().Be(expected);
     }
@@ -62,6 +63,27 @@ public class ChartStringSegmentSeedTests
         account.Should().NotBeNull();
         // Fund 71549 comes from FundHierarchy.
         (await db.ChartStringSegments.FindAsync(SegmentType.Fund, "71549")).Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Seeds_purpose_classifications_with_2025_defaults()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+        await HierarchySeed.EnsureSeededAsync(db);
+
+        await ChartStringSegmentSeed.EnsureSeededAsync(db);
+
+        var purposes = db.ChartStringSegments
+            .Where(s => s.SegmentType == SegmentType.Purpose)
+            .ToDictionary(s => s.Code, s => s.IncludeInReport);
+
+        purposes.Should().HaveCount(18);
+        string[] excluded = ["00", "40", "43", "60", "61", "62", "72", "76", "78", "80"];
+        string[] included = ["44", "45"];
+        string[] unset = ["41", "42", "64", "65", "66", "68"];
+        excluded.Should().OnlyContain(code => purposes[code] == false);
+        included.Should().OnlyContain(code => purposes[code] == true);
+        unset.Should().OnlyContain(code => purposes[code] == null);
     }
 
     [Fact]

@@ -29,6 +29,11 @@ public static class HierarchySeed
             db.ActivityHierarchies.AddRange(SeedCsv.ReadRows("ActivityHierarchy.csv", f => ActivityFrom(WithoutSelfLevels(f))));
         }
 
+        if (!await db.PurposeHierarchies.AnyAsync(ct))
+        {
+            db.PurposeHierarchies.AddRange(SeedCsv.ReadRows("PurposeHierarchy.csv", f => PurposeFrom(WithoutSelfLevels(f))));
+        }
+
         if (!await db.DepartmentHierarchies.AnyAsync(ct))
         {
             db.DepartmentHierarchies.AddRange(DepartmentRows());
@@ -79,6 +84,18 @@ public static class HierarchySeed
     };
 
     private static ActivityHierarchy ActivityFrom(string[] f) => new()
+    {
+        Code = f[0],
+        Description = SeedCsv.Nullable(f[1]),
+        ParentLevel0Code = SeedCsv.Nullable(f[2]), ParentLevel0Name = SeedCsv.Nullable(f[3]),
+        ParentLevel1Code = SeedCsv.Nullable(f[4]), ParentLevel1Name = SeedCsv.Nullable(f[5]),
+        ParentLevel2Code = SeedCsv.Nullable(f[6]), ParentLevel2Name = SeedCsv.Nullable(f[7]),
+        ParentLevel3Code = SeedCsv.Nullable(f[8]), ParentLevel3Name = SeedCsv.Nullable(f[9]),
+        ParentLevel4Code = SeedCsv.Nullable(f[10]), ParentLevel4Name = SeedCsv.Nullable(f[11]),
+        ParentLevel5Code = SeedCsv.Nullable(f[12]), ParentLevel5Name = SeedCsv.Nullable(f[13]),
+    };
+
+    private static PurposeHierarchy PurposeFrom(string[] f) => new()
     {
         Code = f[0],
         Description = SeedCsv.Nullable(f[1]),
