@@ -10,7 +10,7 @@ public class ChartStringSegmentMappingTests
     [Fact]
     public void Maps_to_data_schema_with_composite_key()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
 
         var entityType = db.Model.FindEntityType(typeof(ChartStringSegment));
 
@@ -24,7 +24,7 @@ public class ChartStringSegmentMappingTests
     [Fact]
     public void Stores_segment_type_as_string()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
 
         var property = db.Model.FindEntityType(typeof(ChartStringSegment))!
             .FindProperty(nameof(ChartStringSegment.SegmentType));
@@ -35,7 +35,7 @@ public class ChartStringSegmentMappingTests
     [Fact]
     public void Sfn_column_allows_ten_characters()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
 
         var property = db.Model.FindEntityType(typeof(ChartStringSegment))!
             .FindProperty(nameof(ChartStringSegment.Sfn));

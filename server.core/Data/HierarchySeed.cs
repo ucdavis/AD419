@@ -12,7 +12,7 @@ namespace Server.Core.Data;
 /// </summary>
 public static class HierarchySeed
 {
-    public static async Task EnsureSeededAsync(AppDbContext db, CancellationToken ct = default)
+    public static async Task EnsureSeededAsync(DataDbContext db, CancellationToken ct = default)
     {
         if (!await db.AccountHierarchies.AnyAsync(ct))
         {

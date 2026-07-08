@@ -6,6 +6,7 @@ public static class DataDbConnection
 {
     public const string EnvironmentVariableName = "DATA_DB_CONNECTION";
     public const string ConnectionStringName = "DataConnection";
+    public const int ImportCommandTimeoutSeconds = 600;
 
     public static string Resolve(IConfiguration configuration, string? fallbackConnectionString)
     {

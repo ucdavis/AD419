@@ -10,11 +10,13 @@ public interface IDbInitializer
 public class DbInitializer : IDbInitializer
 {
     private readonly AppDbContext _db;
+    private readonly DataDbContext _dataDb;
     private readonly ILogger<DbInitializer> _logger;
 
-    public DbInitializer(AppDbContext db, ILogger<DbInitializer> logger)
+    public DbInitializer(AppDbContext db, DataDbContext dataDb, ILogger<DbInitializer> logger)
     {
         _db = db;
+        _dataDb = dataDb;
         _logger = logger;
     }
 
@@ -37,8 +39,8 @@ public class DbInitializer : IDbInitializer
     private async Task SeedDevelopmentAsync(CancellationToken ct)
     {
         // Hierarchy first: chart-string segments are derived from the hierarchy tables.
-        await HierarchySeed.EnsureSeededAsync(_db, ct);
-        await ChartStringSegmentSeed.EnsureSeededAsync(_db, ct);
+        await HierarchySeed.EnsureSeededAsync(_dataDb, ct);
+        await ChartStringSegmentSeed.EnsureSeededAsync(_dataDb, ct);
     }
 
     // just a placeholder for any production-safe seeding

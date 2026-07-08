@@ -12,6 +12,6 @@ MIGRATION_NAME=$1
 ROOT_DIR="$(dirname "$0")/.."
 
 echo "📦 Creating migration '$MIGRATION_NAME'..."
-dotnet ef migrations add "$MIGRATION_NAME" -p "$ROOT_DIR/server.core" -s "$ROOT_DIR/server"
+dotnet ef migrations add "$MIGRATION_NAME" --context AppDbContext -p "$ROOT_DIR/server.core" -s "$ROOT_DIR/server"
 
 echo "✅ Migration created successfully."
