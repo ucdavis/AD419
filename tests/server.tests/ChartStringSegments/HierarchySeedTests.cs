@@ -10,7 +10,7 @@ public class HierarchySeedTests
     [Fact]
     public async Task EnsureSeeded_loads_rows_from_the_embedded_csvs()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
 
         await HierarchySeed.EnsureSeededAsync(db);
 
@@ -25,7 +25,7 @@ public class HierarchySeedTests
     [Fact]
     public async Task EnsureSeeded_synthesizes_department_levels_a_through_f()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
 
         await HierarchySeed.EnsureSeededAsync(db);
 
@@ -42,7 +42,7 @@ public class HierarchySeedTests
     [Fact]
     public async Task Seeds_purpose_hierarchy_leaves()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
 
         await HierarchySeed.EnsureSeededAsync(db);
 
@@ -56,7 +56,7 @@ public class HierarchySeedTests
     [Fact]
     public async Task Seeding_nulls_levels_that_repeat_the_rows_own_code()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
 
         await HierarchySeed.EnsureSeededAsync(db);
 
@@ -77,7 +77,7 @@ public class HierarchySeedTests
     [Fact]
     public async Task EnsureSeeded_is_idempotent()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
 
         await HierarchySeed.EnsureSeededAsync(db);
         var count = await db.FundHierarchies.CountAsync();

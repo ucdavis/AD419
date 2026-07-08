@@ -8,9 +8,9 @@ namespace Server.Controllers;
 
 public class ChartStringSegmentsController : ApiControllerBase
 {
-    private readonly AppDbContext _db;
+    private readonly DataDbContext _db;
 
-    public ChartStringSegmentsController(AppDbContext db)
+    public ChartStringSegmentsController(DataDbContext db)
     {
         _db = db;
     }

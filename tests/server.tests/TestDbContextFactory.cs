@@ -20,4 +20,20 @@ public static class TestDbContextFactory
         ctx.Database.EnsureCreated();
         return ctx;
     }
+
+    /// <summary>
+    /// Creates a fresh DataDbContext using EFCore InMemory with a unique database name,
+    /// so each test starts clean.
+    /// </summary>
+    public static DataDbContext CreateDataInMemory()
+    {
+        var options = new DbContextOptionsBuilder<DataDbContext>()
+            .UseInMemoryDatabase(databaseName: $"TestDataDb_{Guid.NewGuid():N}")
+            .EnableSensitiveDataLogging()
+            .Options;
+
+        var ctx = new DataDbContext(options);
+        ctx.Database.EnsureCreated();
+        return ctx;
+    }
 }

@@ -21,7 +21,7 @@ public static class ChartStringSegmentSeed
     private static readonly string[] FundSfnPool =
         ["201", "202", "203", "204", "205", "209", "219", "220", "221", "222", "223", "Multiple"];
 
-    public static async Task EnsureSeededAsync(AppDbContext db, CancellationToken ct = default)
+    public static async Task EnsureSeededAsync(DataDbContext db, CancellationToken ct = default)
     {
         if (await db.ChartStringSegments.AnyAsync(ct))
         {
@@ -71,7 +71,7 @@ public static class ChartStringSegmentSeed
     private static readonly IReadOnlySet<string> IncludedPurposes =
         new HashSet<string> { "44", "45" };
 
-    private static async Task<List<ChartStringSegment>> BuildPurposeAsync(AppDbContext db, CancellationToken ct)
+    private static async Task<List<ChartStringSegment>> BuildPurposeAsync(DataDbContext db, CancellationToken ct)
     {
         var rows = await db.PurposeHierarchies.ToListAsync(ct);
         return rows

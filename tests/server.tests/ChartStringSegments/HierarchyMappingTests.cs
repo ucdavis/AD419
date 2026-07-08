@@ -13,7 +13,7 @@ public class HierarchyMappingTests
     [InlineData(typeof(ActivityHierarchy), "ActivityHierarchy")]
     public void Maps_to_data_schema_keyed_by_code(Type clr, string table)
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
 
         var entityType = db.Model.FindEntityType(clr);
 
@@ -78,7 +78,7 @@ public class HierarchyMappingTests
     [Fact]
     public void Fund_level_properties_have_max_lengths()
     {
-        using var db = TestDbContextFactory.CreateInMemory();
+        using var db = TestDbContextFactory.CreateDataInMemory();
         var entity = db.Model.FindEntityType(typeof(FundHierarchy))!;
 
         entity.FindProperty("ParentLevel0Code")!.GetMaxLength().Should().Be(20);
