@@ -19,7 +19,7 @@ public static class ChartStringSegmentSeed
     // "Multiple" marker). Used to give seeded, included funds a real SFN so the Fund
     // dropdown reflects a classified state rather than reading "Unset".
     private static readonly string[] FundSfnPool =
-        ["201", "202", "203", "205", "220", "221", "223", "Multiple"];
+        ["201", "202", "203", "204", "205", "209", "219", "220", "221", "222", "223", "Multiple"];
 
     public static async Task EnsureSeededAsync(AppDbContext db, CancellationToken ct = default)
     {
