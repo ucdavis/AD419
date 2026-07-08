@@ -41,12 +41,10 @@ BEGIN
     LEFT JOIN @cyclePeriods cp ON cp.[PeriodName] = t.[PeriodName];
 
     -- ExcludedByDate, UCPath: by pay period end date (authoritative; fiscal
-    -- year/period are unreliable on payroll corrections). Missing dates fail
-    -- closed as excluded.
+    -- year/period are unreliable on payroll corrections).
     UPDATE [data].[UcPathTransactions]
     SET [ExcludedByDate] =
         CASE
-            WHEN [PayPeriodEndDate] IS NULL                                         THEN 1
             WHEN CAST([PayPeriodEndDate] AS DATE) BETWEEN @cycleStart AND @cycleEnd THEN 0
             ELSE 1
         END;
