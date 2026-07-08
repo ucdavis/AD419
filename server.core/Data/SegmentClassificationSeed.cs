@@ -40,8 +40,8 @@ public static class SegmentClassificationSeed
         await db.SaveChangesAsync(ct);
     }
 
-    // ErnCodes.csv columns: 0 DOS_Code, 1 Description, 2 IncludeInAD419FTE, 3 IsNewInUCP.
-    // IncludeInAD419FTE seeds the classification directly, except the first few (by DOS
+    // ErnCodes.csv columns: 0 ErnCode, 1 Description, 2 IncludeInAD419FTE, 3 IsNewInUCP.
+    // IncludeInAD419FTE seeds the classification directly, except the first few (by ERN
     // code) which stay unset for demo. IsNewInUCP is not consumed yet.
     private static List<SegmentClassification> BuildErn()
     {

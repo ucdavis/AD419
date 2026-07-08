@@ -9,9 +9,9 @@ BEGIN
     -- fails closed downstream until someone classifies the code in step 2.
     --
     -- Descriptions come from the ChartSegments reference data where available.
-    -- Ern codes (UCPath DOS/earnings codes) have no local description source;
+    -- ERN codes (UCPath earnings codes) have no local description source;
     -- the UCPath import fills those in from the PeopleSoft earnings table.
-    -- 'XXX' is the placeholder DOS code on fringe rows, which carry no FTE, so
+    -- 'XXX' is the placeholder ERN code on fringe rows, which carry no FTE, so
     -- classifying it is meaningless and it is not seeded.
 
     DECLARE @inserted TABLE ([SegmentType] NVARCHAR(20) NOT NULL);
@@ -38,7 +38,7 @@ BEGIN
         UNION
         SELECT 'Purpose', [Purpose] FROM [data].[UcPathTransactions] WHERE [Purpose] IS NOT NULL
         UNION
-        SELECT 'Ern', [DosCode] FROM [data].[UcPathTransactions] WHERE [DosCode] IS NOT NULL AND [DosCode] <> 'XXX'
+        SELECT 'Ern', [ErnCode] FROM [data].[UcPathTransactions] WHERE [ErnCode] <> 'XXX'
     )
     INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description])
     OUTPUT inserted.[SegmentType] INTO @inserted ([SegmentType])

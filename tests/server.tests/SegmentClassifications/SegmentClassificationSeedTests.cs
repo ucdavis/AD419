@@ -43,7 +43,7 @@ public class SegmentClassificationSeedTests
         reg.IncludeInReport.Should().BeTrue();
         reg.Description.Should().Be("Regular Pay");
 
-        // The first 10 by ordinal DOS code are left unset for demo.
+        // The first 10 by ordinal ERN code are left unset for demo.
         ern.OrderBy(segment => segment.Code, StringComparer.Ordinal)
             .Take(10)
             .All(segment => segment.IncludeInReport == null)
