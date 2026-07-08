@@ -83,20 +83,19 @@ export function DataClassificationStage() {
         </div>
       )}
 
-      <div className="flex justify-end">
-        <ExportDataButton
-          columns={exportData.columns}
-          data={exportData.rows}
-          filename={exportData.filename}
-          label="Export All"
-        />
-      </div>
-
       <SegmentGrid
         classificationHeader={activeTab.classificationHeader}
         onClassify={handleClassify}
         segments={tabSegments}
         segmentType={activeType}
+        tableActions={
+          <ExportDataButton
+            columns={exportData.columns}
+            data={exportData.rows}
+            filename={exportData.filename}
+            label="Export"
+          />
+        }
       />
 
       <div className="flex items-center justify-between border-t pt-4">

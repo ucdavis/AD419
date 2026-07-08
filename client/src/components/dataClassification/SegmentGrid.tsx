@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { SegmentClassificationControl } from './SegmentClassificationControl.tsx';
 import type {
   ChartStringSegment,
@@ -30,6 +30,7 @@ export function SegmentGrid({
   onClassify,
   segments,
   segmentType,
+  tableActions,
 }: {
   classificationHeader: string;
   onClassify: (
@@ -39,6 +40,7 @@ export function SegmentGrid({
   ) => void;
   segments: ChartStringSegment[];
   segmentType: SegmentType;
+  tableActions?: ReactNode;
 }) {
   const levelKeys = [
     ...new Set(
@@ -115,6 +117,7 @@ export function SegmentGrid({
       globalFilter="right"
       initialState={{ pagination: { pageSize: 25 } }}
       key={segmentType}
+      tableActions={tableActions}
     />
   );
 }
