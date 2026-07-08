@@ -23,7 +23,7 @@ public class HierarchySeedTests
     }
 
     [Fact]
-    public async Task EnsureSeeded_synthesizes_department_levels_a_through_g()
+    public async Task EnsureSeeded_synthesizes_department_levels_a_through_f()
     {
         using var db = TestDbContextFactory.CreateInMemory();
 
@@ -31,11 +31,33 @@ public class HierarchySeedTests
 
         var department = await db.DepartmentHierarchies.FindAsync("ANUT006");
         department.Should().NotBeNull();
-        // Fabricated top levels plus the real D-G chain from the source file.
+        // Fabricated top levels plus the real D-F chain from the source file.
+        // Level G is omitted: it always repeats the row's own code.
         department!.Levels().Select(level => level.Level)
-            .Should().Equal("A", "B", "C", "D", "E", "F", "G");
+            .Should().Equal("A", "B", "C", "D", "E", "F");
         department.ParentLevelACode.Should().Be("UCD");
         department.ParentLevelDCode.Should().Be("ACL100D");
+    }
+
+    [Fact]
+    public async Task Seeding_nulls_levels_that_repeat_the_rows_own_code()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+
+        await HierarchySeed.EnsureSeededAsync(db);
+
+        // The account CSV repeats the leaf code at the deepest level (e.g. 400900).
+        var account = db.AccountHierarchies.Single(a => a.Code == "400900");
+        account.ParentLevel5Code.Should().BeNull();
+        account.ParentLevel5Name.Should().BeNull();
+
+        // No account row keeps any level equal to its own code.
+        db.AccountHierarchies.AsEnumerable()
+            .Should().OnlyContain(a => a.Levels().All(l => l.Code != a.Code));
+
+        // Department rows no longer carry the self-referencing G level.
+        db.DepartmentHierarchies.AsEnumerable()
+            .Should().OnlyContain(d => d.Levels().All(l => l.Code != d.Code));
     }
 
     [Fact]
