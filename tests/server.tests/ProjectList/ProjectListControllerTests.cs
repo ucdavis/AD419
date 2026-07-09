@@ -13,6 +13,7 @@ public class ProjectListControllerTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("twenty-six")]
+    [InlineData("FY10000")]
     public async Task Get_returns_bad_request_for_missing_or_invalid_fy(string? fy)
     {
         var controller = new ProjectListController(new StubProjectListService());

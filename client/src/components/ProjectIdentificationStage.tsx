@@ -62,7 +62,9 @@ function sfnDistributionText(summary: ProjectListSummary): string {
 
 export function ProjectIdentificationStage() {
   const fiscalYear = currentFiscalYear();
-  const { data, isLoading } = useQuery(projectListQueryOptions(fiscalYear));
+  const { data, error, isError, isFetching, isLoading, refetch } = useQuery(
+    projectListQueryOptions(fiscalYear)
+  );
   const [activeTab, setActiveTab] = useState<ProjectListTab>('issues');
 
   const columns = useMemo<ColumnDef<ProjectListRow>[]>(
@@ -123,7 +125,35 @@ export function ProjectIdentificationStage() {
     []
   );
 
-  if (isLoading || !data) {
+  if (isLoading) {
+    return <p>Loading project list...</p>;
+  }
+
+  if (isError) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'The project list could not be loaded.';
+
+    return (
+      <div className="alert alert-error items-start" role="alert">
+        <div>
+          <h2 className="font-bold">Unable to load project list</h2>
+          <p>{message}</p>
+          <button
+            className="btn btn-sm mt-3"
+            disabled={isFetching}
+            onClick={() => void refetch()}
+            type="button"
+          >
+            {isFetching ? 'Retrying...' : 'Retry'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) {
     return <p>Loading project list...</p>;
   }
 
@@ -138,11 +168,15 @@ export function ProjectIdentificationStage() {
   ];
 
   return (
-    <div className="workflow-panel">
-      <div className="workflow-panel__header">
+    <div className="rounded border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p>Reference &amp; Issue Resolution</p>
-          <h2>Project list · {data.counts.all}</h2>
+          <p className="text-xs font-semibold uppercase tracking-normal text-slate-500">
+            Reference &amp; Issue Resolution
+          </p>
+          <h2 className="text-lg font-bold tracking-normal text-slate-950">
+            Project list · {data.counts.all}
+          </h2>
         </div>
         <button className="btn btn-primary" disabled type="button">
           Finalize
@@ -152,11 +186,16 @@ export function ProjectIdentificationStage() {
       <div className="space-y-4 p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {summaryCards.map(([label, value]) => (
-            <div className="rounded border border-slate-200 bg-slate-50 p-3" key={label}>
+            <div
+              className="rounded border border-slate-200 bg-slate-50 p-3"
+              key={label}
+            >
               <div className="text-xs font-semibold uppercase text-slate-500">
                 {label}
               </div>
-              <div className="mt-1 text-lg font-bold text-slate-950">{value}</div>
+              <div className="mt-1 text-lg font-bold text-slate-950">
+                {value}
+              </div>
             </div>
           ))}
         </div>

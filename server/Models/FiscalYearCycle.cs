@@ -17,14 +17,22 @@ public sealed record FiscalYearCycle(
         }
 
         var normalized = fiscalYear.Trim().ToUpperInvariant();
-        if (!normalized.StartsWith("FY", StringComparison.Ordinal) ||
-            normalized.Length < 4 ||
-            !int.TryParse(normalized[2..], NumberStyles.None, CultureInfo.InvariantCulture, out var shortYear))
+        var yearText = normalized.StartsWith("FY", StringComparison.Ordinal)
+            ? normalized[2..]
+            : string.Empty;
+
+        if (yearText.Length is not (2 or 4) ||
+            !int.TryParse(yearText, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedYear))
         {
             return false;
         }
 
-        var endYear = shortYear < 100 ? 2000 + shortYear : shortYear;
+        var endYear = yearText.Length == 2 ? 2000 + parsedYear : parsedYear;
+        if (endYear is < 2 or > 9999)
+        {
+            return false;
+        }
+
         var startYear = endYear - 1;
         cycle = new FiscalYearCycle(
             $"FY{endYear % 100:00}",

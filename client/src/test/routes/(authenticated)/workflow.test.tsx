@@ -106,19 +106,38 @@ describe('AD419 workflow routes', () => {
       ).toBeInTheDocument();
       expect(screen.getByText('Active NIFA')).toBeInTheDocument();
       expect(screen.getByText('Issues to resolve')).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /issues\s*2/i })).toHaveAttribute(
+        'aria-selected',
+        'true'
+      );
       expect(
-        screen.getByRole('tab', { name: /issues\s*2/i })
-      ).toHaveAttribute('aria-selected', 'true');
-      expect(screen.getByRole('tab', { name: /clean\s*1/i })).toBeInTheDocument();
+        screen.getByRole('tab', { name: /clean\s*1/i })
+      ).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: /all\s*3/i })).toBeInTheDocument();
-      expect(screen.getByRole('columnheader', { name: 'NIFA Project' })).toBeInTheDocument();
-      expect(screen.getByRole('columnheader', { name: 'Accession' })).toBeInTheDocument();
-      expect(screen.getByRole('columnheader', { name: 'Award #' })).toBeInTheDocument();
-      expect(screen.getByRole('columnheader', { name: 'AE' })).toBeInTheDocument();
-      expect(screen.getByRole('columnheader', { name: 'PI' })).toBeInTheDocument();
-      expect(screen.getByRole('columnheader', { name: 'ORGR' })).toBeInTheDocument();
-      expect(screen.getByRole('columnheader', { name: 'SFN' })).toBeInTheDocument();
-      expect(screen.getByRole('columnheader', { name: 'Status' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('columnheader', { name: 'NIFA Project' })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('columnheader', { name: 'Accession' })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('columnheader', { name: 'Award #' })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('columnheader', { name: 'AE' })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('columnheader', { name: 'PI' })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('columnheader', { name: 'ORGR' })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('columnheader', { name: 'SFN' })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('columnheader', { name: 'Status' })
+      ).toBeInTheDocument();
       expect(screen.getByText('204 outside CAES')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Finalize' })).toBeDisabled();
 
@@ -172,6 +191,58 @@ describe('AD419 workflow routes', () => {
       expect(screen.getByText('Naidoo, T.')).toBeInTheDocument();
       expect(screen.queryByText('Okonkwo, Y.')).not.toBeInTheDocument();
       expect(screen.queryByText('Larkspur, S.')).not.toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('shows project list errors and retries the query', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2026-07-07T12:00:00-07:00'));
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    let projectListRequests = 0;
+
+    server.use(
+      http.get('/api/user/me', () => {
+        return HttpResponse.json(mockUser);
+      }),
+      http.get('/api/imports/recent', () => {
+        return HttpResponse.json([]);
+      }),
+      http.get('/api/projectlist', () => {
+        projectListRequests += 1;
+
+        if (projectListRequests === 1) {
+          return HttpResponse.json(
+            { message: 'Project list unavailable.' },
+            { status: 500 }
+          );
+        }
+
+        return HttpResponse.json(projectListResponse);
+      })
+    );
+
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/project-identification',
+    });
+
+    try {
+      expect(
+        await screen.findByRole('heading', {
+          name: 'Unable to load project list',
+        })
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText('Loading project list...')
+      ).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Retry' }));
+
+      expect(
+        await screen.findByRole('heading', { name: 'Project list · 3' })
+      ).toBeInTheDocument();
+      expect(projectListRequests).toBe(2);
     } finally {
       cleanup();
     }
