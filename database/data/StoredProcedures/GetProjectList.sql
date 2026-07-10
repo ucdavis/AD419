@@ -34,6 +34,8 @@ BEGIN
             pgm.ProjectId,
             pgm.ProjectNumber,
             pgm.SponsorAwardNumber,
+            pgm.AwardStartDate,
+            pgm.AwardEndDate,
             REPLACE(pgm.SponsorAwardNumber, '-', '') AS AwardKey,
             CASE
                 WHEN aln.ProgramNumber IS NULL                                              THEN NULL
@@ -80,7 +82,9 @@ BEGIN
                 ELSE 'UNKNOWN'  -- unrecognized suffix: fail closed below, never silently Clean
             END AS NifaSfn
         FROM [data].[ActiveProjects] a
-        LEFT JOIN [data].[AllProjects] ap ON ap.ProjectNumber = a.ProjectNumber
+        LEFT JOIN [data].[AllProjects] ap
+            ON NULLIF(LTRIM(RTRIM(ap.ProjectNumber)), '') = NULLIF(LTRIM(RTRIM(a.ProjectNumber)), '')
+           AND NULLIF(LTRIM(RTRIM(ap.AccessionNumber)), '') = NULLIF(LTRIM(RTRIM(a.AccessionNumber)), '')
         WHERE ISNULL(a.ExcludeFromUi, 0) = 0
     ),
     ActiveWithPgm AS
@@ -225,11 +229,15 @@ BEGIN
         CAST('204 outside college' AS NVARCHAR(30))  AS Status
     FROM PgmClassified pc
     WHERE pc.PgmSfnBucket = '204'
+      AND (pc.AwardEndDate IS NULL OR pc.AwardEndDate >= @cycleStart)
+      AND (pc.AwardStartDate IS NULL OR pc.AwardStartDate <= @cycleEnd)
       AND NOT EXISTS
       (
           SELECT 1
           FROM [data].[ActiveProjects] a
-          JOIN [data].[AllProjects] ap ON ap.ProjectNumber = a.ProjectNumber
+          JOIN [data].[AllProjects] ap
+            ON NULLIF(LTRIM(RTRIM(ap.ProjectNumber)), '') = NULLIF(LTRIM(RTRIM(a.ProjectNumber)), '')
+           AND NULLIF(LTRIM(RTRIM(ap.AccessionNumber)), '') = NULLIF(LTRIM(RTRIM(a.AccessionNumber)), '')
           WHERE ISNULL(a.ExcludeFromUi, 0) = 0
             AND ap.AwardNumber IS NOT NULL
             AND REPLACE(ap.AwardNumber, '-', '') = pc.AwardKey
