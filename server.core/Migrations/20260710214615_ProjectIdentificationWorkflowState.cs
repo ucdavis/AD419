@@ -58,6 +58,13 @@ namespace server.core.Migrations
                 {
                     table.PrimaryKey("PK_WorkflowChecklistItemState", x => x.Id);
                     table.ForeignKey(
+                        name: "FK_WorkflowChecklistItemState_ImportLog_SourceImportLogId",
+                        column: x => x.SourceImportLogId,
+                        principalSchema: "app",
+                        principalTable: "ImportLog",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
                         name: "FK_WorkflowChecklistItemState_WorkflowRun_WorkflowRunId",
                         column: x => x.WorkflowRunId,
                         principalSchema: "app",
@@ -65,6 +72,12 @@ namespace server.core.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_WorkflowChecklistItemState_SourceImportLogId",
+                schema: "app",
+                table: "WorkflowChecklistItemState",
+                column: "SourceImportLogId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_WorkflowChecklistItemState_WorkflowRunId_ItemId",
@@ -77,7 +90,9 @@ namespace server.core.Migrations
                 name: "IX_WorkflowRun_IsCurrent",
                 schema: "app",
                 table: "WorkflowRun",
-                column: "IsCurrent");
+                column: "IsCurrent",
+                unique: true,
+                filter: "[IsCurrent] = 1");
         }
 
         /// <inheritdoc />

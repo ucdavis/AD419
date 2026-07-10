@@ -24,9 +24,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<WorkflowChecklistItemState>().ToTable("WorkflowChecklistItemState", AppSchema);
 
         modelBuilder.Entity<WorkflowRun>()
+            .HasIndex(run => run.IsCurrent)
+            .IsUnique()
+            .HasFilter("[IsCurrent] = 1");
+
+        modelBuilder.Entity<WorkflowRun>()
             .HasMany(run => run.ChecklistItemStates)
             .WithOne(state => state.WorkflowRun)
             .HasForeignKey(state => state.WorkflowRunId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<WorkflowChecklistItemState>()
+            .HasOne(state => state.SourceImportLog)
+            .WithMany()
+            .HasForeignKey(state => state.SourceImportLogId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using Server.Controllers;
 using Server.Core.Import;
 using Server.Models.ProjectIdentification;
@@ -15,7 +16,10 @@ public class PgmProjectsControllerTests
     {
         var importService = new FakeImportService();
         var projectIdentificationService = new FakeProjectIdentificationService();
-        var controller = new PgmProjectsController(importService, projectIdentificationService);
+        var controller = new PgmProjectsController(
+            importService,
+            projectIdentificationService,
+            NullLogger<PgmProjectsController>.Instance);
 
         var result = await controller.Import(null, CancellationToken.None);
 
@@ -29,7 +33,32 @@ public class PgmProjectsControllerTests
     {
         var importService = new FakeImportService();
         var projectIdentificationService = new FakeProjectIdentificationService();
-        var controller = new PgmProjectsController(importService, projectIdentificationService);
+        var controller = new PgmProjectsController(
+            importService,
+            projectIdentificationService,
+            NullLogger<PgmProjectsController>.Instance);
+        var reportDate = new DateOnly(2026, 6, 30);
+
+        var result = await controller.Import(reportDate, CancellationToken.None);
+
+        importService.Invocations.Should().Equal(reportDate);
+        projectIdentificationService.RecordedResults.Should().Equal(new PgmProjectsImportResult(42, reportDate));
+        result.Result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeEquivalentTo(new PgmProjectsImportResult(42, reportDate));
+    }
+
+    [Fact]
+    public async Task Import_returns_ok_when_workflow_recording_fails_after_import_succeeds()
+    {
+        var importService = new FakeImportService();
+        var projectIdentificationService = new FakeProjectIdentificationService
+        {
+            ThrowOnRecord = true,
+        };
+        var controller = new PgmProjectsController(
+            importService,
+            projectIdentificationService,
+            NullLogger<PgmProjectsController>.Instance);
         var reportDate = new DateOnly(2026, 6, 30);
 
         var result = await controller.Import(reportDate, CancellationToken.None);
@@ -54,6 +83,7 @@ public class PgmProjectsControllerTests
     private sealed class FakeProjectIdentificationService : IProjectIdentificationService
     {
         public List<PgmProjectsImportResult> RecordedResults { get; } = [];
+        public bool ThrowOnRecord { get; init; }
 
         public Task<ProjectIdentificationSetupResponse> GetSetupAsync(
             ClaimsPrincipal user,
@@ -79,6 +109,11 @@ public class PgmProjectsControllerTests
             CancellationToken cancellationToken)
         {
             RecordedResults.Add(result);
+            if (ThrowOnRecord)
+            {
+                throw new InvalidOperationException("Workflow recording failed.");
+            }
+
             return Task.CompletedTask;
         }
     }

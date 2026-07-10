@@ -24,8 +24,7 @@ public class FiscalYearCycleTests
         var parsed = FiscalYearCycle.TryParse(input, out var cycle);
 
         parsed.Should().BeTrue();
-        cycle.Should().NotBeNull();
-        cycle!.FiscalYear.Should().Be(expectedFiscalYear);
+        cycle.FiscalYear.Should().Be(expectedFiscalYear);
         cycle.CycleStart.Should().Be(new DateOnly(startYear, startMonth, startDay));
         cycle.CycleEnd.Should().Be(new DateOnly(endYear, endMonth, endDay));
     }

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Server.Authorization;
 using Server.Core.Data;
@@ -63,7 +64,7 @@ public sealed class ProjectIdentificationService(
 
         var run = await GetOrCreateCurrentRunAsync(user, cancellationToken);
         var now = DateTimeOffset.UtcNow;
-        var changed = !string.Equals(run.FiscalYear, cycle!.FiscalYear, StringComparison.OrdinalIgnoreCase);
+        var changed = !string.Equals(run.FiscalYear, cycle.FiscalYear, StringComparison.OrdinalIgnoreCase);
 
         if (changed)
         {
@@ -172,7 +173,7 @@ public sealed class ProjectIdentificationService(
             return false;
         }
 
-        var projectList = await projectListService.GetAsync(cycle!, cancellationToken);
+        var projectList = await projectListService.GetAsync(cycle, cancellationToken);
         return projectList.Summary.IssuesToResolve == 0;
     }
 
@@ -203,11 +204,7 @@ public sealed class ProjectIdentificationService(
         ClaimsPrincipal user,
         CancellationToken cancellationToken)
     {
-        var run = await dbContext.WorkflowRuns
-            .Include(item => item.ChecklistItemStates)
-            .Where(item => item.IsCurrent)
-            .OrderByDescending(item => item.CreatedAt)
-            .FirstOrDefaultAsync(cancellationToken);
+        var run = await GetCurrentRunAsync(cancellationToken);
 
         if (run is not null)
         {
@@ -229,9 +226,25 @@ public sealed class ProjectIdentificationService(
         SetCreatedBy(run, user);
         SetUpdatedBy(run, user);
         dbContext.WorkflowRuns.Add(run);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return run;
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return run;
+        }
+        catch (DbUpdateException ex) when (IsCurrentRunUniquenessViolation(ex))
+        {
+            dbContext.Entry(run).State = EntityState.Detached;
+            return await GetCurrentRunAsync(cancellationToken)
+                ?? throw new InvalidOperationException("A current workflow run already exists but could not be loaded.", ex);
+        }
     }
+
+    private Task<WorkflowRun?> GetCurrentRunAsync(CancellationToken cancellationToken) =>
+        dbContext.WorkflowRuns
+            .Include(item => item.ChecklistItemStates)
+            .Where(item => item.IsCurrent)
+            .OrderByDescending(item => item.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
 
     private ProjectIdentificationSetupResponse CreateSetupResponse(
         WorkflowRun run,
@@ -254,8 +267,9 @@ public sealed class ProjectIdentificationService(
     private static IReadOnlyList<FiscalPeriodOptionDto> CreateFiscalPeriodOptions(string selectedFiscalYear)
     {
         var current = CurrentFiscalYearCycle();
-        var selectedYear = ParseFiscalYearNumber(selectedFiscalYear) ?? ParseFiscalYearNumber(current.FiscalYear)!.Value;
-        var currentYear = ParseFiscalYearNumber(current.FiscalYear)!.Value;
+        var currentYear = ParseFiscalYearNumber(current.FiscalYear)
+            ?? throw new InvalidOperationException($"Current fiscal year '{current.FiscalYear}' could not be parsed.");
+        var selectedYear = ParseFiscalYearNumber(selectedFiscalYear) ?? currentYear;
         var years = new[] { currentYear - 1, currentYear, currentYear + 1, selectedYear }
             .Distinct()
             .Order()
@@ -265,9 +279,13 @@ public sealed class ProjectIdentificationService(
             .Select(year =>
             {
                 var fiscalYear = $"FY{year % 100:00}";
-                FiscalYearCycle.TryParse(fiscalYear, out var cycle);
+                if (!FiscalYearCycle.TryParse(fiscalYear, out var cycle))
+                {
+                    throw new InvalidOperationException($"Fiscal year option '{fiscalYear}' could not be parsed.");
+                }
+
                 return new FiscalPeriodOptionDto(
-                    cycle!.FiscalYear,
+                    cycle.FiscalYear,
                     cycle.CycleStart,
                     cycle.CycleEnd,
                     $"{cycle.FiscalYear.Replace("FY", "FY:")} - {FormatPeriod(cycle)}");
@@ -442,31 +460,37 @@ public sealed class ProjectIdentificationService(
         CancellationToken cancellationToken)
     {
         var datasetIds = importRegistry.Datasets.Select(dataset => dataset.Id).ToList();
-        var recentLogs = await dbContext.ImportLogs
-            .AsNoTracking()
-            .Where(log => datasetIds.Contains(log.Dataset))
-            .Where(log => log.Id == dbContext.ImportLogs
-                .Where(candidate => candidate.Dataset == log.Dataset)
-                .OrderByDescending(candidate => candidate.CompletedAt)
-                .ThenByDescending(candidate => candidate.Id)
-                .Select(candidate => candidate.Id)
-                .First())
-            .ToListAsync(cancellationToken);
+        var recentLogs = new List<ImportLog>();
+        foreach (var datasetId in datasetIds)
+        {
+            var recentLog = await dbContext.ImportLogs
+                .AsNoTracking()
+                .Where(log => log.Dataset == datasetId)
+                .OrderByDescending(log => log.CompletedAt)
+                .ThenByDescending(log => log.Id)
+                .FirstOrDefaultAsync(cancellationToken);
 
-        return recentLogs.ToDictionary(
-            log => log.Dataset,
-            log => new RecentImportResponse(
-                log.Id,
-                log.Dataset,
-                log.Filename,
-                log.Status,
-                log.AttemptedRows,
-                log.RowsImported,
-                log.CompletedAt,
-                log.UploadedByName,
-                log.UploadedByEmail,
-                DeserializeValidationStats(log.ErrorPayload)),
-            StringComparer.OrdinalIgnoreCase);
+            if (recentLog is not null)
+            {
+                recentLogs.Add(recentLog);
+            }
+        }
+
+        return recentLogs
+            .ToDictionary(
+                log => log.Dataset,
+                log => new RecentImportResponse(
+                    log.Id,
+                    log.Dataset,
+                    log.Filename,
+                    log.Status,
+                    log.AttemptedRows,
+                    log.RowsImported,
+                    log.CompletedAt,
+                    log.UploadedByName,
+                    log.UploadedByEmail,
+                    DeserializeValidationStats(log.ErrorPayload)),
+                StringComparer.OrdinalIgnoreCase);
     }
 
     private static ImportValidationStatsResponse? DeserializeValidationStats(string? errorPayload)
@@ -562,9 +586,17 @@ public sealed class ProjectIdentificationService(
         var calendarYear = now.Year;
         var fiscalYear = now.Month >= 10 ? calendarYear + 1 : calendarYear;
         var fiscalYearText = $"FY{fiscalYear % 100:00}";
-        FiscalYearCycle.TryParse(fiscalYearText, out var cycle);
-        return cycle!;
+        if (!FiscalYearCycle.TryParse(fiscalYearText, out var cycle))
+        {
+            throw new InvalidOperationException($"Current fiscal year '{fiscalYearText}' could not be parsed.");
+        }
+
+        return cycle;
     }
+
+    private static bool IsCurrentRunUniquenessViolation(DbUpdateException exception) =>
+        exception.GetBaseException() is SqlException sqlException
+        && sqlException.Errors.Cast<SqlError>().Any(error => error.Number is 2601 or 2627);
 
     private static int? ParseFiscalYearNumber(string fiscalYear)
     {

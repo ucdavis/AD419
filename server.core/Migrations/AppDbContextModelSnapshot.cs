@@ -154,6 +154,8 @@ namespace server.core.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("SourceImportLogId");
+
                     b.HasIndex("WorkflowRunId", "ItemId")
                         .IsUnique();
 
@@ -212,18 +214,27 @@ namespace server.core.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("IsCurrent");
+                    b.HasIndex("IsCurrent")
+                        .IsUnique()
+                        .HasFilter("[IsCurrent] = 1");
 
                     b.ToTable("WorkflowRun", "app");
                 });
 
             modelBuilder.Entity("Server.Core.Domain.WorkflowChecklistItemState", b =>
                 {
+                    b.HasOne("Server.Core.Domain.ImportLog", "SourceImportLog")
+                        .WithMany()
+                        .HasForeignKey("SourceImportLogId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Server.Core.Domain.WorkflowRun", "WorkflowRun")
                         .WithMany("ChecklistItemStates")
                         .HasForeignKey("WorkflowRunId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("SourceImportLog");
 
                     b.Navigation("WorkflowRun");
                 });

@@ -116,6 +116,38 @@ public class AppDbContextTests
     }
 
     [Fact]
+    public void WorkflowRun_has_filtered_unique_index_for_current_run()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+
+        var entityType = db.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(WorkflowRun));
+        var index = entityType?.GetIndexes()
+            .SingleOrDefault(item => item.Properties.Select(property => property.Name)
+                .SequenceEqual([nameof(WorkflowRun.IsCurrent)]));
+
+        index.Should().NotBeNull();
+        index!.IsUnique.Should().BeTrue();
+        index.GetFilter().Should().Be("[IsCurrent] = 1");
+    }
+
+    [Fact]
+    public void WorkflowChecklistItemState_has_optional_source_import_log_relationship()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+
+        var entityType = db.Model.FindEntityType(typeof(WorkflowChecklistItemState));
+        var foreignKey = entityType?.FindNavigation(nameof(WorkflowChecklistItemState.SourceImportLog))
+            ?.ForeignKey;
+
+        foreignKey.Should().NotBeNull();
+        foreignKey!.PrincipalEntityType.ClrType.Should().Be(typeof(ImportLog));
+        foreignKey.Properties.Should().ContainSingle(property =>
+            property.Name == nameof(WorkflowChecklistItemState.SourceImportLogId));
+        foreignKey.DeleteBehavior.Should().Be(DeleteBehavior.SetNull);
+        foreignKey.IsRequired.Should().BeFalse();
+    }
+
+    [Fact]
     public void User_has_unique_index_on_entra_id()
     {
         using var db = TestDbContextFactory.CreateInMemory();

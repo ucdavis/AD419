@@ -12,7 +12,7 @@ using Server.Core.Data;
 namespace server.core.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260710192848_ProjectIdentificationWorkflowState")]
+    [Migration("20260710214615_ProjectIdentificationWorkflowState")]
     partial class ProjectIdentificationWorkflowState
     {
         /// <inheritdoc />
@@ -157,6 +157,8 @@ namespace server.core.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("SourceImportLogId");
+
                     b.HasIndex("WorkflowRunId", "ItemId")
                         .IsUnique();
 
@@ -215,18 +217,27 @@ namespace server.core.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("IsCurrent");
+                    b.HasIndex("IsCurrent")
+                        .IsUnique()
+                        .HasFilter("[IsCurrent] = 1");
 
                     b.ToTable("WorkflowRun", "app");
                 });
 
             modelBuilder.Entity("Server.Core.Domain.WorkflowChecklistItemState", b =>
                 {
+                    b.HasOne("Server.Core.Domain.ImportLog", "SourceImportLog")
+                        .WithMany()
+                        .HasForeignKey("SourceImportLogId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Server.Core.Domain.WorkflowRun", "WorkflowRun")
                         .WithMany("ChecklistItemStates")
                         .HasForeignKey("WorkflowRunId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("SourceImportLog");
 
                     b.Navigation("WorkflowRun");
                 });

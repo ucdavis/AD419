@@ -31,6 +31,8 @@ public class WorkflowChecklistItemState
 
     public int? SourceImportLogId { get; set; }
 
+    public ImportLog? SourceImportLog { get; set; }
+
     [MaxLength(160)]
     public string? SourceKey { get; set; }
 

@@ -7,9 +7,9 @@ public sealed record FiscalYearCycle(
     DateOnly CycleStart,
     DateOnly CycleEnd)
 {
-    public static bool TryParse(string? fiscalYear, out FiscalYearCycle? cycle)
+    public static bool TryParse(string? fiscalYear, out FiscalYearCycle cycle)
     {
-        cycle = null;
+        cycle = default!;
 
         if (string.IsNullOrWhiteSpace(fiscalYear))
         {

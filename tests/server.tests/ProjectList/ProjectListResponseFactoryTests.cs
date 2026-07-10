@@ -18,7 +18,7 @@ public class ProjectListResponseFactoryTests
             new ProjectListRowDto("CA-C-333-CG", "1000003", "2025-3", null, "Naidoo, T.", "VEN", "204", "No PGM match"),
         };
 
-        var response = ProjectListResponseFactory.Create(cycle!, rows, 10, 20, 30, 40);
+        var response = ProjectListResponseFactory.Create(cycle, rows, 10, 20, 30, 40);
 
         response.FiscalYear.Should().Be("FY26");
         response.CycleStart.Should().Be(new DateOnly(2025, 10, 1));
