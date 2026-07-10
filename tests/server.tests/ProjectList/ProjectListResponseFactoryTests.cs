@@ -10,7 +10,11 @@ public class ProjectListResponseFactoryTests
     [Fact]
     public void Create_counts_tabs_and_sfn_distribution_from_rows()
     {
-        FiscalYearCycle.TryParse("FY26", out var cycle).Should().BeTrue();
+        if (!FiscalYearCycle.TryParse("FY26", out var cycle))
+        {
+            throw new InvalidOperationException("FY26 should parse.");
+        }
+
         var rows = new[]
         {
             new ProjectListRowDto("CA-A-111-H", "1000001", "2025-1", "K1234", "Larkspur, S.", "ATM", "201", "Clean"),
