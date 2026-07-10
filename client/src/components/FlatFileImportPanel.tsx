@@ -10,7 +10,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { useRef, useState } from 'react';
 import { DataTable } from '@/shared/dataTable.tsx';
 
-type ImportDatasetId =
+export type ImportDatasetId =
   | 'active-projects'
   | 'all-projects'
   | 'assistance-listing-numbers';
@@ -125,7 +125,7 @@ interface HistoricalValidationErrorRow {
   sourceHeader: string;
 }
 
-const datasetOptions: ImportDatasetOption[] = [
+export const datasetOptions: ImportDatasetOption[] = [
   { id: 'all-projects', label: 'All Projects' },
   { id: 'active-projects', label: 'Active Projects' },
   {
@@ -326,6 +326,189 @@ export function FlatFileImportPanel() {
           <span>
             Imported {success.rowsImported.toLocaleString()} rows from{' '}
             {success.filename}.
+          </span>
+        </div>
+      )}
+
+      {validation && <ValidationResults validation={validation} />}
+    </div>
+  );
+}
+
+export function FlatFileImportChecklistItem({
+  completed,
+  dataset,
+  latestImport,
+  markDonePending,
+  onMarkDone,
+  ready,
+  stale,
+  staleReason,
+}: {
+  completed: boolean;
+  dataset: ImportDatasetId;
+  latestImport?: RecentImportResponse | null;
+  markDonePending: boolean;
+  onMarkDone: () => void;
+  ready: boolean;
+  stale: boolean;
+  staleReason?: string | null;
+}) {
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [selectedImportId, setSelectedImportId] = useState<number | null>(null);
+  const [validation, setValidation] = useState<ImportValidationResponse | null>(
+    null
+  );
+  const [success, setSuccess] = useState<ImportSuccessResponse | null>(null);
+  const importDetailQuery = useQuery({
+    enabled: selectedImportId !== null,
+    queryFn: () => fetchImportDetail(selectedImportId!),
+    queryKey: ['imports', 'detail', selectedImportId],
+  });
+  const label = getDatasetLabel(dataset);
+
+  const clearInputFileSelection = () => {
+    setFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const mutation = useMutation({
+    mutationFn: uploadImport,
+    onError: (error, variables) => {
+      setSuccess(null);
+      if (error instanceof HttpError && isValidationResponse(error.body)) {
+        setValidation(error.body);
+        return;
+      }
+
+      setValidation({
+        attemptedRows: 0,
+        dataset: variables.dataset,
+        fileErrors: [
+          {
+            code: 'upload_failed',
+            message: 'The import could not be completed.',
+          },
+        ],
+        filename: variables.file.name,
+        rows: [],
+        succeeded: false,
+      });
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['imports', 'recent'] });
+      void queryClient.invalidateQueries({
+        queryKey: ['projectIdentification', 'setup'],
+      });
+    },
+    onSuccess: (response) => {
+      setValidation(null);
+      setSuccess(response);
+      setSelectedImportId(response.importLogId ?? null);
+      void queryClient.invalidateQueries({ queryKey: ['ad419Workflow'] });
+    },
+  });
+
+  const canUpload = Boolean(file) && !mutation.isPending;
+  const canMarkDone = ready && !completed && !markDonePending;
+
+  const handleUpload = () => {
+    if (!file || mutation.isPending) {
+      return;
+    }
+
+    const selectedFile = file;
+    clearInputFileSelection();
+    setValidation(null);
+    setSuccess(null);
+    setSelectedImportId(null);
+    mutation.mutate({ dataset, file: selectedFile });
+  };
+
+  return (
+    <div className="space-y-4">
+      {latestImport ? (
+        <RecentImportSummary
+          importLog={latestImport}
+          label={label}
+          onSelectImport={setSelectedImportId}
+          selected={latestImport.id === selectedImportId}
+        />
+      ) : (
+        <div className="rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+          No import attempts found for {label}.
+        </div>
+      )}
+
+      {stale && staleReason ? (
+        <div className="alert alert-warning py-3 text-sm">
+          <span>{staleReason}</span>
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-end">
+        <label className="form-control w-full">
+          <span className="label-text">Import file</span>
+          <input
+            accept=".csv,.xlsx"
+            className="file-input file-input-bordered w-full"
+            onChange={(event) => {
+              const selectedFile = event.target.files?.[0];
+              if (!selectedFile) {
+                return;
+              }
+
+              setFile(selectedFile);
+              setValidation(null);
+              setSuccess(null);
+            }}
+            onClick={(event) => {
+              event.currentTarget.value = '';
+            }}
+            ref={fileInputRef}
+            type="file"
+          />
+        </label>
+
+        <button
+          className="btn btn-outline"
+          disabled={!canUpload}
+          onClick={handleUpload}
+          type="button"
+        >
+          {mutation.isPending ? 'Uploading' : 'Upload'}
+        </button>
+
+        <button
+          className="btn btn-primary"
+          disabled={!canMarkDone}
+          onClick={onMarkDone}
+          type="button"
+        >
+          {markDonePending
+            ? 'Saving'
+            : completed
+              ? 'Done'
+              : ready
+                ? 'Mark done'
+                : 'Awaiting successful import'}
+        </button>
+      </div>
+
+      {selectedImportId !== null && (
+        <HistoricalImportDetails query={importDetailQuery} />
+      )}
+
+      {success && (
+        <div className="alert alert-success py-3 text-sm">
+          <span>
+            Imported {success.rowsImported.toLocaleString()} rows from{' '}
+            {success.filename}. Mark this checklist item done when you are
+            ready to use this import.
           </span>
         </div>
       )}
@@ -627,6 +810,10 @@ function getImportSummaries(
       lastImport: summary?.lastImport ?? null,
     };
   });
+}
+
+function getDatasetLabel(dataset: ImportDatasetId): string {
+  return datasetOptions.find((option) => option.id === dataset)?.label ?? dataset;
 }
 
 function getImportStatusPresentation(status: string) {

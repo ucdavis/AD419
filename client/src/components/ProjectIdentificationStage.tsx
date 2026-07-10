@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { DataTable } from '@/shared/dataTable.tsx';
 import {
-  currentFiscalYear,
   projectListQueryOptions,
   type ProjectListRow,
   type ProjectListStatus,
@@ -9,6 +8,11 @@ import {
 } from '@/queries/projectList.ts';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
+import {
+  projectIdentificationSetupQueryOptions,
+  type ProjectIdentificationSetupResponse,
+} from '@/queries/projectIdentification.ts';
+import { ProjectIdentificationSetupChecklist } from '@/components/ProjectIdentificationSetupChecklist.tsx';
 
 type ProjectListTab = 'issues' | 'clean' | 'all';
 
@@ -61,9 +65,41 @@ function sfnDistributionText(summary: ProjectListSummary): string {
 }
 
 export function ProjectIdentificationStage() {
-  const fiscalYear = currentFiscalYear();
+  const setupQuery = useQuery(projectIdentificationSetupQueryOptions());
+
+  if (setupQuery.isLoading) {
+    return <p>Loading project identification setup...</p>;
+  }
+
+  if (setupQuery.isError || !setupQuery.data) {
+    return (
+      <div className="alert alert-error items-start" role="alert">
+        <div>
+          <h2 className="font-bold">Unable to load project setup</h2>
+          <p>The project identification checklist could not be loaded.</p>
+          <button
+            className="btn btn-sm mt-3"
+            disabled={setupQuery.isFetching}
+            onClick={() => void setupQuery.refetch()}
+            type="button"
+          >
+            {setupQuery.isFetching ? 'Retrying...' : 'Retry'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return <ProjectIdentificationStageContent setup={setupQuery.data} />;
+}
+
+function ProjectIdentificationStageContent({
+  setup,
+}: {
+  setup: ProjectIdentificationSetupResponse;
+}) {
   const { data, error, isError, isFetching, isLoading, refetch } = useQuery(
-    projectListQueryOptions(fiscalYear)
+    projectListQueryOptions(setup.fiscalYear)
   );
   const [activeTab, setActiveTab] = useState<ProjectListTab>('issues');
 
@@ -125,9 +161,11 @@ export function ProjectIdentificationStage() {
     []
   );
 
-  if (isLoading) {
-    return <p>Loading project list...</p>;
-  }
+  const pgmItem = setup.checklistItems.find(
+    (item) => item.id === 'pgm-master-data'
+  );
+  const projectListReady = pgmItem?.completed ?? false;
+  const issueCount = data?.summary.issuesToResolve ?? null;
 
   if (isError) {
     const message =
@@ -136,99 +174,125 @@ export function ProjectIdentificationStage() {
         : 'The project list could not be loaded.';
 
     return (
-      <div className="alert alert-error items-start" role="alert">
-        <div>
-          <h2 className="font-bold">Unable to load project list</h2>
-          <p>{message}</p>
-          <button
-            className="btn btn-sm mt-3"
-            disabled={isFetching}
-            onClick={() => void refetch()}
-            type="button"
-          >
-            {isFetching ? 'Retrying...' : 'Retry'}
-          </button>
+      <div className="workflow-stack">
+        <ProjectIdentificationSetupChecklist
+          issueCount={issueCount}
+          setup={setup}
+        />
+        <div className="alert alert-error items-start" role="alert">
+          <div>
+            <h2 className="font-bold">Unable to load project list</h2>
+            <p>{message}</p>
+            <button
+              className="btn btn-sm mt-3"
+              disabled={isFetching}
+              onClick={() => void refetch()}
+              type="button"
+            >
+              {isFetching ? 'Retrying...' : 'Retry'}
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  if (!data) {
-    return <p>Loading project list...</p>;
-  }
+  const visibleRows = data ? rowsForTab(data.rows, activeTab) : [];
 
-  const visibleRows = rowsForTab(data.rows, activeTab);
+  return (
+    <div className="workflow-stack">
+      {data ? <ProjectSummaryCards summary={data.summary} /> : null}
+
+      <ProjectIdentificationSetupChecklist
+        issueCount={issueCount}
+        setup={setup}
+      />
+
+      <div className="rounded border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-normal text-slate-500">
+              Reference &amp; Issue Resolution
+            </p>
+            <h2 className="text-lg font-bold tracking-normal text-slate-950">
+              Project list{data ? ` · ${data.counts.all}` : ''}
+            </h2>
+          </div>
+        </div>
+
+        <div className="space-y-4 p-4">
+          {isLoading ? (
+            <p>Loading project list...</p>
+          ) : !projectListReady ? (
+            <div className="rounded border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-600">
+              Project list will appear after PGM master data is imported and
+              marked done.
+            </div>
+          ) : data ? (
+            <>
+              <div className="tabs tabs-bordered" role="tablist">
+                {tabs.map((tab) => {
+                  const count = data.counts[tab.id];
+
+                  return (
+                    <button
+                      aria-selected={activeTab === tab.id}
+                      className={`tab ${
+                        activeTab === tab.id ? 'tab-active' : ''
+                      }`}
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      role="tab"
+                      type="button"
+                    >
+                      {tab.label}
+                      <span className="badge badge-sm ml-2">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <DataTable
+                columns={columns}
+                data={visibleRows}
+                filterPlaceholder="Search project, accession, PI..."
+                initialState={{ pagination: { pageSize: 25 } }}
+                key={activeTab}
+                tableClassName="table-zebra table-sm"
+              />
+            </>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProjectSummaryCards({ summary }: { summary: ProjectListSummary }) {
   const summaryCards = [
-    ['Active NIFA', data.summary.activeNifa],
-    ['All NIFA', data.summary.allNifa],
-    ['PGM records', data.summary.pgmRecords],
-    ['ALN codes', data.summary.alnCodes],
-    ['Issues to resolve', data.summary.issuesToResolve],
-    ['SFN distribution', sfnDistributionText(data.summary)],
+    ['Active NIFA', summary.activeNifa],
+    ['All NIFA', summary.allNifa],
+    ['PGM records', summary.pgmRecords],
+    ['ALN codes', summary.alnCodes],
+    ['Issues to resolve', summary.issuesToResolve],
+    ['SFN distribution', sfnDistributionText(summary)],
   ];
 
   return (
-    <div className="rounded border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-normal text-slate-500">
-            Reference &amp; Issue Resolution
-          </p>
-          <h2 className="text-lg font-bold tracking-normal text-slate-950">
-            Project list · {data.counts.all}
-          </h2>
-        </div>
-        <button className="btn btn-primary" disabled type="button">
-          Finalize
-        </button>
-      </div>
-
-      <div className="space-y-4 p-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {summaryCards.map(([label, value]) => (
-            <div
-              className="rounded border border-slate-200 bg-slate-50 p-3"
-              key={label}
-            >
-              <div className="text-xs font-semibold uppercase text-slate-500">
-                {label}
-              </div>
-              <div className="mt-1 text-lg font-bold text-slate-950">
-                {value}
-              </div>
+    <section className="rounded border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        {summaryCards.map(([label, value]) => (
+          <div
+            className="rounded border border-slate-200 bg-slate-50 p-3"
+            key={label}
+          >
+            <div className="text-xs font-semibold uppercase text-slate-500">
+              {label}
             </div>
-          ))}
-        </div>
-
-        <div className="tabs tabs-bordered" role="tablist">
-          {tabs.map((tab) => {
-            const count = data.counts[tab.id];
-
-            return (
-              <button
-                aria-selected={activeTab === tab.id}
-                className={`tab ${activeTab === tab.id ? 'tab-active' : ''}`}
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                role="tab"
-                type="button"
-              >
-                {tab.label}
-                <span className="badge badge-sm ml-2">{count}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <DataTable
-          columns={columns}
-          data={visibleRows}
-          filterPlaceholder="Search project, accession, PI..."
-          initialState={{ pagination: { pageSize: 25 } }}
-          key={activeTab}
-          tableClassName="table-zebra table-sm"
-        />
+            <div className="mt-1 text-lg font-bold text-slate-950">{value}</div>
+          </div>
+        ))}
       </div>
-    </div>
+    </section>
   );
 }

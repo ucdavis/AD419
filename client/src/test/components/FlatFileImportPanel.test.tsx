@@ -601,11 +601,11 @@ describe('FlatFileImportPanel', () => {
                 ],
                 errors: [],
                 rowNum: 2,
-                values: {
-                  ProjectNumber: 'PRJ-1',
-                  AccessionNumber: 'A-2',
-                  OrganizationName: '',
-                },
+                values: Object.fromEntries([
+                  ['ProjectNumber', 'PRJ-1'],
+                  ['AccessionNumber', 'A-2'],
+                  ['OrganizationName', ''],
+                ]),
               },
             ],
             succeeded: false,

@@ -66,6 +66,143 @@ const projectListResponse = {
   },
 };
 
+const setupResponse = {
+  checklistItems: [
+    {
+      completed: true,
+      hint: 'Set the reporting cycle',
+      id: 'fiscal-period',
+      kind: 'select',
+      label: 'Confirm Fiscal Period',
+      number: 1,
+      ready: true,
+      source: null,
+      stale: false,
+      staleReason: null,
+      status: 'done',
+    },
+    {
+      completed: true,
+      hint: 'ANR - all NIFA projects across UC campuses',
+      id: 'all-projects',
+      kind: 'upload',
+      label: 'Upload All Projects List',
+      latestImport: {
+        attemptedRows: 42,
+        dataset: 'all-projects',
+        filename: 'all-projects.csv',
+        id: 1,
+        importedAt: '2026-06-01T12:00:00Z',
+        rowsImported: 42,
+        status: 'Succeeded',
+      },
+      number: 2,
+      ready: true,
+      source: { completedAt: '2026-06-01T12:00:00Z', importLogId: 1, rows: 42 },
+      stale: false,
+      staleReason: null,
+      status: 'done',
+    },
+    {
+      completed: true,
+      hint: 'ANR - CAES projects required to report',
+      id: 'active-projects',
+      kind: 'upload',
+      label: 'Upload Active Project List',
+      latestImport: {
+        attemptedRows: 25,
+        dataset: 'active-projects',
+        filename: 'active-projects.csv',
+        id: 2,
+        importedAt: '2026-06-01T12:01:00Z',
+        rowsImported: 25,
+        status: 'Succeeded',
+      },
+      number: 3,
+      ready: true,
+      source: { completedAt: '2026-06-01T12:01:00Z', importLogId: 2, rows: 25 },
+      stale: false,
+      staleReason: null,
+      status: 'done',
+    },
+    {
+      completed: true,
+      hint: 'assistancelisting.usaspending.gov - updated weekly',
+      id: 'assistance-listing-numbers',
+      kind: 'upload',
+      label: 'Upload CFDA / ALN Data',
+      latestImport: {
+        attemptedRows: 7,
+        dataset: 'assistance-listing-numbers',
+        filename: 'aln.csv',
+        id: 3,
+        importedAt: '2026-06-01T12:02:00Z',
+        rowsImported: 7,
+        status: 'Succeeded',
+      },
+      number: 4,
+      ready: true,
+      source: { completedAt: '2026-06-01T12:02:00Z', importLogId: 3, rows: 7 },
+      stale: false,
+      staleReason: null,
+      status: 'done',
+    },
+    {
+      completed: true,
+      hint: 'AE Redshift - ae_dwh.pgm_master_data',
+      id: 'pgm-master-data',
+      kind: 'import',
+      label: 'Import PGM Master Data',
+      number: 5,
+      ready: true,
+      source: { completedAt: '2026-06-01T12:03:00Z', key: 'pgm', rows: 18 },
+      stale: false,
+      staleReason: null,
+      status: 'done',
+    },
+    {
+      completed: false,
+      hint: 'Review flagged projects below',
+      id: 'resolve-project-issues',
+      kind: 'review',
+      label: 'Resolve Project Issues',
+      number: 6,
+      ready: true,
+      source: null,
+      stale: false,
+      staleReason: null,
+      status: 'active',
+    },
+    {
+      completed: false,
+      hint: 'Locks project data, triggers full expense pull',
+      id: 'finalize-projects',
+      kind: 'action',
+      label: 'Finalize Projects',
+      number: 7,
+      ready: false,
+      source: null,
+      stale: false,
+      staleReason: null,
+      status: 'locked',
+    },
+  ],
+  completedCount: 5,
+  cycleEnd: '2026-09-30',
+  cycleStart: '2025-10-01',
+  fiscalPeriodOptions: [
+    {
+      cycleEnd: '2026-09-30',
+      cycleStart: '2025-10-01',
+      fiscalYear: 'FY26',
+      label: 'FY:26 - Oct 2025 - Sep 2026',
+    },
+  ],
+  fiscalYear: 'FY26',
+  totalCount: 7,
+  workflowRunId: 1,
+};
+
 afterEach(() => {
   vi.useRealTimers();
 });
@@ -83,6 +220,9 @@ describe('AD419 workflow routes', () => {
       http.get('/api/imports/recent', () => {
         return HttpResponse.json([]);
       }),
+      http.get('/api/projectidentification/setup', () => {
+        return HttpResponse.json(setupResponse);
+      }),
       http.get('/api/projectlist', ({ request }) => {
         requestedFy = new URL(request.url).searchParams.get('fy');
         return HttpResponse.json(projectListResponse);
@@ -99,8 +239,10 @@ describe('AD419 workflow routes', () => {
       expect(
         await screen.findByRole('heading', { name: 'Load required data' })
       ).toBeInTheDocument();
-      expect(screen.getByLabelText('Dataset')).toBeInTheDocument();
-      expect(screen.getByLabelText('Import file')).toBeInTheDocument();
+      expect(screen.getByText('5 of 7 complete')).toBeInTheDocument();
+      expect(screen.getByText('Confirm Fiscal Period')).toBeInTheDocument();
+      expect(screen.getByText('Upload All Projects List')).toBeInTheDocument();
+      expect(screen.getByText('Import PGM Master Data')).toBeInTheDocument();
       expect(
         await screen.findByRole('heading', { name: 'Project list · 3' })
       ).toBeInTheDocument();
@@ -139,7 +281,6 @@ describe('AD419 workflow routes', () => {
         screen.getByRole('columnheader', { name: 'Status' })
       ).toBeInTheDocument();
       expect(screen.getByText('204 outside CAES')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Finalize' })).toBeDisabled();
 
       await waitFor(() => {
         expect(router.state.location.pathname).toBe(
@@ -163,6 +304,9 @@ describe('AD419 workflow routes', () => {
       }),
       http.get('/api/imports/recent', () => {
         return HttpResponse.json([]);
+      }),
+      http.get('/api/projectidentification/setup', () => {
+        return HttpResponse.json(setupResponse);
       }),
       http.get('/api/projectlist', () => {
         return HttpResponse.json(projectListResponse);
@@ -208,6 +352,9 @@ describe('AD419 workflow routes', () => {
       }),
       http.get('/api/imports/recent', () => {
         return HttpResponse.json([]);
+      }),
+      http.get('/api/projectidentification/setup', () => {
+        return HttpResponse.json(setupResponse);
       }),
       http.get('/api/projectlist', () => {
         projectListRequests += 1;

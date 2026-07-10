@@ -57,6 +57,30 @@ public class AppDbContextTests
     }
 
     [Fact]
+    public void WorkflowRun_maps_to_app_schema()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+
+        var entityType = db.Model.FindEntityType(typeof(WorkflowRun));
+
+        entityType.Should().NotBeNull();
+        entityType!.GetSchema().Should().Be(AppDbContext.AppSchema);
+        entityType.GetTableName().Should().Be("WorkflowRun");
+    }
+
+    [Fact]
+    public void WorkflowChecklistItemState_maps_to_app_schema()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+
+        var entityType = db.Model.FindEntityType(typeof(WorkflowChecklistItemState));
+
+        entityType.Should().NotBeNull();
+        entityType!.GetSchema().Should().Be(AppDbContext.AppSchema);
+        entityType.GetTableName().Should().Be("WorkflowChecklistItemState");
+    }
+
+    [Fact]
     public void ImportLog_has_index_for_latest_log_by_dataset()
     {
         using var db = TestDbContextFactory.CreateInMemory();
@@ -72,6 +96,23 @@ public class AppDbContextTests
 
         latestByDatasetIndex.Should().NotBeNull();
         latestByDatasetIndex!.IsDescending.Should().Equal([false, true, true]);
+    }
+
+    [Fact]
+    public void WorkflowChecklistItemState_has_unique_index_per_run_and_item()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+
+        var entityType = db.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(WorkflowChecklistItemState));
+        var index = entityType?.GetIndexes()
+            .SingleOrDefault(item => item.Properties.Select(property => property.Name)
+                .SequenceEqual([
+                    nameof(WorkflowChecklistItemState.WorkflowRunId),
+                    nameof(WorkflowChecklistItemState.ItemId),
+                ]));
+
+        index.Should().NotBeNull();
+        index!.IsUnique.Should().BeTrue();
     }
 
     [Fact]
