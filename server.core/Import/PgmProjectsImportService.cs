@@ -157,8 +157,11 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
     /// single-valued attributes come from the budget period containing the report date (falling
     /// back to the most recent period); people columns aggregate distinct names across all of the
     /// project's rows. Rows with a null project_id are excluded (they otherwise collapse into one
-    /// junk bucket). LISTAGG results are cast to a bounded VARCHAR so MSDASQL binds them inline
-    /// rather than as LOBs, which EXEC ... AT cannot stream. Redshift also disallows differing
+    /// junk bucket). LISTAGG results are cast to a narrow VARCHAR(255) so MSDASQL binds them inline
+    /// rather than as LOBs, which EXEC ... AT cannot stream: the Redshift ODBC driver reports any
+    /// wider VARCHAR as SQL_LONGVARCHAR (streamed) even when the values are short, which fails with
+    /// error 7341 "cannot get the current row value". Real values are tiny (observed max ~43 chars,
+    /// a project has at most a handful of distinct people), so 255 has ample headroom. Redshift also disallows differing
     /// LISTAGG WITHIN GROUP orderings and a trailing semicolon inside the pass-through. LoadedAt is
     /// not selected here; the destination column defaults to it.
     /// </summary>
@@ -179,12 +182,12 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
         ),
         people AS (
             SELECT project_id,
-                CAST(LISTAGG(DISTINCT principal_investigator_person_name, '; ') AS VARCHAR(8000)) AS principal_investigator_names,
-                CAST(LISTAGG(DISTINCT piperson, '; ') AS VARCHAR(8000)) AS pi_persons,
-                CAST(LISTAGG(DISTINCT award_copi_name, '; ') AS VARCHAR(8000)) AS award_copi_names,
-                CAST(LISTAGG(DISTINCT project_manager_name, '; ') AS VARCHAR(8000)) AS project_manager_names,
-                CAST(LISTAGG(DISTINCT grant_administrator, '; ') AS VARCHAR(8000)) AS grant_administrators,
-                CAST(LISTAGG(DISTINCT contractadmin, '; ') AS VARCHAR(8000)) AS contract_admins
+                CAST(LISTAGG(DISTINCT principal_investigator_person_name, '; ') AS VARCHAR(255)) AS principal_investigator_names,
+                CAST(LISTAGG(DISTINCT piperson, '; ') AS VARCHAR(255)) AS pi_persons,
+                CAST(LISTAGG(DISTINCT award_copi_name, '; ') AS VARCHAR(255)) AS award_copi_names,
+                CAST(LISTAGG(DISTINCT project_manager_name, '; ') AS VARCHAR(255)) AS project_manager_names,
+                CAST(LISTAGG(DISTINCT grant_administrator, '; ') AS VARCHAR(255)) AS grant_administrators,
+                CAST(LISTAGG(DISTINCT contractadmin, '; ') AS VARCHAR(255)) AS contract_admins
             FROM ae_dwh.pgm_master_data
             WHERE project_id IS NOT NULL
             GROUP BY project_id

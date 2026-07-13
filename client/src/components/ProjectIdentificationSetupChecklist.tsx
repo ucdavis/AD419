@@ -371,6 +371,11 @@ function PgmImportChecklistContent({
         </div>
       ) : null}
 
+      <p className="text-sm font-medium text-amber-700">
+        This import may take several minutes. Do not reload your browser while it
+        runs.
+      </p>
+
       <div className="flex flex-wrap justify-end gap-2">
         <button
           className="btn btn-outline"
