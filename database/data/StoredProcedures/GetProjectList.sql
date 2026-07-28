@@ -70,7 +70,9 @@ BEGIN
             ap.Title,
             a.ProjectDirector AS ActiveProjectDirector,
             ap.ProjectDirector AS AllProjectDirector,
-            ap.Department AS Orgr,
+            a.UcpEmployeeId,
+            a.UcPathName,
+            ap.Department,
             ap.ProjectStartDate,
             ap.ProjectEndDate,
             CASE WHEN ap.ProjectNumber IS NULL THEN 0 ELSE 1 END AS InAllProjects,
@@ -95,7 +97,9 @@ BEGIN
             ac.NifaAwardNumber,
             ac.Title,
             COALESCE(NULLIF(ac.ActiveProjectDirector, ''), NULLIF(ac.AllProjectDirector, '')) AS Pi,
-            ac.Orgr,
+            ac.UcpEmployeeId,
+            ac.UcPathName,
+            ac.Department,
             ac.ProjectStartDate,
             ac.ProjectEndDate,
             ac.InAllProjects,
@@ -138,7 +142,9 @@ BEGIN
         CAST(NifaAwardNumber AS NVARCHAR(100))      AS AwardNumber,
         CAST(PgmProjectNumbers AS NVARCHAR(MAX))    AS Ae,
         CAST(Pi AS NVARCHAR(200))                   AS Pi,
-        CAST(Orgr AS NVARCHAR(300))                 AS Orgr,
+        CAST(UcpEmployeeId AS NVARCHAR(8))          AS UcpEmployeeId,
+        CAST(UcPathName AS NVARCHAR(200))           AS UcPathName,
+        CAST(Department AS NVARCHAR(300))           AS Department,
         CAST(NifaSfn AS NVARCHAR(10))               AS Sfn,
         CAST('Not in All Projects' AS NVARCHAR(30)) AS Status
     FROM ActiveWithPgm
@@ -153,7 +159,9 @@ BEGIN
         CAST(NifaAwardNumber AS NVARCHAR(100)),
         CAST(PgmProjectNumbers AS NVARCHAR(MAX)),
         CAST(Pi AS NVARCHAR(200)),
-        CAST(Orgr AS NVARCHAR(300)),
+        CAST(UcpEmployeeId AS NVARCHAR(8)),
+        CAST(UcPathName AS NVARCHAR(200)),
+        CAST(Department AS NVARCHAR(300)),
         CAST(NifaSfn AS NVARCHAR(10)),
         CAST('Expired' AS NVARCHAR(30))
     FROM ActiveWithPgm
@@ -172,7 +180,9 @@ BEGIN
         CAST(NifaAwardNumber AS NVARCHAR(100)),
         CAST(PgmProjectNumbers AS NVARCHAR(MAX)),
         CAST(Pi AS NVARCHAR(200)),
-        CAST(Orgr AS NVARCHAR(300)),
+        CAST(UcpEmployeeId AS NVARCHAR(8)),
+        CAST(UcPathName AS NVARCHAR(200)),
+        CAST(Department AS NVARCHAR(300)),
         CAST(NifaSfn AS NVARCHAR(10)),
         CAST('No PGM match' AS NVARCHAR(30))
     FROM ActiveWithPgm
@@ -188,7 +198,9 @@ BEGIN
         CAST(NifaAwardNumber AS NVARCHAR(100)),
         CAST(PgmProjectNumbers AS NVARCHAR(MAX)),
         CAST(Pi AS NVARCHAR(200)),
-        CAST(Orgr AS NVARCHAR(300)),
+        CAST(UcpEmployeeId AS NVARCHAR(8)),
+        CAST(UcPathName AS NVARCHAR(200)),
+        CAST(Department AS NVARCHAR(300)),
         CAST(NifaSfn AS NVARCHAR(10)),
         CAST('SFN mismatch' AS NVARCHAR(30))
     FROM ActiveWithPgm
@@ -203,7 +215,9 @@ BEGIN
         CAST(NifaAwardNumber AS NVARCHAR(100)),
         CAST(PgmProjectNumbers AS NVARCHAR(MAX)),
         CAST(Pi AS NVARCHAR(200)),
-        CAST(Orgr AS NVARCHAR(300)),
+        CAST(UcpEmployeeId AS NVARCHAR(8)),
+        CAST(UcPathName AS NVARCHAR(200)),
+        CAST(Department AS NVARCHAR(300)),
         CAST(NifaSfn AS NVARCHAR(10)),
         CAST('Clean' AS NVARCHAR(30))
     FROM ActiveWithPgm
@@ -224,7 +238,9 @@ BEGIN
         CAST(pc.SponsorAwardNumber AS NVARCHAR(100)) AS AwardNumber,
         STRING_AGG(CAST(pc.ProjectNumber AS NVARCHAR(MAX)), ', ') AS Ae,
         CAST(NULL AS NVARCHAR(200))                  AS Pi,
-        CAST(NULL AS NVARCHAR(300))                  AS Orgr,
+        CAST(NULL AS NVARCHAR(8))                    AS UcpEmployeeId,
+        CAST(NULL AS NVARCHAR(200))                  AS UcPathName,
+        CAST(NULL AS NVARCHAR(300))                  AS Department,
         CAST('204' AS NVARCHAR(10))                  AS Sfn,
         CAST('204 outside college' AS NVARCHAR(30))  AS Status
     FROM PgmClassified pc

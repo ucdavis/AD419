@@ -14,7 +14,7 @@ public sealed class ProjectListController(IProjectListService projectListService
             return BadRequest("A fiscal year query value like FY26 is required.");
         }
 
-        var response = await projectListService.GetAsync(cycle!, cancellationToken);
+        var response = await projectListService.GetAsync(cycle, cancellationToken);
         return Ok(response);
     }
 }

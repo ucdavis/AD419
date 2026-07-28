@@ -14,11 +14,13 @@ export interface ProjectListRow {
   accession: string | null;
   ae: string | null;
   awardNumber: string | null;
+  department: string | null;
   nifaProject: string | null;
-  orgr: string | null;
   pi: string | null;
   sfn: string | null;
   status: ProjectListStatus;
+  ucPathName: string | null;
+  ucpEmployeeId: string | null;
 }
 
 export interface ProjectListCounts {

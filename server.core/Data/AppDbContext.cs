@@ -10,6 +10,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     public DbSet<ImportLog> ImportLogs => Set<ImportLog>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<WorkflowRun> WorkflowRuns => Set<WorkflowRun>();
+    public DbSet<WorkflowChecklistItemState> WorkflowChecklistItemStates => Set<WorkflowChecklistItemState>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -18,5 +20,24 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.HasDefaultSchema(AppSchema);
         modelBuilder.Entity<ImportLog>().ToTable("ImportLog", AppSchema);
         modelBuilder.Entity<User>().ToTable("Users", AppSchema);
+        modelBuilder.Entity<WorkflowRun>().ToTable("WorkflowRun", AppSchema);
+        modelBuilder.Entity<WorkflowChecklistItemState>().ToTable("WorkflowChecklistItemState", AppSchema);
+
+        modelBuilder.Entity<WorkflowRun>()
+            .HasIndex(run => run.IsCurrent)
+            .IsUnique()
+            .HasFilter("[IsCurrent] = 1");
+
+        modelBuilder.Entity<WorkflowRun>()
+            .HasMany(run => run.ChecklistItemStates)
+            .WithOne(state => state.WorkflowRun)
+            .HasForeignKey(state => state.WorkflowRunId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<WorkflowChecklistItemState>()
+            .HasOne(state => state.SourceImportLog)
+            .WithMany()
+            .HasForeignKey(state => state.SourceImportLogId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

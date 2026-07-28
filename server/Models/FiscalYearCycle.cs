@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
 namespace Server.Models;
@@ -7,7 +8,7 @@ public sealed record FiscalYearCycle(
     DateOnly CycleStart,
     DateOnly CycleEnd)
 {
-    public static bool TryParse(string? fiscalYear, out FiscalYearCycle? cycle)
+    public static bool TryParse(string? fiscalYear, [NotNullWhen(true)] out FiscalYearCycle? cycle)
     {
         cycle = null;
 

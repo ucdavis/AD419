@@ -6,7 +6,6 @@ import { workflowSnapshotQueryOptions } from '@/queries.ts';
 import { DataClassificationStage } from '@/components/dataClassification/DataClassificationStage.tsx';
 import { ProjectIdentificationStage } from '@/components/ProjectIdentificationStage.tsx';
 import { SectionPanel } from '@/components/SectionPanel.tsx';
-import { FlatFileImportPanel } from '@/components/FlatFileImportPanel.tsx';
 import { WorkflowShell } from '@/components/WorkflowShell.tsx';
 import type { WorkflowStageId } from '@/types.ts';
 import type { RouterContext } from '@/main.tsx';
@@ -49,12 +48,7 @@ function WorkflowStageRoute() {
     <WorkflowShell snapshot={snapshot} stage={stage}>
       <div className="workflow-stack">
         {workflowStageId === 'project-identification' ? (
-          <>
-            <SectionPanel title="Load required data">
-              <FlatFileImportPanel />
-            </SectionPanel>
-            <ProjectIdentificationStage />
-          </>
+          <ProjectIdentificationStage />
         ) : workflowStageId === 'data-classification' ? (
           <DataClassificationStage />
         ) : (
