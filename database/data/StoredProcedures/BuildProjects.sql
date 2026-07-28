@@ -2,6 +2,9 @@ CREATE PROCEDURE [data].[BuildProjects]
 AS
 BEGIN
     SET NOCOUNT ON;
+    -- Any failure (including client-abort timeouts, which TRY/CATCH cannot see)
+    -- must roll back the whole rebuild so Projects is never left empty.
+    SET XACT_ABORT ON;
 
     -- Materializes the cycle's consolidated project list from ActiveProjects,
     -- AllProjects and PGMProjects: one row per NIFA project x AE project pair.
@@ -29,6 +32,8 @@ BEGIN
           AND pc.[ProjectNumber] IS NULL
     )
         THROW 50000, 'Active projects exist without a PGM master data match; resolve them in Project Identification first.', 1;
+
+    BEGIN TRAN;
 
     DELETE FROM [data].[Projects];
 
@@ -76,6 +81,8 @@ BEGIN
     LEFT JOIN [data].[PGMProjects] pgm
         ON pgm.[ProjectId] = pc.[ProjectId]
     WHERE ISNULL(a.[ExcludeFromUi], 0) = 0;
+
+    COMMIT;
 
     -- Row count for the import run stage.
     SELECT COUNT(*) AS ProjectRowsBuilt FROM [data].[Projects];

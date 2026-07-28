@@ -1,6 +1,6 @@
 CREATE TABLE [data].[SegmentClassifications]
 (
-    [SegmentType]     NVARCHAR(20)  NOT NULL,  -- FinancialDepartment | Account | Fund | Activity | Ern
+    [SegmentType]     NVARCHAR(20)  NOT NULL,  -- FinancialDepartment | Account | Fund | Activity | Ern | Purpose
     [Code]            NVARCHAR(50)  NOT NULL,
     [Description]     NVARCHAR(300) NULL,
     [IncludeInReport] BIT           NULL,       -- NULL = unclassified, needs review
