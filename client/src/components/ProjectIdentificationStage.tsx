@@ -136,10 +136,10 @@ function ProjectIdentificationStageContent({
         id: 'pi',
       },
       {
-        accessorFn: (row) => row.orgr ?? '',
-        cell: ({ row }) => displayValue(row.original.orgr),
-        header: 'ORGR',
-        id: 'orgr',
+        accessorFn: (row) => row.department ?? '',
+        cell: ({ row }) => displayValue(row.original.department),
+        header: 'Department',
+        id: 'department',
       },
       {
         accessorFn: (row) => row.sfn ?? '',

@@ -15,7 +15,7 @@ export interface ProjectListRow {
   ae: string | null;
   awardNumber: string | null;
   nifaProject: string | null;
-  orgr: string | null;
+  department: string | null;
   pi: string | null;
   sfn: string | null;
   status: ProjectListStatus;

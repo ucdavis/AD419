@@ -27,7 +27,7 @@ const projectListResponse = {
       ae: 'K1234',
       awardNumber: '2025-111',
       nifaProject: 'CA-A-111-H',
-      orgr: 'ATM',
+      department: 'ATM',
       pi: 'Larkspur, S.',
       sfn: '201',
       status: 'Clean',
@@ -37,7 +37,7 @@ const projectListResponse = {
       ae: 'K2222',
       awardNumber: '2025-222',
       nifaProject: 'CA-B-222-CG',
-      orgr: 'ANS',
+      department: 'ANS',
       pi: 'Okonkwo, Y.',
       sfn: '204',
       status: '204 outside college',
@@ -47,7 +47,7 @@ const projectListResponse = {
       ae: null,
       awardNumber: '2025-333',
       nifaProject: 'CA-C-333-CG',
-      orgr: 'VEN',
+      department: 'VEN',
       pi: 'Naidoo, T.',
       sfn: '204',
       status: 'No PGM match',
@@ -272,7 +272,7 @@ describe('AD419 workflow routes', () => {
         screen.getByRole('columnheader', { name: 'PI' })
       ).toBeInTheDocument();
       expect(
-        screen.getByRole('columnheader', { name: 'ORGR' })
+        screen.getByRole('columnheader', { name: 'Department' })
       ).toBeInTheDocument();
       expect(
         screen.getByRole('columnheader', { name: 'SFN' })
