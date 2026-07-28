@@ -15,6 +15,21 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
 
     private const int CommandTimeoutSeconds = DataDbConnection.ImportCommandTimeoutSeconds;
     private const string DestinationTable = "[data].[PGMProjects]";
+    private const int MaxInlineAggregateLength = 255;
+
+    private static readonly PeopleAggregateField[] PeopleAggregateFields =
+    [
+        new(
+            "principal_investigator_person_name",
+            "principal_investigator_names",
+            "PrincipalInvestigatorNames",
+            "principal investigators"),
+        new("piperson", "pi_persons", "PiPersons", "PI persons"),
+        new("award_copi_name", "award_copi_names", "AwardCopiNames", "award co-PIs"),
+        new("project_manager_name", "project_manager_names", "ProjectManagerNames", "project managers"),
+        new("grant_administrator", "grant_administrators", "GrantAdministrators", "grant administrators"),
+        new("contractadmin", "contract_admins", "ContractAdmins", "contract admins"),
+    ];
 
     // source reader column -> destination table column.
     // LoadedAt is intentionally absent: the destination column defaults to
@@ -104,8 +119,6 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
         query.Parameters.Add(new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = BuildRemoteQuery() });
         query.Parameters.Add(new SqlParameter("@reportDate", SqlDbType.Date) { Value = reportDate });
 
-        await using var reader = await query.ExecuteReaderAsync(cancellationToken);
-
         await using var destination = new SqlConnection(destinationConnectionString);
         await destination.OpenAsync(cancellationToken);
         await using var transaction = (SqlTransaction)await destination.BeginTransactionAsync(cancellationToken);
@@ -127,10 +140,16 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
             bulkCopy.ColumnMappings.Add(sourceColumn, destinationColumn);
         }
 
-        await bulkCopy.WriteToServerAsync(reader, cancellationToken);
+        await using (var reader = await query.ExecuteReaderAsync(cancellationToken))
+        {
+            await bulkCopy.WriteToServerAsync(reader, cancellationToken);
+        }
+
         var rowsImported = (int)bulkCopy.RowsCopied64;
 
         await transaction.CommitAsync(cancellationToken);
+
+        await LogPeopleAggregateTruncationWarningsAsync(source, destination, cancellationToken);
 
         _logger.LogInformation(
             "Imported {RowCount} PGM projects for report date {ReportDate}",
@@ -138,6 +157,132 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
             reportDate);
 
         return new PgmProjectsImportResult(rowsImported, reportDate);
+    }
+
+    private async Task LogPeopleAggregateTruncationWarningsAsync(
+        SqlConnection source,
+        SqlConnection destination,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var sourceLengths = await ReadOversizedSourceAggregateLengthsAsync(source, cancellationToken);
+            if (sourceLengths.Count == 0)
+            {
+                return;
+            }
+
+            var storedLengths = await ReadStoredAggregateLengthsAsync(destination, cancellationToken);
+            var truncatedFields = FindTruncatedAggregateFields(sourceLengths, storedLengths);
+
+            if (truncatedFields.Count == 0)
+            {
+                return;
+            }
+
+            _logger.LogWarning(
+                "PGM project people aggregates were truncated by the {MaxLength}-character import query cast: {TruncatedFields}",
+                MaxInlineAggregateLength,
+                string.Join("; ", truncatedFields));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(
+                ex,
+                "Unable to validate PGM project aggregate truncation after import.");
+        }
+    }
+
+    private static async Task<List<PeopleAggregateLengths>> ReadOversizedSourceAggregateLengthsAsync(
+        SqlConnection source,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new SqlCommand(BuildAggregateLengthCheckCommandText(), source)
+        {
+            CommandTimeout = CommandTimeoutSeconds,
+        };
+        command.Parameters.Add(
+            new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = BuildAggregateLengthCheckQuery() });
+
+        var sourceLengths = new List<PeopleAggregateLengths>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            sourceLengths.Add(ReadAggregateLengths(reader, "project_id", field => $"{field.RemoteAlias}_length"));
+        }
+
+        return sourceLengths;
+    }
+
+    private static async Task<Dictionary<long, PeopleAggregateLengths>> ReadStoredAggregateLengthsAsync(
+        SqlConnection destination,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new SqlCommand(BuildStoredAggregateLengthQuery(), destination)
+        {
+            CommandTimeout = CommandTimeoutSeconds,
+        };
+
+        var storedLengths = new Dictionary<long, PeopleAggregateLengths>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var lengths = ReadAggregateLengths(reader, "ProjectId", field => $"{field.DestinationColumn}Length");
+            storedLengths[lengths.ProjectId] = lengths;
+        }
+
+        return storedLengths;
+    }
+
+    private static List<string> FindTruncatedAggregateFields(
+        IReadOnlyList<PeopleAggregateLengths> sourceLengths,
+        IReadOnlyDictionary<long, PeopleAggregateLengths> storedLengths)
+    {
+        var truncatedFields = new List<string>();
+
+        foreach (var sourceRow in sourceLengths)
+        {
+            if (!storedLengths.TryGetValue(sourceRow.ProjectId, out var storedRow))
+            {
+                continue;
+            }
+
+            for (var i = 0; i < PeopleAggregateFields.Length; i++)
+            {
+                var sourceLength = sourceRow.FieldLengths[i];
+                var storedLength = storedRow.FieldLengths[i];
+
+                if (sourceLength <= storedLength)
+                {
+                    continue;
+                }
+
+                truncatedFields.Add(
+                    $"project {sourceRow.ProjectId} {PeopleAggregateFields[i].DisplayName}: source length {sourceLength}, stored length {storedLength}");
+            }
+        }
+
+        return truncatedFields;
+    }
+
+    private static PeopleAggregateLengths ReadAggregateLengths(
+        IDataRecord record,
+        string projectIdColumn,
+        Func<PeopleAggregateField, string> lengthColumnName)
+    {
+        var lengths = new long[PeopleAggregateFields.Length];
+        for (var i = 0; i < PeopleAggregateFields.Length; i++)
+        {
+            lengths[i] = ReadInt64(record, lengthColumnName(PeopleAggregateFields[i]));
+        }
+
+        return new PeopleAggregateLengths(ReadInt64(record, projectIdColumn), lengths);
+    }
+
+    private static long ReadInt64(IDataRecord record, string columnName)
+    {
+        var value = record.GetValue(record.GetOrdinal(columnName));
+        return value == DBNull.Value ? 0 : Convert.ToInt64(value);
     }
 
     /// <summary>
@@ -150,6 +295,62 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
     /// </summary>
     public static string BuildSourceCommandText() =>
         $"EXEC (@remoteQuery, @reportDate) AT [{RemoteLinkedServer}];";
+
+    /// <summary>
+    /// The T-SQL run against the warehouse gateway server to check whether any source people
+    /// aggregates exceed the inline cast limit used by the import query.
+    /// </summary>
+    public static string BuildAggregateLengthCheckCommandText() =>
+        $"EXEC (@remoteQuery) AT [{RemoteLinkedServer}];";
+
+    /// <summary>
+    /// Builds the Redshift query that returns numeric aggregate length telemetry. It intentionally
+    /// does not return the LISTAGG values themselves, so the linked server can bind the results as
+    /// ordinary numeric columns instead of streamed LOBs.
+    /// </summary>
+    public static string BuildAggregateLengthCheckQuery() =>
+        $$"""
+        WITH people_lengths AS (
+            SELECT project_id,
+        {{BuildSourceAggregateLengthSelectList()}}
+            FROM ae_dwh.pgm_master_data
+            WHERE project_id IS NOT NULL
+            GROUP BY project_id
+        )
+        SELECT project_id,
+        {{BuildSourceAggregateLengthResultList()}}
+        FROM people_lengths
+        WHERE {{BuildSourceAggregateLengthWhereClause()}}
+        """;
+
+    public static string BuildStoredAggregateLengthQuery() =>
+        $"""
+        SELECT ProjectId,
+        {BuildStoredAggregateLengthSelectList()}
+        FROM {DestinationTable}
+        """;
+
+    private static string BuildSourceAggregateLengthSelectList() =>
+        string.Join(
+            ",\n",
+            PeopleAggregateFields.Select(field =>
+                $"            LENGTH(LISTAGG(DISTINCT {field.SourceColumn}, '; ')) AS {field.RemoteAlias}_length"));
+
+    private static string BuildSourceAggregateLengthResultList() =>
+        string.Join(
+            ",\n",
+            PeopleAggregateFields.Select(field => $"    COALESCE({field.RemoteAlias}_length, 0) AS {field.RemoteAlias}_length"));
+
+    private static string BuildSourceAggregateLengthWhereClause() =>
+        string.Join(
+            "\n   OR ",
+            PeopleAggregateFields.Select(field => $"{field.RemoteAlias}_length > {MaxInlineAggregateLength}"));
+
+    private static string BuildStoredAggregateLengthSelectList() =>
+        string.Join(
+            ",\n",
+            PeopleAggregateFields.Select(field =>
+                $"    COALESCE(DATALENGTH({field.DestinationColumn}) / 2, 0) AS {field.DestinationColumn}Length"));
 
     /// <summary>
     /// Builds the Redshift query run on the warehouse via the pass-through. The single <c>?</c> is
@@ -166,7 +367,7 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
     /// not selected here; the destination column defaults to it.
     /// </summary>
     public static string BuildRemoteQuery() =>
-        """
+        $"""
         WITH ranked AS (
             SELECT pmd.*,
                 ROW_NUMBER() OVER (
@@ -182,12 +383,7 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
         ),
         people AS (
             SELECT project_id,
-                CAST(LISTAGG(DISTINCT principal_investigator_person_name, '; ') AS VARCHAR(255)) AS principal_investigator_names,
-                CAST(LISTAGG(DISTINCT piperson, '; ') AS VARCHAR(255)) AS pi_persons,
-                CAST(LISTAGG(DISTINCT award_copi_name, '; ') AS VARCHAR(255)) AS award_copi_names,
-                CAST(LISTAGG(DISTINCT project_manager_name, '; ') AS VARCHAR(255)) AS project_manager_names,
-                CAST(LISTAGG(DISTINCT grant_administrator, '; ') AS VARCHAR(255)) AS grant_administrators,
-                CAST(LISTAGG(DISTINCT contractadmin, '; ') AS VARCHAR(255)) AS contract_admins
+        {BuildPeopleAggregateSelectList()}
             FROM ae_dwh.pgm_master_data
             WHERE project_id IS NOT NULL
             GROUP BY project_id
@@ -209,4 +405,18 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
         JOIN people p USING (project_id)
         WHERE r.rn = 1
         """;
+
+    private static string BuildPeopleAggregateSelectList() =>
+        string.Join(
+            ",\n",
+            PeopleAggregateFields.Select(field =>
+                $"            CAST(LISTAGG(DISTINCT {field.SourceColumn}, '; ') AS VARCHAR({MaxInlineAggregateLength})) AS {field.RemoteAlias}"));
+
+    private sealed record PeopleAggregateField(
+        string SourceColumn,
+        string RemoteAlias,
+        string DestinationColumn,
+        string DisplayName);
+
+    private sealed record PeopleAggregateLengths(long ProjectId, long[] FieldLengths);
 }

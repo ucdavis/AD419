@@ -45,8 +45,40 @@ public class PgmProjectsImportServiceTests
         var query = PgmProjectsImportService.BuildRemoteQuery();
 
         // unbounded LISTAGG is reported as a LOB, which EXEC ... AT cannot stream
-        query.Should().Contain("CAST(LISTAGG(DISTINCT piperson, '; ') AS VARCHAR(8000))");
+        query.Should().Contain("CAST(LISTAGG(DISTINCT piperson, '; ') AS VARCHAR(255))");
         query.Should().NotContain("WITHIN GROUP");
+    }
+
+    [Fact]
+    public void BuildAggregateLengthCheckCommandText_runs_a_parameterized_exec_at_against_redshift()
+    {
+        var command = PgmProjectsImportService.BuildAggregateLengthCheckCommandText();
+
+        command.Should().Contain("EXEC (@remoteQuery) AT [AE_Redshift_PROD]");
+    }
+
+    [Fact]
+    public void BuildAggregateLengthCheckQuery_returns_numeric_aggregate_length_telemetry()
+    {
+        var query = PgmProjectsImportService.BuildAggregateLengthCheckQuery();
+
+        query.Should().Contain("SELECT project_id,");
+        query.Should().Contain("LENGTH(LISTAGG(DISTINCT piperson, '; ')) AS pi_persons_length");
+        query.Should().Contain("COALESCE(pi_persons_length, 0) AS pi_persons_length");
+        query.Should().Contain("WHERE principal_investigator_names_length > 255");
+        query.Should().Contain("OR pi_persons_length > 255");
+        query.Should().NotContain("VARCHAR(8000)");
+        query.Should().NotContain("WITHIN GROUP");
+    }
+
+    [Fact]
+    public void BuildStoredAggregateLengthQuery_returns_destination_lengths_by_project()
+    {
+        var query = PgmProjectsImportService.BuildStoredAggregateLengthQuery();
+
+        query.Should().Contain("SELECT ProjectId,");
+        query.Should().Contain("COALESCE(DATALENGTH(PiPersons) / 2, 0) AS PiPersonsLength");
+        query.Should().Contain("FROM [data].[PGMProjects]");
     }
 
     [Fact]
