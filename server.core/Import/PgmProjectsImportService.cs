@@ -16,6 +16,8 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
     private const int CommandTimeoutSeconds = DataDbConnection.ImportCommandTimeoutSeconds;
     private const string DestinationTable = "[data].[PGMProjects]";
     private const int MaxInlineAggregateLength = 255;
+    internal const string PeopleAggregateTruncationWarningMessage =
+        "PGM project people aggregates were truncated by the {MaxLength}-byte import query cast: {TruncatedFields}";
 
     private static readonly PeopleAggregateField[] PeopleAggregateFields =
     [
@@ -181,7 +183,7 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
             }
 
             _logger.LogWarning(
-                "PGM project people aggregates were truncated by the {MaxLength}-character import query cast: {TruncatedFields}",
+                PeopleAggregateTruncationWarningMessage,
                 MaxInlineAggregateLength,
                 string.Join("; ", truncatedFields));
         }
@@ -334,7 +336,7 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
         string.Join(
             ",\n",
             PeopleAggregateFields.Select(field =>
-                $"            LENGTH(LISTAGG(DISTINCT {field.SourceColumn}, '; ')) AS {field.RemoteAlias}_length"));
+                $"            OCTET_LENGTH(LISTAGG(DISTINCT {field.SourceColumn}, '; ')) AS {field.RemoteAlias}_length"));
 
     private static string BuildSourceAggregateLengthResultList() =>
         string.Join(

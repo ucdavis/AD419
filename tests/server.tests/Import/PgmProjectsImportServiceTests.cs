@@ -58,17 +58,21 @@ public class PgmProjectsImportServiceTests
     }
 
     [Fact]
-    public void BuildAggregateLengthCheckQuery_returns_numeric_aggregate_length_telemetry()
+    public void BuildAggregateLengthCheckQuery_returns_numeric_aggregate_byte_length_telemetry()
     {
         var query = PgmProjectsImportService.BuildAggregateLengthCheckQuery();
 
         query.Should().Contain("SELECT project_id,");
-        query.Should().Contain("LENGTH(LISTAGG(DISTINCT piperson, '; ')) AS pi_persons_length");
+        query.Should().Contain("OCTET_LENGTH(LISTAGG(DISTINCT piperson, '; ')) AS pi_persons_length");
+        query.Should().NotContain("            LENGTH(LISTAGG");
         query.Should().Contain("COALESCE(pi_persons_length, 0) AS pi_persons_length");
         query.Should().Contain("WHERE principal_investigator_names_length > 255");
         query.Should().Contain("OR pi_persons_length > 255");
         query.Should().NotContain("VARCHAR(8000)");
         query.Should().NotContain("WITHIN GROUP");
+
+        PgmProjectsImportService.PeopleAggregateTruncationWarningMessage.Should().Contain("{MaxLength}-byte");
+        PgmProjectsImportService.PeopleAggregateTruncationWarningMessage.Should().NotContain("character");
     }
 
     [Fact]
