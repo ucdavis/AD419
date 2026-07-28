@@ -70,6 +70,8 @@ BEGIN
             ap.Title,
             a.ProjectDirector AS ActiveProjectDirector,
             ap.ProjectDirector AS AllProjectDirector,
+            a.UcpEmployeeId,
+            a.UcPathName,
             ap.Department,
             ap.ProjectStartDate,
             ap.ProjectEndDate,
@@ -95,6 +97,8 @@ BEGIN
             ac.NifaAwardNumber,
             ac.Title,
             COALESCE(NULLIF(ac.ActiveProjectDirector, ''), NULLIF(ac.AllProjectDirector, '')) AS Pi,
+            ac.UcpEmployeeId,
+            ac.UcPathName,
             ac.Department,
             ac.ProjectStartDate,
             ac.ProjectEndDate,
@@ -138,6 +142,8 @@ BEGIN
         CAST(NifaAwardNumber AS NVARCHAR(100))      AS AwardNumber,
         CAST(PgmProjectNumbers AS NVARCHAR(MAX))    AS Ae,
         CAST(Pi AS NVARCHAR(200))                   AS Pi,
+        CAST(UcpEmployeeId AS NVARCHAR(8))          AS UcpEmployeeId,
+        CAST(UcPathName AS NVARCHAR(200))           AS UcPathName,
         CAST(Department AS NVARCHAR(300))           AS Department,
         CAST(NifaSfn AS NVARCHAR(10))               AS Sfn,
         CAST('Not in All Projects' AS NVARCHAR(30)) AS Status
@@ -153,6 +159,8 @@ BEGIN
         CAST(NifaAwardNumber AS NVARCHAR(100)),
         CAST(PgmProjectNumbers AS NVARCHAR(MAX)),
         CAST(Pi AS NVARCHAR(200)),
+        CAST(UcpEmployeeId AS NVARCHAR(8)),
+        CAST(UcPathName AS NVARCHAR(200)),
         CAST(Department AS NVARCHAR(300)),
         CAST(NifaSfn AS NVARCHAR(10)),
         CAST('Expired' AS NVARCHAR(30))
@@ -172,6 +180,8 @@ BEGIN
         CAST(NifaAwardNumber AS NVARCHAR(100)),
         CAST(PgmProjectNumbers AS NVARCHAR(MAX)),
         CAST(Pi AS NVARCHAR(200)),
+        CAST(UcpEmployeeId AS NVARCHAR(8)),
+        CAST(UcPathName AS NVARCHAR(200)),
         CAST(Department AS NVARCHAR(300)),
         CAST(NifaSfn AS NVARCHAR(10)),
         CAST('No PGM match' AS NVARCHAR(30))
@@ -188,6 +198,8 @@ BEGIN
         CAST(NifaAwardNumber AS NVARCHAR(100)),
         CAST(PgmProjectNumbers AS NVARCHAR(MAX)),
         CAST(Pi AS NVARCHAR(200)),
+        CAST(UcpEmployeeId AS NVARCHAR(8)),
+        CAST(UcPathName AS NVARCHAR(200)),
         CAST(Department AS NVARCHAR(300)),
         CAST(NifaSfn AS NVARCHAR(10)),
         CAST('SFN mismatch' AS NVARCHAR(30))
@@ -203,6 +215,8 @@ BEGIN
         CAST(NifaAwardNumber AS NVARCHAR(100)),
         CAST(PgmProjectNumbers AS NVARCHAR(MAX)),
         CAST(Pi AS NVARCHAR(200)),
+        CAST(UcpEmployeeId AS NVARCHAR(8)),
+        CAST(UcPathName AS NVARCHAR(200)),
         CAST(Department AS NVARCHAR(300)),
         CAST(NifaSfn AS NVARCHAR(10)),
         CAST('Clean' AS NVARCHAR(30))
@@ -224,6 +238,8 @@ BEGIN
         CAST(pc.SponsorAwardNumber AS NVARCHAR(100)) AS AwardNumber,
         STRING_AGG(CAST(pc.ProjectNumber AS NVARCHAR(MAX)), ', ') AS Ae,
         CAST(NULL AS NVARCHAR(200))                  AS Pi,
+        CAST(NULL AS NVARCHAR(8))                    AS UcpEmployeeId,
+        CAST(NULL AS NVARCHAR(200))                  AS UcPathName,
         CAST(NULL AS NVARCHAR(300))                  AS Department,
         CAST('204' AS NVARCHAR(10))                  AS Sfn,
         CAST('204 outside college' AS NVARCHAR(30))  AS Status

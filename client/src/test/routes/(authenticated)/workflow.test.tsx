@@ -26,31 +26,37 @@ const projectListResponse = {
       accession: '1053852',
       ae: 'K1234',
       awardNumber: '2025-111',
-      nifaProject: 'CA-A-111-H',
       department: 'ATM',
+      nifaProject: 'CA-A-111-H',
       pi: 'Larkspur, S.',
       sfn: '201',
       status: 'Clean',
+      ucPathName: 'Larkspur, Sasha',
+      ucpEmployeeId: '10000001',
     },
     {
       accession: '1055356',
       ae: 'K2222',
       awardNumber: '2025-222',
-      nifaProject: 'CA-B-222-CG',
       department: 'ANS',
+      nifaProject: 'CA-B-222-CG',
       pi: 'Okonkwo, Y.',
       sfn: '204',
       status: '204 outside college',
+      ucPathName: 'Okonkwo, Yara',
+      ucpEmployeeId: '10000002',
     },
     {
       accession: '1078258',
       ae: null,
       awardNumber: '2025-333',
-      nifaProject: 'CA-C-333-CG',
       department: 'VEN',
+      nifaProject: 'CA-C-333-CG',
       pi: 'Naidoo, T.',
       sfn: '204',
       status: 'No PGM match',
+      ucPathName: 'Naidoo, Talia',
+      ucpEmployeeId: '10000003',
     },
   ],
   summary: {
@@ -272,6 +278,12 @@ describe('AD419 workflow routes', () => {
         screen.getByRole('columnheader', { name: 'PI' })
       ).toBeInTheDocument();
       expect(
+        screen.getByRole('columnheader', { name: 'UCP Employee ID' })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('columnheader', { name: 'UCPath Name' })
+      ).toBeInTheDocument();
+      expect(
         screen.getByRole('columnheader', { name: 'Department' })
       ).toBeInTheDocument();
       expect(
@@ -327,14 +339,22 @@ describe('AD419 workflow routes', () => {
 
       await user.click(screen.getByRole('tab', { name: /all\s*3/i }));
       expect(await screen.findByText('Naidoo, T.')).toBeInTheDocument();
-      await user.type(
-        screen.getByPlaceholderText('Search project, accession, PI...'),
-        '1078258'
+      const searchInput = screen.getByPlaceholderText(
+        'Search project, accession, person...'
       );
+
+      await user.type(searchInput, '1078258');
 
       expect(screen.getByText('Naidoo, T.')).toBeInTheDocument();
       expect(screen.queryByText('Okonkwo, Y.')).not.toBeInTheDocument();
       expect(screen.queryByText('Larkspur, S.')).not.toBeInTheDocument();
+
+      await user.clear(searchInput);
+      await user.type(searchInput, '10000002');
+
+      expect(screen.getByText('Okonkwo, Y.')).toBeInTheDocument();
+      expect(screen.getByText('Okonkwo, Yara')).toBeInTheDocument();
+      expect(screen.queryByText('Naidoo, T.')).not.toBeInTheDocument();
     } finally {
       cleanup();
     }

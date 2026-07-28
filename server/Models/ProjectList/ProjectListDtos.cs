@@ -31,6 +31,8 @@ public sealed record ProjectListRowDto(
     string? AwardNumber,
     string? Ae,
     string? Pi,
+    string? UcpEmployeeId,
+    string? UcPathName,
     string? Department,
     string? Sfn,
     string Status);

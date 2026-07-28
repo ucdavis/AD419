@@ -17,9 +17,39 @@ public class ProjectListResponseFactoryTests
 
         var rows = new[]
         {
-            new ProjectListRowDto("CA-A-111-H", "1000001", "2025-1", "K1234", "Larkspur, S.", "ATM", "201", "Clean"),
-            new ProjectListRowDto("CA-B-222-CG", "1000002", "2025-2", null, "Okonkwo, Y.", "ANS", "204", "SFN mismatch"),
-            new ProjectListRowDto("CA-C-333-CG", "1000003", "2025-3", null, "Naidoo, T.", "VEN", "204", "No PGM match"),
+            new ProjectListRowDto(
+                "CA-A-111-H",
+                "1000001",
+                "2025-1",
+                "K1234",
+                "Larkspur, S.",
+                "10000001",
+                "Larkspur, Sasha",
+                "ATM",
+                "201",
+                "Clean"),
+            new ProjectListRowDto(
+                "CA-B-222-CG",
+                "1000002",
+                "2025-2",
+                null,
+                "Okonkwo, Y.",
+                "10000002",
+                "Okonkwo, Yara",
+                "ANS",
+                "204",
+                "SFN mismatch"),
+            new ProjectListRowDto(
+                "CA-C-333-CG",
+                "1000003",
+                "2025-3",
+                null,
+                "Naidoo, T.",
+                "10000003",
+                "Naidoo, Talia",
+                "VEN",
+                "204",
+                "No PGM match"),
         };
 
         var response = ProjectListResponseFactory.Create(cycle, rows, 10, 20, 30, 40);

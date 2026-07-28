@@ -50,8 +50,28 @@ public class ProjectListControllerTests
             new ProjectListCountsDto(1, 1, 2),
             new ProjectListSummaryDto(2, 3, 4, 5, 1, []),
             [
-                new ProjectListRowDto("CA-A-111-H", "1000001", "2025-1", "K1234", "Larkspur, S.", "ATM", "201", "Clean"),
-                new ProjectListRowDto("CA-B-222-CG", "1000002", "2025-2", null, "Okonkwo, Y.", "ANS", "204", "SFN mismatch"),
+                new ProjectListRowDto(
+                    "CA-A-111-H",
+                    "1000001",
+                    "2025-1",
+                    "K1234",
+                    "Larkspur, S.",
+                    "10000001",
+                    "Larkspur, Sasha",
+                    "ATM",
+                    "201",
+                    "Clean"),
+                new ProjectListRowDto(
+                    "CA-B-222-CG",
+                    "1000002",
+                    "2025-2",
+                    null,
+                    "Okonkwo, Y.",
+                    "10000002",
+                    "Okonkwo, Yara",
+                    "ANS",
+                    "204",
+                    "SFN mismatch"),
             ]);
 
         public Task<ProjectListResponse> GetAsync(FiscalYearCycle cycle, CancellationToken cancellationToken)

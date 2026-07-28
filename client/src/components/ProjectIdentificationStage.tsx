@@ -136,6 +136,25 @@ function ProjectIdentificationStageContent({
         id: 'pi',
       },
       {
+        accessorFn: (row) => row.ucpEmployeeId ?? '',
+        cell: ({ row }) => displayValue(row.original.ucpEmployeeId),
+        header: 'UCP Employee ID',
+        id: 'ucpEmployeeId',
+        meta: {
+          cellClassName: 'whitespace-nowrap',
+          headerClassName: 'whitespace-nowrap',
+        },
+      },
+      {
+        accessorFn: (row) => row.ucPathName ?? '',
+        cell: ({ row }) => displayValue(row.original.ucPathName),
+        header: 'UCPath Name',
+        id: 'ucPathName',
+        meta: {
+          headerClassName: 'whitespace-nowrap',
+        },
+      },
+      {
         accessorFn: (row) => row.department ?? '',
         cell: ({ row }) => displayValue(row.original.department),
         header: 'Department',
@@ -255,7 +274,7 @@ function ProjectIdentificationStageContent({
               <DataTable
                 columns={columns}
                 data={visibleRows}
-                filterPlaceholder="Search project, accession, PI..."
+                filterPlaceholder="Search project, accession, person..."
                 initialState={{ pagination: { pageSize: 25 } }}
                 key={activeTab}
                 tableClassName="table-zebra table-sm"
