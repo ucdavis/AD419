@@ -34,6 +34,8 @@ BEGIN
             pgm.ProjectId,
             pgm.ProjectNumber,
             pgm.SponsorAwardNumber,
+            pgm.AwardStartDate,
+            pgm.AwardEndDate,
             REPLACE(pgm.SponsorAwardNumber, '-', '') AS AwardKey,
             CASE
                 WHEN aln.ProgramNumber IS NULL                                              THEN NULL
@@ -66,6 +68,9 @@ BEGIN
             a.ProjectNumber AS NifaProjectNumber,
             ap.AwardNumber  AS NifaAwardNumber,
             ap.Title,
+            a.ProjectDirector AS ActiveProjectDirector,
+            ap.ProjectDirector AS AllProjectDirector,
+            ap.Department AS Orgr,
             ap.ProjectStartDate,
             ap.ProjectEndDate,
             CASE WHEN ap.ProjectNumber IS NULL THEN 0 ELSE 1 END AS InAllProjects,
@@ -77,7 +82,9 @@ BEGIN
                 ELSE 'UNKNOWN'  -- unrecognized suffix: fail closed below, never silently Clean
             END AS NifaSfn
         FROM [data].[ActiveProjects] a
-        LEFT JOIN [data].[AllProjects] ap ON ap.ProjectNumber = a.ProjectNumber
+        LEFT JOIN [data].[AllProjects] ap
+            ON NULLIF(LTRIM(RTRIM(ap.ProjectNumber)), '') = NULLIF(LTRIM(RTRIM(a.ProjectNumber)), '')
+           AND NULLIF(LTRIM(RTRIM(ap.AccessionNumber)), '') = NULLIF(LTRIM(RTRIM(a.AccessionNumber)), '')
         WHERE ISNULL(a.ExcludeFromUi, 0) = 0
     ),
     ActiveWithPgm AS
@@ -87,6 +94,8 @@ BEGIN
             ac.NifaProjectNumber,
             ac.NifaAwardNumber,
             ac.Title,
+            COALESCE(NULLIF(ac.ActiveProjectDirector, ''), NULLIF(ac.AllProjectDirector, '')) AS Pi,
+            ac.Orgr,
             ac.ProjectStartDate,
             ac.ProjectEndDate,
             ac.InAllProjects,
@@ -124,12 +133,14 @@ BEGIN
 
     -- Not in All Projects
     SELECT
-        CAST(AccessionNumber AS NVARCHAR(50))      AS AccessionNumber,
-        CAST(NifaProjectNumber AS NVARCHAR(20))    AS NifaProjectNumber,
-        CAST(NifaAwardNumber AS NVARCHAR(100))     AS NifaAwardNumber,
-        CAST(Title AS NVARCHAR(MAX))               AS Title,
-        CAST(PgmProjectNumbers AS NVARCHAR(MAX))   AS PgmProjectNumbers,
-        CAST('Not in All Projects' AS NVARCHAR(30)) AS status
+        CAST(NifaProjectNumber AS NVARCHAR(20))     AS NifaProject,
+        CAST(AccessionNumber AS NVARCHAR(50))       AS Accession,
+        CAST(NifaAwardNumber AS NVARCHAR(100))      AS AwardNumber,
+        CAST(PgmProjectNumbers AS NVARCHAR(MAX))    AS Ae,
+        CAST(Pi AS NVARCHAR(200))                   AS Pi,
+        CAST(Orgr AS NVARCHAR(300))                 AS Orgr,
+        CAST(NifaSfn AS NVARCHAR(10))               AS Sfn,
+        CAST('Not in All Projects' AS NVARCHAR(30)) AS Status
     FROM ActiveWithPgm
     WHERE InAllProjects = 0
 
@@ -137,11 +148,13 @@ BEGIN
 
     -- Expired (project dates fall outside the cycle window)
     SELECT
-        CAST(AccessionNumber AS NVARCHAR(50)),
         CAST(NifaProjectNumber AS NVARCHAR(20)),
+        CAST(AccessionNumber AS NVARCHAR(50)),
         CAST(NifaAwardNumber AS NVARCHAR(100)),
-        CAST(Title AS NVARCHAR(MAX)),
         CAST(PgmProjectNumbers AS NVARCHAR(MAX)),
+        CAST(Pi AS NVARCHAR(200)),
+        CAST(Orgr AS NVARCHAR(300)),
+        CAST(NifaSfn AS NVARCHAR(10)),
         CAST('Expired' AS NVARCHAR(30))
     FROM ActiveWithPgm
     WHERE InAllProjects = 1
@@ -154,11 +167,13 @@ BEGIN
 
     -- No PGM match
     SELECT
-        CAST(AccessionNumber AS NVARCHAR(50)),
         CAST(NifaProjectNumber AS NVARCHAR(20)),
+        CAST(AccessionNumber AS NVARCHAR(50)),
         CAST(NifaAwardNumber AS NVARCHAR(100)),
-        CAST(Title AS NVARCHAR(MAX)),
         CAST(PgmProjectNumbers AS NVARCHAR(MAX)),
+        CAST(Pi AS NVARCHAR(200)),
+        CAST(Orgr AS NVARCHAR(300)),
+        CAST(NifaSfn AS NVARCHAR(10)),
         CAST('No PGM match' AS NVARCHAR(30))
     FROM ActiveWithPgm
     WHERE InAllProjects = 1
@@ -168,11 +183,13 @@ BEGIN
 
     -- SFN mismatch
     SELECT
-        CAST(AccessionNumber AS NVARCHAR(50)),
         CAST(NifaProjectNumber AS NVARCHAR(20)),
+        CAST(AccessionNumber AS NVARCHAR(50)),
         CAST(NifaAwardNumber AS NVARCHAR(100)),
-        CAST(Title AS NVARCHAR(MAX)),
         CAST(PgmProjectNumbers AS NVARCHAR(MAX)),
+        CAST(Pi AS NVARCHAR(200)),
+        CAST(Orgr AS NVARCHAR(300)),
+        CAST(NifaSfn AS NVARCHAR(10)),
         CAST('SFN mismatch' AS NVARCHAR(30))
     FROM ActiveWithPgm
     WHERE HasSfnMismatch = 1
@@ -181,11 +198,13 @@ BEGIN
 
     -- Clean (fails nothing)
     SELECT
-        CAST(AccessionNumber AS NVARCHAR(50)),
         CAST(NifaProjectNumber AS NVARCHAR(20)),
+        CAST(AccessionNumber AS NVARCHAR(50)),
         CAST(NifaAwardNumber AS NVARCHAR(100)),
-        CAST(Title AS NVARCHAR(MAX)),
         CAST(PgmProjectNumbers AS NVARCHAR(MAX)),
+        CAST(Pi AS NVARCHAR(200)),
+        CAST(Orgr AS NVARCHAR(300)),
+        CAST(NifaSfn AS NVARCHAR(10)),
         CAST('Clean' AS NVARCHAR(30))
     FROM ActiveWithPgm
     WHERE InAllProjects = 1
@@ -200,19 +219,25 @@ BEGIN
 
     -- 204 outside college: a PGM 204 award not tied to any active project
     SELECT
-        CAST(NULL AS NVARCHAR(50))                     AS AccessionNumber,
-        CAST(NULL AS NVARCHAR(20))                     AS NifaProjectNumber,
-        CAST(pc.SponsorAwardNumber AS NVARCHAR(100))   AS NifaAwardNumber,
-        CAST(NULL AS NVARCHAR(MAX))                    AS Title,
-        STRING_AGG(CAST(pc.ProjectNumber AS NVARCHAR(MAX)), ', ') AS PgmProjectNumbers,
-        CAST('204 outside college' AS NVARCHAR(30))    AS status
+        CAST(NULL AS NVARCHAR(20))                   AS NifaProject,
+        CAST(NULL AS NVARCHAR(50))                   AS Accession,
+        CAST(pc.SponsorAwardNumber AS NVARCHAR(100)) AS AwardNumber,
+        STRING_AGG(CAST(pc.ProjectNumber AS NVARCHAR(MAX)), ', ') AS Ae,
+        CAST(NULL AS NVARCHAR(200))                  AS Pi,
+        CAST(NULL AS NVARCHAR(300))                  AS Orgr,
+        CAST('204' AS NVARCHAR(10))                  AS Sfn,
+        CAST('204 outside college' AS NVARCHAR(30))  AS Status
     FROM PgmClassified pc
     WHERE pc.PgmSfnBucket = '204'
+      AND (pc.AwardEndDate IS NULL OR pc.AwardEndDate >= @cycleStart)
+      AND (pc.AwardStartDate IS NULL OR pc.AwardStartDate <= @cycleEnd)
       AND NOT EXISTS
       (
           SELECT 1
           FROM [data].[ActiveProjects] a
-          JOIN [data].[AllProjects] ap ON ap.ProjectNumber = a.ProjectNumber
+          JOIN [data].[AllProjects] ap
+            ON NULLIF(LTRIM(RTRIM(ap.ProjectNumber)), '') = NULLIF(LTRIM(RTRIM(a.ProjectNumber)), '')
+           AND NULLIF(LTRIM(RTRIM(ap.AccessionNumber)), '') = NULLIF(LTRIM(RTRIM(a.AccessionNumber)), '')
           WHERE ISNULL(a.ExcludeFromUi, 0) = 0
             AND ap.AwardNumber IS NOT NULL
             AND REPLACE(ap.AwardNumber, '-', '') = pc.AwardKey
