@@ -62,6 +62,12 @@ builder.Services.AddScoped<IProjectIdentificationService, ProjectIdentificationS
 builder.Services.AddScoped<IProjectListService, ProjectListService>();
 builder.Services.AddScoped<ImportRunOrchestrator>();
 builder.Services.AddSingleton<IImportRunStarter, ImportRunStarter>();
+builder.Services.AddScoped<ChartSegmentsImportService>();
+builder.Services.AddScoped<AeTransactionsImportService>();
+builder.Services.AddScoped<UcPathTransactionsImportService>();
+builder.Services.AddScoped<ErnDescriptionBackfillService>();
+builder.Services.AddScoped<SprocStageService>();
+builder.Services.AddScoped<IImportStageProvider, ImportStageProvider>();
 // add auth policies here
 
 // add db context (check secrets first, then config, then default)
