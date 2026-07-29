@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Server.Authorization;
+using Server.Controllers;
 using Server.Core.Data;
 using Server.Import;
 using Server.Core.Import;
@@ -59,6 +60,8 @@ builder.Services.AddSingleton<IFlatFileImportRegistry, FlatFileImportRegistry>()
 builder.Services.AddScoped<IFlatFileImportService, FlatFileImportService>();
 builder.Services.AddScoped<IProjectIdentificationService, ProjectIdentificationService>();
 builder.Services.AddScoped<IProjectListService, ProjectListService>();
+builder.Services.AddScoped<ImportRunOrchestrator>();
+builder.Services.AddSingleton<IImportRunStarter, ImportRunStarter>();
 // add auth policies here
 
 // add db context (check secrets first, then config, then default)
