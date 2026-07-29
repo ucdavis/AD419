@@ -420,15 +420,15 @@ describe('AD419 workflow routes', () => {
       http.get('/api/user/me', () => {
         return HttpResponse.json(mockUser);
       }),
-      http.get('/api/imports/recent', () => {
-        return HttpResponse.json([]);
+      http.get('/api/importruns/current', () => {
+        return new HttpResponse(null, { status: 204 });
       })
     );
 
     const { cleanup } = renderRoute({ initialPath: '/workflow/data-import' });
     try {
       expect(
-        await screen.findByRole('heading', { name: 'Data Import' })
+        await screen.findByRole('heading', { level: 1, name: 'Data Import' })
       ).toBeInTheDocument();
     } finally {
       cleanup();
