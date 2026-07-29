@@ -15,8 +15,9 @@ public sealed class UcPathTransactionsImportService
     private const int CommandTimeoutSeconds = DataDbConnection.ImportCommandTimeoutSeconds;
     private const string DestinationTable = "[data].[UcPathTransactions]";
 
-    // source reader column -> destination table column. Id, ExcludedByDate, AccountNotInAE, LoadedAt are absent on
+    // source reader column -> destination table column. EmployeeName, ExcludedByDate, AccountNotInAE, LoadedAt are absent on
     // purpose: the destination defaults apply to unmapped columns.
+    // verify against warehouse
     private static readonly (string Source, string Destination)[] ColumnMappings =
     [
         ("labor_transaction_id", "LaborTransactionId"),
