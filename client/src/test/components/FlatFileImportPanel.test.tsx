@@ -601,15 +601,12 @@ describe('FlatFileImportPanel', () => {
                 ],
                 errors: [],
                 rowNum: 2,
-                // Key order mirrors the flat file's column order, which the panel
-                // must preserve; keep it unsorted.
-                /* eslint-disable perfectionist/sort-objects */
-                values: {
-                  ProjectNumber: 'PRJ-1',
-                  AccessionNumber: 'A-2',
-                  OrganizationName: '',
-                },
-                /* eslint-enable perfectionist/sort-objects */
+
+                values: Object.fromEntries([
+                  ['ProjectNumber', 'PRJ-1'],
+                  ['AccessionNumber', 'A-2'],
+                  ['OrganizationName', ''],
+                ]),
               },
             ],
             succeeded: false,

@@ -10,6 +10,8 @@ using Server.Import;
 using Server.Core.Import;
 using Server.Core.Notification;
 using Server.Helpers;
+using Server.ProjectIdentification;
+using Server.ProjectList;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -55,6 +57,8 @@ builder.Services.AddScoped<IAuthorizationHandler, AuthorizedUserHandler>();
 builder.Services.AddScoped<IPgmProjectsImportService, PgmProjectsImportService>();
 builder.Services.AddSingleton<IFlatFileImportRegistry, FlatFileImportRegistry>();
 builder.Services.AddScoped<IFlatFileImportService, FlatFileImportService>();
+builder.Services.AddScoped<IProjectIdentificationService, ProjectIdentificationService>();
+builder.Services.AddScoped<IProjectListService, ProjectListService>();
 // add auth policies here
 
 // add db context (check secrets first, then config, then default)
@@ -128,6 +132,7 @@ await StartupLogging.RunAsync(app, async cancellationToken =>
     }
 
 
+    app.UseApiFailureLogging();
     app.UseAuthentication();
     app.UseAuthorization();
 

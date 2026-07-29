@@ -1,4 +1,5 @@
 using System.Data;
+using System.Diagnostics;
 using System.Globalization;
 using System.Security.Claims;
 using System.Text.Json;
@@ -69,7 +70,20 @@ public sealed class FlatFileImportService(
             return await ValidationAsync(definition.Id, file?.FileName, 0, fileErrors, [], user, startedAt, cancellationToken);
         }
 
+        var importStopwatch = Stopwatch.StartNew();
+        logger.LogInformation(
+            "Import started for dataset {DatasetId} from file {Filename} with {FileSizeBytes} bytes.",
+            definition.Id,
+            Path.GetFileName(file!.FileName),
+            file.Length);
+
         var parseResult = ParseFile(definition, file!);
+        logger.LogInformation(
+            "Import parsed {RowCount} rows for dataset {DatasetId} in {ElapsedMilliseconds} ms.",
+            parseResult.Rows.Count,
+            definition.Id,
+            importStopwatch.ElapsedMilliseconds);
+
         if (parseResult.FileErrors.Count > 0 || parseResult.Rows.Any(row => row.Errors.Count > 0 || row.CellErrors.Count > 0))
         {
             return await ValidationAsync(
@@ -85,7 +99,13 @@ public sealed class FlatFileImportService(
 
         try
         {
+            var persistenceStopwatch = Stopwatch.StartNew();
             await ReplaceTargetTableAsync(definition, parseResult.ParsedRows, cancellationToken);
+            logger.LogInformation(
+                "Import persisted {RowCount} rows for dataset {DatasetId} in {ElapsedMilliseconds} ms.",
+                parseResult.ParsedRows.Count,
+                definition.Id,
+                persistenceStopwatch.ElapsedMilliseconds);
         }
         catch (StagingValidationException ex)
         {
@@ -126,6 +146,12 @@ public sealed class FlatFileImportService(
             user,
             startedAt,
             cancellationToken);
+
+        logger.LogInformation(
+            "Import completed for dataset {DatasetId} with {RowCount} rows in {ElapsedMilliseconds} ms.",
+            definition.Id,
+            parseResult.Rows.Count,
+            importStopwatch.ElapsedMilliseconds);
 
         return new ImportSucceeded(new ImportSuccessResponse(
             definition.Id,
@@ -767,6 +793,12 @@ public sealed class FlatFileImportService(
         IReadOnlyList<ParsedImportRow> rows,
         CancellationToken cancellationToken)
     {
+        if (definition.UniqueKeys.Count == 0)
+        {
+            await ReplaceTargetTableDirectlyAsync(definition, rows, cancellationToken);
+            return;
+        }
+
         var connectionString = DataDbConnection.Resolve(
             configuration,
             dataDbContext.Database.GetConnectionString());
@@ -810,6 +842,39 @@ public sealed class FlatFileImportService(
         await transaction.CommitAsync(cancellationToken);
     }
 
+    private async Task ReplaceTargetTableDirectlyAsync(
+        ImportDatasetDefinition definition,
+        IReadOnlyList<ParsedImportRow> rows,
+        CancellationToken cancellationToken)
+    {
+        var connectionString = DataDbConnection.Resolve(
+            configuration,
+            dataDbContext.Database.GetConnectionString());
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
+
+        await TruncateTargetTableAsync(connection, transaction, definition, cancellationToken);
+
+        var table = CreateDataTable(definition, rows);
+        using (var bulkCopy = new SqlBulkCopy(connection, SqlBulkCopyOptions.CheckConstraints | SqlBulkCopyOptions.TableLock, transaction))
+        {
+            bulkCopy.DestinationTableName = TargetTableSql(definition);
+            bulkCopy.BatchSize = Math.Max(rows.Count, 1);
+            bulkCopy.BulkCopyTimeout = DatabaseCommandTimeoutSeconds;
+
+            foreach (var column in definition.Columns)
+            {
+                bulkCopy.ColumnMappings.Add(column.TargetColumn, column.TargetColumn);
+            }
+
+            await bulkCopy.WriteToServerAsync(table, cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
     private static Task DropTempTableIfExistsAsync(
         SqlConnection connection,
         SqlTransaction transaction,
@@ -817,6 +882,19 @@ public sealed class FlatFileImportService(
     {
         return connection.ExecuteAsync(new CommandDefinition(
             $"DROP TABLE IF EXISTS {TempTableName};",
+            transaction: transaction,
+            commandTimeout: DatabaseCommandTimeoutSeconds,
+            cancellationToken: cancellationToken));
+    }
+
+    private static Task TruncateTargetTableAsync(
+        SqlConnection connection,
+        SqlTransaction transaction,
+        ImportDatasetDefinition definition,
+        CancellationToken cancellationToken)
+    {
+        return connection.ExecuteAsync(new CommandDefinition(
+            $"TRUNCATE TABLE {TargetTableSql(definition)};",
             transaction: transaction,
             commandTimeout: DatabaseCommandTimeoutSeconds,
             cancellationToken: cancellationToken));
@@ -948,15 +1026,19 @@ public sealed class FlatFileImportService(
 
     private static string ReplaceTableSql(ImportDatasetDefinition definition)
     {
-        var targetTable = $"{Quote(definition.SchemaName)}.{Quote(definition.TableName)}";
         var columns = string.Join(", ", definition.Columns.Select(column => Quote(column.TargetColumn)));
         return $"""
-            DELETE FROM {targetTable};
+            TRUNCATE TABLE {TargetTableSql(definition)};
 
-            INSERT INTO {targetTable} ({columns})
+            INSERT INTO {TargetTableSql(definition)} ({columns})
             SELECT {columns}
             FROM {TempTableName};
             """;
+    }
+
+    private static string TargetTableSql(ImportDatasetDefinition definition)
+    {
+        return $"{Quote(definition.SchemaName)}.{Quote(definition.TableName)}";
     }
 
     private static string SqlType(ImportColumn column)
