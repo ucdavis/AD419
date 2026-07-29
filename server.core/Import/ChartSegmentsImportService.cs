@@ -29,6 +29,7 @@ public sealed class ChartSegmentsImportService
 
     // source reader column -> destination table column. LoadedAt is absent on
     // purpose: the destination default applies to unmapped columns.
+    // verify against warehouse
     private static readonly (string Source, string Destination)[] ColumnMappings =
     [
         ("segment_name", "SegmentName"),
@@ -126,6 +127,15 @@ public sealed class ChartSegmentsImportService
         return rowsImported;
     }
 
+    /// <summary>
+    /// Builds the Redshift query run on the warehouse via the pass-through. The segment_name
+    /// is cast to a narrow VARCHAR(30) so MSDASQL binds it inline rather than as a streamed LOB.
+    /// The Redshift ODBC driver reports wide/untyped VARCHAR as SQL_LONGVARCHAR (streamed), which
+    /// EXEC ... AT cannot stream, failing with error 7341. Explicit narrow types force inline binding.
+    ///
+    /// Note: column names (code, value_id, description, etc.) are assumed based on warehouse schema.
+    /// verify against warehouse
+    /// </summary>
     public static string BuildRemoteQuery(string segmentName, string sourceTable)
     {
         if (!Segments.Any(s => s.SegmentName == segmentName))
@@ -134,7 +144,7 @@ public sealed class ChartSegmentsImportService
         }
 
         return $"""
-            SELECT '{segmentName}' AS segment_name,
+            SELECT CAST('{segmentName}' AS VARCHAR(30)) AS segment_name,
                 code, value_id, description, value_desc, hierarchy_depth,
                 summary_flag, enabled_flag, start_date_active, end_date_active,
                 parent_level_0, parent_level_1, parent_level_2,

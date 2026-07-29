@@ -21,7 +21,7 @@ public class ChartSegmentsImportServiceTests
     {
         var query = ChartSegmentsImportService.BuildRemoteQuery("Fund", "ae_dwh.erp_fund");
 
-        query.Should().Contain("'Fund' AS segment_name");
+        query.Should().Contain("CAST('Fund' AS VARCHAR(30)) AS segment_name");
         query.Should().Contain("FROM ae_dwh.erp_fund");
         query.Should().Contain("parent_level_5");
     }
