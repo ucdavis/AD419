@@ -168,8 +168,120 @@ public sealed class UcPathTransactionsImportService
 
         var rowsImported = (int)totalRowsCopied;
         _logger.LogInformation("Imported {RowCount} UCPath transactions", rowsImported);
+
+        await EnrichEmployeeNamesAsync(source, destination, cancellationToken);
+        await EnrichJobCodesAsync(source, destination, windowEnd, cancellationToken);
+
         return rowsImported;
     }
+
+    private async Task EnrichEmployeeNamesAsync(SqlConnection source, SqlConnection destination, CancellationToken ct)
+    {
+        await using (var create = new SqlCommand(
+            "CREATE TABLE #EmployeeNames ([EmployeeId] NVARCHAR(10) NOT NULL, [EmployeeName] NVARCHAR(100) NULL);",
+            destination))
+        {
+            await create.ExecuteNonQueryAsync(ct);
+        }
+
+        await using (var query = new SqlCommand($"EXEC (@remoteQuery) AT [{HcmLinkedServer}];", source)
+        {
+            CommandTimeout = CommandTimeoutSeconds,
+        })
+        {
+            query.Parameters.Add(new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = BuildNamesQuery() });
+            using var bulkCopy = new SqlBulkCopy(destination) { DestinationTableName = "#EmployeeNames", BulkCopyTimeout = CommandTimeoutSeconds };
+            bulkCopy.ColumnMappings.Add("employee_id", "EmployeeId");
+            bulkCopy.ColumnMappings.Add("employee_name", "EmployeeName");
+            await using var reader = await query.ExecuteReaderAsync(ct);
+            await bulkCopy.WriteToServerAsync(reader, ct);
+        }
+
+        await using (var update = new SqlCommand(
+            """
+            UPDATE t SET [EmployeeName] = LEFT(n.[EmployeeName], 100)
+            FROM [data].[UcPathTransactions] t
+            JOIN #EmployeeNames n ON n.[EmployeeId] = t.[EmployeeId];
+            DROP TABLE #EmployeeNames;
+            """, destination)
+        {
+            CommandTimeout = CommandTimeoutSeconds,
+        })
+        {
+            await update.ExecuteNonQueryAsync(ct);
+        }
+    }
+
+    private async Task EnrichJobCodesAsync(SqlConnection source, SqlConnection destination, DateOnly effDtCeiling, CancellationToken ct)
+    {
+        await using (var create = new SqlCommand(
+            "CREATE TABLE #PeopleSoftJobs ([EmployeeId] NVARCHAR(10), [EmpRcd] SMALLINT, [EffDt] DATETIME2(7), [EffSeq] SMALLINT, [PositionNumber] NVARCHAR(8), [TitleCode] NVARCHAR(4));",
+            destination))
+        {
+            await create.ExecuteNonQueryAsync(ct);
+        }
+
+        await using (var query = new SqlCommand($"EXEC (@remoteQuery, @effDtCeiling) AT [{HcmLinkedServer}];", source)
+        {
+            CommandTimeout = CommandTimeoutSeconds,
+        })
+        {
+            query.Parameters.Add(new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = BuildJobCodeQuery() });
+            query.Parameters.Add(new SqlParameter("@effDtCeiling", SqlDbType.Date) { Value = effDtCeiling });
+            using var bulkCopy = new SqlBulkCopy(destination) { DestinationTableName = "#PeopleSoftJobs", BulkCopyTimeout = CommandTimeoutSeconds };
+            bulkCopy.ColumnMappings.Add("employee_id", "EmployeeId");
+            bulkCopy.ColumnMappings.Add("emp_rcd", "EmpRcd");
+            bulkCopy.ColumnMappings.Add("eff_dt", "EffDt");
+            bulkCopy.ColumnMappings.Add("eff_seq", "EffSeq");
+            bulkCopy.ColumnMappings.Add("position_number", "PositionNumber");
+            bulkCopy.ColumnMappings.Add("title_code", "TitleCode");
+            await using var reader = await query.ExecuteReaderAsync(ct);
+            await bulkCopy.WriteToServerAsync(reader, ct);
+        }
+
+        await using (var update = new SqlCommand(
+            """
+            WITH Ranked AS (
+                SELECT *,
+                    ROW_NUMBER() OVER (PARTITION BY [EmployeeId], [EmpRcd], [EffDt] ORDER BY [EffSeq] DESC) AS DateRank,
+                    ROW_NUMBER() OVER (PARTITION BY [EmployeeId], [EmpRcd], [PositionNumber] ORDER BY [EffDt] DESC, [EffSeq] DESC) AS PositionRank
+                FROM #PeopleSoftJobs
+            )
+            UPDATE t
+            SET [JobCode] = COALESCE(exactMatch.[TitleCode], positionMatch.[TitleCode])
+            FROM [data].[UcPathTransactions] t
+            LEFT JOIN (SELECT * FROM Ranked WHERE DateRank = 1) exactMatch
+                ON exactMatch.[EmployeeId] = t.[EmployeeId] AND exactMatch.[EmpRcd] = t.[EmpRcd]
+               AND exactMatch.[EffDt] = t.[EffDt] AND exactMatch.[EffSeq] = t.[EffSeq]
+            LEFT JOIN (SELECT * FROM Ranked WHERE PositionRank = 1) positionMatch
+                ON positionMatch.[EmployeeId] = t.[EmployeeId] AND positionMatch.[EmpRcd] = t.[EmpRcd]
+               AND positionMatch.[PositionNumber] = t.[PositionNumber]
+            WHERE t.[JobCode] IS NULL OR t.[JobCode] = '';
+            DROP TABLE #PeopleSoftJobs;
+            """, destination)
+        {
+            CommandTimeout = CommandTimeoutSeconds,
+        })
+        {
+            await update.ExecuteNonQueryAsync(ct);
+        }
+    }
+
+    public static string BuildNamesQuery() =>
+        """
+        SELECT EMPLID AS employee_id, NAME AS employee_name
+        FROM CAES_HCMODS.UCD_PS_NAMES_V
+        """;
+
+    public static string BuildJobCodeQuery() =>
+        """
+        SELECT EMPLID AS employee_id, EMPL_RCD AS emp_rcd, EFFDT AS eff_dt, EFFSEQ AS eff_seq,
+            POSITION_NBR AS position_number, SUBSTR(JOBCODE, -4) AS title_code
+        FROM CAES_HCMODS.PS_JOB_V
+        WHERE JOBCODE <> 'CONV'
+          AND JOBCODE NOT LIKE ' %'
+          AND EFFDT <= ?
+        """;
 
     private static async Task<List<string>> ReadListAsync(SqlConnection connection, string sql, CancellationToken ct)
     {

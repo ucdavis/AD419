@@ -49,4 +49,22 @@ public class UcPathTransactionsImportServiceTests
         UcPathTransactionsImportService.BuildSalaryQuery([], 2088).Should().NotContain("PROJECT_ID IN");
         UcPathTransactionsImportService.BuildFringeQuery([]).Should().NotContain("PROJECT_ID IN");
     }
+
+    [Fact]
+    public void BuildNamesQuery_prefers_the_names_view()
+    {
+        var query = UcPathTransactionsImportService.BuildNamesQuery();
+
+        query.Should().Contain("CAES_HCMODS.UCD_PS_NAMES_V");
+    }
+
+    [Fact]
+    public void BuildJobCodeQuery_filters_conversion_rows_and_bounds_effdt()
+    {
+        var query = UcPathTransactionsImportService.BuildJobCodeQuery();
+
+        query.Should().Contain("CAES_HCMODS.PS_JOB_V");
+        query.Should().Contain("JOBCODE <> 'CONV'");
+        query.Should().Contain("EFFDT <= ?");
+    }
 }
