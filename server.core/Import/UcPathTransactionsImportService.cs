@@ -199,9 +199,12 @@ public sealed class UcPathTransactionsImportService
 
         await using (var update = new SqlCommand(
             """
+            -- UCD_PS_NAMES_V assumed one row per EMPLID; MAX() makes update deterministic regardless of source cardinality
+            -- verify against warehouse
             UPDATE t SET [EmployeeName] = LEFT(n.[EmployeeName], 100)
             FROM [data].[UcPathTransactions] t
-            JOIN #EmployeeNames n ON n.[EmployeeId] = t.[EmployeeId];
+            JOIN (SELECT [EmployeeId], MAX([EmployeeName]) AS [EmployeeName] FROM #EmployeeNames GROUP BY [EmployeeId]) n
+                ON n.[EmployeeId] = t.[EmployeeId];
             DROP TABLE #EmployeeNames;
             """, destination)
         {

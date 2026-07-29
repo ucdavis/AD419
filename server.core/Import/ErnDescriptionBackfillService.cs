@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -8,7 +9,6 @@ namespace Server.Core.Import;
 
 public sealed class ErnDescriptionBackfillService
 {
-    private const string HcmLinkedServer = "AIT_BISTG_PRD-CAES_HCMODS_APPUSER";
     private const int CommandTimeoutSeconds = DataDbConnection.ImportCommandTimeoutSeconds;
 
     private readonly DataDbContext _dataDbContext;
@@ -52,17 +52,22 @@ public sealed class ErnDescriptionBackfillService
         var descriptionQuery = BuildDescriptionQuery(ernCodes);
         var descriptions = new Dictionary<string, string>();
 
-        await using (var query = new SqlCommand($"EXEC (@remoteQuery) AT [{HcmLinkedServer}];", source)
+        await using (var query = new SqlCommand($"EXEC (@remoteQuery) AT [{UcPathTransactionsImportService.HcmLinkedServer}];", source)
         {
             CommandTimeout = CommandTimeoutSeconds,
         })
         {
-            query.Parameters.Add(new SqlParameter("@remoteQuery", System.Data.SqlDbType.NVarChar, -1) { Value = descriptionQuery });
+            query.Parameters.Add(new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = descriptionQuery });
             await using var reader = await query.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
                 var code = reader.GetString(0);
-                var description = reader.IsDBNull(1) ? string.Empty : reader.GetString(1);
+                var description = reader.IsDBNull(1) ? null : reader.GetString(1);
+                if (string.IsNullOrWhiteSpace(description))
+                {
+                    continue;
+                }
+
                 if (!descriptions.ContainsKey(code))
                 {
                     descriptions[code] = description;
@@ -82,8 +87,8 @@ public sealed class ErnDescriptionBackfillService
             {
                 CommandTimeout = CommandTimeoutSeconds,
             };
-            update.Parameters.Add(new SqlParameter("@description", System.Data.SqlDbType.NVarChar, -1) { Value = description ?? (object)DBNull.Value });
-            update.Parameters.Add(new SqlParameter("@code", System.Data.SqlDbType.NVarChar, 10) { Value = code });
+            update.Parameters.Add(new SqlParameter("@description", SqlDbType.NVarChar, -1) { Value = description });
+            update.Parameters.Add(new SqlParameter("@code", SqlDbType.NVarChar, 10) { Value = code });
             totalUpdated += await update.ExecuteNonQueryAsync(cancellationToken);
         }
 
