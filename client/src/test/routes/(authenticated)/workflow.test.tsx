@@ -415,6 +415,26 @@ describe('AD419 workflow routes', () => {
     }
   });
 
+  it('lists the Data Import stage between Project Identification and Data Classification', async () => {
+    server.use(
+      http.get('/api/user/me', () => {
+        return HttpResponse.json(mockUser);
+      }),
+      http.get('/api/imports/recent', () => {
+        return HttpResponse.json([]);
+      })
+    );
+
+    const { cleanup } = renderRoute({ initialPath: '/workflow/data-import' });
+    try {
+      expect(
+        await screen.findByRole('heading', { name: 'Data Import' })
+      ).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
   it('loads any workflow stage directly without locking', async () => {
     server.use(
       http.get('/api/user/me', () => {
