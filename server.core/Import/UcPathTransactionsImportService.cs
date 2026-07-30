@@ -275,6 +275,7 @@ public sealed class UcPathTransactionsImportService
         FROM CAES_HCMODS.UCD_PS_NAMES_V
         """;
 
+    // PS_JOB_V columns verified against the warehouse 2026-07-30.
     public static string BuildJobCodeQuery() =>
         """
         SELECT EMPLID AS employee_id, EMPL_RCD AS emp_rcd, EFFDT AS eff_dt, EFFSEQ AS eff_seq,
