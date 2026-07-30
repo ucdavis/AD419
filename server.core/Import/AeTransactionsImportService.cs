@@ -79,7 +79,8 @@ public sealed class AeTransactionsImportService
         """;
 
     private const string Projects204Sql = """
-        SELECT DISTINCT [AEProjectNumber] FROM [data].[Projects] WHERE [Sfn] = '204'
+        SELECT DISTINCT [AEProjectNumber] FROM [data].[Projects]
+        WHERE [Sfn] = '204' AND [AEProjectNumber] IS NOT NULL
         """;
 
     private readonly DataDbContext _dataDbContext;
