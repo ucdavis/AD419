@@ -29,7 +29,8 @@ public sealed class ChartSegmentsImportService
 
     // source reader column -> destination table column. LoadedAt is absent on
     // purpose: the destination default applies to unmapped columns.
-    // verify against warehouse
+    // Source names verified against the warehouse 2026-07-30; all eight erp_*
+    // tables share this schema.
     private static readonly (string Source, string Destination)[] ColumnMappings =
     [
         ("segment_name", "SegmentName"),
@@ -42,12 +43,12 @@ public sealed class ChartSegmentsImportService
         ("enabled_flag", "EnabledFlag"),
         ("start_date_active", "StartDateActive"),
         ("end_date_active", "EndDateActive"),
-        ("parent_level_0", "ParentLevel0Code"),
-        ("parent_level_1", "ParentLevel1Code"),
-        ("parent_level_2", "ParentLevel2Code"),
-        ("parent_level_3", "ParentLevel3Code"),
-        ("parent_level_4", "ParentLevel4Code"),
-        ("parent_level_5", "ParentLevel5Code"),
+        ("parent_level_0_code", "ParentLevel0Code"),
+        ("parent_level_1_code", "ParentLevel1Code"),
+        ("parent_level_2_code", "ParentLevel2Code"),
+        ("parent_level_3_code", "ParentLevel3Code"),
+        ("parent_level_4_code", "ParentLevel4Code"),
+        ("parent_level_5_code", "ParentLevel5Code"),
     ];
 
     private readonly DataDbContext _dataDbContext;
@@ -133,8 +134,7 @@ public sealed class ChartSegmentsImportService
     /// The Redshift ODBC driver reports wide/untyped VARCHAR as SQL_LONGVARCHAR (streamed), which
     /// EXEC ... AT cannot stream, failing with error 7341. Explicit narrow types force inline binding.
     ///
-    /// Note: column names (code, value_id, description, etc.) are assumed based on warehouse schema.
-    /// verify against warehouse
+    /// Column names verified against the warehouse 2026-07-30.
     /// </summary>
     public static string BuildRemoteQuery(string segmentName, string sourceTable)
     {
@@ -147,8 +147,8 @@ public sealed class ChartSegmentsImportService
             SELECT CAST('{segmentName}' AS VARCHAR(30)) AS segment_name,
                 code, value_id, description, value_desc, hierarchy_depth,
                 summary_flag, enabled_flag, start_date_active, end_date_active,
-                parent_level_0, parent_level_1, parent_level_2,
-                parent_level_3, parent_level_4, parent_level_5
+                parent_level_0_code, parent_level_1_code, parent_level_2_code,
+                parent_level_3_code, parent_level_4_code, parent_level_5_code
             FROM {sourceTable}
             WHERE code IS NOT NULL
             """;

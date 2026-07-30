@@ -23,7 +23,9 @@ public class ChartSegmentsImportServiceTests
 
         query.Should().Contain("CAST('Fund' AS VARCHAR(30)) AS segment_name");
         query.Should().Contain("FROM ae_dwh.erp_fund");
-        query.Should().Contain("parent_level_5");
+        query.Should().Contain("parent_level_0_code");
+        query.Should().Contain("parent_level_5_code");
+        query.Should().NotMatchRegex(@"parent_level_\d[,\s]");
     }
 
     [Fact]
