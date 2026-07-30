@@ -26,10 +26,17 @@ public class ImportRunsControllerTests
         public void Start(int runId) => StartedRunIds.Add(runId);
     }
 
-    private static ImportRunsController CreateController(
-        AppDbContext db, RecordingRunStarter starter)
+    private sealed class FakeReadinessCheck(string? blockingIssue) : IImportReadinessCheck
     {
-        var controller = new ImportRunsController(db, new FakeStageProvider(), starter);
+        public Task<string?> GetBlockingIssueAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(blockingIssue);
+    }
+
+    private static ImportRunsController CreateController(
+        AppDbContext db, RecordingRunStarter starter, string? blockingIssue = null)
+    {
+        var controller = new ImportRunsController(
+            db, new FakeStageProvider(), starter, new FakeReadinessCheck(blockingIssue));
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext
@@ -83,6 +90,24 @@ public class ImportRunsControllerTests
 
         result.Result.Should().BeOfType<ConflictObjectResult>();
         starter.StartedRunIds.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Start_returns_409_when_project_identification_is_not_ready()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var starter = new RecordingRunStarter();
+        var controller = CreateController(
+            db, starter, "Unresolved project issues exist; resolve them in Project Identification first.");
+
+        var result = await controller.Start(
+            new StartImportRunRequest(new DateOnly(2024, 10, 1), new DateOnly(2025, 9, 30)),
+            CancellationToken.None);
+
+        var conflict = result.Result.Should().BeOfType<ConflictObjectResult>().Subject;
+        conflict.Value.Should().Be("Unresolved project issues exist; resolve them in Project Identification first.");
+        starter.StartedRunIds.Should().BeEmpty();
+        (await db.ImportRuns.AnyAsync()).Should().BeFalse();
     }
 
     [Fact]

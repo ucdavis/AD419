@@ -40,15 +40,18 @@ public class ImportRunsController : ApiControllerBase
     private readonly AppDbContext _appDb;
     private readonly IImportStageProvider _stageProvider;
     private readonly IImportRunStarter _runStarter;
+    private readonly IImportReadinessCheck _readinessCheck;
 
     public ImportRunsController(
         AppDbContext appDb,
         IImportStageProvider stageProvider,
-        IImportRunStarter runStarter)
+        IImportRunStarter runStarter,
+        IImportReadinessCheck readinessCheck)
     {
         _appDb = appDb;
         _stageProvider = stageProvider;
         _runStarter = runStarter;
+        _readinessCheck = readinessCheck;
     }
 
     // POST api/importruns
@@ -70,6 +73,11 @@ public class ImportRunsController : ApiControllerBase
         if (await _appDb.ImportRuns.AnyAsync(r => r.Status == ImportRunStatus.Running, cancellationToken))
         {
             return Conflict("An import run is already in progress.");
+        }
+
+        if (await _readinessCheck.GetBlockingIssueAsync(cancellationToken) is { } blockingIssue)
+        {
+            return Conflict(blockingIssue);
         }
 
         var run = new ImportRun
