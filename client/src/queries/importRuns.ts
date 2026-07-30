@@ -22,16 +22,28 @@ export interface ImportRun {
   triggeredByName: string | null;
 }
 
-export function defaultCycleDates(today = new Date()): {
-  cycleEnd: string;
-  cycleStart: string;
-} {
-  const fyEndYear =
-    today.getMonth() >= 9 ? today.getFullYear() + 1 : today.getFullYear();
+// Mirrors ImportSql.BufferedWindow on the server: months clamp to the last
+// day of the target month, matching .NET AddMonths.
+export function bufferedImportWindow(
+  cycleStart: string,
+  cycleEnd: string
+): { windowEnd: string; windowStart: string } {
   return {
-    cycleEnd: `${fyEndYear}-09-30`,
-    cycleStart: `${fyEndYear - 1}-10-01`,
+    windowEnd: addMonths(cycleEnd, 3),
+    windowStart: addMonths(cycleStart, -3),
   };
+}
+
+function addMonths(isoDate: string, months: number): string {
+  const [year, month, day] = isoDate.split('-').map(Number);
+  const totalMonths = year * 12 + (month - 1) + months;
+  const targetYear = Math.floor(totalMonths / 12);
+  const targetMonth = (totalMonths % 12) + 1;
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth, 0)).getUTCDate();
+  const targetDay = Math.min(day, lastDay);
+  return `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(
+    targetDay
+  ).padStart(2, '0')}`;
 }
 
 const IMPORT_RUN_KEY = ['importRun'] as const;

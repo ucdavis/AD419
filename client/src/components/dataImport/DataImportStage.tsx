@@ -1,26 +1,61 @@
 import { SectionPanel } from '@/components/SectionPanel.tsx';
 import {
-  defaultCycleDates,
+  bufferedImportWindow,
   importRunQueryOptions,
   startImportRun,
 } from '@/queries/importRuns.ts';
+import {
+  projectIdentificationSetupQueryOptions,
+  type ProjectIdentificationSetupResponse,
+} from '@/queries/projectIdentification.ts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
 import type { ImportRunStage } from '@/queries/importRuns.ts';
 
 const STATUS_BADGES: Record<ImportRunStage['status'], string> = {
-  Failed: 'badge-error',
-  Pending: 'badge-ghost',
-  Running: 'badge-info',
-  Succeeded: 'badge-success',
+  Failed: 'badge badge-error badge-outline',
+  Pending: 'badge badge-ghost',
+  Running: 'badge badge-info',
+  Succeeded: 'badge badge-success badge-outline',
 };
 
 export function DataImportStage() {
+  const setupQuery = useQuery(projectIdentificationSetupQueryOptions());
+
+  if (setupQuery.isLoading) {
+    return <p>Loading data import...</p>;
+  }
+
+  if (setupQuery.isError || !setupQuery.data) {
+    return (
+      <div className="alert alert-error items-start" role="alert">
+        <div>
+          <h2 className="font-bold">Unable to load reporting cycle</h2>
+          <p>
+            The fiscal period from Project Identification could not be loaded.
+          </p>
+          <button
+            className="btn btn-sm mt-3"
+            disabled={setupQuery.isFetching}
+            onClick={() => void setupQuery.refetch()}
+            type="button"
+          >
+            {setupQuery.isFetching ? 'Retrying...' : 'Retry'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return <DataImportStageContent setup={setupQuery.data} />;
+}
+
+function DataImportStageContent({
+  setup,
+}: {
+  setup: ProjectIdentificationSetupResponse;
+}) {
   const queryClient = useQueryClient();
   const { data: run } = useQuery(importRunQueryOptions());
-  const defaults = defaultCycleDates();
-  const [cycleStart, setCycleStart] = useState(defaults.cycleStart);
-  const [cycleEnd, setCycleEnd] = useState(defaults.cycleEnd);
 
   const start = useMutation({
     mutationFn: startImportRun,
@@ -29,45 +64,73 @@ export function DataImportStage() {
     },
   });
 
+  const periodLabel =
+    setup.fiscalPeriodOptions.find(
+      (option) => option.fiscalYear === setup.fiscalYear
+    )?.label ?? '';
+  const { windowEnd, windowStart } = bufferedImportWindow(
+    setup.cycleStart,
+    setup.cycleEnd
+  );
+
   const isRunning = run?.status === 'Running' || start.isPending;
-  const failedStages = run?.stages.filter((stage) => stage.status === 'Failed') ?? [];
+  const failedStages =
+    run?.stages.filter((stage) => stage.status === 'Failed') ?? [];
   const sortedStages = [...(run?.stages ?? [])].sort(
     (a, b) => a.ordinal - b.ordinal
   );
 
   return (
-    <SectionPanel title="Data Import">
-      <div className="space-y-4">
-        <p>
-          Pull AE and UCPath transactions for the reporting cycle and seed new
-          chart-string segments for classification.
+    <SectionPanel eyebrow="Expense Data" title="Data Import">
+      <div className="space-y-4 p-4">
+        <p className="text-sm text-slate-600">
+          Pulls AE and UCPath transactions for the reporting cycle and seeds
+          new chart string segments for classification. The fiscal year comes
+          from the Project Identification step.
         </p>
 
-        <div className="flex flex-wrap items-end gap-4">
-          <label className="form-control">
-            <span className="label-text">Cycle start</span>
-            <input
-              className="input input-bordered"
-              disabled={isRunning}
-              onChange={(event) => setCycleStart(event.target.value)}
-              type="date"
-              value={cycleStart}
-            />
+        <div className="grid gap-3 lg:grid-cols-2">
+          <label className="form-control w-full">
+            <span className="label-text">Fiscal year</span>
+            <select
+              className="select select-bordered w-full"
+              disabled
+              value={setup.fiscalYear}
+            >
+              <option value={setup.fiscalYear}>
+                {setup.fiscalYear.replace('FY', 'FY:')}
+              </option>
+            </select>
           </label>
-          <label className="form-control">
-            <span className="label-text">Cycle end</span>
-            <input
-              className="input input-bordered"
-              disabled={isRunning}
-              onChange={(event) => setCycleEnd(event.target.value)}
-              type="date"
-              value={cycleEnd}
-            />
+
+          <label className="form-control w-full">
+            <span className="label-text">Period</span>
+            <select
+              className="select select-bordered w-full"
+              disabled
+              value={periodLabel}
+            >
+              <option>{periodLabel}</option>
+            </select>
           </label>
+        </div>
+
+        <p className="text-sm text-slate-600">
+          Transactions are imported for {formatDate(windowStart)} through{' '}
+          {formatDate(windowEnd)}, the fiscal year with a 3 month buffer on
+          each end.
+        </p>
+
+        <div className="flex justify-end">
           <button
             className="btn btn-primary"
             disabled={isRunning}
-            onClick={() => start.mutate({ cycleEnd, cycleStart })}
+            onClick={() =>
+              start.mutate({
+                cycleEnd: setup.cycleEnd,
+                cycleStart: setup.cycleStart,
+              })
+            }
             type="button"
           >
             Start Import
@@ -94,21 +157,22 @@ export function DataImportStage() {
 
         {run ? (
           <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-4 text-sm">
-              <span className={`badge ${STATUS_BADGES[run.status]}`}>
-                {run.status}
-              </span>
+            <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
+              <span className={STATUS_BADGES[run.status]}>{run.status}</span>
               <span>
-                Cycle {run.cycleStart} to {run.cycleEnd}
+                Cycle {formatDate(run.cycleStart)} through{' '}
+                {formatDate(run.cycleEnd)}
               </span>
               {run.triggeredByName ? (
                 <span>Triggered by {run.triggeredByName}</span>
               ) : null}
-              <span>Started {run.startedAt}</span>
-              {run.completedAt ? <span>Completed {run.completedAt}</span> : null}
+              <span>Started {formatDateTime(run.startedAt)}</span>
+              {run.completedAt ? (
+                <span>Completed {formatDateTime(run.completedAt)}</span>
+              ) : null}
             </div>
 
-            <table className="table">
+            <table className="table table-zebra table-sm">
               <thead>
                 <tr>
                   <th>Stage</th>
@@ -121,7 +185,7 @@ export function DataImportStage() {
                   <tr key={stage.ordinal}>
                     <td>{stage.name}</td>
                     <td>
-                      <span className={`badge ${STATUS_BADGES[stage.status]}`}>
+                      <span className={STATUS_BADGES[stage.status]}>
                         {stage.status}
                       </span>
                     </td>
@@ -132,9 +196,25 @@ export function DataImportStage() {
             </table>
           </div>
         ) : (
-          <p>No import has run yet for this cycle.</p>
+          <div className="rounded border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-600">
+            No import has run yet for this cycle.
+          </div>
         )}
       </div>
     </SectionPanel>
   );
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeZone: 'UTC',
+  }).format(new Date(`${value}T00:00:00Z`));
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value));
 }
