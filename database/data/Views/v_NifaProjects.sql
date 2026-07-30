@@ -4,6 +4,10 @@ AS
 -- ActiveProjects row, no matter what. AllProjects enrichment comes through an
 -- OUTER APPLY TOP 1 (deterministic on AllProjectId) so duplicate AllProjects
 -- rows can never fan a project out and a missing match never drops one.
+-- Only AllProjects rows whose dates overlap the current federal fiscal cycle
+-- (Oct-Sep, null dates tolerated) count as matches; a project with only
+-- date-stale rows keeps its row but gets InAllProjects = 0. The cycle is
+-- derived from GETDATE() and mirrors FiscalYearCycle in the server.
 -- NIFA SFN comes from the project number suffix; the UNKNOWN fallback fails
 -- closed downstream, never silently classified.
 SELECT
@@ -30,6 +34,16 @@ SELECT
     ap.ProjectStartDate,
     ap.ProjectEndDate
 FROM [data].[ActiveProjects] a
+CROSS APPLY
+(
+    SELECT DATEFROMPARTS(
+        CASE WHEN MONTH(GETDATE()) >= 10 THEN YEAR(GETDATE()) ELSE YEAR(GETDATE()) - 1 END,
+        10, 1) AS CycleStart
+) cs
+CROSS APPLY
+(
+    SELECT DATEADD(DAY, -1, DATEADD(YEAR, 1, cs.CycleStart)) AS CycleEnd
+) ce
 OUTER APPLY
 (
     SELECT TOP 1
@@ -43,5 +57,7 @@ OUTER APPLY
     FROM [data].[AllProjects] x
     WHERE NULLIF(LTRIM(RTRIM(x.ProjectNumber)), '') = NULLIF(LTRIM(RTRIM(a.ProjectNumber)), '')
       AND NULLIF(LTRIM(RTRIM(x.AccessionNumber)), '') = NULLIF(LTRIM(RTRIM(a.AccessionNumber)), '')
+      AND (x.ProjectEndDate IS NULL OR x.ProjectEndDate >= cs.CycleStart)
+      AND (x.ProjectStartDate IS NULL OR x.ProjectStartDate <= ce.CycleEnd)
     ORDER BY x.AllProjectId
 ) ap;
