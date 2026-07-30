@@ -26,16 +26,12 @@ function displayValue(value: string | null): string {
   return value && value.trim() ? value : '-';
 }
 
-function displayStatus(status: ProjectListStatus): string {
-  return status === '204 outside college' ? '204 outside CAES' : status;
-}
-
 function statusClassName(status: ProjectListStatus): string {
   if (status === 'Clean') {
     return 'badge badge-success badge-outline';
   }
 
-  if (status === '204 outside college' || status === 'SFN mismatch') {
+  if (status === 'SFN mismatch') {
     return 'badge badge-warning';
   }
 
@@ -167,10 +163,10 @@ function ProjectIdentificationStageContent({
         id: 'sfn',
       },
       {
-        accessorFn: (row) => displayStatus(row.status),
+        accessorFn: (row) => row.status,
         cell: ({ row }) => (
           <span className={statusClassName(row.original.status)}>
-            {displayStatus(row.original.status)}
+            {row.original.status}
           </span>
         ),
         header: 'Status',

@@ -2,9 +2,7 @@ import { fetchJson } from '@/lib/api.ts';
 import { queryOptions } from '@tanstack/react-query';
 
 export type ProjectListStatus =
-  | '204 outside college'
   | 'Clean'
-  | 'Expired'
   | 'No PGM match'
   | 'Not in All Projects'
   | 'SFN mismatch'

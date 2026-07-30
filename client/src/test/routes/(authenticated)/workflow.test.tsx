@@ -42,7 +42,7 @@ const projectListResponse = {
       nifaProject: 'CA-B-222-CG',
       pi: 'Okonkwo, Y.',
       sfn: '204',
-      status: '204 outside college',
+      status: 'SFN mismatch',
       ucPathName: 'Okonkwo, Yara',
       ucpEmployeeId: '10000002',
     },
@@ -292,7 +292,7 @@ describe('AD419 workflow routes', () => {
       expect(
         screen.getByRole('columnheader', { name: 'Status' })
       ).toBeInTheDocument();
-      expect(screen.getByText('204 outside CAES')).toBeInTheDocument();
+      expect(screen.getByText('SFN mismatch')).toBeInTheDocument();
 
       await waitFor(() => {
         expect(router.state.location.pathname).toBe(

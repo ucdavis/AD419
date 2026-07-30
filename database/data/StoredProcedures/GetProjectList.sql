@@ -1,15 +1,7 @@
 CREATE PROCEDURE [data].[GetProjectList]
-    @cycleStart DATE,
-    @cycleEnd   DATE
 AS
 BEGIN
     SET NOCOUNT ON;
-
-    IF @cycleStart IS NULL OR @cycleEnd IS NULL
-        THROW 50000, '@cycleStart and @cycleEnd are required.', 1;
-
-    IF @cycleStart > @cycleEnd
-        THROW 50000, '@cycleStart must not be after @cycleEnd.', 1;
 
     WITH AlnCatalog AS
     (
@@ -34,8 +26,6 @@ BEGIN
             pgm.ProjectId,
             pgm.ProjectNumber,
             pgm.SponsorAwardNumber,
-            pgm.AwardStartDate,
-            pgm.AwardEndDate,
             REPLACE(pgm.SponsorAwardNumber, '-', '') AS AwardKey,
             CASE
                 WHEN aln.ProgramNumber IS NULL                                              THEN NULL
@@ -73,8 +63,6 @@ BEGIN
             a.UcpEmployeeId,
             a.UcPathName,
             ap.Department,
-            ap.ProjectStartDate,
-            ap.ProjectEndDate,
             CASE WHEN ap.ProjectNumber IS NULL THEN 0 ELSE 1 END AS InAllProjects,
             CASE
                 WHEN a.ProjectNumber LIKE '%-H'  THEN '201'
@@ -100,8 +88,6 @@ BEGIN
             ac.UcpEmployeeId,
             ac.UcPathName,
             ac.Department,
-            ac.ProjectStartDate,
-            ac.ProjectEndDate,
             ac.InAllProjects,
             ac.NifaSfn,
             (
@@ -152,28 +138,7 @@ BEGIN
 
     UNION ALL
 
-    -- Expired (project dates fall outside the cycle window)
-    SELECT
-        CAST(NifaProjectNumber AS NVARCHAR(20)),
-        CAST(AccessionNumber AS NVARCHAR(50)),
-        CAST(NifaAwardNumber AS NVARCHAR(100)),
-        CAST(PgmProjectNumbers AS NVARCHAR(MAX)),
-        CAST(Pi AS NVARCHAR(200)),
-        CAST(UcpEmployeeId AS NVARCHAR(8)),
-        CAST(UcPathName AS NVARCHAR(200)),
-        CAST(Department AS NVARCHAR(300)),
-        CAST(NifaSfn AS NVARCHAR(10)),
-        CAST('Expired' AS NVARCHAR(30))
-    FROM ActiveWithPgm
-    WHERE InAllProjects = 1
-      AND (
-            (ProjectEndDate   IS NOT NULL AND ProjectEndDate   < @cycleStart)
-         OR (ProjectStartDate IS NOT NULL AND ProjectStartDate > @cycleEnd)
-          )
-
-    UNION ALL
-
-    -- No PGM match
+    -- No PGM match: only 204 (-CG) projects must map to a PGM master data award
     SELECT
         CAST(NifaProjectNumber AS NVARCHAR(20)),
         CAST(AccessionNumber AS NVARCHAR(50)),
@@ -187,6 +152,7 @@ BEGIN
         CAST('No PGM match' AS NVARCHAR(30))
     FROM ActiveWithPgm
     WHERE InAllProjects = 1
+      AND NifaSfn = '204'
       AND HasPgmMatch = 0
 
     UNION ALL
@@ -222,41 +188,6 @@ BEGIN
         CAST('Clean' AS NVARCHAR(30))
     FROM ActiveWithPgm
     WHERE InAllProjects = 1
-      AND HasPgmMatch = 1
       AND HasSfnMismatch = 0
-      AND NOT (
-            (ProjectEndDate   IS NOT NULL AND ProjectEndDate   < @cycleStart)
-         OR (ProjectStartDate IS NOT NULL AND ProjectStartDate > @cycleEnd)
-          )
-
-    UNION ALL
-
-    -- 204 outside college: a PGM 204 award not tied to any active project
-    SELECT
-        CAST(NULL AS NVARCHAR(20))                   AS NifaProject,
-        CAST(NULL AS NVARCHAR(50))                   AS Accession,
-        CAST(pc.SponsorAwardNumber AS NVARCHAR(100)) AS AwardNumber,
-        STRING_AGG(CAST(pc.ProjectNumber AS NVARCHAR(MAX)), ', ') AS Ae,
-        CAST(NULL AS NVARCHAR(200))                  AS Pi,
-        CAST(NULL AS NVARCHAR(8))                    AS UcpEmployeeId,
-        CAST(NULL AS NVARCHAR(200))                  AS UcPathName,
-        CAST(NULL AS NVARCHAR(300))                  AS Department,
-        CAST('204' AS NVARCHAR(10))                  AS Sfn,
-        CAST('204 outside college' AS NVARCHAR(30))  AS Status
-    FROM PgmClassified pc
-    WHERE pc.PgmSfnBucket = '204'
-      AND (pc.AwardEndDate IS NULL OR pc.AwardEndDate >= @cycleStart)
-      AND (pc.AwardStartDate IS NULL OR pc.AwardStartDate <= @cycleEnd)
-      AND NOT EXISTS
-      (
-          SELECT 1
-          FROM [data].[ActiveProjects] a
-          JOIN [data].[AllProjects] ap
-            ON NULLIF(LTRIM(RTRIM(ap.ProjectNumber)), '') = NULLIF(LTRIM(RTRIM(a.ProjectNumber)), '')
-           AND NULLIF(LTRIM(RTRIM(ap.AccessionNumber)), '') = NULLIF(LTRIM(RTRIM(a.AccessionNumber)), '')
-          WHERE ISNULL(a.ExcludeFromUi, 0) = 0
-            AND ap.AwardNumber IS NOT NULL
-            AND REPLACE(ap.AwardNumber, '-', '') = pc.AwardKey
-      )
-    GROUP BY pc.SponsorAwardNumber;
+      AND (NifaSfn <> '204' OR HasPgmMatch = 1);
 END
