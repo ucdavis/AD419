@@ -14,10 +14,10 @@ CREATE TABLE [data].[Projects]
     [Is204]                       BIT           NOT NULL,
     [Sfn]                         NVARCHAR(7)   NOT NULL, -- from project number suffix: 201 | 202 | 204 | 205 | UNKNOWN
 
-    -- AE side (from PGMProjects via award number match). Required: every
-    -- included active project has a PGM master data record by build time, and
-    -- NIFA/PGM SFN agreement is checked during Project Identification.
-    [AEProjectNumber]             NVARCHAR(50)  NOT NULL,
+    -- AE side (from PGMProjects via award number match). Null when a non-204
+    -- project has no PGM master data match; NIFA/PGM SFN agreement is checked
+    -- during Project Identification.
+    [AEProjectNumber]             NVARCHAR(50)  NULL,
     [SponsorAwardNumber]          NVARCHAR(100) NULL,
     [PrincipalInvestigatorNames]  NVARCHAR(MAX) NULL,
 
