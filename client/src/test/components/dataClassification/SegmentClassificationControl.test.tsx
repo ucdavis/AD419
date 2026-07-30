@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { ChartStringSegment } from '@/queries/chartStringSegments.ts';
+import type { SegmentClassification } from '@/queries/segmentClassifications.ts';
 import { SegmentClassificationControl } from '@/components/dataClassification/SegmentClassificationControl.tsx';
 
-const unsetAccount: ChartStringSegment = {
+const unsetAccount: SegmentClassification = {
   code: '500000',
   description: 'Supplies',
   hierarchy: [],
@@ -12,7 +12,7 @@ const unsetAccount: ChartStringSegment = {
   sfn: null,
 };
 
-const unsetFund: ChartStringSegment = {
+const unsetFund: SegmentClassification = {
   code: '70575',
   description: 'Berry',
   hierarchy: [],
@@ -34,10 +34,31 @@ describe('SegmentClassificationControl', () => {
   it('renders a dropdown with SFN options for a fund', () => {
     render(<SegmentClassificationControl onClassify={vi.fn()} segment={unsetFund} />);
 
-    expect(screen.getByRole('option', { name: '201' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: '201 - Hatch Funds' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Multiple' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Excluded' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Include' })).not.toBeInTheDocument();
+  });
+
+  it('shows SFN descriptions in the fund dropdown', () => {
+    render(
+      <SegmentClassificationControl
+        onClassify={vi.fn()}
+        segment={{
+          code: '45530',
+          description: null,
+          hierarchy: [],
+          includeInReport: null,
+          segmentType: 'Fund',
+          sfn: null,
+        }}
+      />
+    );
+    expect(
+      screen.getByRole('option', {
+        name: '204 - Contracts, Grants, Research Coop Agreements',
+      })
+    ).toBeInTheDocument();
   });
 
   it('calls onClassify with (true, sfn) when an SFN is selected', () => {

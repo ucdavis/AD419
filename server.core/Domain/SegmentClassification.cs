@@ -7,9 +7,10 @@ public enum SegmentType
     Fund,
     Activity,
     Ern,
+    Purpose,
 }
 
-public class ChartStringSegment
+public class SegmentClassification
 {
     public SegmentType SegmentType { get; set; }
 

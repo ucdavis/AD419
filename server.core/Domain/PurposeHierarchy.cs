@@ -1,6 +1,6 @@
 namespace Server.Core.Domain;
 
-public class AccountHierarchy : ISegmentHierarchy
+public class PurposeHierarchy : ISegmentHierarchy
 {
     public string Code { get; set; } = string.Empty;
     public string? Description { get; set; }

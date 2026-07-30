@@ -5,18 +5,20 @@ import {
   segmentsForType,
   unclassifiedCount,
 } from './segments.ts';
+import { buildSegmentExport } from './exportSegments.ts';
 import { SegmentGrid } from './SegmentGrid.tsx';
+import { ExportDataButton } from '@/shared/exportDataButton.tsx';
 import {
-  chartStringSegmentsQueryOptions,
-  type ChartStringSegment,
+  segmentClassificationsQueryOptions,
+  type SegmentClassification,
   useUpdateSegmentClassification,
-} from '@/queries/chartStringSegments.ts';
+} from '@/queries/segmentClassifications.ts';
 import { Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 
 export function DataClassificationStage() {
   const { data: segments = [], isLoading } = useQuery(
-    chartStringSegmentsQueryOptions()
+    segmentClassificationsQueryOptions()
   );
   const updateClassification = useUpdateSegmentClassification();
   const [activeType, setActiveType] = useState(SEGMENT_TABS[0].type);
@@ -26,7 +28,7 @@ export function DataClassificationStage() {
   }
 
   const handleClassify = (
-    segment: ChartStringSegment,
+    segment: SegmentClassification,
     includeInReport: boolean,
     sfn: string | null
   ) => {
@@ -39,6 +41,10 @@ export function DataClassificationStage() {
   };
 
   const gateOpen = allClassified(segments);
+  const activeTab =
+    SEGMENT_TABS.find((tab) => tab.type === activeType) ?? SEGMENT_TABS[0];
+  const tabSegments = segmentsForType(segments, activeType);
+  const exportData = buildSegmentExport(tabSegments, activeTab);
 
   return (
     <div className="space-y-4">
@@ -71,19 +77,25 @@ export function DataClassificationStage() {
         })}
       </div>
 
-      {activeType === 'Ern' && (
+      {activeTab.note && (
         <div className="alert alert-info" role="note">
-          <span>
-            Note: ERN code classification affects FTE calculations only. It does not
-            affect dollar-amount calculations.
-          </span>
+          <span>{activeTab.note}</span>
         </div>
       )}
 
       <SegmentGrid
+        classificationHeader={activeTab.classificationHeader}
         onClassify={handleClassify}
-        segments={segmentsForType(segments, activeType)}
+        segments={tabSegments}
         segmentType={activeType}
+        tableActions={
+          <ExportDataButton
+            columns={exportData.columns}
+            data={exportData.rows}
+            filename={exportData.filename}
+            label="Export"
+          />
+        }
       />
 
       <div className="flex items-center justify-between border-t pt-4">

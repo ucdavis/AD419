@@ -9,7 +9,7 @@ namespace Server.Core.Data;
 /// Segments start unclassified (IncludeInReport = null); a couple per type are
 /// pre-classified so the grid shows a mix of unset and classified rows.
 /// </summary>
-public static class ChartStringSegmentSeed
+public static class SegmentClassificationSeed
 {
     // Leave roughly this many rows per segment type unclassified so there is still
     // work to do; the rest are classified (include/exclude) below.
@@ -19,30 +19,31 @@ public static class ChartStringSegmentSeed
     // "Multiple" marker). Used to give seeded, included funds a real SFN so the Fund
     // dropdown reflects a classified state rather than reading "Unset".
     private static readonly string[] FundSfnPool =
-        ["201", "202", "203", "205", "220", "221", "223", "Multiple"];
+        ["201", "202", "203", "204", "205", "209", "219", "220", "221", "222", "223", "Multiple"];
 
     public static async Task EnsureSeededAsync(DataDbContext db, CancellationToken ct = default)
     {
-        if (await db.ChartStringSegments.AnyAsync(ct))
+        if (await db.SegmentClassifications.AnyAsync(ct))
         {
             return;
         }
 
-        var segments = new List<ChartStringSegment>();
+        var segments = new List<SegmentClassification>();
         segments.AddRange(await BuildAsync(db.AccountHierarchies, SegmentType.Account, ct));
         segments.AddRange(await BuildAsync(db.FundHierarchies, SegmentType.Fund, ct));
         segments.AddRange(await BuildAsync(db.ActivityHierarchies, SegmentType.Activity, ct));
         segments.AddRange(await BuildAsync(db.DepartmentHierarchies, SegmentType.FinancialDepartment, ct));
         segments.AddRange(BuildErn());
+        segments.AddRange(await BuildPurposeAsync(db, ct));
 
-        db.ChartStringSegments.AddRange(segments);
+        db.SegmentClassifications.AddRange(segments);
         await db.SaveChangesAsync(ct);
     }
 
-    // ErnCodes.csv columns: 0 DOS_Code, 1 Description, 2 IncludeInAD419FTE, 3 IsNewInUCP.
-    // IncludeInAD419FTE seeds the classification directly, except the first few (by DOS
+    // ErnCodes.csv columns: 0 ErnCode, 1 Description, 2 IncludeInAD419FTE, 3 IsNewInUCP.
+    // IncludeInAD419FTE seeds the classification directly, except the first few (by ERN
     // code) which stay unset for demo. IsNewInUCP is not consumed yet.
-    private static List<ChartStringSegment> BuildErn()
+    private static List<SegmentClassification> BuildErn()
     {
         var rows = SeedCsv.ReadRows("ErnCodes.csv", fields => (
             Code: fields[0].Trim(),
@@ -51,7 +52,7 @@ public static class ChartStringSegmentSeed
 
         return rows
             .OrderBy(row => row.Code, StringComparer.Ordinal)
-            .Select((row, index) => new ChartStringSegment
+            .Select((row, index) => new SegmentClassification
             {
                 SegmentType = SegmentType.Ern,
                 Code = row.Code,
@@ -61,7 +62,33 @@ public static class ChartStringSegmentSeed
             .ToList();
     }
 
-    private static async Task<List<ChartStringSegment>> BuildAsync<T>(
+    // Purpose classification defaults follow the 2025 processing rules: the known
+    // exclusion list is excluded, research purposes are included, and codes the 2025
+    // process never ruled on stay unset so they surface for review (fail closed).
+    private static readonly IReadOnlySet<string> ExcludedPurposes =
+        new HashSet<string> { "00", "40", "43", "60", "61", "62", "72", "76", "78", "80" };
+
+    private static readonly IReadOnlySet<string> IncludedPurposes =
+        new HashSet<string> { "44", "45" };
+
+    private static async Task<List<SegmentClassification>> BuildPurposeAsync(DataDbContext db, CancellationToken ct)
+    {
+        var rows = await db.PurposeHierarchies.ToListAsync(ct);
+        return rows
+            .OrderBy(row => row.Code, StringComparer.Ordinal)
+            .Select(row => new SegmentClassification
+            {
+                SegmentType = SegmentType.Purpose,
+                Code = row.Code,
+                Description = row.Description,
+                IncludeInReport = ExcludedPurposes.Contains(row.Code) ? false
+                    : IncludedPurposes.Contains(row.Code) ? true
+                    : null,
+            })
+            .ToList();
+    }
+
+    private static async Task<List<SegmentClassification>> BuildAsync<T>(
         DbSet<T> hierarchy,
         SegmentType type,
         CancellationToken ct)
@@ -82,7 +109,7 @@ public static class ChartStringSegmentSeed
                     ? FundSfnPool[(StableHash(row.Code) & int.MaxValue) % FundSfnPool.Length]
                     : null;
 
-                return new ChartStringSegment
+                return new SegmentClassification
                 {
                     SegmentType = type,
                     Code = row.Code,

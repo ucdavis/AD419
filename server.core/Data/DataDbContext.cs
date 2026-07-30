@@ -7,12 +7,13 @@ public class DataDbContext(DbContextOptions<DataDbContext> options) : DbContext(
 {
     public const string DataSchema = "data";
 
-    public DbSet<ChartStringSegment> ChartStringSegments => Set<ChartStringSegment>();
+    public DbSet<SegmentClassification> SegmentClassifications => Set<SegmentClassification>();
 
     public DbSet<DepartmentHierarchy> DepartmentHierarchies => Set<DepartmentHierarchy>();
     public DbSet<AccountHierarchy> AccountHierarchies => Set<AccountHierarchy>();
     public DbSet<FundHierarchy> FundHierarchies => Set<FundHierarchy>();
     public DbSet<ActivityHierarchy> ActivityHierarchies => Set<ActivityHierarchy>();
+    public DbSet<PurposeHierarchy> PurposeHierarchies => Set<PurposeHierarchy>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -20,9 +21,9 @@ public class DataDbContext(DbContextOptions<DataDbContext> options) : DbContext(
 
         modelBuilder.HasDefaultSchema(DataSchema);
 
-        modelBuilder.Entity<ChartStringSegment>(entity =>
+        modelBuilder.Entity<SegmentClassification>(entity =>
         {
-            entity.ToTable("ChartStringSegments", DataSchema, table => table.ExcludeFromMigrations());
+            entity.ToTable("SegmentClassifications", DataSchema, table => table.ExcludeFromMigrations());
             entity.HasKey(segment => new { segment.SegmentType, segment.Code });
             entity.Property(segment => segment.SegmentType).HasConversion<string>().HasMaxLength(20);
             entity.Property(segment => segment.Code).HasMaxLength(50);
@@ -34,6 +35,7 @@ public class DataDbContext(DbContextOptions<DataDbContext> options) : DbContext(
         ConfigureHierarchy<AccountHierarchy>(modelBuilder, "AccountHierarchy");
         ConfigureHierarchy<FundHierarchy>(modelBuilder, "FundHierarchy");
         ConfigureHierarchy<ActivityHierarchy>(modelBuilder, "ActivityHierarchy");
+        ConfigureHierarchy<PurposeHierarchy>(modelBuilder, "PurposeHierarchy");
     }
 
     private static void ConfigureHierarchy<T>(ModelBuilder modelBuilder, string table)
@@ -49,7 +51,7 @@ public class DataDbContext(DbContextOptions<DataDbContext> options) : DbContext(
             {
                 var maxLength = property.Name switch
                 {
-                    // Match ChartStringSegment.Code so joins/lookups on Code stay aligned.
+                    // Match SegmentClassification.Code so joins/lookups on Code stay aligned.
                     nameof(ISegmentHierarchy.Code) => 50,
                     "Description" => 1000,
                     _ when property.Name.EndsWith("Name") => 1000,

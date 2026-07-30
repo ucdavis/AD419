@@ -601,6 +601,7 @@ describe('FlatFileImportPanel', () => {
                 ],
                 errors: [],
                 rowNum: 2,
+
                 values: Object.fromEntries([
                   ['ProjectNumber', 'PRJ-1'],
                   ['AccessionNumber', 'A-2'],

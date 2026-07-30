@@ -1,8 +1,8 @@
 import {
-  FUND_SFNS,
+  SFN_CATALOG,
   SFN_MULTIPLE,
-  type ChartStringSegment,
-} from '@/queries/chartStringSegments.ts';
+  type SegmentClassification,
+} from '@/queries/segmentClassifications.ts';
 
 const EXCLUDED = 'Excluded';
 
@@ -11,7 +11,7 @@ export function SegmentClassificationControl({
   segment,
 }: {
   onClassify: (includeInReport: boolean, sfn: string | null) => void;
-  segment: ChartStringSegment;
+  segment: SegmentClassification;
 }) {
   if (segment.segmentType === 'Fund') {
     const value =
@@ -36,9 +36,9 @@ export function SegmentClassificationControl({
         <option disabled value="">
           Unset
         </option>
-        {FUND_SFNS.map((sfn) => (
-          <option key={sfn} value={sfn}>
-            {sfn}
+        {SFN_CATALOG.map((entry) => (
+          <option key={entry.code} value={entry.code}>
+            {entry.code} - {entry.description}
           </option>
         ))}
         <option value={SFN_MULTIPLE}>Multiple</option>

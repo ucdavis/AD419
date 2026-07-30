@@ -2,7 +2,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Server.Core.Domain;
 
-namespace Server.Tests.ChartStringSegments;
+namespace Server.Tests.SegmentClassifications;
 
 public class HierarchyMappingTests
 {
@@ -40,6 +40,42 @@ public class HierarchyMappingTests
     }
 
     [Fact]
+    public void Fund_levels_use_letter_keys()
+    {
+        var fund = new FundHierarchy
+        {
+            Code = "45530",
+            ParentLevel0Code = "TOP", ParentLevel0Name = "Top",
+            ParentLevel1Code = "MID", ParentLevel1Name = "Mid",
+        };
+
+        fund.Levels().Select(l => l.Level).Should().Equal("A", "B");
+    }
+
+    [Fact]
+    public void Account_and_activity_levels_use_letter_keys()
+    {
+        var account = new AccountHierarchy { Code = "500000", ParentLevel0Code = "4X", ParentLevel5Code = "DEEP" };
+        var activity = new ActivityHierarchy { Code = "000000", ParentLevel0Code = "ROOT" };
+
+        account.Levels().Select(l => l.Level).Should().Equal("A", "F");
+        activity.Levels().Select(l => l.Level).Should().Equal("A");
+    }
+
+    [Fact]
+    public void Purpose_levels_use_letter_keys()
+    {
+        var purpose = new PurposeHierarchy
+        {
+            Code = "44",
+            ParentLevel0Code = "1A", ParentLevel0Name = "Purpose Categories",
+            ParentLevel1Code = "1D", ParentLevel1Name = "Organized Research D",
+        };
+
+        purpose.Levels().Select(l => l.Level).Should().Equal("A", "B");
+    }
+
+    [Fact]
     public void Fund_level_properties_have_max_lengths()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
@@ -48,7 +84,7 @@ public class HierarchyMappingTests
         entity.FindProperty("ParentLevel0Code")!.GetMaxLength().Should().Be(20);
         entity.FindProperty("ParentLevel0Name")!.GetMaxLength().Should().Be(1000);
         entity.FindProperty("Description")!.GetMaxLength().Should().Be(1000);
-        // Code matches ChartStringSegment.Code (NVARCHAR(50)) so joins on Code align.
+        // Code matches SegmentClassification.Code (NVARCHAR(50)) so joins on Code align.
         entity.FindProperty("Code")!.GetMaxLength().Should().Be(50);
     }
 }
