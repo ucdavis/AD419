@@ -27,7 +27,7 @@ SELECT
         ELSE 'UNKNOWN'
     END AS NifaSfn,
     ap.AwardNumber,
-    REPLACE(ap.AwardNumber, '-', '') AS AwardKey,
+    NULLIF(REPLACE(LTRIM(RTRIM(ap.AwardNumber)), '-', ''), '') AS AwardKey,
     ap.Title,
     ap.Department,
     ap.ProjectDirector AS AllProjectDirector,
