@@ -23,11 +23,6 @@ public sealed class ProjectListService(
 
         var rows = (await connection.QueryAsync<ProjectListRowDto>(new CommandDefinition(
             "[data].[GetProjectList]",
-            new
-            {
-                cycleStart = cycle.CycleStart.ToDateTime(TimeOnly.MinValue),
-                cycleEnd = cycle.CycleEnd.ToDateTime(TimeOnly.MinValue),
-            },
             commandType: CommandType.StoredProcedure,
             commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
             cancellationToken: cancellationToken))).ToList();
