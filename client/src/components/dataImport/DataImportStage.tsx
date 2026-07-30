@@ -118,7 +118,9 @@ function DataImportStageContent({
         <p className="text-sm text-slate-600">
           Transactions are imported for {formatDate(windowStart)} through{' '}
           {formatDate(windowEnd)}, the fiscal year with a 3 month buffer on
-          each end.
+          each end. We intentionally cast a wide net to make sure we're
+          pulling in all relevant transactions. Transactions from outside the
+          fiscal year will be excluded for the final report.
         </p>
 
         <div className="flex justify-end">
