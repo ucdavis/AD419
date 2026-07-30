@@ -27,9 +27,25 @@ public class UcPathTransactionsImportServiceTests
     {
         var query = UcPathTransactionsImportService.BuildSalaryQuery(Projects, 2096);
 
-        query.Should().Contain("/ 2096");           // CalculatedFte denominator
+        query.Should().Contain("HOURS1 / 2096");    // CalculatedFte denominator
         query.Should().Contain("'S' AS fringe_benefit_salary_cd");
         query.Should().Contain("NULLIF(TRIM(POSITION_NBR), '') IS NOT NULL");
+    }
+
+    [Fact]
+    public void BuildSalaryQuery_uses_the_verified_view_column_names()
+    {
+        var query = UcPathTransactionsImportService.BuildSalaryQuery(Projects, 2088);
+
+        query.Should().Contain("JOURNAL_ID || '_' || JOURNAL_LINE || '_' || UC_ADDL_SEQ");
+        query.Should().Contain("HOURS1 AS hours");
+        query.Should().Contain("MONETARY_AMOUNT AS amount");
+        query.Should().Contain("UC_PCT_TOT_PAY AS paid_percent");
+        query.Should().Contain("UC_DRV_EFT_PCT AS ern_derived_percent");
+        query.Should().Contain("TO_CHAR(ACCOUNTING_PERIOD) AS period");
+        // absent from both labor views
+        query.Should().NotContain("FINANCE_DOC_TYPE_CD");
+        query.Should().NotContain("RATE_TYPE_CD");
     }
 
     [Fact]
@@ -41,6 +57,19 @@ public class UcPathTransactionsImportServiceTests
         query.Should().Contain("'XXX' AS erncd");
         query.Should().Contain("'F' AS fringe_benefit_salary_cd");
         query.Should().Contain("0 AS calculated_fte");
+    }
+
+    [Fact]
+    public void BuildFringeQuery_uses_the_verified_view_column_names()
+    {
+        var query = UcPathTransactionsImportService.BuildFringeQuery(Projects);
+
+        query.Should().Contain("JOURNAL_ID || '_' || JOURNAL_LINE || '_' || UC_ADDL_SEQ");
+        query.Should().Contain("MONETARY_AMOUNT AS amount");
+        // the fringe view has no JOBCODE; enrichment backfills it
+        query.Should().Contain("CAST(NULL AS VARCHAR2(24)) AS job_code");
+        query.Should().NotContain("FINANCE_DOC_TYPE_CD");
+        query.Should().NotContain("RATE_TYPE_CD");
     }
 
     [Fact]

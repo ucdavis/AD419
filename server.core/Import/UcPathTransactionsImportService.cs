@@ -16,8 +16,9 @@ public sealed class UcPathTransactionsImportService
     private const string DestinationTable = "[data].[UcPathTransactions]";
 
     // source reader column -> destination table column. EmployeeName, ExcludedByDate, AccountNotInAE, LoadedAt are absent on
-    // purpose: the destination defaults apply to unmapped columns.
-    // verify against warehouse
+    // purpose: the destination defaults apply to unmapped columns. FinanceDocTypeCd and
+    // RateTypeCd are also unmapped: neither column exists on the labor views
+    // (verified against the warehouse 2026-07-30), so they stay NULL.
     private static readonly (string Source, string Destination)[] ColumnMappings =
     [
         ("labor_transaction_id", "LaborTransactionId"),
@@ -30,13 +31,11 @@ public sealed class UcPathTransactionsImportService
         ("program", "Program"),
         ("project", "Project"),
         ("activity", "Activity"),
-        ("finance_doc_type_cd", "FinanceDocTypeCd"),
         ("erncd", "ErnCode"),
         ("employee_id", "EmployeeId"),
         ("position_number", "PositionNumber"),
         ("eff_dt", "EffDt"),
         ("job_code", "JobCode"),
-        ("rate_type_cd", "RateTypeCd"),
         ("hours", "Hours"),
         ("amount", "Amount"),
         ("pay_rate", "PayRate"),
@@ -199,8 +198,8 @@ public sealed class UcPathTransactionsImportService
 
         await using (var update = new SqlCommand(
             """
-            -- UCD_PS_NAMES_V assumed one row per EMPLID; MAX() makes update deterministic regardless of source cardinality
-            -- verify against warehouse
+            -- UCD_PS_NAMES_V verified one row per EMPLID (2026-07-30: 27,275 rows, 27,275
+            -- distinct EMPLIDs); MAX() keeps the update deterministic if that ever changes
             UPDATE t SET [EmployeeName] = LEFT(n.[EmployeeName], 100)
             FROM [data].[UcPathTransactions] t
             JOIN (SELECT [EmployeeId], MAX([EmployeeName]) AS [EmployeeName] FROM #EmployeeNames GROUP BY [EmployeeId]) n
@@ -299,10 +298,13 @@ public sealed class UcPathTransactionsImportService
         return values;
     }
 
+    // Column names verified against the warehouse 2026-07-30 (ALL_TAB_COLUMNS for
+    // both labor views). PAY_END_DT is the pay period end date used for the window
+    // filter; UC_EARN_END_DT also exists but the 2025 notes say not to use it.
     public static string BuildSalaryQuery(IReadOnlyList<string> projects204, int fteDenominatorHours) =>
         $"""
         SELECT
-            JRNL_ID || '_' || JRNL_LINE_NBR || '_' || ADDL_SEQ_NBR || '_' || EMPLID || '_' || EMPL_RCD || '_' || ERNCD || '_' || RUN_ID AS labor_transaction_id,
+            JOURNAL_ID || '_' || JOURNAL_LINE || '_' || UC_ADDL_SEQ || '_' || EMPLID || '_' || EMPL_RCD || '_' || ERNCD || '_' || RUN_ID AS labor_transaction_id,
             NULLIF(TRIM(OPERATING_UNIT), '') AS entity,
             NULLIF(TRIM(FUND_CODE), '') AS fund,
             NULLIF(TRIM(DEPTID_CF), '') AS financial_department,
@@ -312,23 +314,21 @@ public sealed class UcPathTransactionsImportService
             NULLIF(TRIM(PROGRAM_CODE), '') AS program,
             NULLIF(TRIM(PROJECT_ID), '') AS project,
             NULLIF(TRIM(CHARTFIELD1), '') AS activity,
-            NULLIF(TRIM(FINANCE_DOC_TYPE_CD), '') AS finance_doc_type_cd,
             NULLIF(TRIM(ERNCD), '') AS erncd,
             NULLIF(TRIM(EMPLID), '') AS employee_id,
             NULLIF(TRIM(POSITION_NBR), '') AS position_number,
             EFFDT AS eff_dt,
             NULLIF(TRIM(JOBCODE), '') AS job_code,
-            NULLIF(TRIM(RATE_TYPE_CD), '') AS rate_type_cd,
-            HOURS AS hours,
-            AMOUNT AS amount,
-            CASE WHEN HOURS <> 0 THEN AMOUNT / HOURS END AS pay_rate,
-            HOURS / {fteDenominatorHours} AS calculated_fte,
+            HOURS1 AS hours,
+            MONETARY_AMOUNT AS amount,
+            CASE WHEN HOURS1 <> 0 THEN MONETARY_AMOUNT / HOURS1 END AS pay_rate,
+            HOURS1 / {fteDenominatorHours} AS calculated_fte,
             PAY_END_DT AS pay_period_end_date,
             'S' AS fringe_benefit_salary_cd,
-            PAID_PERCENT AS paid_percent,
-            ERN_DERIVED_PERCENT AS ern_derived_percent,
+            UC_PCT_TOT_PAY AS paid_percent,
+            UC_DRV_EFT_PCT AS ern_derived_percent,
             FISCAL_YEAR AS fiscal_year,
-            ACCOUNTING_PERIOD AS period,
+            TO_CHAR(ACCOUNTING_PERIOD) AS period,
             EMPL_RCD AS emp_rcd,
             EFFSEQ AS eff_seq
         FROM CAES_HCMODS.PS_UC_LL_SAL_DTL_V
@@ -340,10 +340,13 @@ public sealed class UcPathTransactionsImportService
           AND (FUND_CODE = '13U02' OR CLASS_FLD IN ('44','45','78'){Source204Arm(projects204)})
         """;
 
+    // Column names verified against the warehouse 2026-07-30. The fringe view has
+    // no JOBCODE, hours, or percent columns; job_code is backfilled by the title
+    // code enrichment step.
     public static string BuildFringeQuery(IReadOnlyList<string> projects204) =>
         $"""
         SELECT
-            JRNL_ID || '_' || JRNL_LINE_NBR || '_' || ADDL_SEQ_NBR || '_' || EMPLID || '_' || EMPL_RCD || '_' || 'XXX' || '_' || RUN_ID AS labor_transaction_id,
+            JOURNAL_ID || '_' || JOURNAL_LINE || '_' || UC_ADDL_SEQ || '_' || EMPLID || '_' || EMPL_RCD || '_' || 'XXX' || '_' || RUN_ID AS labor_transaction_id,
             NULLIF(TRIM(OPERATING_UNIT), '') AS entity,
             NULLIF(TRIM(FUND_CODE), '') AS fund,
             NULLIF(TRIM(DEPTID_CF), '') AS financial_department,
@@ -353,15 +356,13 @@ public sealed class UcPathTransactionsImportService
             NULLIF(TRIM(PROGRAM_CODE), '') AS program,
             NULLIF(TRIM(PROJECT_ID), '') AS project,
             NULLIF(TRIM(CHARTFIELD1), '') AS activity,
-            NULLIF(TRIM(FINANCE_DOC_TYPE_CD), '') AS finance_doc_type_cd,
             'XXX' AS erncd,
             NULLIF(TRIM(EMPLID), '') AS employee_id,
             NULLIF(TRIM(POSITION_NBR), '') AS position_number,
             EFFDT AS eff_dt,
-            NULLIF(TRIM(JOBCODE), '') AS job_code,
-            NULLIF(TRIM(RATE_TYPE_CD), '') AS rate_type_cd,
+            CAST(NULL AS VARCHAR2(24)) AS job_code,
             0 AS hours,
-            AMOUNT AS amount,
+            MONETARY_AMOUNT AS amount,
             CAST(NULL AS DECIMAL(17,4)) AS pay_rate,
             0 AS calculated_fte,
             PAY_END_DT AS pay_period_end_date,
@@ -369,7 +370,7 @@ public sealed class UcPathTransactionsImportService
             CAST(NULL AS DECIMAL(7,4)) AS paid_percent,
             CAST(NULL AS DECIMAL(7,4)) AS ern_derived_percent,
             FISCAL_YEAR AS fiscal_year,
-            ACCOUNTING_PERIOD AS period,
+            TO_CHAR(ACCOUNTING_PERIOD) AS period,
             EMPL_RCD AS emp_rcd,
             EFFSEQ AS eff_seq
         FROM CAES_HCMODS.PS_UC_LL_FRNG_DTL_V

@@ -17,7 +17,8 @@ public sealed class AeTransactionsImportService
 
     // source reader column -> destination table column. Id, ExcludedByDate, AccountInUcPath, LoadedAt are absent on
     // purpose: the destination defaults apply to unmapped columns.
-    // verify against warehouse
+    // Source names verified against the warehouse 2026-07-30; the table's two other
+    // columns (actual_flag, encumbrance_type_code) are filter-only and not pulled.
     private static readonly (string Source, string Destination)[] ColumnMappings =
     [
         ("entity", "Entity"),
