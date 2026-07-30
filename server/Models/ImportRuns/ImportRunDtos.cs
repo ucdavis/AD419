@@ -7,6 +7,7 @@ public sealed record ImportRunStageDto(
     int Ordinal,
     string Status,
     int? RowCount,
+    string? Detail,
     DateTimeOffset? StartedAt,
     DateTimeOffset? CompletedAt,
     string? ErrorDetail);
@@ -36,6 +37,7 @@ public sealed record ImportRunDto(
                 stage.Ordinal,
                 stage.Status,
                 stage.RowCount,
+                stage.Detail,
                 stage.StartedAt,
                 stage.CompletedAt,
                 stage.ErrorDetail))

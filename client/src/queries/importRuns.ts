@@ -3,6 +3,7 @@ import { queryOptions } from '@tanstack/react-query';
 
 export interface ImportRunStage {
   completedAt: string | null;
+  detail: string | null;
   errorDetail: string | null;
   name: string;
   ordinal: number;

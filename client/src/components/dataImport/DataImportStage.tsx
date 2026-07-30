@@ -191,7 +191,7 @@ function DataImportStageContent({
                         {stage.status}
                       </span>
                     </td>
-                    <td>{stage.rowCount?.toLocaleString() ?? '-'}</td>
+                    <td>{stage.detail ?? stage.rowCount?.toLocaleString() ?? '-'}</td>
                   </tr>
                 ))}
               </tbody>

@@ -34,18 +34,18 @@ public sealed class ImportStageProvider : IImportStageProvider
         foreach (var (segmentName, _) in ChartSegmentsImportService.Segments)
         {
             var display = displayNames.GetValueOrDefault(segmentName, segmentName);
-            stages.Add(new ImportStage(
+            stages.Add(ImportStage.FromRowCount(
                 ImportStageNames.ChartSegmentsPrefix + display,
                 ct => _chartSegments.ImportSegmentAsync(segmentName, ct)));
         }
 
         stages.Add(new ImportStage(ImportStageNames.BuildProjects, ct => _sprocs.BuildProjectsAsync(ct)));
-        stages.Add(new ImportStage(ImportStageNames.AeTransactions,
+        stages.Add(ImportStage.FromRowCount(ImportStageNames.AeTransactions,
             ct => _aeTransactions.ImportAsync(context.CycleStart, context.CycleEnd, ct)));
-        stages.Add(new ImportStage(ImportStageNames.UcPathTransactions,
+        stages.Add(ImportStage.FromRowCount(ImportStageNames.UcPathTransactions,
             ct => _ucPathTransactions.ImportAsync(context.CycleStart, context.CycleEnd, ct)));
-        stages.Add(new ImportStage(ImportStageNames.SeedSegmentClassifications, SeedAsync));
-        stages.Add(new ImportStage(ImportStageNames.ClassifyTransactions,
+        stages.Add(ImportStage.FromRowCount(ImportStageNames.SeedSegmentClassifications, SeedAsync));
+        stages.Add(ImportStage.FromRowCount(ImportStageNames.ClassifyTransactions,
             ct => _sprocs.ClassifyTransactionsAsync(context.CycleStart, context.CycleEnd, ct)));
 
         return stages;

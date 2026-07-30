@@ -39,8 +39,9 @@ public sealed class ImportRunOrchestrator
 
             try
             {
-                var rowCount = await stage.ExecuteAsync(cancellationToken);
-                record.RowCount = rowCount;
+                var result = await stage.ExecuteAsync(cancellationToken);
+                record.RowCount = result.RowCount;
+                record.Detail = result.Detail;
                 record.Status = ImportStageStatus.Succeeded;
                 record.CompletedAt = DateTimeOffset.UtcNow;
                 await _appDb.SaveChangesAsync(cancellationToken);

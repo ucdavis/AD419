@@ -38,8 +38,12 @@ public class ImportRunOrchestratorTests
         await using var db = TestDbContextFactory.CreateInMemory();
         var order = new List<string>();
         var provider = new FakeStageProvider(
-            new ImportStage("one", _ => { order.Add("one"); return Task.FromResult(5); }),
-            new ImportStage("two", _ => { order.Add("two"); return Task.FromResult(7); }));
+            ImportStage.FromRowCount("one", _ => { order.Add("one"); return Task.FromResult(5); }),
+            new ImportStage("two", _ =>
+            {
+                order.Add("two");
+                return Task.FromResult(new ImportStageResult(7, "7 AE projects, 3 NIFA projects"));
+            }));
         var runId = await SeedRunAsync(db, provider);
 
         await new ImportRunOrchestrator(db, provider, NullLogger<ImportRunOrchestrator>.Instance).RunAsync(runId);
@@ -50,7 +54,9 @@ public class ImportRunOrchestratorTests
         run.CompletedAt.Should().NotBeNull();
         run.Stages.Should().OnlyContain(s => s.Status == ImportStageStatus.Succeeded);
         run.Stages.Single(s => s.Name == "one").RowCount.Should().Be(5);
+        run.Stages.Single(s => s.Name == "one").Detail.Should().BeNull();
         run.Stages.Single(s => s.Name == "two").RowCount.Should().Be(7);
+        run.Stages.Single(s => s.Name == "two").Detail.Should().Be("7 AE projects, 3 NIFA projects");
     }
 
     [Fact]
@@ -58,9 +64,9 @@ public class ImportRunOrchestratorTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         var provider = new FakeStageProvider(
-            new ImportStage("one", _ => Task.FromResult(1)),
-            new ImportStage("boom", _ => throw new InvalidOperationException("warehouse offline")),
-            new ImportStage("three", _ => Task.FromResult(3)));
+            ImportStage.FromRowCount("one", _ => Task.FromResult(1)),
+            ImportStage.FromRowCount("boom", _ => throw new InvalidOperationException("warehouse offline")),
+            ImportStage.FromRowCount("three", _ => Task.FromResult(3)));
         var runId = await SeedRunAsync(db, provider);
 
         await new ImportRunOrchestrator(db, provider, NullLogger<ImportRunOrchestrator>.Instance).RunAsync(runId);

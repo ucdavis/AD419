@@ -2,7 +2,14 @@ namespace Server.Core.Import;
 
 public sealed record ImportRunContext(int RunId, DateOnly CycleStart, DateOnly CycleEnd);
 
-public sealed record ImportStage(string Name, Func<CancellationToken, Task<int>> ExecuteAsync);
+public sealed record ImportStageResult(int RowCount, string? Detail = null);
+
+public sealed record ImportStage(string Name, Func<CancellationToken, Task<ImportStageResult>> ExecuteAsync)
+{
+    /// <summary>Adapts a stage that reports only a row count.</summary>
+    public static ImportStage FromRowCount(string name, Func<CancellationToken, Task<int>> executeAsync) =>
+        new(name, async ct => new ImportStageResult(await executeAsync(ct)));
+}
 
 public interface IImportStageProvider
 {

@@ -17,7 +17,7 @@ public class ImportRunsControllerTests
     {
         public IReadOnlyList<string> StageNames => ImportStageNames.All;
         public IReadOnlyList<ImportStage> BuildStages(ImportRunContext context) =>
-            StageNames.Select(name => new ImportStage(name, _ => Task.FromResult(0))).ToList();
+            StageNames.Select(name => ImportStage.FromRowCount(name, _ => Task.FromResult(0))).ToList();
     }
 
     private sealed class RecordingRunStarter : IImportRunStarter

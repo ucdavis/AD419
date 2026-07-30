@@ -35,8 +35,9 @@ const succeededRun = {
   cycleStart: '2025-10-01',
   id: 1,
   stages: [
-    { completedAt: '2026-07-29T10:01:00Z', errorDetail: null, name: 'ChartSegments: Fund', ordinal: 1, rowCount: 1200, startedAt: '2026-07-29T10:00:00Z', status: 'Succeeded' },
-    { completedAt: '2026-07-29T10:05:00Z', errorDetail: null, name: 'AE transactions', ordinal: 9, rowCount: 413_637, startedAt: '2026-07-29T10:01:00Z', status: 'Succeeded' },
+    { completedAt: '2026-07-29T10:01:00Z', detail: null, errorDetail: null, name: 'ChartSegments: Fund', ordinal: 1, rowCount: 1200, startedAt: '2026-07-29T10:00:00Z', status: 'Succeeded' },
+    { completedAt: '2026-07-29T10:02:00Z', detail: '479 AE projects, 364 NIFA projects', errorDetail: null, name: 'Build projects', ordinal: 8, rowCount: 479, startedAt: '2026-07-29T10:01:00Z', status: 'Succeeded' },
+    { completedAt: '2026-07-29T10:05:00Z', detail: null, errorDetail: null, name: 'AE transactions', ordinal: 9, rowCount: 413_637, startedAt: '2026-07-29T10:02:00Z', status: 'Succeeded' },
   ],
   startedAt: '2026-07-29T10:00:00Z',
   status: 'Succeeded',
@@ -80,6 +81,9 @@ describe('Data Import stage', () => {
     try {
       expect(await screen.findByText('AE transactions')).toBeInTheDocument();
       expect(screen.getByText('413,637')).toBeInTheDocument();
+      expect(
+        screen.getByText('479 AE projects, 364 NIFA projects')
+      ).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /start import/i })).toBeEnabled();
     } finally {
       cleanup();
@@ -120,7 +124,7 @@ describe('Data Import stage', () => {
       ...succeededRun,
       id: 3,
       stages: [
-        { completedAt: '2026-07-29T10:02:00Z', errorDetail: 'warehouse offline', name: 'AE transactions', ordinal: 9, rowCount: null, startedAt: '2026-07-29T10:01:00Z', status: 'Failed' },
+        { completedAt: '2026-07-29T10:02:00Z', detail: null, errorDetail: 'warehouse offline', name: 'AE transactions', ordinal: 9, rowCount: null, startedAt: '2026-07-29T10:01:00Z', status: 'Failed' },
       ],
       status: 'Failed',
     };

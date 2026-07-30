@@ -19,7 +19,7 @@ public sealed class SprocStageService
         _configuration = configuration;
     }
 
-    public async Task<int> BuildProjectsAsync(CancellationToken cancellationToken)
+    public async Task<ImportStageResult> BuildProjectsAsync(CancellationToken cancellationToken)
     {
         await using var connection = await OpenConnectionAsync(cancellationToken);
         await using var command = new SqlCommand("[data].[BuildProjects]", connection)
@@ -28,8 +28,17 @@ public sealed class SprocStageService
             CommandTimeout = CommandTimeoutSeconds,
         };
 
-        var result = await command.ExecuteScalarAsync(cancellationToken);
-        return Convert.ToInt32(result);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return new ImportStageResult(0);
+        }
+
+        var aeProjects = reader.GetInt32(reader.GetOrdinal("AeProjects"));
+        var nifaProjects = reader.GetInt32(reader.GetOrdinal("NifaProjects"));
+        return new ImportStageResult(
+            aeProjects,
+            $"{aeProjects:N0} AE projects, {nifaProjects:N0} NIFA projects");
     }
 
     public async Task<int> SeedSegmentClassificationsAsync(CancellationToken cancellationToken)

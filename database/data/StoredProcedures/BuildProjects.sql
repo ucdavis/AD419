@@ -64,6 +64,10 @@ BEGIN
 
     COMMIT;
 
-    -- Row count for the import run stage.
-    SELECT COUNT(*) AS ProjectRowsBuilt FROM [data].[Projects];
+    -- Counts for the import run stage: rows are NIFA x AE project pairs (204
+    -- awards fan out to many AE projects), so both grains are reported.
+    SELECT
+        COUNT(*) AS AeProjects,
+        COUNT(DISTINCT [AccessionNumber]) AS NifaProjects
+    FROM [data].[Projects];
 END

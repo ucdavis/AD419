@@ -33,6 +33,11 @@ public class ImportRunStage
 
     public int? RowCount { get; set; }
 
+    // Optional human-readable summary shown instead of the raw row count,
+    // e.g. "479 AE projects, 364 NIFA projects" for the build projects stage.
+    [MaxLength(200)]
+    public string? Detail { get; set; }
+
     public DateTimeOffset? StartedAt { get; set; }
 
     public DateTimeOffset? CompletedAt { get; set; }
