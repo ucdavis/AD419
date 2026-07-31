@@ -320,7 +320,7 @@ public sealed class UcPathTransactionsImportService
             NULLIF(TRIM(EMPLID), '') AS employee_id,
             NULLIF(TRIM(POSITION_NBR), '') AS position_number,
             EFFDT AS eff_dt,
-            NULLIF(TRIM(JOBCODE), '') AS job_code,
+            NULLIF(TRIM(SUBSTR(JOBCODE, -4)), '') AS job_code,
             HOURS1 AS hours,
             MONETARY_AMOUNT AS amount,
             CASE WHEN HOURS1 <> 0 THEN MONETARY_AMOUNT / HOURS1 END AS pay_rate,

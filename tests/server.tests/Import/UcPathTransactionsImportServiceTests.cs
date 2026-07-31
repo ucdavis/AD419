@@ -40,6 +40,8 @@ public class UcPathTransactionsImportServiceTests
         query.Should().Contain("JOURNAL_ID || '_' || JOURNAL_LINE || '_' || UC_ADDL_SEQ");
         query.Should().Contain("HOURS1 AS hours");
         query.Should().Contain("MONETARY_AMOUNT AS amount");
+        // JOBCODE holds 6-char values like '003252'; the title code is the last 4
+        query.Should().Contain("SUBSTR(JOBCODE, -4)");
         query.Should().Contain("UC_PCT_TOT_PAY AS paid_percent");
         query.Should().Contain("UC_DRV_EFT_PCT AS ern_derived_percent");
         query.Should().Contain("TO_CHAR(ACCOUNTING_PERIOD) AS period");
