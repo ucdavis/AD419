@@ -86,7 +86,9 @@ function DataImportStageContent({
         <p className="text-sm text-slate-600">
           Pulls AE and UCPath transactions for the reporting cycle and seeds
           new chart string segments for classification. The fiscal year comes
-          from the Project Identification step.
+          from the Project Identification step. Pulling in transactions may
+          take several hours, and the import keeps running in the background
+          if you leave this page.
         </p>
 
         <div className="grid gap-3 lg:grid-cols-2">
@@ -118,7 +120,7 @@ function DataImportStageContent({
         <p className="text-sm text-slate-600">
           Transactions are imported for {formatDate(windowStart)} through{' '}
           {formatDate(windowEnd)}, the fiscal year with a 3 month buffer on
-          each end. We intentionally cast a wide net to make sure we're
+          each end. We intentionally cast a wide net to make sure we&apos;re
           pulling in all relevant transactions. Transactions from outside the
           fiscal year will be excluded for the final report.
         </p>
