@@ -13,13 +13,11 @@ BEGIN
     -- project list; downstream consumers (expense views, associations) read
     -- this table instead of re-deriving the joins.
 
-    IF NOT EXISTS (SELECT 1 FROM [data].[ActiveProjects])
-        THROW 50000, 'ActiveProjects is empty; complete Project Identification before building the project list.', 1;
-
-    -- Fail closed on the same definition the Project Identification UI shows:
-    -- any non-Clean project means identification is not finished.
-    IF EXISTS (SELECT 1 FROM [data].[v_ProjectList] WHERE [Status] <> 'Clean')
-        THROW 50000, 'Unresolved project issues exist; resolve them in Project Identification first.', 1;
+    -- Fail closed on the shared readiness definition (also used by the import
+    -- trigger endpoint, which normally rejects a not-ready run before it starts).
+    DECLARE @blockingIssue NVARCHAR(200) = (SELECT [Issue] FROM [data].[v_ImportBlockingIssue]);
+    IF @blockingIssue IS NOT NULL
+        THROW 50000, @blockingIssue, 1;
 
     BEGIN TRAN;
 

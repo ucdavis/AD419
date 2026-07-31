@@ -56,32 +56,11 @@ public sealed class AeTransactionsImportService
         ("etl_load_dt", "EtlLoadDt"),
     ];
 
-    private const string CaesAnrDepartmentsSql = """
-        SELECT [Code] FROM [data].[ChartSegments]
-        WHERE [SegmentName] = 'FinancialDepartment'
-          AND ([ParentLevel0Code] IN ('AAES00C','9AAES0D')
-            OR [ParentLevel1Code] IN ('AAES00C','9AAES0D')
-            OR [ParentLevel2Code] IN ('AAES00C','9AAES0D')
-            OR [ParentLevel3Code] IN ('AAES00C','9AAES0D')
-            OR [ParentLevel4Code] IN ('AAES00C','9AAES0D')
-            OR [ParentLevel5Code] IN ('AAES00C','9AAES0D'))
-        """;
-
-    private const string BcbsDepartmentsSql = """
-        SELECT [Code] FROM [data].[ChartSegments]
-        WHERE [SegmentName] = 'FinancialDepartment'
-          AND ([ParentLevel0Code] = 'BCBS00C'
-            OR [ParentLevel1Code] = 'BCBS00C'
-            OR [ParentLevel2Code] = 'BCBS00C'
-            OR [ParentLevel3Code] = 'BCBS00C'
-            OR [ParentLevel4Code] = 'BCBS00C'
-            OR [ParentLevel5Code] = 'BCBS00C')
-        """;
-
-    private const string Projects204Sql = """
-        SELECT DISTINCT [AEProjectNumber] FROM [data].[Projects]
-        WHERE [Sfn] = '204' AND [AEProjectNumber] IS NOT NULL
-        """;
+    // The carve-out lists are defined as DACPAC views so the display views
+    // built in the Expense Review work can share them.
+    private const string CaesAnrDepartmentsSql = "SELECT [Code] FROM [data].[v_CaesAnrDepartments]";
+    private const string BcbsDepartmentsSql = "SELECT [Code] FROM [data].[v_BcbsDepartments]";
+    private const string Projects204Sql = "SELECT [AEProjectNumber] FROM [data].[v_Projects204]";
 
     private readonly DataDbContext _dataDbContext;
     private readonly IConfiguration _configuration;

@@ -50,10 +50,7 @@ public sealed class UcPathTransactionsImportService
         ("eff_seq", "EffSeq"),
     ];
 
-    private const string Projects204Sql = """
-        SELECT DISTINCT [AEProjectNumber] FROM [data].[Projects]
-        WHERE [Sfn] = '204' AND [AEProjectNumber] IS NOT NULL
-        """;
+    private const string Projects204Sql = "SELECT [AEProjectNumber] FROM [data].[v_Projects204]";
 
     private readonly DataDbContext _dataDbContext;
     private readonly IConfiguration _configuration;
