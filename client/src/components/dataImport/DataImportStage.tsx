@@ -91,6 +91,14 @@ function DataImportStageContent({
           if you leave this page.
         </p>
 
+        <p className="text-sm text-slate-600">
+          Transactions are imported for {formatDate(windowStart)} through{' '}
+          {formatDate(windowEnd)}, the fiscal year with a 3 month buffer on
+          each end. We intentionally cast a wide net to make sure we&apos;re
+          pulling in all relevant transactions. Transactions from outside the
+          fiscal year will be excluded for the final report.
+        </p>
+
         <div className="grid gap-3 lg:grid-cols-2">
           <label className="form-control w-full">
             <span className="label-text">Fiscal year</span>
@@ -116,14 +124,6 @@ function DataImportStageContent({
             </select>
           </label>
         </div>
-
-        <p className="text-sm text-slate-600">
-          Transactions are imported for {formatDate(windowStart)} through{' '}
-          {formatDate(windowEnd)}, the fiscal year with a 3 month buffer on
-          each end. We intentionally cast a wide net to make sure we&apos;re
-          pulling in all relevant transactions. Transactions from outside the
-          fiscal year will be excluded for the final report.
-        </p>
 
         <div className="flex justify-end">
           <button
