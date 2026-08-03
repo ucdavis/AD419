@@ -1,4 +1,5 @@
 using System.Data;
+using System.Diagnostics;
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +18,8 @@ public sealed class ProjectListService(
     private const string NoPgmMatchStatus = "No PGM match";
     private const string NotInAllProjectsStatus = "Not in All Projects";
     private const string SfnMismatchStatus = "SFN mismatch";
+    private const string BuildProjectsLockName = "AD419:data.BuildProjects";
+    private static readonly ActivitySource ActivitySource = new("Server.ProjectList");
 
     public async Task<ProjectListResponse> GetAsync(FiscalYearCycle cycle, CancellationToken cancellationToken)
     {
@@ -191,9 +194,11 @@ public sealed class ProjectListService(
     {
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
 
         var statusResult = await ValidateCurrentStatusAsync(
             connection,
+            transaction,
             cycle,
             accession,
             [NoPgmMatchStatus, NotInAllProjectsStatus],
@@ -207,15 +212,26 @@ public sealed class ProjectListService(
             """
             UPDATE [data].[ActiveProjects]
             SET [ExcludeFromUi] = 1
-            WHERE [AccessionNumber] = @accession;
+            WHERE [AccessionNumber] = @accession
+              AND EXISTS
+              (
+                  SELECT 1
+                  FROM [data].[ProjectListForCycle](@cycleStart, @cycleEnd)
+                  WHERE [Accession] = @accession
+              );
             """,
-            new { accession = accession.Trim() },
+            ActionParameters(cycle, accession),
+            transaction: transaction,
             commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
             cancellationToken: cancellationToken));
 
-        return rows == 1
-            ? ProjectListUpdateResult.Updated
-            : new ProjectListUpdateResult(ProjectListUpdateStatus.NotFound, "Project row was not found.");
+        if (rows == 1)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return ProjectListUpdateResult.Updated;
+        }
+
+        return new ProjectListUpdateResult(ProjectListUpdateStatus.NotFound, "Project row was not found.");
     }
 
     public async Task<ProjectListUpdateResult> LinkAllProjectAsync(
@@ -226,9 +242,11 @@ public sealed class ProjectListService(
     {
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
 
         var statusResult = await ValidateCurrentStatusAsync(
             connection,
+            transaction,
             cycle,
             accession,
             [NotInAllProjectsStatus],
@@ -239,8 +257,20 @@ public sealed class ProjectListService(
         }
 
         var exists = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
-            "SELECT COUNT(1) FROM [data].[AllProjects] WHERE [AllProjectId] = @allProjectId;",
-            new { allProjectId },
+            """
+            SELECT COUNT(1)
+            FROM [data].[AllProjects]
+            WHERE [AllProjectId] = @allProjectId
+              AND ([ProjectEndDate] IS NULL OR [ProjectEndDate] >= @cycleStart)
+              AND ([ProjectStartDate] IS NULL OR [ProjectStartDate] <= @cycleEnd);
+            """,
+            new
+            {
+                allProjectId,
+                cycleStart = cycle.CycleStart.ToDateTime(TimeOnly.MinValue),
+                cycleEnd = cycle.CycleEnd.ToDateTime(TimeOnly.MinValue),
+            },
+            transaction: transaction,
             commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
             cancellationToken: cancellationToken));
         if (exists == 0)
@@ -252,15 +282,32 @@ public sealed class ProjectListService(
             """
             UPDATE [data].[ActiveProjects]
             SET [AllProjectIdOverride] = @allProjectId
-            WHERE [AccessionNumber] = @accession;
+            WHERE [AccessionNumber] = @accession
+              AND EXISTS
+              (
+                  SELECT 1
+                  FROM [data].[ProjectListForCycle](@cycleStart, @cycleEnd)
+                  WHERE [Accession] = @accession
+              );
             """,
-            new { accession = accession.Trim(), allProjectId },
+            new
+            {
+                accession = accession.Trim(),
+                allProjectId,
+                cycleStart = cycle.CycleStart.ToDateTime(TimeOnly.MinValue),
+                cycleEnd = cycle.CycleEnd.ToDateTime(TimeOnly.MinValue),
+            },
+            transaction: transaction,
             commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
             cancellationToken: cancellationToken));
 
-        return rows == 1
-            ? ProjectListUpdateResult.Updated
-            : new ProjectListUpdateResult(ProjectListUpdateStatus.NotFound, "Project row was not found.");
+        if (rows == 1)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return ProjectListUpdateResult.Updated;
+        }
+
+        return new ProjectListUpdateResult(ProjectListUpdateStatus.NotFound, "Project row was not found.");
     }
 
     public async Task<ProjectListUpdateResult> LinkPgmAwardAsync(
@@ -277,9 +324,11 @@ public sealed class ProjectListService(
 
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
 
         var statusResult = await ValidateCurrentStatusAsync(
             connection,
+            transaction,
             cycle,
             accession,
             [NoPgmMatchStatus],
@@ -296,6 +345,7 @@ public sealed class ProjectListService(
             WHERE [AwardKey] = @awardKey;
             """,
             new { awardKey = normalizedAwardKey },
+            transaction: transaction,
             commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
             cancellationToken: cancellationToken));
         if (exists == 0)
@@ -307,15 +357,32 @@ public sealed class ProjectListService(
             """
             UPDATE [data].[ActiveProjects]
             SET [PgmAwardKeyOverride] = @awardKey
-            WHERE [AccessionNumber] = @accession;
+            WHERE [AccessionNumber] = @accession
+              AND EXISTS
+              (
+                  SELECT 1
+                  FROM [data].[ProjectListForCycle](@cycleStart, @cycleEnd)
+                  WHERE [Accession] = @accession
+              );
             """,
-            new { accession = accession.Trim(), awardKey = normalizedAwardKey },
+            new
+            {
+                accession = accession.Trim(),
+                awardKey = normalizedAwardKey,
+                cycleStart = cycle.CycleStart.ToDateTime(TimeOnly.MinValue),
+                cycleEnd = cycle.CycleEnd.ToDateTime(TimeOnly.MinValue),
+            },
+            transaction: transaction,
             commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
             cancellationToken: cancellationToken));
 
-        return rows == 1
-            ? ProjectListUpdateResult.Updated
-            : new ProjectListUpdateResult(ProjectListUpdateStatus.NotFound, "Project row was not found.");
+        if (rows == 1)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return ProjectListUpdateResult.Updated;
+        }
+
+        return new ProjectListUpdateResult(ProjectListUpdateStatus.NotFound, "Project row was not found.");
     }
 
     public async Task<ProjectListUpdateResult> SetSfnAsync(
@@ -332,9 +399,11 @@ public sealed class ProjectListService(
 
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
 
         var statusResult = await ValidateCurrentStatusAsync(
             connection,
+            transaction,
             cycle,
             accession,
             [SfnMismatchStatus],
@@ -348,29 +417,84 @@ public sealed class ProjectListService(
             """
             UPDATE [data].[ActiveProjects]
             SET [SfnOverride] = @sfn
-            WHERE [AccessionNumber] = @accession;
+            WHERE [AccessionNumber] = @accession
+              AND EXISTS
+              (
+                  SELECT 1
+                  FROM [data].[ProjectListForCycle](@cycleStart, @cycleEnd)
+                  WHERE [Accession] = @accession
+              );
             """,
-            new { accession = accession.Trim(), sfn = normalizedSfn },
+            new
+            {
+                accession = accession.Trim(),
+                sfn = normalizedSfn,
+                cycleStart = cycle.CycleStart.ToDateTime(TimeOnly.MinValue),
+                cycleEnd = cycle.CycleEnd.ToDateTime(TimeOnly.MinValue),
+            },
+            transaction: transaction,
             commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
             cancellationToken: cancellationToken));
 
-        return rows == 1
-            ? ProjectListUpdateResult.Updated
-            : new ProjectListUpdateResult(ProjectListUpdateStatus.NotFound, "Project row was not found.");
+        if (rows == 1)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return ProjectListUpdateResult.Updated;
+        }
+
+        return new ProjectListUpdateResult(ProjectListUpdateStatus.NotFound, "Project row was not found.");
     }
 
     public async Task<int> BuildProjectsAsync(FiscalYearCycle cycle, CancellationToken cancellationToken)
     {
+        using var activity = ActivitySource.StartActivity("BuildProjects");
+        activity?.SetTag("ad419.fiscal_year", cycle.FiscalYear);
+        activity?.SetTag("ad419.cycle_start", cycle.CycleStart.ToString("O"));
+        activity?.SetTag("ad419.cycle_end", cycle.CycleEnd.ToString("O"));
+
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
+
+        var lockResult = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+            """
+            DECLARE @result INT;
+
+            EXEC @result = sp_getapplock
+                @Resource = @resource,
+                @LockMode = 'Exclusive',
+                @LockOwner = 'Transaction',
+                @LockTimeout = @lockTimeout;
+
+            SELECT @result;
+            """,
+            new
+            {
+                resource = BuildProjectsLockName,
+                lockTimeout = DataDbConnection.ImportCommandTimeoutSeconds * 1000,
+            },
+            transaction: transaction,
+            commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
+            cancellationToken: cancellationToken));
+
+        if (lockResult < 0)
+        {
+            activity?.SetTag("ad419.lock_acquired", false);
+            throw new InvalidOperationException("Project rebuild is already running.");
+        }
+
+        activity?.SetTag("ad419.lock_acquired", true);
 
         var result = await connection.QuerySingleAsync<ProjectRowsBuiltResult>(new CommandDefinition(
             "[data].[BuildProjects]",
             CycleParameters(cycle),
+            transaction: transaction,
             commandType: CommandType.StoredProcedure,
             commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
             cancellationToken: cancellationToken));
 
+        await transaction.CommitAsync(cancellationToken);
+        activity?.SetTag("ad419.rows_built", result.ProjectRowsBuilt);
         return result.ProjectRowsBuilt;
     }
 
@@ -383,14 +507,34 @@ public sealed class ProjectListService(
         return new SqlConnection(connectionString);
     }
 
-    private static string? NormalizeSearch(string? search) =>
-        string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+    private static string? NormalizeSearch(string? search)
+    {
+        if (string.IsNullOrWhiteSpace(search))
+        {
+            return null;
+        }
+
+        return search
+            .Trim()
+            .Replace(@"\", @"\\", StringComparison.Ordinal)
+            .Replace("%", @"\%", StringComparison.Ordinal)
+            .Replace("_", @"\_", StringComparison.Ordinal)
+            .Replace("[", @"\[", StringComparison.Ordinal);
+    }
 
     private static string NormalizeAwardKey(string awardKey) =>
         awardKey.Trim().Replace("-", "", StringComparison.Ordinal);
 
     private static CycleQueryParameters CycleParameters(FiscalYearCycle cycle) =>
         new(
+            cycle.CycleStart.ToDateTime(TimeOnly.MinValue),
+            cycle.CycleEnd.ToDateTime(TimeOnly.MinValue));
+
+    private static ResolutionActionParameters ActionParameters(
+        FiscalYearCycle cycle,
+        string accession) =>
+        new(
+            accession.Trim(),
             cycle.CycleStart.ToDateTime(TimeOnly.MinValue),
             cycle.CycleEnd.ToDateTime(TimeOnly.MinValue));
 
@@ -421,6 +565,7 @@ public sealed class ProjectListService(
 
     private static async Task<ProjectListUpdateResult?> ValidateCurrentStatusAsync(
         SqlConnection connection,
+        SqlTransaction transaction,
         FiscalYearCycle cycle,
         string accession,
         IReadOnlyCollection<string>? allowedStatuses,
@@ -431,7 +576,7 @@ public sealed class ProjectListService(
             return new ProjectListUpdateResult(ProjectListUpdateStatus.InvalidRequest, "Accession number is required.");
         }
 
-        var status = await connection.ExecuteScalarAsync<string?>(new CommandDefinition(
+        var status = await connection.QuerySingleOrDefaultAsync<string>(new CommandDefinition(
             """
             SELECT [Status]
             FROM [data].[ProjectListForCycle](@cycleStart, @cycleEnd)
@@ -443,6 +588,7 @@ public sealed class ProjectListService(
                 cycleStart = cycle.CycleStart.ToDateTime(TimeOnly.MinValue),
                 cycleEnd = cycle.CycleEnd.ToDateTime(TimeOnly.MinValue),
             },
+            transaction: transaction,
             commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
             cancellationToken: cancellationToken));
 
@@ -507,22 +653,23 @@ public sealed class ProjectListService(
             ap.[ProjectStartDate],
             ap.[ProjectEndDate]
         FROM [data].[AllProjects] ap
-        CROSS JOIN CurrentProject cp
+        LEFT JOIN CurrentProject cp
+            ON 1 = 1
         WHERE (ap.[ProjectEndDate] IS NULL OR ap.[ProjectEndDate] >= @cycleStart)
           AND (ap.[ProjectStartDate] IS NULL OR ap.[ProjectStartDate] <= @cycleEnd)
           AND (
                 @search IS NULL
-                OR ap.[ProjectNumber] LIKE '%' + @search + '%'
-                OR ap.[AccessionNumber] LIKE '%' + @search + '%'
-                OR ap.[AwardNumber] LIKE '%' + @search + '%'
-                OR ap.[AwardKey] LIKE '%' + REPLACE(@search, '-', '') + '%'
-                OR ap.[Title] LIKE '%' + @search + '%'
-                OR ap.[ProjectDirector] LIKE '%' + @search + '%'
-                OR ap.[Department] LIKE '%' + @search + '%'
+                OR ap.[ProjectNumber] LIKE '%' + @search + '%' ESCAPE '\'
+                OR ap.[AccessionNumber] LIKE '%' + @search + '%' ESCAPE '\'
+                OR ap.[AwardNumber] LIKE '%' + @search + '%' ESCAPE '\'
+                OR ap.[AwardKey] LIKE '%' + REPLACE(@search, '-', '') + '%' ESCAPE '\'
+                OR ap.[Title] LIKE '%' + @search + '%' ESCAPE '\'
+                OR ap.[ProjectDirector] LIKE '%' + @search + '%' ESCAPE '\'
+                OR ap.[Department] LIKE '%' + @search + '%' ESCAPE '\'
           )
         ORDER BY
-            CASE WHEN ap.[ProjectNumberNormalized] = cp.[ProjectNumberNormalized] THEN 0 ELSE 1 END,
-            CASE WHEN ap.[AccessionNumberNormalized] = cp.[AccessionNumberNormalized] THEN 0 ELSE 1 END,
+            CASE WHEN cp.[ProjectNumberNormalized] IS NOT NULL AND ap.[ProjectNumberNormalized] = cp.[ProjectNumberNormalized] THEN 0 ELSE 1 END,
+            CASE WHEN cp.[AccessionNumberNormalized] IS NOT NULL AND ap.[AccessionNumberNormalized] = cp.[AccessionNumberNormalized] THEN 0 ELSE 1 END,
             ap.[AllProjectId];
         """;
 
@@ -541,19 +688,20 @@ public sealed class ProjectListService(
             STRING_AGG(CAST(pc.[ProjectNumber] AS NVARCHAR(MAX)), ', ') AS [ProjectNumbers],
             MIN(pc.[PgmSfnBucket]) AS [PgmSfnBucket],
             MIN(pgm.[PrincipalInvestigatorNames]) AS [PrincipalInvestigatorNames],
-            MIN(CASE WHEN pc.[AwardKey] = cp.[AwardKey] THEN 0 ELSE 1 END) AS [SortRank]
+            MIN(CASE WHEN cp.[AwardKey] IS NOT NULL AND pc.[AwardKey] = cp.[AwardKey] THEN 0 ELSE 1 END) AS [SortRank]
         FROM [data].[v_PgmProjectSfnBuckets] pc
         INNER JOIN [data].[PGMProjects] pgm
             ON pgm.[ProjectId] = pc.[ProjectId]
-        CROSS JOIN CurrentProject cp
+        LEFT JOIN CurrentProject cp
+            ON 1 = 1
         WHERE pc.[AwardKey] IS NOT NULL
           AND (
                 @search IS NULL
-                OR pc.[AwardKey] LIKE '%' + REPLACE(@search, '-', '') + '%'
-                OR pc.[SponsorAwardNumber] LIKE '%' + @search + '%'
-                OR pgm.[AwardName] LIKE '%' + @search + '%'
-                OR pc.[ProjectNumber] LIKE '%' + @search + '%'
-                OR pgm.[PrincipalInvestigatorNames] LIKE '%' + @search + '%'
+                OR pc.[AwardKey] LIKE '%' + REPLACE(@search, '-', '') + '%' ESCAPE '\'
+                OR pc.[SponsorAwardNumber] LIKE '%' + @search + '%' ESCAPE '\'
+                OR pgm.[AwardName] LIKE '%' + @search + '%' ESCAPE '\'
+                OR pc.[ProjectNumber] LIKE '%' + @search + '%' ESCAPE '\'
+                OR pgm.[PrincipalInvestigatorNames] LIKE '%' + @search + '%' ESCAPE '\'
           )
         GROUP BY pc.[AwardKey]
         ORDER BY
@@ -572,6 +720,11 @@ public sealed class ProjectListService(
         """;
 
     private sealed record CycleQueryParameters(DateTime CycleStart, DateTime CycleEnd);
+
+    private sealed record ResolutionActionParameters(
+        string Accession,
+        DateTime CycleStart,
+        DateTime CycleEnd);
 
     private sealed record ProjectListQueryParameters(
         string Accession,

@@ -86,6 +86,8 @@ public class ProjectListSqlTests
         activeProjectsSql.Should().Contain("[ProjectNumberNormalized]");
         activeProjectsSql.Should().Contain("[AccessionNumberNormalized]");
         activeProjectsSql.Should().Contain("[PgmAwardKeyOverrideNormalized]");
+        activeProjectsSql.Should().Contain("[CK_ActiveProjects_SfnOverride_Domain]");
+        activeProjectsSql.Should().Contain("[CK_ActiveProjects_PgmAwardKeyOverride_NotBlank]");
         allProjectsSql.Should().Contain("[ProjectNumberNormalized]");
         allProjectsSql.Should().Contain("[AccessionNumberNormalized]");
         allProjectsSql.Should().Contain("[AwardKey]");
@@ -109,37 +111,32 @@ public class ProjectListSqlTests
     [Fact]
     public void Project_list_service_uses_cycle_functions_for_validation_and_candidates()
     {
-        var sql = File.ReadAllText(Path.Combine(
-            RepositoryRoot(),
-            "server",
-            "ProjectList",
-            "ProjectListService.cs"));
+        var source = ReadServerFile("ProjectList/ProjectListService.cs");
 
-        sql.Should().Contain("[data].[GetProjectList]");
-        sql.Should().Contain("CycleParameters(cycle)");
-        sql.Should().Contain("FROM [data].[ProjectListForCycle](@cycleStart, @cycleEnd)");
-        sql.Should().Contain("FROM [data].[NifaProjectsForCycle](@cycleStart, @cycleEnd) nv");
-        sql.Should().NotContain("FROM [data].[v_ProjectList]");
-        sql.Should().NotContain("FROM [data].[v_NifaProjects]");
+        source.Should().Contain("[data].[GetProjectList]");
+        source.Should().Contain("CycleParameters(cycle)");
+        source.Should().Contain("FROM [data].[ProjectListForCycle](@cycleStart, @cycleEnd)");
+        source.Should().Contain("FROM [data].[NifaProjectsForCycle](@cycleStart, @cycleEnd) nv");
+        source.Should().NotContain("FROM [data].[v_ProjectList]");
+        source.Should().NotContain("FROM [data].[v_NifaProjects]");
     }
 
     [Fact]
     public void Pgm_award_candidates_materialize_query_only_sort_rank_in_private_row()
     {
-        var sql = File.ReadAllText(Path.Combine(
-            RepositoryRoot(),
-            "server",
-            "ProjectList",
-            "ProjectListService.cs"));
+        var source = ReadServerFile("ProjectList/ProjectListService.cs");
 
-        sql.Should().Contain("AS [SortRank]");
-        sql.Should().Contain("QueryAsync<PgmAwardCandidateRow>");
-        sql.Should().Contain("int SortRank");
-        sql.Should().NotContain("QueryAsync<PgmAwardCandidateDto>");
+        source.Should().Contain("AS [SortRank]");
+        source.Should().Contain("QueryAsync<PgmAwardCandidateRow>");
+        source.Should().Contain("int SortRank");
+        source.Should().NotContain("QueryAsync<PgmAwardCandidateDto>");
     }
 
     private static string ReadDatabaseFile(string relativePath) =>
         File.ReadAllText(Path.Combine(RepositoryRoot(), "database", relativePath));
+
+    private static string ReadServerFile(string relativePath) =>
+        File.ReadAllText(Path.Combine(RepositoryRoot(), "server", relativePath));
 
     private static int CountOccurrences(string value, string expected)
     {

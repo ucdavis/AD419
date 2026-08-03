@@ -16,5 +16,11 @@ CREATE TABLE [data].[ActiveProjects]
     [ProjectDirector] NVARCHAR(200) NOT NULL,
     [PdEmailAddress] NVARCHAR(320) NOT NULL,
     CONSTRAINT [PK_ActiveProjects] PRIMARY KEY CLUSTERED ([AccessionNumber]),
-    CONSTRAINT [UQ_ActiveProjects_ProjectNumber] UNIQUE ([ProjectNumber])
+    CONSTRAINT [UQ_ActiveProjects_ProjectNumber] UNIQUE ([ProjectNumber]),
+    CONSTRAINT [CK_ActiveProjects_SfnOverride_Domain] CHECK (
+        [SfnOverride] IS NULL OR LTRIM(RTRIM([SfnOverride])) IN (N'201', N'202', N'203', N'204', N'205', N'209', N'219', N'220', N'221', N'222', N'223')
+    ),
+    CONSTRAINT [CK_ActiveProjects_PgmAwardKeyOverride_NotBlank] CHECK (
+        [PgmAwardKeyOverride] IS NULL OR [PgmAwardKeyOverrideNormalized] IS NOT NULL
+    )
 );

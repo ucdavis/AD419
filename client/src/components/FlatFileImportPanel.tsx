@@ -426,7 +426,8 @@ export function FlatFileImportChecklistItem({
     Boolean(latestImport) && resolutionEditsQuery.isLoading;
   const requiresReimportConfirmation =
     Boolean(latestImport) &&
-    resolutionEditsQuery.data?.hasResolutionEdits === true;
+    (resolutionEditsQuery.data?.hasResolutionEdits === true ||
+      resolutionEditsQuery.isError);
   const canUpload = Boolean(file) && !mutation.isPending && !checkingResolutionEdits;
   const canMarkDone = ready && !completed && !markDonePending;
 

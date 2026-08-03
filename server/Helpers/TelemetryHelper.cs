@@ -35,6 +35,7 @@ public static class TelemetryHelper
         services.AddOpenTelemetry()
             .WithTracing(t => t
                     .SetSampler(new TraceIdRatioBasedSampler(0.2))
+                    .AddSource("Server.ProjectList")
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddOtlpExporter()

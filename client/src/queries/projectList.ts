@@ -124,7 +124,6 @@ export function allProjectCandidatesQueryOptions(
       fiscalYear,
       accession,
       'allProjectCandidates',
-      search,
       query,
     ] as const,
   });
@@ -157,7 +156,6 @@ export function pgmAwardCandidatesQueryOptions(
       fiscalYear,
       accession,
       'pgmAwardCandidates',
-      search,
       query,
     ] as const,
   });

@@ -1,5 +1,7 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { DataTable } from '@/shared/dataTable.tsx';
+import { ConfirmationDialog } from '@/shared/ConfirmationDialog.tsx';
+import { HttpError } from '@/lib/api.ts';
 import {
   allProjectCandidatesQueryOptions,
   excludeProject,
@@ -328,6 +330,11 @@ function ProjectIdentificationStageContent({
 }
 
 type ResolutionMode = 'all-project' | 'pgm-award' | 'sfn';
+type ResolutionAction =
+  | { kind: 'exclude' }
+  | { allProjectId: number; kind: 'link-all-project' }
+  | { awardKey: string; kind: 'link-pgm-award' }
+  | { kind: 'set-sfn'; sfn: string };
 
 function ProjectIssueResolutionControl({
   fiscalYear,
@@ -340,6 +347,7 @@ function ProjectIssueResolutionControl({
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<ResolutionMode | null>(null);
   const [search, setSearch] = useState('');
+  const [confirmingExclude, setConfirmingExclude] = useState(false);
   const invalidateProjectState = () => {
     void queryClient.invalidateQueries({ queryKey: ['projectList'] });
     void queryClient.invalidateQueries({
@@ -347,10 +355,28 @@ function ProjectIssueResolutionControl({
     });
   };
   const mutation = useMutation({
-    mutationFn: async (action: () => Promise<void>) => action(),
+    mutationFn: (action: ResolutionAction) => {
+      const projectAccession = requireAccession(accession);
+
+      switch (action.kind) {
+        case 'exclude':
+          return excludeProject(fiscalYear, projectAccession);
+        case 'link-all-project':
+          return linkAllProject(
+            fiscalYear,
+            projectAccession,
+            action.allProjectId
+          );
+        case 'link-pgm-award':
+          return linkPgmAward(fiscalYear, projectAccession, action.awardKey);
+        case 'set-sfn':
+          return setProjectSfn(fiscalYear, projectAccession, action.sfn);
+      }
+    },
     onSuccess: () => {
       setMode(null);
       setSearch('');
+      setConfirmingExclude(false);
       invalidateProjectState();
     },
   });
@@ -404,9 +430,7 @@ function ProjectIssueResolutionControl({
           <button
             className="btn btn-xs btn-ghost text-error"
             disabled={pending}
-            onClick={() =>
-              mutation.mutate(() => excludeProject(fiscalYear, accession))
-            }
+            onClick={() => setConfirmingExclude(true)}
             type="button"
           >
             Exclude
@@ -416,7 +440,7 @@ function ProjectIssueResolutionControl({
 
       {mutation.isError ? (
         <div className="alert alert-error py-2 text-xs" role="alert">
-          Resolution could not be saved.
+          {resolutionErrorMessage(mutation.error)}
         </div>
       ) : null}
 
@@ -426,9 +450,10 @@ function ProjectIssueResolutionControl({
           disabled={pending}
           fiscalYear={fiscalYear}
           onSelect={(candidate) =>
-            mutation.mutate(() =>
-              linkAllProject(fiscalYear, accession, candidate.allProjectId)
-            )
+            mutation.mutate({
+              allProjectId: candidate.allProjectId,
+              kind: 'link-all-project',
+            })
           }
           search={search}
           setSearch={setSearch}
@@ -441,9 +466,10 @@ function ProjectIssueResolutionControl({
           disabled={pending}
           fiscalYear={fiscalYear}
           onSelect={(candidate) =>
-            mutation.mutate(() =>
-              linkPgmAward(fiscalYear, accession, candidate.awardKey)
-            )
+            mutation.mutate({
+              awardKey: candidate.awardKey,
+              kind: 'link-pgm-award',
+            })
           }
           search={search}
           setSearch={setSearch}
@@ -456,12 +482,27 @@ function ProjectIssueResolutionControl({
           disabled={pending}
           fiscalYear={fiscalYear}
           onSelect={(candidate) =>
-            mutation.mutate(() =>
-              setProjectSfn(fiscalYear, accession, candidate.sfn)
-            )
+            mutation.mutate({ kind: 'set-sfn', sfn: candidate.sfn })
           }
         />
       ) : null}
+
+      <ConfirmationDialog
+        confirmClassName="btn-error"
+        confirmLabel="Exclude project"
+        onCancel={() => setConfirmingExclude(false)}
+        onConfirm={() => {
+          setConfirmingExclude(false);
+          mutation.mutate({ kind: 'exclude' });
+        }}
+        open={confirmingExclude}
+        title="Exclude project?"
+      >
+        <p>
+          This project will be hidden from the project identification list for
+          the current review.
+        </p>
+      </ConfirmationDialog>
     </div>
   );
 }
@@ -481,19 +522,22 @@ function AllProjectPicker({
   search: string;
   setSearch: (value: string) => void;
 }) {
+  const debouncedSearch = useDebouncedValue(search);
   const query = useQuery({
-    ...allProjectCandidatesQueryOptions(fiscalYear, accession, search),
+    ...allProjectCandidatesQueryOptions(fiscalYear, accession, debouncedSearch),
     enabled: Boolean(accession),
   });
+  const candidates = query.data ?? [];
 
   return (
     <CandidatePanel
       emptyText="No All Projects matches found."
+      isEmpty={candidates.length === 0}
       isLoading={query.isLoading}
       search={search}
       setSearch={setSearch}
     >
-      {(query.data ?? []).map((candidate) => (
+      {candidates.map((candidate) => (
         <button
           className="w-full rounded border border-slate-200 p-2 text-left text-xs hover:bg-slate-50"
           disabled={disabled}
@@ -533,19 +577,22 @@ function PgmAwardPicker({
   search: string;
   setSearch: (value: string) => void;
 }) {
+  const debouncedSearch = useDebouncedValue(search);
   const query = useQuery({
-    ...pgmAwardCandidatesQueryOptions(fiscalYear, accession, search),
+    ...pgmAwardCandidatesQueryOptions(fiscalYear, accession, debouncedSearch),
     enabled: Boolean(accession),
   });
+  const candidates = query.data ?? [];
 
   return (
     <CandidatePanel
       emptyText="No PGM awards found."
+      isEmpty={candidates.length === 0}
       isLoading={query.isLoading}
       search={search}
       setSearch={setSearch}
     >
-      {(query.data ?? []).map((candidate) => (
+      {candidates.map((candidate) => (
         <button
           className="w-full rounded border border-slate-200 p-2 text-left text-xs hover:bg-slate-50"
           disabled={disabled}
@@ -614,22 +661,22 @@ function SfnPicker({
 function CandidatePanel({
   children,
   emptyText,
+  isEmpty,
   isLoading,
   search,
   setSearch,
 }: {
   children: ReactNode;
   emptyText: string;
+  isEmpty: boolean;
   isLoading: boolean;
   search: string;
   setSearch: (value: string) => void;
 }) {
-  const items = Array.isArray(children) ? children.filter(Boolean) : children;
-  const isEmpty = Array.isArray(items) && items.length === 0;
-
   return (
     <div className="space-y-2 rounded border border-slate-200 bg-white p-2">
       <input
+        aria-label="Search candidates"
         className="input input-bordered input-xs w-full"
         onChange={(event) => setSearch(event.target.value)}
         placeholder="Search candidates"
@@ -641,10 +688,52 @@ function CandidatePanel({
       ) : isEmpty ? (
         <p className="text-xs text-slate-500">{emptyText}</p>
       ) : (
-        <div className="max-h-60 space-y-1 overflow-y-auto">{items}</div>
+        <div className="max-h-60 space-y-1 overflow-y-auto">{children}</div>
       )}
     </div>
   );
+}
+
+function requireAccession(accession: string | null) {
+  if (!accession) {
+    throw new Error('Accession number is required.');
+  }
+
+  return accession;
+}
+
+function resolutionErrorMessage(error: unknown) {
+  if (error instanceof HttpError) {
+    if (typeof error.body === 'string' && error.body.trim()) {
+      return error.body;
+    }
+
+    if (
+      error.body &&
+      typeof error.body === 'object' &&
+      'message' in error.body &&
+      typeof error.body.message === 'string' &&
+      error.body.message.trim()
+    ) {
+      return error.body.message;
+    }
+  }
+
+  return 'Resolution could not be saved.';
+}
+
+function useDebouncedValue(value: string, delayMs = 250) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedValue(value);
+    }, delayMs);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [delayMs, value]);
+
+  return debouncedValue;
 }
 
 function ProjectSummaryCards({ summary }: { summary: ProjectListSummary }) {

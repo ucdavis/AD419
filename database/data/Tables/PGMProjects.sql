@@ -20,10 +20,10 @@ CREATE TABLE [data].[PGMProjects]
     [SponsorAwardKey] AS CONVERT(NVARCHAR(100), NULLIF(REPLACE(LTRIM(RTRIM([SponsorAwardNumber])), N'-', N''), N'')) PERSISTED,
     [CfdaProgramNumber] AS (
         CONVERT(NVARCHAR(200), CASE
-            WHEN CHARINDEX(N'.', [Cfda]) > 0
-            THEN LEFT([Cfda], CHARINDEX(N'.', [Cfda]))
-                 + LEFT(SUBSTRING([Cfda], CHARINDEX(N'.', [Cfda]) + 1, 10) + N'000', 3)
-            ELSE [Cfda]
+            WHEN CHARINDEX(N'.', LTRIM(RTRIM([Cfda]))) > 0
+            THEN LEFT(LTRIM(RTRIM([Cfda])), CHARINDEX(N'.', LTRIM(RTRIM([Cfda]))))
+                 + LEFT(SUBSTRING(LTRIM(RTRIM([Cfda])), CHARINDEX(N'.', LTRIM(RTRIM([Cfda]))) + 1, 10) + N'000', 3)
+            ELSE LTRIM(RTRIM([Cfda]))
         END)
     ) PERSISTED,
     [PrimarySponsor] NVARCHAR(100) NULL,

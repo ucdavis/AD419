@@ -68,7 +68,8 @@ RETURN
         OUTER APPLY
         (
             SELECT
-                STRING_AGG(CAST(pgmMatch.ProjectNumber AS NVARCHAR(MAX)), ', ') AS PgmProjectNumbers,
+                STRING_AGG(CAST(pgmMatch.ProjectNumber AS NVARCHAR(MAX)), ', ')
+                    WITHIN GROUP (ORDER BY pgmMatch.ProjectNumber) AS PgmProjectNumbers,
                 CASE WHEN COUNT_BIG(*) > 0 THEN 1 ELSE 0 END AS HasPgmMatch,
                 MAX(pgmMatch.HasSfnMismatch) AS HasSfnMismatch
             FROM

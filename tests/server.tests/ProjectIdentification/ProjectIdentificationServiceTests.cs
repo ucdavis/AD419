@@ -189,6 +189,13 @@ public class ProjectIdentificationServiceTests
         await service.SetChecklistItemCompletionAsync("pgm-master-data", true, User, CancellationToken.None);
         await service.SetChecklistItemCompletionAsync("resolve-project-issues", true, User, CancellationToken.None);
 
+        projectListService.IssuesToResolve = 2;
+        var unresolved = await service.FinalizeProjectsAsync(User, CancellationToken.None);
+
+        unresolved.Should().BeNull();
+        projectListService.BuildProjectsCalls.Should().Be(0);
+
+        projectListService.IssuesToResolve = 0;
         var finalized = await service.FinalizeProjectsAsync(User, CancellationToken.None);
 
         finalized.Should().NotBeNull();
@@ -200,6 +207,11 @@ public class ProjectIdentificationServiceTests
         var finalizeItem = finalized!.ChecklistItems.Single(item => item.Id == "finalize-projects");
         finalizeItem.Status.Should().Be("done");
         finalizeItem.Source!.Rows.Should().Be(44);
+
+        var repeated = await service.FinalizeProjectsAsync(User, CancellationToken.None);
+
+        repeated.Should().BeNull();
+        projectListService.BuildProjectsCalls.Should().Be(1);
     }
 
     [Fact]

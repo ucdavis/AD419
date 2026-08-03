@@ -426,6 +426,54 @@ describe('FlatFileImportPanel', () => {
     }
   });
 
+  it('asks for confirmation before a re-import when resolution edits cannot be checked', async () => {
+    const user = userEvent.setup();
+    let postCount = 0;
+
+    server.use(
+      http.get('/api/projectlist/resolution-edits', () =>
+        HttpResponse.text('Unable to check resolution edits.', { status: 500 })
+      ),
+      http.post('/api/imports/:dataset', () => {
+        postCount += 1;
+
+        return HttpResponse.json({
+          dataset: 'active-projects',
+          filename: 'active-projects.csv',
+          importedAt: '2026-06-09T18:30:00Z',
+          importLogId: 50,
+          rowsImported: 1,
+          succeeded: true,
+        });
+      })
+    );
+
+    const { cleanup } = renderChecklistImport();
+
+    try {
+      await user.upload(
+        screen.getByLabelText('Import file'),
+        new File(['test'], 'active-projects.csv', {
+          type: 'text/csv',
+        })
+      );
+
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Upload' })).toBeEnabled()
+      );
+      await user.click(screen.getByRole('button', { name: 'Upload' }));
+
+      expect(
+        await screen.findByRole('dialog', {
+          name: 'Replace imported project data?',
+        })
+      ).toBeInTheDocument();
+      expect(postCount).toBe(0);
+    } finally {
+      cleanup();
+    }
+  });
+
   it('uploads a reselected file when the corrected file has the same name', async () => {
     const user = userEvent.setup();
     let uploadedText = '';

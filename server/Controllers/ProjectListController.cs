@@ -10,9 +10,9 @@ public sealed class ProjectListController(IProjectListService projectListService
     [HttpGet]
     public async Task<IActionResult> Get([FromQuery] string? fy, CancellationToken cancellationToken)
     {
-        if (!FiscalYearCycle.TryParse(fy, out var cycle))
+        if (!TryParseCycle(fy, out var cycle, out var error))
         {
-            return BadRequest("A fiscal year query value like FY26 is required.");
+            return BadRequest(error);
         }
 
         var response = await projectListService.GetAsync(cycle, cancellationToken);

@@ -143,6 +143,7 @@ export function ProjectIdentificationSetupChecklist({
               {open ? (
                 <div className="checklist-item__content">
                   <ChecklistItemContent
+                    finalizeError={finalizeMutation.isError}
                     finalizePending={finalizeMutation.isPending}
                     fiscalMutationPending={fiscalMutation.isPending}
                     issueCount={issueCount}
@@ -166,6 +167,7 @@ export function ProjectIdentificationSetupChecklist({
 }
 
 function ChecklistItemContent({
+  finalizeError,
   finalizePending,
   fiscalMutationPending,
   issueCount,
@@ -176,6 +178,7 @@ function ChecklistItemContent({
   onMarkDone,
   setup,
 }: {
+  finalizeError: boolean;
   finalizePending: boolean;
   fiscalMutationPending: boolean;
   issueCount: number | null;
@@ -274,6 +277,11 @@ function ChecklistItemContent({
             ? 'Finalized'
             : 'Finalize projects'}
       </button>
+      {finalizeError ? (
+        <div className="alert alert-error py-2 text-xs" role="alert">
+          Projects could not be finalized.
+        </div>
+      ) : null}
     </div>
   );
 }

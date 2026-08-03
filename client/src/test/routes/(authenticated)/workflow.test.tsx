@@ -483,6 +483,57 @@ describe('AD419 workflow routes', () => {
     }
   });
 
+  it('confirms exclude actions and shows server resolution errors', async () => {
+    const user = userEvent.setup();
+    let excludeRequests = 0;
+
+    server.use(
+      http.get('/api/user/me', () => {
+        return HttpResponse.json(mockUser);
+      }),
+      http.get('/api/imports/recent', () => {
+        return HttpResponse.json([]);
+      }),
+      http.get('/api/projectidentification/setup', () => {
+        return HttpResponse.json(setupResponse);
+      }),
+      http.get('/api/projectlist', () => {
+        return HttpResponse.json(projectListResponse);
+      }),
+      http.post('/api/projectlist/:accession/exclude', ({ params }) => {
+        expect(params.accession).toBe('1078258');
+        excludeRequests += 1;
+        return HttpResponse.text('Project has status Clean.', {
+          status: 409,
+        });
+      })
+    );
+
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/project-identification',
+    });
+
+    try {
+      expect(await screen.findByText('No PGM match')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Exclude' }));
+
+      expect(excludeRequests).toBe(0);
+      expect(
+        await screen.findByRole('dialog', { name: 'Exclude project?' })
+      ).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Exclude project' }));
+
+      expect(
+        await screen.findByText('Project has status Clean.')
+      ).toBeInTheDocument();
+      expect(excludeRequests).toBe(1);
+    } finally {
+      cleanup();
+    }
+  });
+
   it('enables finalize when project issues are resolved', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date('2026-07-07T12:00:00-07:00'));
@@ -533,7 +584,9 @@ describe('AD419 workflow routes', () => {
         return HttpResponse.json([]);
       }),
       http.get('/api/projectidentification/setup', () => {
-        return HttpResponse.json(readyToFinalizeSetup);
+        return HttpResponse.json(
+          finalizeRequests > 0 ? finalizedSetup : readyToFinalizeSetup
+        );
       }),
       http.get('/api/projectlist', () => {
         return HttpResponse.json(cleanProjectList);
