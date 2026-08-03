@@ -1,8 +1,9 @@
 CREATE TABLE [data].[ReportingCycle]
 (
     -- Single-row snapshot of the confirmed reporting cycle from Project
-    -- Identification (app.WorkflowRun in the app database). The server syncs
-    -- it whenever the setup is read or the fiscal period is confirmed, so
+    -- Identification (the WorkflowRun table in the application database, which
+    -- EF owns). The server syncs it whenever the setup is read or the fiscal
+    -- period is confirmed, so
     -- DataDb views can window on the confirmed cycle instead of deriving it
     -- from GETDATE(), which is wrong whenever the cycle being processed is
     -- not the calendar-current fiscal year.
