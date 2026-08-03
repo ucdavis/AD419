@@ -56,11 +56,10 @@ public sealed class AeTransactionsImportService
         ("etl_load_dt", "EtlLoadDt"),
     ];
 
-    // The carve-out lists are defined as DACPAC views so the display views
-    // built in the Expense Review work can share them.
+    // The department lists are DACPAC views so the display views built in the
+    // Expense Review work can share them.
     private const string CaesAnrDepartmentsSql = "SELECT [Code] FROM [data].[v_CaesAnrDepartments]";
     private const string BcbsDepartmentsSql = "SELECT [Code] FROM [data].[v_BcbsDepartments]";
-    private const string Projects204Sql = "SELECT [AEProjectNumber] FROM [data].[v_Projects204]";
 
     private readonly DataDbContext _dataDbContext;
     private readonly IConfiguration _configuration;
@@ -96,7 +95,7 @@ public sealed class AeTransactionsImportService
 
         var caesAnrDepartments = await ReadListAsync(destination, CaesAnrDepartmentsSql, cancellationToken);
         var bcbsDepartments = await ReadListAsync(destination, BcbsDepartmentsSql, cancellationToken);
-        var projects204 = await ReadListAsync(destination, Projects204Sql, cancellationToken);
+        var projects204 = await ReadListAsync(destination, ImportSql.Projects204Sql, cancellationToken);
 
         var (windowStart, windowEnd) = ImportSql.BufferedWindow(cycleStart, cycleEnd);
         var periods = ImportSql.PeriodNames(windowStart, windowEnd);

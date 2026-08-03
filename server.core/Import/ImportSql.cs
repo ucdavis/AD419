@@ -4,6 +4,14 @@ namespace Server.Core.Import;
 
 public static class ImportSql
 {
+    // The 204 carve-out list shared by the AE and UCPath imports. Every 204 row
+    // has an AEProjectNumber by the readiness guard; the null filter is defense
+    // in depth.
+    public const string Projects204Sql = """
+        SELECT DISTINCT [AEProjectNumber] FROM [data].[Projects]
+        WHERE [Sfn] = '204' AND [AEProjectNumber] IS NOT NULL
+        """;
+
     // Period names must match how ClassifyTransactions generates its cycle set
     // (FORMAT(@month, 'MMM-yy', 'en-US')) so pull and stamp agree.
     public static List<string> PeriodNames(DateOnly start, DateOnly end)

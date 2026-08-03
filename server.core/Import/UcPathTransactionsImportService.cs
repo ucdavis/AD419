@@ -50,8 +50,6 @@ public sealed class UcPathTransactionsImportService
         ("eff_seq", "EffSeq"),
     ];
 
-    private const string Projects204Sql = "SELECT [AEProjectNumber] FROM [data].[v_Projects204]";
-
     private readonly DataDbContext _dataDbContext;
     private readonly IConfiguration _configuration;
     private readonly ILogger<UcPathTransactionsImportService> _logger;
@@ -84,7 +82,7 @@ public sealed class UcPathTransactionsImportService
         await using var destination = new SqlConnection(destinationConnectionString);
         await destination.OpenAsync(cancellationToken);
 
-        var projects204 = await ReadListAsync(destination, Projects204Sql, cancellationToken);
+        var projects204 = await ReadListAsync(destination, ImportSql.Projects204Sql, cancellationToken);
         var (windowStart, windowEnd) = ImportSql.BufferedWindow(cycleStart, cycleEnd);
         var fteDenominatorHours = ImportSql.HoursInFederalFiscalYear(cycleEnd.Year);
 
