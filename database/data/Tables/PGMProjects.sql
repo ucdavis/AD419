@@ -17,6 +17,15 @@ CREATE TABLE [data].[PGMProjects]
     [AwardEndDate] DATE NULL,
     [Cfda] NVARCHAR(200) NULL,
     [SponsorAwardNumber] NVARCHAR(100) NULL,
+    [SponsorAwardKey] AS CONVERT(NVARCHAR(100), NULLIF(REPLACE(LTRIM(RTRIM([SponsorAwardNumber])), N'-', N''), N'')) PERSISTED,
+    [CfdaProgramNumber] AS (
+        CONVERT(NVARCHAR(200), CASE
+            WHEN CHARINDEX(N'.', [Cfda]) > 0
+            THEN LEFT([Cfda], CHARINDEX(N'.', [Cfda]))
+                 + LEFT(SUBSTRING([Cfda], CHARINDEX(N'.', [Cfda]) + 1, 10) + N'000', 3)
+            ELSE [Cfda]
+        END)
+    ) PERSISTED,
     [PrimarySponsor] NVARCHAR(100) NULL,
     [PrimarySponsorName] NVARCHAR(300) NULL,
     [FundingSourceName] NVARCHAR(300) NULL,

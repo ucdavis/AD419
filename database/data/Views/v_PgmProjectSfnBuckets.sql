@@ -22,7 +22,7 @@ SELECT
     pgm.ProjectId,
     pgm.ProjectNumber,
     pgm.SponsorAwardNumber,
-    REPLACE(pgm.SponsorAwardNumber, '-', '') AS AwardKey,
+    pgm.SponsorAwardKey AS AwardKey,
     CASE
         WHEN aln.ProgramNumber IS NULL                 THEN NULL
         WHEN aln.ProgramNumber = '10.203'              THEN 'HATCH'  -- Hatch, matches NIFA 201/202
@@ -32,14 +32,5 @@ SELECT
         ELSE 'NON-NIFA'
     END AS PgmSfnBucket
 FROM [data].[PGMProjects] pgm
-OUTER APPLY
-(
-    SELECT CASE
-        WHEN CHARINDEX('.', pgm.Cfda) > 0
-        THEN LEFT(pgm.Cfda, CHARINDEX('.', pgm.Cfda))
-             + LEFT(SUBSTRING(pgm.Cfda, CHARINDEX('.', pgm.Cfda) + 1, 10) + '000', 3)
-        ELSE pgm.Cfda
-    END AS PaddedCfda
-) p
 LEFT JOIN AlnCatalog aln
-    ON aln.ProgramNumber = p.PaddedCfda;
+    ON aln.ProgramNumber = pgm.CfdaProgramNumber;

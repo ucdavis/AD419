@@ -14,6 +14,8 @@ public class ProjectListSqlTests
         sql.Should().Contain("@CycleEnd DATE");
         sql.Should().Contain("x.ProjectEndDate >= @CycleStart");
         sql.Should().Contain("x.ProjectStartDate <= @CycleEnd");
+        sql.Should().Contain("x.ProjectNumberNormalized = a.ProjectNumberNormalized");
+        sql.Should().Contain("x.AccessionNumberNormalized = a.AccessionNumberNormalized");
         sql.Should().NotContain("GETDATE()");
     }
 
@@ -24,6 +26,7 @@ public class ProjectListSqlTests
 
         sql.Should().Contain("CREATE FUNCTION [data].[ProjectListForCycle]");
         sql.Should().Contain("FROM [data].[NifaProjectsForCycle](@CycleStart, @CycleEnd) nv");
+        CountOccurrences(sql, "FROM [data].[v_PgmProjectSfnBuckets] pc").Should().Be(1);
         sql.Should().Contain("'Not in All Projects'");
         sql.Should().Contain("'No PGM match'");
         sql.Should().Contain("'SFN mismatch'");
@@ -73,6 +76,37 @@ public class ProjectListSqlTests
     }
 
     [Fact]
+    public void Project_list_tables_define_normalized_keys_for_matching()
+    {
+        var activeProjectsSql = ReadDatabaseFile("data/Tables/ActiveProjects.sql");
+        var allProjectsSql = ReadDatabaseFile("data/Tables/AllProjects.sql");
+        var pgmProjectsSql = ReadDatabaseFile("data/Tables/PGMProjects.sql");
+        var pgmBucketSql = ReadDatabaseFile("data/Views/v_PgmProjectSfnBuckets.sql");
+
+        activeProjectsSql.Should().Contain("[ProjectNumberNormalized]");
+        activeProjectsSql.Should().Contain("[AccessionNumberNormalized]");
+        activeProjectsSql.Should().Contain("[PgmAwardKeyOverrideNormalized]");
+        allProjectsSql.Should().Contain("[ProjectNumberNormalized]");
+        allProjectsSql.Should().Contain("[AccessionNumberNormalized]");
+        allProjectsSql.Should().Contain("[AwardKey]");
+        pgmProjectsSql.Should().Contain("[SponsorAwardKey]");
+        pgmProjectsSql.Should().Contain("[CfdaProgramNumber]");
+        pgmBucketSql.Should().Contain("pgm.SponsorAwardKey AS AwardKey");
+        pgmBucketSql.Should().Contain("pgm.CfdaProgramNumber");
+        pgmBucketSql.Should().NotContain("REPLACE(pgm.SponsorAwardNumber");
+    }
+
+    [Fact]
+    public void Project_list_matching_columns_have_supporting_indexes()
+    {
+        var allProjectsIndexSql = ReadDatabaseFile("data/Indexes/IX_AllProjects_ProjectAccessionNormalized_Cycle.sql");
+        var pgmProjectsIndexSql = ReadDatabaseFile("data/Indexes/IX_PGMProjects_SponsorAwardKey.sql");
+
+        allProjectsIndexSql.Should().Contain("([ProjectNumberNormalized], [AccessionNumberNormalized], [ProjectEndDate], [ProjectStartDate])");
+        pgmProjectsIndexSql.Should().Contain("ON [data].[PGMProjects] ([SponsorAwardKey])");
+    }
+
+    [Fact]
     public void Project_list_service_uses_cycle_functions_for_validation_and_candidates()
     {
         var sql = File.ReadAllText(Path.Combine(
@@ -89,8 +123,37 @@ public class ProjectListSqlTests
         sql.Should().NotContain("FROM [data].[v_NifaProjects]");
     }
 
+    [Fact]
+    public void Pgm_award_candidates_materialize_query_only_sort_rank_in_private_row()
+    {
+        var sql = File.ReadAllText(Path.Combine(
+            RepositoryRoot(),
+            "server",
+            "ProjectList",
+            "ProjectListService.cs"));
+
+        sql.Should().Contain("AS [SortRank]");
+        sql.Should().Contain("QueryAsync<PgmAwardCandidateRow>");
+        sql.Should().Contain("int SortRank");
+        sql.Should().NotContain("QueryAsync<PgmAwardCandidateDto>");
+    }
+
     private static string ReadDatabaseFile(string relativePath) =>
         File.ReadAllText(Path.Combine(RepositoryRoot(), "database", relativePath));
+
+    private static int CountOccurrences(string value, string expected)
+    {
+        var count = 0;
+        var index = 0;
+
+        while ((index = value.IndexOf(expected, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += expected.Length;
+        }
+
+        return count;
+    }
 
     private static string RepositoryRoot()
     {

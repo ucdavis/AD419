@@ -104,9 +104,14 @@ function ProjectIdentificationStageContent({
 }: {
   setup: ProjectIdentificationSetupResponse;
 }) {
-  const { data, error, isError, isFetching, isLoading, refetch } = useQuery(
-    projectListQueryOptions(setup.fiscalYear)
+  const pgmItem = setup.checklistItems.find(
+    (item) => item.id === 'pgm-master-data'
   );
+  const projectListReady = pgmItem?.completed ?? false;
+  const { data, error, isError, isFetching, isLoading, refetch } = useQuery({
+    ...projectListQueryOptions(setup.fiscalYear),
+    enabled: projectListReady,
+  });
   const [activeTab, setActiveTab] = useState<ProjectListTab>('issues');
 
   const columns = useMemo<ColumnDef<ProjectListRow>[]>(
@@ -219,10 +224,6 @@ function ProjectIdentificationStageContent({
     [setup.fiscalYear]
   );
 
-  const pgmItem = setup.checklistItems.find(
-    (item) => item.id === 'pgm-master-data'
-  );
-  const projectListReady = pgmItem?.completed ?? false;
   const issueCount = data?.summary.issuesToResolve ?? null;
 
   if (isError) {

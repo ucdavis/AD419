@@ -48,33 +48,46 @@ RETURN
             nv.InAllProjects,
             nv.NifaSfn,
             nv.SfnOverride,
+            pgm.PgmProjectNumbers,
+            pgm.HasPgmMatch,
+            CASE
+                WHEN NULLIF(LTRIM(RTRIM(nv.SfnOverride)), '') IS NOT NULL THEN 0
+                ELSE pgm.HasSfnMismatch
+            END AS HasSfnMismatch
+        FROM [data].[NifaProjectsForCycle](@CycleStart, @CycleEnd) nv
+        CROSS APPLY
+        (
+            SELECT CASE nv.NifaSfn
+                WHEN '201' THEN 'HATCH'
+                WHEN '202' THEN 'HATCH'
+                WHEN '204' THEN '204'
+                WHEN '205' THEN '205'
+                ELSE '__UNMAPPED__'
+            END AS ExpectedPgmSfnBucket
+        ) expected
+        OUTER APPLY
+        (
+            SELECT
+                STRING_AGG(CAST(pgmMatch.ProjectNumber AS NVARCHAR(MAX)), ', ') AS PgmProjectNumbers,
+                CASE WHEN COUNT_BIG(*) > 0 THEN 1 ELSE 0 END AS HasPgmMatch,
+                MAX(pgmMatch.HasSfnMismatch) AS HasSfnMismatch
+            FROM
             (
-                SELECT STRING_AGG(CAST(pc.ProjectNumber AS NVARCHAR(MAX)), ', ')
+                SELECT
+                    pc.ProjectNumber,
+                    CASE
+                        -- any matched PGM award whose bucket conflicts with the NIFA
+                        -- SFN (201/202 collapse to HATCH; silent when the PGM bucket is
+                        -- NULL)
+                        WHEN pc.PgmSfnBucket IS NOT NULL
+                             AND pc.PgmSfnBucket <> expected.ExpectedPgmSfnBucket
+                        THEN 1
+                        ELSE 0
+                    END AS HasSfnMismatch
                 FROM [data].[v_PgmProjectSfnBuckets] pc
                 WHERE pc.AwardKey = nv.AwardKey
-            ) AS PgmProjectNumbers,
-            CASE WHEN EXISTS
-            (
-                SELECT 1 FROM [data].[v_PgmProjectSfnBuckets] pc
-                WHERE pc.AwardKey = nv.AwardKey
-            ) THEN 1 ELSE 0 END AS HasPgmMatch,
-            CASE WHEN NULLIF(LTRIM(RTRIM(nv.SfnOverride)), '') IS NOT NULL THEN 0 WHEN EXISTS
-            (
-                -- any matched PGM award whose bucket conflicts with the NIFA
-                -- SFN (201/202 collapse to HATCH; silent when the PGM bucket is
-                -- NULL)
-                SELECT 1 FROM [data].[v_PgmProjectSfnBuckets] pc
-                WHERE pc.AwardKey = nv.AwardKey
-                  AND pc.PgmSfnBucket IS NOT NULL
-                  AND pc.PgmSfnBucket <> CASE nv.NifaSfn
-                                             WHEN '201' THEN 'HATCH'
-                                             WHEN '202' THEN 'HATCH'
-                                             WHEN '204' THEN '204'
-                                             WHEN '205' THEN '205'
-                                             ELSE '__UNMAPPED__'
-                                         END
-            ) THEN 1 ELSE 0 END AS HasSfnMismatch
-        FROM [data].[NifaProjectsForCycle](@CycleStart, @CycleEnd) nv
+            ) pgmMatch
+        ) pgm
         WHERE nv.ExcludeFromUi = 0
     ) ActiveWithPgm
 );

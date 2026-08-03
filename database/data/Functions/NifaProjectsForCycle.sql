@@ -32,8 +32,8 @@ RETURN
         COALESCE(NULLIF(LTRIM(RTRIM(a.SfnOverride)), ''), derived.NifaSfn) AS NifaSfn,
         ap.AwardNumber,
         COALESCE(
-            NULLIF(REPLACE(LTRIM(RTRIM(a.PgmAwardKeyOverride)), '-', ''), ''),
-            NULLIF(REPLACE(LTRIM(RTRIM(ap.AwardNumber)), '-', ''), '')
+            a.PgmAwardKeyOverrideNormalized,
+            ap.AwardKey
         ) AS AwardKey,
         ap.Title,
         ap.Department,
@@ -56,25 +56,46 @@ RETURN
         SELECT TOP 1
             x.AllProjectId,
             x.AwardNumber,
+            x.AwardKey,
             x.Title,
             x.Department,
             x.ProjectDirector,
             x.ProjectStartDate,
             x.ProjectEndDate
         FROM [data].[AllProjects] x
-        WHERE (
-                a.AllProjectIdOverride IS NOT NULL
-                AND x.AllProjectId = a.AllProjectIdOverride
-            )
-            OR (
-                a.AllProjectIdOverride IS NULL
-                AND NULLIF(LTRIM(RTRIM(x.ProjectNumber)), '') = NULLIF(LTRIM(RTRIM(a.ProjectNumber)), '')
-                AND NULLIF(LTRIM(RTRIM(x.AccessionNumber)), '') = NULLIF(LTRIM(RTRIM(a.AccessionNumber)), '')
-                AND (x.ProjectEndDate IS NULL OR x.ProjectEndDate >= @CycleStart)
-                AND (x.ProjectStartDate IS NULL OR x.ProjectStartDate <= @CycleEnd)
-            )
-        ORDER BY
-            CASE WHEN a.AllProjectIdOverride IS NOT NULL AND x.AllProjectId = a.AllProjectIdOverride THEN 0 ELSE 1 END,
-            x.AllProjectId
+        WHERE a.AllProjectIdOverride IS NOT NULL
+          AND x.AllProjectId = a.AllProjectIdOverride
+        ORDER BY x.AllProjectId
+    ) overrideProject
+    OUTER APPLY
+    (
+        SELECT TOP 1
+            x.AllProjectId,
+            x.AwardNumber,
+            x.AwardKey,
+            x.Title,
+            x.Department,
+            x.ProjectDirector,
+            x.ProjectStartDate,
+            x.ProjectEndDate
+        FROM [data].[AllProjects] x
+        WHERE a.AllProjectIdOverride IS NULL
+          AND x.ProjectNumberNormalized = a.ProjectNumberNormalized
+          AND x.AccessionNumberNormalized = a.AccessionNumberNormalized
+          AND (x.ProjectEndDate IS NULL OR x.ProjectEndDate >= @CycleStart)
+          AND (x.ProjectStartDate IS NULL OR x.ProjectStartDate <= @CycleEnd)
+        ORDER BY x.AllProjectId
+    ) matchedProject
+    OUTER APPLY
+    (
+        SELECT
+            COALESCE(overrideProject.AllProjectId, matchedProject.AllProjectId) AS AllProjectId,
+            COALESCE(overrideProject.AwardNumber, matchedProject.AwardNumber) AS AwardNumber,
+            COALESCE(overrideProject.Title, matchedProject.Title) AS Title,
+            COALESCE(overrideProject.Department, matchedProject.Department) AS Department,
+            COALESCE(overrideProject.ProjectDirector, matchedProject.ProjectDirector) AS ProjectDirector,
+            COALESCE(overrideProject.ProjectStartDate, matchedProject.ProjectStartDate) AS ProjectStartDate,
+            COALESCE(overrideProject.ProjectEndDate, matchedProject.ProjectEndDate) AS ProjectEndDate,
+            COALESCE(overrideProject.AwardKey, matchedProject.AwardKey) AS AwardKey
     ) ap
 );

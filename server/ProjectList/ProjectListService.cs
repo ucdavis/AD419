@@ -62,7 +62,7 @@ public sealed class ProjectListService(
                 FROM [data].[ActiveProjects]
                 WHERE ISNULL([ExcludeFromUi], 0) = 1
                    OR [AllProjectIdOverride] IS NOT NULL
-                   OR NULLIF(LTRIM(RTRIM([PgmAwardKeyOverride])), '') IS NOT NULL
+                   OR [PgmAwardKeyOverrideNormalized] IS NOT NULL
                    OR NULLIF(LTRIM(RTRIM([SfnOverride])), '') IS NOT NULL
             )
             THEN 1 ELSE 0 END AS BIT);
@@ -123,7 +123,7 @@ public sealed class ProjectListService(
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
-        var candidates = await connection.QueryAsync<PgmAwardCandidateDto>(new CommandDefinition(
+        var candidates = await connection.QueryAsync<PgmAwardCandidateRow>(new CommandDefinition(
             PgmAwardCandidatesSql,
             new ProjectListQueryParameters(
                 accession.Trim(),
@@ -133,7 +133,15 @@ public sealed class ProjectListService(
             commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
             cancellationToken: cancellationToken));
 
-        return candidates.ToList();
+        return candidates
+            .Select(candidate => new PgmAwardCandidateDto(
+                candidate.AwardKey,
+                candidate.SponsorAwardNumber,
+                candidate.AwardName,
+                candidate.ProjectNumbers,
+                candidate.PgmSfnBucket,
+                candidate.PrincipalInvestigatorNames))
+            .ToList();
     }
 
     public async Task<IReadOnlyList<SfnCandidateDto>> GetSfnCandidatesAsync(
@@ -482,7 +490,9 @@ public sealed class ProjectListService(
         (
             SELECT
                 [AccessionNumber],
-                [ProjectNumber]
+                [ProjectNumber],
+                [AccessionNumberNormalized],
+                [ProjectNumberNormalized]
             FROM [data].[ActiveProjects]
             WHERE [AccessionNumber] = @accession
         )
@@ -505,13 +515,14 @@ public sealed class ProjectListService(
                 OR ap.[ProjectNumber] LIKE '%' + @search + '%'
                 OR ap.[AccessionNumber] LIKE '%' + @search + '%'
                 OR ap.[AwardNumber] LIKE '%' + @search + '%'
+                OR ap.[AwardKey] LIKE '%' + REPLACE(@search, '-', '') + '%'
                 OR ap.[Title] LIKE '%' + @search + '%'
                 OR ap.[ProjectDirector] LIKE '%' + @search + '%'
                 OR ap.[Department] LIKE '%' + @search + '%'
           )
         ORDER BY
-            CASE WHEN NULLIF(LTRIM(RTRIM(ap.[ProjectNumber])), '') = NULLIF(LTRIM(RTRIM(cp.[ProjectNumber])), '') THEN 0 ELSE 1 END,
-            CASE WHEN NULLIF(LTRIM(RTRIM(ap.[AccessionNumber])), '') = NULLIF(LTRIM(RTRIM(cp.[AccessionNumber])), '') THEN 0 ELSE 1 END,
+            CASE WHEN ap.[ProjectNumberNormalized] = cp.[ProjectNumberNormalized] THEN 0 ELSE 1 END,
+            CASE WHEN ap.[AccessionNumberNormalized] = cp.[AccessionNumberNormalized] THEN 0 ELSE 1 END,
             ap.[AllProjectId];
         """;
 
@@ -584,6 +595,15 @@ public sealed class ProjectListService(
         string? ProjectDirector,
         DateTime? ProjectStartDate,
         DateTime? ProjectEndDate);
+
+    private sealed record PgmAwardCandidateRow(
+        string AwardKey,
+        string? SponsorAwardNumber,
+        string? AwardName,
+        string? ProjectNumbers,
+        string? PgmSfnBucket,
+        string? PrincipalInvestigatorNames,
+        int SortRank);
 
     private sealed record SfnCandidateRow(string? NifaSfn, string? PgmSfnBucket);
 
