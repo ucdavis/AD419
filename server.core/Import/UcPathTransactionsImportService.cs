@@ -119,45 +119,9 @@ public sealed class UcPathTransactionsImportService
             await delete.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        long totalRowsCopied = 0;
-
-        using (var bulkCopy = new SqlBulkCopy(destination, SqlBulkCopyOptions.Default, transaction)
-        {
-            DestinationTableName = DestinationTable,
-            BulkCopyTimeout = CommandTimeoutSeconds,
-        })
-        {
-            foreach (var (sourceColumn, destinationColumn) in ColumnMappings)
-            {
-                bulkCopy.ColumnMappings.Add(sourceColumn, destinationColumn);
-            }
-
-            await using (var reader = await salaryQuery.ExecuteReaderAsync(cancellationToken))
-            {
-                await bulkCopy.WriteToServerAsync(reader, cancellationToken);
-            }
-
-            totalRowsCopied += bulkCopy.RowsCopied64;
-        }
-
-        using (var bulkCopy = new SqlBulkCopy(destination, SqlBulkCopyOptions.Default, transaction)
-        {
-            DestinationTableName = DestinationTable,
-            BulkCopyTimeout = CommandTimeoutSeconds,
-        })
-        {
-            foreach (var (sourceColumn, destinationColumn) in ColumnMappings)
-            {
-                bulkCopy.ColumnMappings.Add(sourceColumn, destinationColumn);
-            }
-
-            await using (var reader = await fringeQuery.ExecuteReaderAsync(cancellationToken))
-            {
-                await bulkCopy.WriteToServerAsync(reader, cancellationToken);
-            }
-
-            totalRowsCopied += bulkCopy.RowsCopied64;
-        }
+        var totalRowsCopied =
+            await BulkCopyAsync(salaryQuery, destination, transaction, cancellationToken)
+            + await BulkCopyAsync(fringeQuery, destination, transaction, cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
 
@@ -168,6 +132,30 @@ public sealed class UcPathTransactionsImportService
         await EnrichJobCodesAsync(source, destination, windowEnd, cancellationToken);
 
         return rowsImported;
+    }
+
+    private static async Task<long> BulkCopyAsync(
+        SqlCommand query,
+        SqlConnection destination,
+        SqlTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        using var bulkCopy = new SqlBulkCopy(destination, SqlBulkCopyOptions.Default, transaction)
+        {
+            DestinationTableName = DestinationTable,
+            BulkCopyTimeout = CommandTimeoutSeconds,
+        };
+        foreach (var (sourceColumn, destinationColumn) in ColumnMappings)
+        {
+            bulkCopy.ColumnMappings.Add(sourceColumn, destinationColumn);
+        }
+
+        await using (var reader = await query.ExecuteReaderAsync(cancellationToken))
+        {
+            await bulkCopy.WriteToServerAsync(reader, cancellationToken);
+        }
+
+        return bulkCopy.RowsCopied64;
     }
 
     private async Task EnrichEmployeeNamesAsync(SqlConnection source, SqlConnection destination, CancellationToken ct)
