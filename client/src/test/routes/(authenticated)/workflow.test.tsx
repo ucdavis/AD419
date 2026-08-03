@@ -27,7 +27,10 @@ const projectListResponse = {
       ae: 'K1234',
       awardNumber: '2025-111',
       department: 'ATM',
+      is204: false,
       nifaProject: 'CA-A-111-H',
+      notes: null,
+      pdEmailAddress: 'larkspur@example.edu',
       pi: 'Larkspur, S.',
       sfn: '201',
       status: 'Clean',
@@ -39,7 +42,10 @@ const projectListResponse = {
       ae: 'K2222',
       awardNumber: '2025-222',
       department: 'ANS',
+      is204: true,
       nifaProject: 'CA-B-222-CG',
+      notes: 'Needs SFN review',
+      pdEmailAddress: 'okonkwo@example.edu',
       pi: 'Okonkwo, Y.',
       sfn: '204',
       status: 'SFN mismatch',
@@ -51,7 +57,10 @@ const projectListResponse = {
       ae: null,
       awardNumber: '2025-333',
       department: 'VEN',
+      is204: true,
       nifaProject: 'CA-C-333-CG',
+      notes: null,
+      pdEmailAddress: 'naidoo@example.edu',
       pi: 'Naidoo, T.',
       sfn: '204',
       status: 'No PGM match',
@@ -275,7 +284,13 @@ describe('AD419 workflow routes', () => {
         screen.getByRole('columnheader', { name: 'AE' })
       ).toBeInTheDocument();
       expect(
+        screen.getByRole('columnheader', { name: '204' })
+      ).toBeInTheDocument();
+      expect(
         screen.getByRole('columnheader', { name: 'PI' })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('columnheader', { name: 'PD Email' })
       ).toBeInTheDocument();
       expect(
         screen.getByRole('columnheader', { name: 'UCP Employee ID' })
@@ -291,6 +306,12 @@ describe('AD419 workflow routes', () => {
       ).toBeInTheDocument();
       expect(
         screen.getByRole('columnheader', { name: 'Status' })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('columnheader', { name: 'Notes' })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('columnheader', { name: 'Actions' })
       ).toBeInTheDocument();
       expect(screen.getByText('SFN mismatch')).toBeInTheDocument();
 
@@ -355,6 +376,154 @@ describe('AD419 workflow routes', () => {
       expect(screen.getByText('Okonkwo, Y.')).toBeInTheDocument();
       expect(screen.getByText('Okonkwo, Yara')).toBeInTheDocument();
       expect(screen.queryByText('Naidoo, T.')).not.toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('resolves an SFN mismatch and refetches the project list', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2026-07-07T12:00:00-07:00'));
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    let currentProjectList = projectListResponse;
+    let postedSfn: string | null = null;
+    let projectListRequests = 0;
+
+    server.use(
+      http.get('/api/user/me', () => {
+        return HttpResponse.json(mockUser);
+      }),
+      http.get('/api/imports/recent', () => {
+        return HttpResponse.json([]);
+      }),
+      http.get('/api/projectidentification/setup', () => {
+        return HttpResponse.json(setupResponse);
+      }),
+      http.get('/api/projectlist', () => {
+        projectListRequests += 1;
+        return HttpResponse.json(currentProjectList);
+      }),
+      http.get('/api/projectlist/:accession/sfn-candidates', ({ params }) => {
+        expect(params.accession).toBe('1055356');
+        return HttpResponse.json([{ sfn: '205', source: 'PGM master data' }]);
+      }),
+      http.post('/api/projectlist/:accession/set-sfn', async ({ params, request }) => {
+        expect(params.accession).toBe('1055356');
+        const body = (await request.json()) as { sfn: string };
+        postedSfn = body.sfn;
+        currentProjectList = {
+          ...projectListResponse,
+          counts: { all: 3, clean: 2, issues: 1 },
+          rows: projectListResponse.rows.map((row) =>
+            row.accession === '1055356'
+              ? { ...row, sfn: body.sfn, status: 'Clean' }
+              : row
+          ),
+          summary: {
+            ...projectListResponse.summary,
+            issuesToResolve: 1,
+          },
+        };
+        return new HttpResponse(null, { status: 204 });
+      })
+    );
+
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/project-identification',
+    });
+
+    try {
+      expect(await screen.findByText('SFN mismatch')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Select SFN' }));
+      await user.click(
+        await screen.findByRole('button', { name: '205 · PGM master data' })
+      );
+
+      await waitFor(() => {
+        expect(postedSfn).toBe('205');
+        expect(projectListRequests).toBeGreaterThanOrEqual(2);
+        expect(screen.queryByText('SFN mismatch')).not.toBeInTheDocument();
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('enables finalize when project issues are resolved', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2026-07-07T12:00:00-07:00'));
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    let finalizeRequests = 0;
+    const cleanProjectList = {
+      ...projectListResponse,
+      counts: { all: 3, clean: 3, issues: 0 },
+      rows: projectListResponse.rows.map((row) => ({ ...row, status: 'Clean' })),
+      summary: {
+        ...projectListResponse.summary,
+        issuesToResolve: 0,
+      },
+    };
+    const readyToFinalizeSetup = {
+      ...setupResponse,
+      checklistItems: setupResponse.checklistItems.map((item) => {
+        if (item.id === 'resolve-project-issues') {
+          return { ...item, completed: true, status: 'done' };
+        }
+
+        if (item.id === 'finalize-projects') {
+          return { ...item, ready: true, status: 'ready' };
+        }
+
+        return item;
+      }),
+      completedCount: 6,
+    };
+    const finalizedSetup = {
+      ...readyToFinalizeSetup,
+      checklistItems: readyToFinalizeSetup.checklistItems.map((item) =>
+        item.id === 'finalize-projects'
+          ? { ...item, completed: true, status: 'done' }
+          : item
+      ),
+      completedCount: 7,
+    };
+
+    server.use(
+      http.get('/api/user/me', () => {
+        return HttpResponse.json(mockUser);
+      }),
+      http.get('/api/imports/recent', () => {
+        return HttpResponse.json([]);
+      }),
+      http.get('/api/projectidentification/setup', () => {
+        return HttpResponse.json(readyToFinalizeSetup);
+      }),
+      http.get('/api/projectlist', () => {
+        return HttpResponse.json(cleanProjectList);
+      }),
+      http.post('/api/projectidentification/finalize', () => {
+        finalizeRequests += 1;
+        return HttpResponse.json(finalizedSetup);
+      })
+    );
+
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/project-identification',
+    });
+
+    try {
+      const finalize = await screen.findByRole('button', {
+        name: 'Finalize projects',
+      });
+      expect(finalize).toBeEnabled();
+
+      await user.click(finalize);
+
+      await waitFor(() => {
+        expect(finalizeRequests).toBe(1);
+        expect(screen.getByText('7 of 7 complete')).toBeInTheDocument();
+      });
     } finally {
       cleanup();
     }

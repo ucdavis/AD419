@@ -164,6 +164,45 @@ public sealed class ProjectIdentificationService(
         return CreateSetupResponse(run, latestImports);
     }
 
+    public async Task<ProjectIdentificationSetupResponse?> FinalizeProjectsAsync(
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken)
+    {
+        var run = await GetOrCreateCurrentRunAsync(user, cancellationToken);
+        var latestImports = await GetLatestImportsAsync(cancellationToken);
+        var items = CreateChecklistItems(run, latestImports);
+        var finalizeItem = items.Single(item => item.Id == FinalizeProjectsItemId);
+
+        var previousComplete = items
+            .Where(item => item.Number < finalizeItem.Number)
+            .All(item => item.Completed);
+
+        if (!previousComplete || !finalizeItem.Ready)
+        {
+            return null;
+        }
+
+        if (!await ProjectIssuesResolvedAsync(run, cancellationToken))
+        {
+            return null;
+        }
+
+        var rowsBuilt = await projectListService.BuildProjectsAsync(cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        var state = GetOrCreateState(run, FinalizeProjectsItemId);
+        CompleteState(state, user, now);
+        state.SourceImportLogId = null;
+        state.SourceKey = $"build-projects:{now:O}";
+        state.SourceRows = rowsBuilt;
+        state.SourceCompletedAt = now;
+
+        Touch(run, user, now);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        latestImports = await GetLatestImportsAsync(cancellationToken);
+        return CreateSetupResponse(run, latestImports);
+    }
+
     private async Task<bool> ProjectIssuesResolvedAsync(
         WorkflowRun run,
         CancellationToken cancellationToken)
@@ -358,7 +397,7 @@ public sealed class ProjectIdentificationService(
             return "stale";
         }
 
-        if (definition.Id == FinalizeProjectsItemId || !previousComplete)
+        if (!previousComplete)
         {
             return "locked";
         }
@@ -381,18 +420,18 @@ public sealed class ProjectIdentificationService(
             return true;
         }
 
-        if (definition.Id == FinalizeProjectsItemId)
-        {
-            return false;
-        }
-
         if (DatasetByItemId.TryGetValue(definition.Id, out var datasetId))
         {
             var latestImport = latestImports.GetValueOrDefault(datasetId);
             return latestImport is not null && IsSucceeded(latestImport);
         }
 
-        return definition.Id == PgmItemId && state?.SourceRows is not null && state.SourceCompletedAt is not null;
+        return definition.Id switch
+        {
+            PgmItemId => state?.SourceRows is not null && state.SourceCompletedAt is not null,
+            FinalizeProjectsItemId => true,
+            _ => false,
+        };
     }
 
     private static bool IsEffectivelyComplete(
@@ -400,7 +439,7 @@ public sealed class ProjectIdentificationService(
         WorkflowChecklistItemState? state,
         IReadOnlyDictionary<string, RecentImportResponse> latestImports)
     {
-        if (state?.CompletedAt is null || definition.Id == FinalizeProjectsItemId)
+        if (state?.CompletedAt is null)
         {
             return false;
         }

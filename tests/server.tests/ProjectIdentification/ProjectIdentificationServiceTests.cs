@@ -166,6 +166,38 @@ public class ProjectIdentificationServiceTests
             .Status.Should().Be("done");
     }
 
+    [Fact]
+    public async Task Finalize_requires_resolved_issues_and_builds_projects()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var projectListService = new StubProjectListService { IssuesToResolve = 0, RowsBuilt = 44 };
+        var service = CreateService(db, projectListService);
+
+        AddImport(db, "all-projects", 1, "Succeeded", 100, DateTimeOffset.Parse("2026-06-01T12:00:00Z"));
+        AddImport(db, "active-projects", 2, "Succeeded", 50, DateTimeOffset.Parse("2026-06-01T12:01:00Z"));
+        AddImport(db, "assistance-listing-numbers", 3, "Succeeded", 200, DateTimeOffset.Parse("2026-06-01T12:02:00Z"));
+        await db.SaveChangesAsync();
+
+        await service.ConfirmFiscalPeriodAsync("FY26", User, CancellationToken.None);
+        await service.SetChecklistItemCompletionAsync("all-projects", true, User, CancellationToken.None);
+        await service.SetChecklistItemCompletionAsync("active-projects", true, User, CancellationToken.None);
+        await service.SetChecklistItemCompletionAsync("assistance-listing-numbers", true, User, CancellationToken.None);
+        await service.RecordPgmImportAsync(
+            new PgmProjectsImportResult(1234, new DateOnly(2026, 9, 30)),
+            User,
+            CancellationToken.None);
+        await service.SetChecklistItemCompletionAsync("pgm-master-data", true, User, CancellationToken.None);
+        await service.SetChecklistItemCompletionAsync("resolve-project-issues", true, User, CancellationToken.None);
+
+        var finalized = await service.FinalizeProjectsAsync(User, CancellationToken.None);
+
+        finalized.Should().NotBeNull();
+        projectListService.BuildProjectsCalls.Should().Be(1);
+        var finalizeItem = finalized!.ChecklistItems.Single(item => item.Id == "finalize-projects");
+        finalizeItem.Status.Should().Be("done");
+        finalizeItem.Source!.Rows.Should().Be(44);
+    }
+
     private static ProjectIdentificationService CreateService(
         Server.Core.Data.AppDbContext db,
         StubProjectListService? projectListService = null) =>
@@ -195,6 +227,8 @@ public class ProjectIdentificationServiceTests
     private sealed class StubProjectListService : IProjectListService
     {
         public int IssuesToResolve { get; set; }
+        public int RowsBuilt { get; set; } = 12;
+        public int BuildProjectsCalls { get; private set; }
 
         public Task<ProjectListResponse> GetAsync(FiscalYearCycle cycle, CancellationToken cancellationToken) =>
             Task.FromResult(new ProjectListResponse(
@@ -204,5 +238,52 @@ public class ProjectIdentificationServiceTests
                 new ProjectListCountsDto(IssuesToResolve, 0, IssuesToResolve),
                 new ProjectListSummaryDto(0, 0, 0, 0, IssuesToResolve, []),
                 []));
+
+        public Task<bool> HasResolutionEditsAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(false);
+
+        public Task<IReadOnlyList<AllProjectCandidateDto>> GetAllProjectCandidatesAsync(
+            string accession,
+            string? search,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<AllProjectCandidateDto>>([]);
+
+        public Task<IReadOnlyList<PgmAwardCandidateDto>> GetPgmAwardCandidatesAsync(
+            string accession,
+            string? search,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PgmAwardCandidateDto>>([]);
+
+        public Task<IReadOnlyList<SfnCandidateDto>> GetSfnCandidatesAsync(
+            string accession,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<SfnCandidateDto>>([]);
+
+        public Task<ProjectListUpdateResult> ExcludeAsync(string accession, CancellationToken cancellationToken) =>
+            Task.FromResult(ProjectListUpdateResult.Updated);
+
+        public Task<ProjectListUpdateResult> LinkAllProjectAsync(
+            string accession,
+            int allProjectId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(ProjectListUpdateResult.Updated);
+
+        public Task<ProjectListUpdateResult> LinkPgmAwardAsync(
+            string accession,
+            string awardKey,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(ProjectListUpdateResult.Updated);
+
+        public Task<ProjectListUpdateResult> SetSfnAsync(
+            string accession,
+            string sfn,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(ProjectListUpdateResult.Updated);
+
+        public Task<int> BuildProjectsAsync(CancellationToken cancellationToken)
+        {
+            BuildProjectsCalls += 1;
+            return Task.FromResult(RowsBuilt);
+        }
     }
 }

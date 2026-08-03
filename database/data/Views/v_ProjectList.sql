@@ -12,12 +12,16 @@ WITH ActiveWithPgm AS
         nv.ProjectNumber,
         nv.AwardNumber,
         nv.AwardKey,
+        nv.Is204,
+        nv.Notes,
         COALESCE(NULLIF(nv.ProjectDirector, ''), NULLIF(nv.AllProjectDirector, '')) AS Pi,
+        nv.PdEmailAddress,
         nv.UcpEmployeeId,
         nv.UcPathName,
         nv.Department,
         nv.InAllProjects,
         nv.NifaSfn,
+        nv.SfnOverride,
         (
             SELECT STRING_AGG(CAST(pc.ProjectNumber AS NVARCHAR(MAX)), ', ')
             FROM [data].[v_PgmProjectSfnBuckets] pc
@@ -28,7 +32,7 @@ WITH ActiveWithPgm AS
             SELECT 1 FROM [data].[v_PgmProjectSfnBuckets] pc
             WHERE pc.AwardKey = nv.AwardKey
         ) THEN 1 ELSE 0 END AS HasPgmMatch,
-        CASE WHEN EXISTS
+        CASE WHEN NULLIF(LTRIM(RTRIM(nv.SfnOverride)), '') IS NOT NULL THEN 0 WHEN EXISTS
         (
             -- any matched PGM award whose bucket conflicts with the NIFA SFN
             -- (201/202 collapse to HATCH; silent when the PGM bucket is NULL)
@@ -51,7 +55,10 @@ SELECT
     CAST(AccessionNumber AS NVARCHAR(50))    AS Accession,
     CAST(AwardNumber AS NVARCHAR(100))       AS AwardNumber,
     CAST(PgmProjectNumbers AS NVARCHAR(MAX)) AS Ae,
+    CAST(Is204 AS BIT)                       AS Is204,
+    CAST(Notes AS NVARCHAR(MAX))             AS Notes,
     CAST(Pi AS NVARCHAR(200))                AS Pi,
+    CAST(PdEmailAddress AS NVARCHAR(320))    AS PdEmailAddress,
     CAST(UcpEmployeeId AS NVARCHAR(8))       AS UcpEmployeeId,
     CAST(UcPathName AS NVARCHAR(200))        AS UcPathName,
     CAST(Department AS NVARCHAR(300))        AS Department,

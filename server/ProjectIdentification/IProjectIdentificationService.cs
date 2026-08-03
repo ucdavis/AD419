@@ -21,6 +21,10 @@ public interface IProjectIdentificationService
         ClaimsPrincipal user,
         CancellationToken cancellationToken);
 
+    Task<ProjectIdentificationSetupResponse?> FinalizeProjectsAsync(
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken);
+
     Task RecordPgmImportAsync(
         PgmProjectsImportResult result,
         ClaimsPrincipal user,

@@ -1,12 +1,22 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { DataTable } from '@/shared/dataTable.tsx';
 import {
+  allProjectCandidatesQueryOptions,
+  excludeProject,
+  linkAllProject,
+  linkPgmAward,
+  pgmAwardCandidatesQueryOptions,
   projectListQueryOptions,
+  setProjectSfn,
+  sfnCandidatesQueryOptions,
+  type AllProjectCandidate,
+  type PgmAwardCandidate,
   type ProjectListRow,
   type ProjectListStatus,
   type ProjectListSummary,
+  type SfnCandidate,
 } from '@/queries/projectList.ts';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import {
   projectIdentificationSetupQueryOptions,
@@ -126,10 +136,22 @@ function ProjectIdentificationStageContent({
         id: 'ae',
       },
       {
+        accessorFn: (row) => (row.is204 ? 'Yes' : 'No'),
+        cell: ({ row }) => (row.original.is204 ? 'Yes' : 'No'),
+        header: '204',
+        id: 'is204',
+      },
+      {
         accessorFn: (row) => row.pi ?? '',
         cell: ({ row }) => displayValue(row.original.pi),
         header: 'PI',
         id: 'pi',
+      },
+      {
+        accessorFn: (row) => row.pdEmailAddress ?? '',
+        cell: ({ row }) => displayValue(row.original.pdEmailAddress),
+        header: 'PD Email',
+        id: 'pdEmailAddress',
       },
       {
         accessorFn: (row) => row.ucpEmployeeId ?? '',
@@ -171,6 +193,24 @@ function ProjectIdentificationStageContent({
         ),
         header: 'Status',
         id: 'status',
+      },
+      {
+        accessorFn: (row) => row.notes ?? '',
+        cell: ({ row }) => displayValue(row.original.notes),
+        header: 'Notes',
+        id: 'notes',
+      },
+      {
+        cell: ({ row }) => (
+          <ProjectIssueResolutionControl row={row.original} />
+        ),
+        enableSorting: false,
+        header: 'Actions',
+        id: 'actions',
+        meta: {
+          cellClassName: 'min-w-56 align-top',
+          headerClassName: 'whitespace-nowrap',
+        },
       },
     ],
     []
@@ -279,6 +319,308 @@ function ProjectIdentificationStageContent({
           ) : null}
         </div>
       </div>
+    </div>
+  );
+}
+
+type ResolutionMode = 'all-project' | 'pgm-award' | 'sfn';
+
+function ProjectIssueResolutionControl({ row }: { row: ProjectListRow }) {
+  const accession = row.accession;
+  const queryClient = useQueryClient();
+  const [mode, setMode] = useState<ResolutionMode | null>(null);
+  const [search, setSearch] = useState('');
+  const invalidateProjectState = () => {
+    void queryClient.invalidateQueries({ queryKey: ['projectList'] });
+    void queryClient.invalidateQueries({
+      queryKey: ['projectIdentification', 'setup'],
+    });
+  };
+  const mutation = useMutation({
+    mutationFn: async (action: () => Promise<void>) => action(),
+    onSuccess: () => {
+      setMode(null);
+      setSearch('');
+      invalidateProjectState();
+    },
+  });
+
+  if (row.status === 'Clean' || !accession) {
+    return <span className="text-sm text-slate-400">-</span>;
+  }
+
+  const pending = mutation.isPending;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {row.status === 'No PGM match' ? (
+          <button
+            className="btn btn-xs btn-outline"
+            disabled={pending}
+            onClick={() => setMode(mode === 'pgm-award' ? null : 'pgm-award')}
+            type="button"
+          >
+            Select PGM award
+          </button>
+        ) : null}
+
+        {row.status === 'Not in All Projects' ? (
+          <button
+            className="btn btn-xs btn-outline"
+            disabled={pending}
+            onClick={() =>
+              setMode(mode === 'all-project' ? null : 'all-project')
+            }
+            type="button"
+          >
+            Select All Projects
+          </button>
+        ) : null}
+
+        {row.status === 'SFN mismatch' ? (
+          <button
+            className="btn btn-xs btn-outline"
+            disabled={pending}
+            onClick={() => setMode(mode === 'sfn' ? null : 'sfn')}
+            type="button"
+          >
+            Select SFN
+          </button>
+        ) : null}
+
+        {row.status === 'No PGM match' || row.status === 'Not in All Projects' ? (
+          <button
+            className="btn btn-xs btn-ghost text-error"
+            disabled={pending}
+            onClick={() =>
+              mutation.mutate(() => excludeProject(accession))
+            }
+            type="button"
+          >
+            Exclude
+          </button>
+        ) : null}
+      </div>
+
+      {mutation.isError ? (
+        <div className="alert alert-error py-2 text-xs" role="alert">
+          Resolution could not be saved.
+        </div>
+      ) : null}
+
+      {mode === 'all-project' ? (
+        <AllProjectPicker
+          accession={accession}
+          disabled={pending}
+          onSelect={(candidate) =>
+            mutation.mutate(() =>
+              linkAllProject(accession, candidate.allProjectId)
+            )
+          }
+          search={search}
+          setSearch={setSearch}
+        />
+      ) : null}
+
+      {mode === 'pgm-award' ? (
+        <PgmAwardPicker
+          accession={accession}
+          disabled={pending}
+          onSelect={(candidate) =>
+            mutation.mutate(() =>
+              linkPgmAward(accession, candidate.awardKey)
+            )
+          }
+          search={search}
+          setSearch={setSearch}
+        />
+      ) : null}
+
+      {mode === 'sfn' ? (
+        <SfnPicker
+          accession={accession}
+          disabled={pending}
+          onSelect={(candidate) =>
+            mutation.mutate(() => setProjectSfn(accession, candidate.sfn))
+          }
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function AllProjectPicker({
+  accession,
+  disabled,
+  onSelect,
+  search,
+  setSearch,
+}: {
+  accession: string;
+  disabled: boolean;
+  onSelect: (candidate: AllProjectCandidate) => void;
+  search: string;
+  setSearch: (value: string) => void;
+}) {
+  const query = useQuery({
+    ...allProjectCandidatesQueryOptions(accession, search),
+    enabled: Boolean(accession),
+  });
+
+  return (
+    <CandidatePanel
+      emptyText="No All Projects matches found."
+      isLoading={query.isLoading}
+      search={search}
+      setSearch={setSearch}
+    >
+      {(query.data ?? []).map((candidate) => (
+        <button
+          className="w-full rounded border border-slate-200 p-2 text-left text-xs hover:bg-slate-50"
+          disabled={disabled}
+          key={candidate.allProjectId}
+          onClick={() => onSelect(candidate)}
+          type="button"
+        >
+          <span className="block font-semibold">
+            {displayValue(candidate.projectNumber)} ·{' '}
+            {displayValue(candidate.awardNumber)}
+          </span>
+          <span className="block text-slate-600">
+            {displayValue(candidate.title)}
+          </span>
+          <span className="block text-slate-500">
+            {displayValue(candidate.projectDirector)} ·{' '}
+            {displayValue(candidate.department)}
+          </span>
+        </button>
+      ))}
+    </CandidatePanel>
+  );
+}
+
+function PgmAwardPicker({
+  accession,
+  disabled,
+  onSelect,
+  search,
+  setSearch,
+}: {
+  accession: string;
+  disabled: boolean;
+  onSelect: (candidate: PgmAwardCandidate) => void;
+  search: string;
+  setSearch: (value: string) => void;
+}) {
+  const query = useQuery({
+    ...pgmAwardCandidatesQueryOptions(accession, search),
+    enabled: Boolean(accession),
+  });
+
+  return (
+    <CandidatePanel
+      emptyText="No PGM awards found."
+      isLoading={query.isLoading}
+      search={search}
+      setSearch={setSearch}
+    >
+      {(query.data ?? []).map((candidate) => (
+        <button
+          className="w-full rounded border border-slate-200 p-2 text-left text-xs hover:bg-slate-50"
+          disabled={disabled}
+          key={candidate.awardKey}
+          onClick={() => onSelect(candidate)}
+          type="button"
+        >
+          <span className="block font-semibold">
+            {displayValue(candidate.sponsorAwardNumber)} ·{' '}
+            {displayValue(candidate.projectNumbers)}
+          </span>
+          <span className="block text-slate-600">
+            {displayValue(candidate.awardName)}
+          </span>
+          <span className="block text-slate-500">
+            {displayValue(candidate.principalInvestigatorNames)} ·{' '}
+            {displayValue(candidate.pgmSfnBucket)}
+          </span>
+        </button>
+      ))}
+    </CandidatePanel>
+  );
+}
+
+function SfnPicker({
+  accession,
+  disabled,
+  onSelect,
+}: {
+  accession: string;
+  disabled: boolean;
+  onSelect: (candidate: SfnCandidate) => void;
+}) {
+  const query = useQuery({
+    ...sfnCandidatesQueryOptions(accession),
+    enabled: Boolean(accession),
+  });
+
+  if (query.isLoading) {
+    return <div className="text-xs text-slate-500">Loading SFNs...</div>;
+  }
+
+  return (
+    <div className="space-y-1 rounded border border-slate-200 bg-white p-2">
+      {(query.data ?? []).length === 0 ? (
+        <p className="text-xs text-slate-500">No SFN candidates found.</p>
+      ) : (
+        (query.data ?? []).map((candidate) => (
+          <button
+            className="btn btn-xs btn-outline mr-1"
+            disabled={disabled}
+            key={`${candidate.source}-${candidate.sfn}`}
+            onClick={() => onSelect(candidate)}
+            type="button"
+          >
+            {candidate.sfn} · {candidate.source}
+          </button>
+        ))
+      )}
+    </div>
+  );
+}
+
+function CandidatePanel({
+  children,
+  emptyText,
+  isLoading,
+  search,
+  setSearch,
+}: {
+  children: ReactNode;
+  emptyText: string;
+  isLoading: boolean;
+  search: string;
+  setSearch: (value: string) => void;
+}) {
+  const items = Array.isArray(children) ? children.filter(Boolean) : children;
+  const isEmpty = Array.isArray(items) && items.length === 0;
+
+  return (
+    <div className="space-y-2 rounded border border-slate-200 bg-white p-2">
+      <input
+        className="input input-bordered input-xs w-full"
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="Search candidates"
+        type="search"
+        value={search}
+      />
+      {isLoading ? (
+        <p className="text-xs text-slate-500">Loading candidates...</p>
+      ) : isEmpty ? (
+        <p className="text-xs text-slate-500">{emptyText}</p>
+      ) : (
+        <div className="max-h-60 space-y-1 overflow-y-auto">{items}</div>
+      )}
     </div>
   );
 }

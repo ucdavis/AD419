@@ -10,30 +10,44 @@ AS
 -- derived from GETDATE() and mirrors FiscalYearCycle in the server.
 -- NIFA SFN comes from the project number suffix; the UNKNOWN fallback fails
 -- closed downstream, never silently classified.
+-- User-entered resolution fields on ActiveProjects override the derived
+-- AllProjects match, PGM award key, or SFN after the import cycle is frozen.
 SELECT
     a.AccessionNumber,
     a.ProjectNumber,
     CAST(ISNULL(a.ExcludeFromUi, 0) AS BIT) AS ExcludeFromUi,
     a.Is204,
+    a.Notes,
     a.UcpEmployeeId,
     a.UcPathName,
     a.ProjectDirector,
+    a.PdEmailAddress,
+    a.AllProjectIdOverride,
+    a.PgmAwardKeyOverride,
+    a.SfnOverride,
     CASE WHEN ap.AllProjectId IS NULL THEN 0 ELSE 1 END AS InAllProjects,
-    CASE
-        WHEN a.ProjectNumber LIKE '%-H'  THEN '201'
-        WHEN a.ProjectNumber LIKE '%-RR' THEN '202'
-        WHEN a.ProjectNumber LIKE '%-CG' THEN '204'
-        WHEN a.ProjectNumber LIKE '%-AH' THEN '205'
-        ELSE 'UNKNOWN'
-    END AS NifaSfn,
+    COALESCE(NULLIF(LTRIM(RTRIM(a.SfnOverride)), ''), derived.NifaSfn) AS NifaSfn,
     ap.AwardNumber,
-    NULLIF(REPLACE(LTRIM(RTRIM(ap.AwardNumber)), '-', ''), '') AS AwardKey,
+    COALESCE(
+        NULLIF(REPLACE(LTRIM(RTRIM(a.PgmAwardKeyOverride)), '-', ''), ''),
+        NULLIF(REPLACE(LTRIM(RTRIM(ap.AwardNumber)), '-', ''), '')
+    ) AS AwardKey,
     ap.Title,
     ap.Department,
     ap.ProjectDirector AS AllProjectDirector,
     ap.ProjectStartDate,
     ap.ProjectEndDate
 FROM [data].[ActiveProjects] a
+CROSS APPLY
+(
+    SELECT CASE
+        WHEN a.ProjectNumber LIKE '%-H'  THEN '201'
+        WHEN a.ProjectNumber LIKE '%-RR' THEN '202'
+        WHEN a.ProjectNumber LIKE '%-CG' THEN '204'
+        WHEN a.ProjectNumber LIKE '%-AH' THEN '205'
+        ELSE 'UNKNOWN'
+    END AS NifaSfn
+) derived
 CROSS APPLY
 (
     SELECT DATEFROMPARTS(
@@ -55,9 +69,18 @@ OUTER APPLY
         x.ProjectStartDate,
         x.ProjectEndDate
     FROM [data].[AllProjects] x
-    WHERE NULLIF(LTRIM(RTRIM(x.ProjectNumber)), '') = NULLIF(LTRIM(RTRIM(a.ProjectNumber)), '')
-      AND NULLIF(LTRIM(RTRIM(x.AccessionNumber)), '') = NULLIF(LTRIM(RTRIM(a.AccessionNumber)), '')
-      AND (x.ProjectEndDate IS NULL OR x.ProjectEndDate >= cs.CycleStart)
-      AND (x.ProjectStartDate IS NULL OR x.ProjectStartDate <= ce.CycleEnd)
-    ORDER BY x.AllProjectId
+    WHERE (
+            a.AllProjectIdOverride IS NOT NULL
+            AND x.AllProjectId = a.AllProjectIdOverride
+        )
+        OR (
+            a.AllProjectIdOverride IS NULL
+            AND NULLIF(LTRIM(RTRIM(x.ProjectNumber)), '') = NULLIF(LTRIM(RTRIM(a.ProjectNumber)), '')
+            AND NULLIF(LTRIM(RTRIM(x.AccessionNumber)), '') = NULLIF(LTRIM(RTRIM(a.AccessionNumber)), '')
+            AND (x.ProjectEndDate IS NULL OR x.ProjectEndDate >= cs.CycleStart)
+            AND (x.ProjectStartDate IS NULL OR x.ProjectStartDate <= ce.CycleEnd)
+        )
+    ORDER BY
+        CASE WHEN a.AllProjectIdOverride IS NOT NULL AND x.AllProjectId = a.AllProjectIdOverride THEN 0 ELSE 1 END,
+        x.AllProjectId
 ) ap;

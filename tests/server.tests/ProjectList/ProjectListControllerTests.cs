@@ -39,9 +39,66 @@ public class ProjectListControllerTests
             new DateOnly(2026, 9, 30)));
     }
 
+    [Fact]
+    public async Task Link_all_project_requires_id()
+    {
+        var controller = new ProjectListController(new StubProjectListService());
+
+        var result = await controller.LinkAllProject("1000002", new LinkAllProjectRequest(null), CancellationToken.None);
+
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task Exclude_maps_conflicts_from_service()
+    {
+        var service = new StubProjectListService
+        {
+            NextUpdateResult = new ProjectListUpdateResult(ProjectListUpdateStatus.Conflict, "Wrong status."),
+        };
+        var controller = new ProjectListController(service);
+
+        var result = await controller.Exclude("1000002", CancellationToken.None);
+
+        result.Should().BeOfType<ConflictObjectResult>();
+    }
+
+    [Fact]
+    public async Task Candidate_endpoints_return_service_results()
+    {
+        var controller = new ProjectListController(new StubProjectListService());
+
+        var allProjects = await controller.AllProjectCandidates("1000002", null, CancellationToken.None);
+        var pgmAwards = await controller.PgmAwardCandidates("1000002", null, CancellationToken.None);
+        var sfns = await controller.SfnCandidates("1000002", CancellationToken.None);
+
+        allProjects.Result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeAssignableTo<IReadOnlyList<AllProjectCandidateDto>>()
+            .Which.Should().ContainSingle();
+        pgmAwards.Result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeAssignableTo<IReadOnlyList<PgmAwardCandidateDto>>()
+            .Which.Should().ContainSingle();
+        sfns.Result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeAssignableTo<IReadOnlyList<SfnCandidateDto>>()
+            .Which.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Resolution_edits_returns_service_flag()
+    {
+        var controller = new ProjectListController(new StubProjectListService { HasResolutionEdits = true });
+
+        var result = await controller.ResolutionEdits(CancellationToken.None);
+
+        result.Result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().Be(new ProjectResolutionEditsResponse(true));
+    }
+
     private sealed class StubProjectListService : IProjectListService
     {
         public FiscalYearCycle? ReceivedCycle { get; private set; }
+        public bool HasResolutionEdits { get; init; }
+        public ProjectListUpdateResult NextUpdateResult { get; init; } = ProjectListUpdateResult.Updated;
 
         public ProjectListResponse Response { get; } = new(
             "FY26",
@@ -55,7 +112,10 @@ public class ProjectListControllerTests
                     "1000001",
                     "2025-1",
                     "K1234",
+                    false,
+                    null,
                     "Larkspur, S.",
+                    "larkspur@example.edu",
                     "10000001",
                     "Larkspur, Sasha",
                     "ATM",
@@ -66,7 +126,10 @@ public class ProjectListControllerTests
                     "1000002",
                     "2025-2",
                     null,
+                    true,
+                    null,
                     "Okonkwo, Y.",
+                    "okonkwo@example.edu",
                     "10000002",
                     "Okonkwo, Yara",
                     "ANS",
@@ -79,5 +142,55 @@ public class ProjectListControllerTests
             ReceivedCycle = cycle;
             return Task.FromResult(Response);
         }
+
+        public Task<bool> HasResolutionEditsAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(HasResolutionEdits);
+
+        public Task<IReadOnlyList<AllProjectCandidateDto>> GetAllProjectCandidatesAsync(
+            string accession,
+            string? search,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<AllProjectCandidateDto>>(
+            [
+                new(1, "1000002", "CA-B-222-CG", "2025-2", "Title", "ANS", "Okonkwo, Y.", null, null),
+            ]);
+
+        public Task<IReadOnlyList<PgmAwardCandidateDto>> GetPgmAwardCandidatesAsync(
+            string accession,
+            string? search,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PgmAwardCandidateDto>>(
+            [
+                new("20252", "2025-2", "Award", "K1234", "204", "Okonkwo, Y."),
+            ]);
+
+        public Task<IReadOnlyList<SfnCandidateDto>> GetSfnCandidatesAsync(
+            string accession,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<SfnCandidateDto>>([new("204", "PGM master data")]);
+
+        public Task<ProjectListUpdateResult> ExcludeAsync(string accession, CancellationToken cancellationToken) =>
+            Task.FromResult(NextUpdateResult);
+
+        public Task<ProjectListUpdateResult> LinkAllProjectAsync(
+            string accession,
+            int allProjectId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(NextUpdateResult);
+
+        public Task<ProjectListUpdateResult> LinkPgmAwardAsync(
+            string accession,
+            string awardKey,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(NextUpdateResult);
+
+        public Task<ProjectListUpdateResult> SetSfnAsync(
+            string accession,
+            string sfn,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(NextUpdateResult);
+
+        public Task<int> BuildProjectsAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(12);
     }
 }

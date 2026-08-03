@@ -52,4 +52,18 @@ public sealed class ProjectIdentificationController(
 
         return Ok(response);
     }
+
+    [HttpPost("finalize")]
+    public async Task<ActionResult<ProjectIdentificationSetupResponse>> FinalizeProjects(
+        CancellationToken cancellationToken)
+    {
+        var response = await projectIdentificationService.FinalizeProjectsAsync(User, cancellationToken);
+
+        if (response is null)
+        {
+            return BadRequest("Projects cannot be finalized in their current state.");
+        }
+
+        return Ok(response);
+    }
 }

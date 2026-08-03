@@ -30,9 +30,45 @@ public sealed record ProjectListRowDto(
     string? Accession,
     string? AwardNumber,
     string? Ae,
+    bool Is204,
+    string? Notes,
     string? Pi,
+    string? PdEmailAddress,
     string? UcpEmployeeId,
     string? UcPathName,
     string? Department,
     string? Sfn,
     string Status);
+
+public sealed record AllProjectCandidateDto(
+    int AllProjectId,
+    string? AccessionNumber,
+    string? ProjectNumber,
+    string? AwardNumber,
+    string? Title,
+    string? Department,
+    string? ProjectDirector,
+    DateOnly? ProjectStartDate,
+    DateOnly? ProjectEndDate);
+
+public sealed record PgmAwardCandidateDto(
+    string AwardKey,
+    string? SponsorAwardNumber,
+    string? AwardName,
+    string? ProjectNumbers,
+    string? PgmSfnBucket,
+    string? PrincipalInvestigatorNames);
+
+public sealed record SfnCandidateDto(
+    string Sfn,
+    string Source);
+
+public sealed record LinkAllProjectRequest(int? AllProjectId);
+
+public sealed record LinkPgmAwardRequest(string? AwardKey);
+
+public sealed record SetSfnRequest(string? Sfn);
+
+public sealed record ProjectFinalizeResponse(int RowsBuilt);
+
+public sealed record ProjectResolutionEditsResponse(bool HasResolutionEdits);
