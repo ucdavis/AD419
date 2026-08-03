@@ -1,4 +1,6 @@
 CREATE PROCEDURE [data].[GetProjectList]
+    @CycleStart DATE,
+    @CycleEnd DATE
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -17,5 +19,5 @@ BEGIN
         Department,
         Sfn,
         [Status]
-    FROM [data].[v_ProjectList];
+    FROM [data].[ProjectListForCycle](@CycleStart, @CycleEnd);
 END

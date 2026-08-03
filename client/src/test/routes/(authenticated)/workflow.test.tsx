@@ -385,9 +385,31 @@ describe('AD419 workflow routes', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date('2026-07-07T12:00:00-07:00'));
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    let currentProjectList = projectListResponse;
+    const fy25SetupResponse = {
+      ...setupResponse,
+      cycleEnd: '2025-09-30',
+      cycleStart: '2024-10-01',
+      fiscalPeriodOptions: [
+        {
+          cycleEnd: '2025-09-30',
+          cycleStart: '2024-10-01',
+          fiscalYear: 'FY25',
+          label: 'FY:25 - Oct 2024 - Sep 2025',
+        },
+      ],
+      fiscalYear: 'FY25',
+    };
+    const fy25ProjectListResponse = {
+      ...projectListResponse,
+      cycleEnd: '2025-09-30',
+      cycleStart: '2024-10-01',
+      fiscalYear: 'FY25',
+    };
+    let currentProjectList = fy25ProjectListResponse;
     let postedSfn: string | null = null;
     let projectListRequests = 0;
+    let sfnCandidateFy: string | null = null;
+    let postedFy: string | null = null;
 
     server.use(
       http.get('/api/user/me', () => {
@@ -397,35 +419,44 @@ describe('AD419 workflow routes', () => {
         return HttpResponse.json([]);
       }),
       http.get('/api/projectidentification/setup', () => {
-        return HttpResponse.json(setupResponse);
+        return HttpResponse.json(fy25SetupResponse);
       }),
-      http.get('/api/projectlist', () => {
+      http.get('/api/projectlist', ({ request }) => {
+        expect(new URL(request.url).searchParams.get('fy')).toBe('FY25');
         projectListRequests += 1;
         return HttpResponse.json(currentProjectList);
       }),
-      http.get('/api/projectlist/:accession/sfn-candidates', ({ params }) => {
-        expect(params.accession).toBe('1055356');
-        return HttpResponse.json([{ sfn: '205', source: 'PGM master data' }]);
-      }),
-      http.post('/api/projectlist/:accession/set-sfn', async ({ params, request }) => {
-        expect(params.accession).toBe('1055356');
-        const body = (await request.json()) as { sfn: string };
-        postedSfn = body.sfn;
-        currentProjectList = {
-          ...projectListResponse,
-          counts: { all: 3, clean: 2, issues: 1 },
-          rows: projectListResponse.rows.map((row) =>
-            row.accession === '1055356'
-              ? { ...row, sfn: body.sfn, status: 'Clean' }
-              : row
-          ),
-          summary: {
-            ...projectListResponse.summary,
-            issuesToResolve: 1,
-          },
-        };
-        return new HttpResponse(null, { status: 204 });
-      })
+      http.get(
+        '/api/projectlist/:accession/sfn-candidates',
+        ({ params, request }) => {
+          expect(params.accession).toBe('1055356');
+          sfnCandidateFy = new URL(request.url).searchParams.get('fy');
+          return HttpResponse.json([{ sfn: '205', source: 'PGM master data' }]);
+        }
+      ),
+      http.post(
+        '/api/projectlist/:accession/set-sfn',
+        async ({ params, request }) => {
+          expect(params.accession).toBe('1055356');
+          postedFy = new URL(request.url).searchParams.get('fy');
+          const body = (await request.json()) as { sfn: string };
+          postedSfn = body.sfn;
+          currentProjectList = {
+            ...fy25ProjectListResponse,
+            counts: { all: 3, clean: 2, issues: 1 },
+            rows: fy25ProjectListResponse.rows.map((row) =>
+              row.accession === '1055356'
+                ? { ...row, sfn: body.sfn, status: 'Clean' }
+                : row
+            ),
+            summary: {
+              ...fy25ProjectListResponse.summary,
+              issuesToResolve: 1,
+            },
+          };
+          return new HttpResponse(null, { status: 204 });
+        }
+      )
     );
 
     const { cleanup } = renderRoute({
@@ -442,6 +473,8 @@ describe('AD419 workflow routes', () => {
 
       await waitFor(() => {
         expect(postedSfn).toBe('205');
+        expect(sfnCandidateFy).toBe('FY25');
+        expect(postedFy).toBe('FY25');
         expect(projectListRequests).toBeGreaterThanOrEqual(2);
         expect(screen.queryByText('SFN mismatch')).not.toBeInTheDocument();
       });
@@ -458,7 +491,10 @@ describe('AD419 workflow routes', () => {
     const cleanProjectList = {
       ...projectListResponse,
       counts: { all: 3, clean: 3, issues: 0 },
-      rows: projectListResponse.rows.map((row) => ({ ...row, status: 'Clean' })),
+      rows: projectListResponse.rows.map((row) => ({
+        ...row,
+        status: 'Clean',
+      })),
       summary: {
         ...projectListResponse.summary,
         issuesToResolve: 0,

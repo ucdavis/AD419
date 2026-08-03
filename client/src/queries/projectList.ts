@@ -83,13 +83,7 @@ export interface ProjectResolutionEditsResponse {
   hasResolutionEdits: boolean;
 }
 
-export function currentFiscalYear(date = new Date()): string {
-  const calendarYear = date.getFullYear();
-  const fiscalYear = date.getMonth() >= 9 ? calendarYear + 1 : calendarYear;
-  return `FY${String(fiscalYear % 100).padStart(2, '0')}`;
-}
-
-export const projectListQueryOptions = (fiscalYear = currentFiscalYear()) =>
+export const projectListQueryOptions = (fiscalYear: string) =>
   queryOptions({
     queryFn: ({ signal }) =>
       fetchJson<ProjectListResponse>(
@@ -104,10 +98,12 @@ const projectResolutionUrl = (accession: string, path: string) =>
   `/api/projectlist/${encodeURIComponent(accession)}/${path}`;
 
 export function allProjectCandidatesQueryOptions(
+  fiscalYear: string,
   accession: string,
   search: string
 ) {
   const params = new URLSearchParams();
+  params.set('fy', fiscalYear);
   if (search.trim()) {
     params.set('search', search.trim());
   }
@@ -125,6 +121,7 @@ export function allProjectCandidatesQueryOptions(
       ),
     queryKey: [
       'projectList',
+      fiscalYear,
       accession,
       'allProjectCandidates',
       search,
@@ -134,10 +131,12 @@ export function allProjectCandidatesQueryOptions(
 }
 
 export function pgmAwardCandidatesQueryOptions(
+  fiscalYear: string,
   accession: string,
   search: string
 ) {
   const params = new URLSearchParams();
+  params.set('fy', fiscalYear);
   if (search.trim()) {
     params.set('search', search.trim());
   }
@@ -155,6 +154,7 @@ export function pgmAwardCandidatesQueryOptions(
       ),
     queryKey: [
       'projectList',
+      fiscalYear,
       accession,
       'pgmAwardCandidates',
       search,
@@ -163,15 +163,20 @@ export function pgmAwardCandidatesQueryOptions(
   });
 }
 
-export function sfnCandidatesQueryOptions(accession: string) {
+export function sfnCandidatesQueryOptions(
+  fiscalYear: string,
+  accession: string
+) {
+  const params = new URLSearchParams({ fy: fiscalYear });
+
   return queryOptions({
     queryFn: ({ signal }) =>
       fetchJson<SfnCandidate[]>(
-        projectResolutionUrl(accession, 'sfn-candidates'),
+        `${projectResolutionUrl(accession, 'sfn-candidates')}?${params.toString()}`,
         {},
         signal
       ),
-    queryKey: ['projectList', accession, 'sfnCandidates'] as const,
+    queryKey: ['projectList', fiscalYear, accession, 'sfnCandidates'] as const,
   });
 }
 
@@ -186,29 +191,62 @@ export const projectResolutionEditsQueryOptions = () =>
     queryKey: ['projectList', 'resolutionEdits'] as const,
   });
 
-export async function excludeProject(accession: string) {
-  return fetchJson<void>(projectResolutionUrl(accession, 'exclude'), {
-    method: 'POST',
-  });
+function projectResolutionActionUrl(
+  fiscalYear: string,
+  accession: string,
+  path: string
+) {
+  const params = new URLSearchParams({ fy: fiscalYear });
+  return `${projectResolutionUrl(accession, path)}?${params.toString()}`;
 }
 
-export async function linkAllProject(accession: string, allProjectId: number) {
-  return fetchJson<void>(projectResolutionUrl(accession, 'link-all-project'), {
-    body: JSON.stringify({ allProjectId }),
-    method: 'POST',
-  });
+export async function excludeProject(fiscalYear: string, accession: string) {
+  return fetchJson<void>(
+    projectResolutionActionUrl(fiscalYear, accession, 'exclude'),
+    {
+      method: 'POST',
+    }
+  );
 }
 
-export async function linkPgmAward(accession: string, awardKey: string) {
-  return fetchJson<void>(projectResolutionUrl(accession, 'link-pgm-award'), {
-    body: JSON.stringify({ awardKey }),
-    method: 'POST',
-  });
+export async function linkAllProject(
+  fiscalYear: string,
+  accession: string,
+  allProjectId: number
+) {
+  return fetchJson<void>(
+    projectResolutionActionUrl(fiscalYear, accession, 'link-all-project'),
+    {
+      body: JSON.stringify({ allProjectId }),
+      method: 'POST',
+    }
+  );
 }
 
-export async function setProjectSfn(accession: string, sfn: string) {
-  return fetchJson<void>(projectResolutionUrl(accession, 'set-sfn'), {
-    body: JSON.stringify({ sfn }),
-    method: 'POST',
-  });
+export async function linkPgmAward(
+  fiscalYear: string,
+  accession: string,
+  awardKey: string
+) {
+  return fetchJson<void>(
+    projectResolutionActionUrl(fiscalYear, accession, 'link-pgm-award'),
+    {
+      body: JSON.stringify({ awardKey }),
+      method: 'POST',
+    }
+  );
+}
+
+export async function setProjectSfn(
+  fiscalYear: string,
+  accession: string,
+  sfn: string
+) {
+  return fetchJson<void>(
+    projectResolutionActionUrl(fiscalYear, accession, 'set-sfn'),
+    {
+      body: JSON.stringify({ sfn }),
+      method: 'POST',
+    }
+  );
 }

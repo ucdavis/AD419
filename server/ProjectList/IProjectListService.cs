@@ -10,37 +10,46 @@ public interface IProjectListService
     Task<bool> HasResolutionEditsAsync(CancellationToken cancellationToken);
 
     Task<IReadOnlyList<AllProjectCandidateDto>> GetAllProjectCandidatesAsync(
+        FiscalYearCycle cycle,
         string accession,
         string? search,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<PgmAwardCandidateDto>> GetPgmAwardCandidatesAsync(
+        FiscalYearCycle cycle,
         string accession,
         string? search,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<SfnCandidateDto>> GetSfnCandidatesAsync(
+        FiscalYearCycle cycle,
         string accession,
         CancellationToken cancellationToken);
 
-    Task<ProjectListUpdateResult> ExcludeAsync(string accession, CancellationToken cancellationToken);
+    Task<ProjectListUpdateResult> ExcludeAsync(
+        FiscalYearCycle cycle,
+        string accession,
+        CancellationToken cancellationToken);
 
     Task<ProjectListUpdateResult> LinkAllProjectAsync(
+        FiscalYearCycle cycle,
         string accession,
         int allProjectId,
         CancellationToken cancellationToken);
 
     Task<ProjectListUpdateResult> LinkPgmAwardAsync(
+        FiscalYearCycle cycle,
         string accession,
         string awardKey,
         CancellationToken cancellationToken);
 
     Task<ProjectListUpdateResult> SetSfnAsync(
+        FiscalYearCycle cycle,
         string accession,
         string sfn,
         CancellationToken cancellationToken);
 
-    Task<int> BuildProjectsAsync(CancellationToken cancellationToken);
+    Task<int> BuildProjectsAsync(FiscalYearCycle cycle, CancellationToken cancellationToken);
 }
 
 public enum ProjectListUpdateStatus

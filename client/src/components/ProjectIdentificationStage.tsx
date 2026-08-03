@@ -202,7 +202,10 @@ function ProjectIdentificationStageContent({
       },
       {
         cell: ({ row }) => (
-          <ProjectIssueResolutionControl row={row.original} />
+          <ProjectIssueResolutionControl
+            fiscalYear={setup.fiscalYear}
+            row={row.original}
+          />
         ),
         enableSorting: false,
         header: 'Actions',
@@ -213,7 +216,7 @@ function ProjectIdentificationStageContent({
         },
       },
     ],
-    []
+    [setup.fiscalYear]
   );
 
   const pgmItem = setup.checklistItems.find(
@@ -325,7 +328,13 @@ function ProjectIdentificationStageContent({
 
 type ResolutionMode = 'all-project' | 'pgm-award' | 'sfn';
 
-function ProjectIssueResolutionControl({ row }: { row: ProjectListRow }) {
+function ProjectIssueResolutionControl({
+  fiscalYear,
+  row,
+}: {
+  fiscalYear: string;
+  row: ProjectListRow;
+}) {
   const accession = row.accession;
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<ResolutionMode | null>(null);
@@ -389,12 +398,13 @@ function ProjectIssueResolutionControl({ row }: { row: ProjectListRow }) {
           </button>
         ) : null}
 
-        {row.status === 'No PGM match' || row.status === 'Not in All Projects' ? (
+        {row.status === 'No PGM match' ||
+        row.status === 'Not in All Projects' ? (
           <button
             className="btn btn-xs btn-ghost text-error"
             disabled={pending}
             onClick={() =>
-              mutation.mutate(() => excludeProject(accession))
+              mutation.mutate(() => excludeProject(fiscalYear, accession))
             }
             type="button"
           >
@@ -413,9 +423,10 @@ function ProjectIssueResolutionControl({ row }: { row: ProjectListRow }) {
         <AllProjectPicker
           accession={accession}
           disabled={pending}
+          fiscalYear={fiscalYear}
           onSelect={(candidate) =>
             mutation.mutate(() =>
-              linkAllProject(accession, candidate.allProjectId)
+              linkAllProject(fiscalYear, accession, candidate.allProjectId)
             )
           }
           search={search}
@@ -427,9 +438,10 @@ function ProjectIssueResolutionControl({ row }: { row: ProjectListRow }) {
         <PgmAwardPicker
           accession={accession}
           disabled={pending}
+          fiscalYear={fiscalYear}
           onSelect={(candidate) =>
             mutation.mutate(() =>
-              linkPgmAward(accession, candidate.awardKey)
+              linkPgmAward(fiscalYear, accession, candidate.awardKey)
             )
           }
           search={search}
@@ -441,8 +453,11 @@ function ProjectIssueResolutionControl({ row }: { row: ProjectListRow }) {
         <SfnPicker
           accession={accession}
           disabled={pending}
+          fiscalYear={fiscalYear}
           onSelect={(candidate) =>
-            mutation.mutate(() => setProjectSfn(accession, candidate.sfn))
+            mutation.mutate(() =>
+              setProjectSfn(fiscalYear, accession, candidate.sfn)
+            )
           }
         />
       ) : null}
@@ -453,18 +468,20 @@ function ProjectIssueResolutionControl({ row }: { row: ProjectListRow }) {
 function AllProjectPicker({
   accession,
   disabled,
+  fiscalYear,
   onSelect,
   search,
   setSearch,
 }: {
   accession: string;
   disabled: boolean;
+  fiscalYear: string;
   onSelect: (candidate: AllProjectCandidate) => void;
   search: string;
   setSearch: (value: string) => void;
 }) {
   const query = useQuery({
-    ...allProjectCandidatesQueryOptions(accession, search),
+    ...allProjectCandidatesQueryOptions(fiscalYear, accession, search),
     enabled: Boolean(accession),
   });
 
@@ -503,18 +520,20 @@ function AllProjectPicker({
 function PgmAwardPicker({
   accession,
   disabled,
+  fiscalYear,
   onSelect,
   search,
   setSearch,
 }: {
   accession: string;
   disabled: boolean;
+  fiscalYear: string;
   onSelect: (candidate: PgmAwardCandidate) => void;
   search: string;
   setSearch: (value: string) => void;
 }) {
   const query = useQuery({
-    ...pgmAwardCandidatesQueryOptions(accession, search),
+    ...pgmAwardCandidatesQueryOptions(fiscalYear, accession, search),
     enabled: Boolean(accession),
   });
 
@@ -553,14 +572,16 @@ function PgmAwardPicker({
 function SfnPicker({
   accession,
   disabled,
+  fiscalYear,
   onSelect,
 }: {
   accession: string;
   disabled: boolean;
+  fiscalYear: string;
   onSelect: (candidate: SfnCandidate) => void;
 }) {
   const query = useQuery({
-    ...sfnCandidatesQueryOptions(accession),
+    ...sfnCandidatesQueryOptions(fiscalYear, accession),
     enabled: Boolean(accession),
   });
 

@@ -44,7 +44,11 @@ public class ProjectListControllerTests
     {
         var controller = new ProjectListController(new StubProjectListService());
 
-        var result = await controller.LinkAllProject("1000002", new LinkAllProjectRequest(null), CancellationToken.None);
+        var result = await controller.LinkAllProject(
+            "1000002",
+            "FY26",
+            new LinkAllProjectRequest(null),
+            CancellationToken.None);
 
         result.Should().BeOfType<BadRequestObjectResult>();
     }
@@ -58,19 +62,24 @@ public class ProjectListControllerTests
         };
         var controller = new ProjectListController(service);
 
-        var result = await controller.Exclude("1000002", CancellationToken.None);
+        var result = await controller.Exclude("1000002", "FY25", CancellationToken.None);
 
         result.Should().BeOfType<ConflictObjectResult>();
+        service.ReceivedUpdateCycle.Should().Be(new FiscalYearCycle(
+            "FY25",
+            new DateOnly(2024, 10, 1),
+            new DateOnly(2025, 9, 30)));
     }
 
     [Fact]
     public async Task Candidate_endpoints_return_service_results()
     {
-        var controller = new ProjectListController(new StubProjectListService());
+        var service = new StubProjectListService();
+        var controller = new ProjectListController(service);
 
-        var allProjects = await controller.AllProjectCandidates("1000002", null, CancellationToken.None);
-        var pgmAwards = await controller.PgmAwardCandidates("1000002", null, CancellationToken.None);
-        var sfns = await controller.SfnCandidates("1000002", CancellationToken.None);
+        var allProjects = await controller.AllProjectCandidates("1000002", "FY25", null, CancellationToken.None);
+        var pgmAwards = await controller.PgmAwardCandidates("1000002", "FY25", null, CancellationToken.None);
+        var sfns = await controller.SfnCandidates("1000002", "FY25", CancellationToken.None);
 
         allProjects.Result.Should().BeOfType<OkObjectResult>()
             .Which.Value.Should().BeAssignableTo<IReadOnlyList<AllProjectCandidateDto>>()
@@ -81,6 +90,26 @@ public class ProjectListControllerTests
         sfns.Result.Should().BeOfType<OkObjectResult>()
             .Which.Value.Should().BeAssignableTo<IReadOnlyList<SfnCandidateDto>>()
             .Which.Should().ContainSingle();
+        service.ReceivedCandidateCycles.Should().OnlyContain(cycle => cycle == new FiscalYearCycle(
+            "FY25",
+            new DateOnly(2024, 10, 1),
+            new DateOnly(2025, 9, 30)));
+    }
+
+    [Fact]
+    public async Task Candidate_and_resolution_endpoints_require_fy()
+    {
+        var controller = new ProjectListController(new StubProjectListService());
+
+        var candidates = await controller.PgmAwardCandidates("1000002", null, null, CancellationToken.None);
+        var resolution = await controller.SetSfn(
+            "1000002",
+            null,
+            new SetSfnRequest("204"),
+            CancellationToken.None);
+
+        candidates.Result.Should().BeOfType<BadRequestObjectResult>();
+        resolution.Should().BeOfType<BadRequestObjectResult>();
     }
 
     [Fact]
@@ -97,6 +126,8 @@ public class ProjectListControllerTests
     private sealed class StubProjectListService : IProjectListService
     {
         public FiscalYearCycle? ReceivedCycle { get; private set; }
+        public List<FiscalYearCycle> ReceivedCandidateCycles { get; } = [];
+        public FiscalYearCycle? ReceivedUpdateCycle { get; private set; }
         public bool HasResolutionEdits { get; init; }
         public ProjectListUpdateResult NextUpdateResult { get; init; } = ProjectListUpdateResult.Updated;
 
@@ -147,50 +178,80 @@ public class ProjectListControllerTests
             Task.FromResult(HasResolutionEdits);
 
         public Task<IReadOnlyList<AllProjectCandidateDto>> GetAllProjectCandidatesAsync(
+            FiscalYearCycle cycle,
             string accession,
             string? search,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<AllProjectCandidateDto>>(
+            CancellationToken cancellationToken)
+        {
+            ReceivedCandidateCycles.Add(cycle);
+            return Task.FromResult<IReadOnlyList<AllProjectCandidateDto>>(
             [
                 new(1, "1000002", "CA-B-222-CG", "2025-2", "Title", "ANS", "Okonkwo, Y.", null, null),
             ]);
+        }
 
         public Task<IReadOnlyList<PgmAwardCandidateDto>> GetPgmAwardCandidatesAsync(
+            FiscalYearCycle cycle,
             string accession,
             string? search,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<PgmAwardCandidateDto>>(
+            CancellationToken cancellationToken)
+        {
+            ReceivedCandidateCycles.Add(cycle);
+            return Task.FromResult<IReadOnlyList<PgmAwardCandidateDto>>(
             [
                 new("20252", "2025-2", "Award", "K1234", "204", "Okonkwo, Y."),
             ]);
+        }
 
         public Task<IReadOnlyList<SfnCandidateDto>> GetSfnCandidatesAsync(
+            FiscalYearCycle cycle,
             string accession,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<SfnCandidateDto>>([new("204", "PGM master data")]);
+            CancellationToken cancellationToken)
+        {
+            ReceivedCandidateCycles.Add(cycle);
+            return Task.FromResult<IReadOnlyList<SfnCandidateDto>>([new("204", "PGM master data")]);
+        }
 
-        public Task<ProjectListUpdateResult> ExcludeAsync(string accession, CancellationToken cancellationToken) =>
-            Task.FromResult(NextUpdateResult);
+        public Task<ProjectListUpdateResult> ExcludeAsync(
+            FiscalYearCycle cycle,
+            string accession,
+            CancellationToken cancellationToken)
+        {
+            ReceivedUpdateCycle = cycle;
+            return Task.FromResult(NextUpdateResult);
+        }
 
         public Task<ProjectListUpdateResult> LinkAllProjectAsync(
+            FiscalYearCycle cycle,
             string accession,
             int allProjectId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(NextUpdateResult);
+            CancellationToken cancellationToken)
+        {
+            ReceivedUpdateCycle = cycle;
+            return Task.FromResult(NextUpdateResult);
+        }
 
         public Task<ProjectListUpdateResult> LinkPgmAwardAsync(
+            FiscalYearCycle cycle,
             string accession,
             string awardKey,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(NextUpdateResult);
+            CancellationToken cancellationToken)
+        {
+            ReceivedUpdateCycle = cycle;
+            return Task.FromResult(NextUpdateResult);
+        }
 
         public Task<ProjectListUpdateResult> SetSfnAsync(
+            FiscalYearCycle cycle,
             string accession,
             string sfn,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(NextUpdateResult);
+            CancellationToken cancellationToken)
+        {
+            ReceivedUpdateCycle = cycle;
+            return Task.FromResult(NextUpdateResult);
+        }
 
-        public Task<int> BuildProjectsAsync(CancellationToken cancellationToken) =>
+        public Task<int> BuildProjectsAsync(FiscalYearCycle cycle, CancellationToken cancellationToken) =>
             Task.FromResult(12);
     }
 }

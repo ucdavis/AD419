@@ -187,7 +187,12 @@ public sealed class ProjectIdentificationService(
             return null;
         }
 
-        var rowsBuilt = await projectListService.BuildProjectsAsync(cancellationToken);
+        if (!FiscalYearCycle.TryParse(run.FiscalYear, out var cycle))
+        {
+            return null;
+        }
+
+        var rowsBuilt = await projectListService.BuildProjectsAsync(cycle, cancellationToken);
         var now = DateTimeOffset.UtcNow;
         var state = GetOrCreateState(run, FinalizeProjectsItemId);
         CompleteState(state, user, now);
