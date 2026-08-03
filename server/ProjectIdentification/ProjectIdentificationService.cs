@@ -157,6 +157,7 @@ public sealed class ProjectIdentificationService(
             state.SourceKey = null;
         }
 
+        ClearAfter(run, definition.Number);
         Touch(run, user, now);
         await dbContext.SaveChangesAsync(cancellationToken);
 

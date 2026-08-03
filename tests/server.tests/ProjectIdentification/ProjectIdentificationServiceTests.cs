@@ -202,6 +202,50 @@ public class ProjectIdentificationServiceTests
         finalizeItem.Source!.Rows.Should().Be(44);
     }
 
+    [Fact]
+    public async Task Recompleted_import_clears_downstream_completion_states()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var projectListService = new StubProjectListService { IssuesToResolve = 0, RowsBuilt = 44 };
+        var service = CreateService(db, projectListService);
+
+        AddImport(db, "all-projects", 1, "Succeeded", 100, DateTimeOffset.Parse("2026-06-01T12:00:00Z"));
+        AddImport(db, "active-projects", 2, "Succeeded", 50, DateTimeOffset.Parse("2026-06-01T12:01:00Z"));
+        AddImport(db, "assistance-listing-numbers", 3, "Succeeded", 200, DateTimeOffset.Parse("2026-06-01T12:02:00Z"));
+        await db.SaveChangesAsync();
+
+        await service.ConfirmFiscalPeriodAsync("FY26", User, CancellationToken.None);
+        await service.SetChecklistItemCompletionAsync("all-projects", true, User, CancellationToken.None);
+        await service.SetChecklistItemCompletionAsync("active-projects", true, User, CancellationToken.None);
+        await service.SetChecklistItemCompletionAsync("assistance-listing-numbers", true, User, CancellationToken.None);
+        await service.RecordPgmImportAsync(
+            new PgmProjectsImportResult(1234, new DateOnly(2026, 9, 30)),
+            User,
+            CancellationToken.None);
+        await service.SetChecklistItemCompletionAsync("pgm-master-data", true, User, CancellationToken.None);
+        await service.SetChecklistItemCompletionAsync("resolve-project-issues", true, User, CancellationToken.None);
+        await service.FinalizeProjectsAsync(User, CancellationToken.None);
+
+        AddImport(db, "all-projects", 4, "Succeeded", 110, DateTimeOffset.Parse("2026-06-02T12:00:00Z"));
+        await db.SaveChangesAsync();
+
+        var setup = await service.SetChecklistItemCompletionAsync("all-projects", true, User, CancellationToken.None);
+
+        setup.Should().NotBeNull();
+        setup!.ChecklistItems.Single(item => item.Id == "all-projects")
+            .Status.Should().Be("done");
+        setup.ChecklistItems.Single(item => item.Id == "all-projects")
+            .Source!.ImportLogId.Should().Be(4);
+        setup.ChecklistItems.Single(item => item.Id == "active-projects")
+            .Status.Should().Be("ready");
+        setup.ChecklistItems.Single(item => item.Id == "pgm-master-data")
+            .Completed.Should().BeFalse();
+        setup.ChecklistItems.Single(item => item.Id == "resolve-project-issues")
+            .Completed.Should().BeFalse();
+        setup.ChecklistItems.Single(item => item.Id == "finalize-projects")
+            .Completed.Should().BeFalse();
+    }
+
     private static ProjectIdentificationService CreateService(
         Server.Core.Data.AppDbContext db,
         StubProjectListService? projectListService = null) =>
