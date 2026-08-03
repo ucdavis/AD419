@@ -43,5 +43,3 @@ public sealed record ImportRunDto(
                 stage.ErrorDetail))
             .ToList());
 }
-
-public sealed record StartImportRunRequest(DateOnly? CycleStart, DateOnly? CycleEnd);

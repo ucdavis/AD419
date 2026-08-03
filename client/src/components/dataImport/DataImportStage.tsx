@@ -129,12 +129,7 @@ function DataImportStageContent({
           <button
             className="btn btn-primary"
             disabled={isRunning}
-            onClick={() =>
-              start.mutate({
-                cycleEnd: setup.cycleEnd,
-                cycleStart: setup.cycleStart,
-              })
-            }
+            onClick={() => start.mutate()}
             type="button"
           >
             Start Import

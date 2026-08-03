@@ -32,6 +32,22 @@ public class ImportRunsControllerTests
             Task.FromResult(blockingIssue);
     }
 
+    private static async Task<WorkflowRun> SeedWorkflowRunAsync(AppDbContext db)
+    {
+        var run = new WorkflowRun
+        {
+            FiscalYear = "FY25",
+            CycleStart = new DateOnly(2024, 10, 1),
+            CycleEnd = new DateOnly(2025, 9, 30),
+            IsCurrent = true,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        db.WorkflowRuns.Add(run);
+        await db.SaveChangesAsync();
+        return run;
+    }
+
     private static ImportRunsController CreateController(
         AppDbContext db, RecordingRunStarter starter, string? blockingIssue = null)
     {
@@ -53,15 +69,16 @@ public class ImportRunsControllerTests
     public async Task Start_creates_run_with_all_pending_stages_and_starts_it()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
+        await SeedWorkflowRunAsync(db);
         var starter = new RecordingRunStarter();
         var controller = CreateController(db, starter);
 
-        var result = await controller.Start(
-            new StartImportRunRequest(new DateOnly(2024, 10, 1), new DateOnly(2025, 9, 30)),
-            CancellationToken.None);
+        var result = await controller.Start(CancellationToken.None);
 
         var dto = result.Value!;
         dto.Status.Should().Be(ImportRunStatus.Running);
+        dto.CycleStart.Should().Be(new DateOnly(2024, 10, 1));
+        dto.CycleEnd.Should().Be(new DateOnly(2025, 9, 30));
         dto.Stages.Should().HaveCount(13);
         dto.Stages.Should().OnlyContain(s => s.Status == ImportStageStatus.Pending);
         dto.Stages.Select(s => s.Name).Should().ContainInOrder(ImportStageNames.All);
@@ -81,12 +98,11 @@ public class ImportRunsControllerTests
             StartedAt = DateTimeOffset.UtcNow,
         });
         await db.SaveChangesAsync();
+        await SeedWorkflowRunAsync(db);
         var starter = new RecordingRunStarter();
         var controller = CreateController(db, starter);
 
-        var result = await controller.Start(
-            new StartImportRunRequest(new DateOnly(2024, 10, 1), new DateOnly(2025, 9, 30)),
-            CancellationToken.None);
+        var result = await controller.Start(CancellationToken.None);
 
         result.Result.Should().BeOfType<ConflictObjectResult>();
         starter.StartedRunIds.Should().BeEmpty();
@@ -97,12 +113,11 @@ public class ImportRunsControllerTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         var starter = new RecordingRunStarter();
+        await SeedWorkflowRunAsync(db);
         var controller = CreateController(
             db, starter, "Unresolved project issues exist; resolve them in Project Identification first.");
 
-        var result = await controller.Start(
-            new StartImportRunRequest(new DateOnly(2024, 10, 1), new DateOnly(2025, 9, 30)),
-            CancellationToken.None);
+        var result = await controller.Start(CancellationToken.None);
 
         var conflict = result.Result.Should().BeOfType<ConflictObjectResult>().Subject;
         conflict.Value.Should().Be("Unresolved project issues exist; resolve them in Project Identification first.");
@@ -111,15 +126,16 @@ public class ImportRunsControllerTests
     }
 
     [Fact]
-    public async Task Start_rejects_missing_or_reversed_dates()
+    public async Task Start_returns_409_when_no_fiscal_period_is_confirmed()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var controller = CreateController(db, new RecordingRunStarter());
+        var starter = new RecordingRunStarter();
+        var controller = CreateController(db, starter);
 
-        (await controller.Start(new StartImportRunRequest(null, new DateOnly(2025, 9, 30)), CancellationToken.None))
-            .Result.Should().BeOfType<BadRequestObjectResult>();
-        (await controller.Start(new StartImportRunRequest(new DateOnly(2025, 9, 30), new DateOnly(2024, 10, 1)), CancellationToken.None))
-            .Result.Should().BeOfType<BadRequestObjectResult>();
+        var result = await controller.Start(CancellationToken.None);
+
+        result.Result.Should().BeOfType<ConflictObjectResult>();
+        starter.StartedRunIds.Should().BeEmpty();
     }
 
     [Fact]

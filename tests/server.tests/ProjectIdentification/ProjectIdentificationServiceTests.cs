@@ -169,7 +169,16 @@ public class ProjectIdentificationServiceTests
     private static ProjectIdentificationService CreateService(
         Server.Core.Data.AppDbContext db,
         StubProjectListService? projectListService = null) =>
-        new(db, new FlatFileImportRegistry(), projectListService ?? new StubProjectListService());
+        new(db, new StubReportingCycleSync(), new FlatFileImportRegistry(), projectListService ?? new StubProjectListService());
+
+    private sealed class StubReportingCycleSync : Server.Core.Data.IReportingCycleSync
+    {
+        public Task SyncAsync(
+            string fiscalYear,
+            DateOnly cycleStart,
+            DateOnly cycleEnd,
+            CancellationToken cancellationToken) => Task.CompletedTask;
+    }
 
     private static void AddImport(
         Server.Core.Data.AppDbContext db,

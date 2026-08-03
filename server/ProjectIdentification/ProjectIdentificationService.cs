@@ -16,6 +16,7 @@ namespace Server.ProjectIdentification;
 
 public sealed class ProjectIdentificationService(
     AppDbContext dbContext,
+    IReportingCycleSync reportingCycleSync,
     IFlatFileImportRegistry importRegistry,
     IProjectListService projectListService) : IProjectIdentificationService
 {
@@ -47,10 +48,14 @@ public sealed class ProjectIdentificationService(
         CancellationToken cancellationToken)
     {
         var run = await GetOrCreateCurrentRunAsync(user, cancellationToken);
+        await SyncReportingCycleAsync(run, cancellationToken);
         var latestImports = await GetLatestImportsAsync(cancellationToken);
 
         return CreateSetupResponse(run, latestImports);
     }
+
+    private Task SyncReportingCycleAsync(WorkflowRun run, CancellationToken cancellationToken) =>
+        reportingCycleSync.SyncAsync(run.FiscalYear, run.CycleStart, run.CycleEnd, cancellationToken);
 
     public async Task<ProjectIdentificationSetupResponse?> ConfirmFiscalPeriodAsync(
         string? fiscalYear,
@@ -79,6 +84,7 @@ public sealed class ProjectIdentificationService(
         CompleteState(fiscalState, user, now);
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        await SyncReportingCycleAsync(run, cancellationToken);
 
         var latestImports = await GetLatestImportsAsync(cancellationToken);
         return CreateSetupResponse(run, latestImports);

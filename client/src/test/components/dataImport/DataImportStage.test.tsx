@@ -90,9 +90,9 @@ describe('Data Import stage', () => {
     }
   });
 
-  it('starts an import with the setup cycle dates and disables the button while running', async () => {
+  it('starts an import without posting dates and disables the button while running', async () => {
     let started = false;
-    let postedBody: unknown = null;
+    let postedBody: string | null = null;
     const runningRun = { ...succeededRun, completedAt: null, id: 2, status: 'Running' };
     useSetupHandler();
     server.use(
@@ -101,7 +101,7 @@ describe('Data Import stage', () => {
       ),
       http.post('/api/importruns', async ({ request }) => {
         started = true;
-        postedBody = await request.json();
+        postedBody = await request.text();
         return HttpResponse.json(runningRun);
       })
     );
@@ -110,10 +110,8 @@ describe('Data Import stage', () => {
       const start = await screen.findByRole('button', { name: /start import/i });
       fireEvent.click(start);
       await waitFor(() => expect(screen.getByRole('button', { name: /start import/i })).toBeDisabled());
-      expect(postedBody).toEqual({
-        cycleEnd: '2026-09-30',
-        cycleStart: '2025-10-01',
-      });
+      // the server sources the cycle from the confirmed fiscal period
+      expect(postedBody).toBe('');
     } finally {
       cleanup();
     }

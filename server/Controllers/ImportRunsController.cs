@@ -55,19 +55,16 @@ public class ImportRunsController : ApiControllerBase
     }
 
     // POST api/importruns
+    // Cycle dates come from the confirmed fiscal period, never from the client:
+    // a stale browser tab must not be able to import the wrong year.
     [HttpPost]
-    public async Task<ActionResult<ImportRunDto>> Start(
-        [FromBody] StartImportRunRequest request,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<ImportRunDto>> Start(CancellationToken cancellationToken)
     {
-        if (request.CycleStart is not { } cycleStart || request.CycleEnd is not { } cycleEnd)
+        var workflowRun = await _appDb.WorkflowRuns
+            .SingleOrDefaultAsync(r => r.IsCurrent, cancellationToken);
+        if (workflowRun is null)
         {
-            return BadRequest("cycleStart and cycleEnd are required (yyyy-MM-dd).");
-        }
-
-        if (cycleStart > cycleEnd)
-        {
-            return BadRequest("cycleStart must not be after cycleEnd.");
+            return Conflict("No fiscal period has been confirmed in Project Identification.");
         }
 
         if (await _appDb.ImportRuns.AnyAsync(r => r.Status == ImportRunStatus.Running, cancellationToken))
@@ -82,8 +79,8 @@ public class ImportRunsController : ApiControllerBase
 
         var run = new ImportRun
         {
-            CycleStart = cycleStart,
-            CycleEnd = cycleEnd,
+            CycleStart = workflowRun.CycleStart,
+            CycleEnd = workflowRun.CycleEnd,
             Status = ImportRunStatus.Running,
             TriggeredByEntraId = User.GetEntraId(),
             TriggeredByName = User.FindFirst("name")?.Value ?? User.Identity?.Name,

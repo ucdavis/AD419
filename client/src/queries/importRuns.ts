@@ -66,12 +66,10 @@ export const importRunQueryOptions = () =>
       query.state.data?.status === 'Running' ? 2000 : false,
   });
 
-export function startImportRun(body: {
-  cycleEnd: string;
-  cycleStart: string;
-}): Promise<ImportRun> {
+// The server takes the cycle from the confirmed fiscal period; the client
+// sends no dates so a stale tab can never import the wrong year.
+export function startImportRun(): Promise<ImportRun> {
   return fetchJson<ImportRun>('/api/importruns', {
-    body: JSON.stringify(body),
     method: 'POST',
   });
 }

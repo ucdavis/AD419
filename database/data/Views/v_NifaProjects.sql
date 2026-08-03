@@ -4,10 +4,11 @@ AS
 -- ActiveProjects row, no matter what. AllProjects enrichment comes through an
 -- OUTER APPLY TOP 1 (deterministic on AllProjectId) so duplicate AllProjects
 -- rows can never fan a project out and a missing match never drops one.
--- Only AllProjects rows whose dates overlap the current federal fiscal cycle
--- (Oct-Sep, null dates tolerated) count as matches; a project with only
--- date-stale rows keeps its row but gets InAllProjects = 0. The cycle is
--- derived from GETDATE() and mirrors FiscalYearCycle in the server.
+-- Only AllProjects rows whose dates overlap the reporting cycle (null dates
+-- tolerated) count as matches; a project with only date-stale rows keeps its
+-- row but gets InAllProjects = 0. The cycle comes from the confirmed
+-- [data].[ReportingCycle] snapshot; the GETDATE() derivation is only a
+-- fallback for a database where no fiscal period has been confirmed yet.
 -- NIFA SFN comes from the project number suffix; the UNKNOWN fallback fails
 -- closed downstream, never silently classified.
 SELECT
@@ -36,13 +37,17 @@ SELECT
 FROM [data].[ActiveProjects] a
 CROSS APPLY
 (
-    SELECT DATEFROMPARTS(
-        CASE WHEN MONTH(GETDATE()) >= 10 THEN YEAR(GETDATE()) ELSE YEAR(GETDATE()) - 1 END,
-        10, 1) AS CycleStart
+    SELECT COALESCE(
+        (SELECT TOP 1 rc.CycleStart FROM [data].[ReportingCycle] rc),
+        DATEFROMPARTS(
+            CASE WHEN MONTH(GETDATE()) >= 10 THEN YEAR(GETDATE()) ELSE YEAR(GETDATE()) - 1 END,
+            10, 1)) AS CycleStart
 ) cs
 CROSS APPLY
 (
-    SELECT DATEADD(DAY, -1, DATEADD(YEAR, 1, cs.CycleStart)) AS CycleEnd
+    SELECT COALESCE(
+        (SELECT TOP 1 rc.CycleEnd FROM [data].[ReportingCycle] rc),
+        DATEADD(DAY, -1, DATEADD(YEAR, 1, cs.CycleStart))) AS CycleEnd
 ) ce
 OUTER APPLY
 (

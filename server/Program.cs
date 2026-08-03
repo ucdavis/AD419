@@ -68,6 +68,7 @@ builder.Services.AddScoped<UcPathTransactionsImportService>();
 builder.Services.AddScoped<ErnDescriptionBackfillService>();
 builder.Services.AddScoped<SprocStageService>();
 builder.Services.AddScoped<IImportReadinessCheck, ImportReadinessCheck>();
+builder.Services.AddScoped<IReportingCycleSync, ReportingCycleSync>();
 builder.Services.AddScoped<IImportStageProvider, ImportStageProvider>();
 // add auth policies here
 
