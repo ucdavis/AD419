@@ -40,14 +40,14 @@ function displayValue(value: string | null): string {
 
 function statusClassName(status: ProjectListStatus): string {
   if (status === 'Clean') {
-    return 'badge badge-success badge-outline';
+    return 'badge badge-success badge-outline whitespace-nowrap';
   }
 
   if (status === 'SFN mismatch') {
-    return 'badge badge-warning';
+    return 'badge badge-warning whitespace-nowrap';
   }
 
-  return 'badge badge-error badge-outline';
+  return 'badge badge-error badge-outline whitespace-nowrap';
 }
 
 function rowsForTab(rows: ProjectListRow[], tab: ProjectListTab) {
@@ -138,9 +138,16 @@ function ProjectIdentificationStageContent({
       },
       {
         accessorFn: (row) => row.ae ?? '',
-        cell: ({ row }) => displayValue(row.original.ae),
+        cell: ({ row }) => (
+          <div className="project-list-ae-cell">
+            {displayValue(row.original.ae)}
+          </div>
+        ),
         header: 'AE',
         id: 'ae',
+        meta: {
+          cellClassName: 'project-list-ae-column',
+        },
       },
       {
         accessorFn: (row) => (row.is204 ? 'Yes' : 'No'),
@@ -200,6 +207,10 @@ function ProjectIdentificationStageContent({
         ),
         header: 'Status',
         id: 'status',
+        meta: {
+          cellClassName: 'whitespace-nowrap',
+          headerClassName: 'whitespace-nowrap',
+        },
       },
       {
         accessorFn: (row) => row.notes ?? '',
@@ -314,12 +325,14 @@ function ProjectIdentificationStageContent({
               </div>
 
               <DataTable
+                cellClassName="align-top"
                 columns={columns}
                 data={visibleRows}
                 filterPlaceholder="Search project, accession, person..."
+                headerClassName="align-top"
                 initialState={{ pagination: { pageSize: 25 } }}
                 key={activeTab}
-                tableClassName="table-zebra table-sm"
+                tableClassName="project-list-table table-zebra table-sm"
               />
             </>
           ) : null}
