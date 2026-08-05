@@ -113,6 +113,14 @@ public class PgmProjectsImportServiceTests
         query.Should().Contain("NULLIF(TRIM(r.cfda), '') AS cfda");
         query.Should().Contain("NULLIF(TRIM(r.sponsor_award_number), '') AS sponsor_award_number");
         query.Should().Contain("NULLIF(REPLACE(TRIM(r.sponsor_award_number), '-', ''), '') AS sponsor_award_key");
-        query.Should().Contain("END AS cfda_program_number");
+        query.Should().Contain(
+            """
+                CASE
+                    WHEN POSITION('.' IN TRIM(r.cfda)) > 0
+                    THEN LEFT(TRIM(r.cfda), POSITION('.' IN TRIM(r.cfda)))
+                         || LEFT(SUBSTRING(TRIM(r.cfda), POSITION('.' IN TRIM(r.cfda)) + 1, 10) || '000', 3)
+                    ELSE NULLIF(TRIM(r.cfda), '')
+                END AS cfda_program_number
+            """);
     }
 }

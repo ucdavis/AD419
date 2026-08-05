@@ -16,6 +16,9 @@ public class ProjectListSqlTests
         sql.Should().Contain("x.ProjectStartDate <= @CycleEnd");
         sql.Should().Contain("x.ProjectNumber = a.ProjectNumber");
         sql.Should().Contain("x.AccessionNumber = a.AccessionNumber");
+        sql.Should().Contain("MIN(x.AllProjectId) AS AllProjectId");
+        sql.Should().NotContain("CROSS APPLY");
+        sql.Should().NotContain("OUTER APPLY");
         sql.Should().NotContain("ProjectNumberNormalized");
         sql.Should().NotContain("AccessionNumberNormalized");
         sql.Should().NotContain("GETDATE()");
@@ -28,7 +31,12 @@ public class ProjectListSqlTests
 
         sql.Should().Contain("CREATE FUNCTION [data].[ProjectListForCycle]");
         sql.Should().Contain("FROM [data].[NifaProjectsForCycle](@CycleStart, @CycleEnd) nv");
-        CountOccurrences(sql, "FROM [data].[v_PgmProjectSfnBuckets] pc").Should().Be(1);
+        CountOccurrences(sql, "JOIN [data].[v_PgmProjectSfnBuckets] pc").Should().Be(1);
+        sql.Should().Contain("WITH IncludedNifa AS");
+        sql.Should().Contain("PgmByProject AS");
+        sql.Should().Contain("COUNT_BIG(pc.ProjectNumber)");
+        sql.Should().NotContain("CROSS APPLY");
+        sql.Should().NotContain("OUTER APPLY");
         sql.Should().Contain("'Not in All Projects'");
         sql.Should().Contain("'No PGM match'");
         sql.Should().Contain("'SFN mismatch'");

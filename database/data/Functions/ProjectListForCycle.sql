@@ -7,6 +7,79 @@ RETURNS TABLE
 AS
 RETURN
 (
+    WITH IncludedNifa AS
+    (
+        SELECT
+            nv.AccessionNumber,
+            nv.ProjectNumber,
+            nv.AwardNumber,
+            nv.AwardKey,
+            nv.Is204,
+            nv.Notes,
+            COALESCE(NULLIF(nv.ProjectDirector, ''), NULLIF(nv.AllProjectDirector, '')) AS Pi,
+            nv.PdEmailAddress,
+            nv.UcpEmployeeId,
+            nv.UcPathName,
+            nv.Department,
+            nv.InAllProjects,
+            nv.NifaSfn,
+            nv.SfnOverride,
+            CASE nv.NifaSfn
+                WHEN '201' THEN 'HATCH'
+                WHEN '202' THEN 'HATCH'
+                WHEN '204' THEN '204'
+                WHEN '205' THEN '205'
+                ELSE '__UNMAPPED__'
+            END AS ExpectedPgmSfnBucket
+        FROM [data].[NifaProjectsForCycle](@CycleStart, @CycleEnd) nv
+        WHERE nv.ExcludeFromUi = 0
+    ),
+    PgmByProject AS
+    (
+        SELECT
+            nv.AccessionNumber,
+            STRING_AGG(CAST(pc.ProjectNumber AS NVARCHAR(MAX)), ', ')
+                WITHIN GROUP (ORDER BY pc.ProjectNumber) AS PgmProjectNumbers,
+            CASE WHEN COUNT_BIG(pc.ProjectNumber) > 0 THEN 1 ELSE 0 END AS HasPgmMatch,
+            MAX(CASE
+                -- Any matched PGM award whose bucket conflicts with the NIFA
+                -- SFN (201/202 collapse to HATCH; silent when the PGM bucket is
+                -- NULL).
+                WHEN pc.PgmSfnBucket IS NOT NULL
+                     AND pc.PgmSfnBucket <> nv.ExpectedPgmSfnBucket
+                THEN 1
+                ELSE 0
+            END) AS HasSfnMismatch
+        FROM IncludedNifa nv
+        LEFT JOIN [data].[v_PgmProjectSfnBuckets] pc
+            ON pc.AwardKey = nv.AwardKey
+        GROUP BY nv.AccessionNumber
+    ),
+    ActiveWithPgm AS
+    (
+        SELECT
+            nv.AccessionNumber,
+            nv.ProjectNumber,
+            nv.AwardNumber,
+            nv.Is204,
+            nv.Notes,
+            nv.Pi,
+            nv.PdEmailAddress,
+            nv.UcpEmployeeId,
+            nv.UcPathName,
+            nv.Department,
+            nv.InAllProjects,
+            nv.NifaSfn,
+            pgm.PgmProjectNumbers,
+            pgm.HasPgmMatch,
+            CASE
+                WHEN nv.SfnOverride IS NOT NULL THEN 0
+                ELSE pgm.HasSfnMismatch
+            END AS HasSfnMismatch
+        FROM IncludedNifa nv
+        LEFT JOIN PgmByProject pgm
+            ON pgm.AccessionNumber = nv.AccessionNumber
+    )
     -- Each included reportable NIFA project with its Project Identification
     -- status: exactly one row and one status per project. The statuses are
     -- mutually exclusive by construction: a project not in AllProjects has no
@@ -31,64 +104,5 @@ RETURN
             WHEN HasSfnMismatch = 1                    THEN 'SFN mismatch'
             ELSE 'Clean'
         END AS NVARCHAR(30))                     AS [Status]
-    FROM
-    (
-        SELECT
-            nv.AccessionNumber,
-            nv.ProjectNumber,
-            nv.AwardNumber,
-            nv.AwardKey,
-            nv.Is204,
-            nv.Notes,
-            COALESCE(NULLIF(nv.ProjectDirector, ''), NULLIF(nv.AllProjectDirector, '')) AS Pi,
-            nv.PdEmailAddress,
-            nv.UcpEmployeeId,
-            nv.UcPathName,
-            nv.Department,
-            nv.InAllProjects,
-            nv.NifaSfn,
-            nv.SfnOverride,
-            pgm.PgmProjectNumbers,
-            pgm.HasPgmMatch,
-            CASE
-                WHEN nv.SfnOverride IS NOT NULL THEN 0
-                ELSE pgm.HasSfnMismatch
-            END AS HasSfnMismatch
-        FROM [data].[NifaProjectsForCycle](@CycleStart, @CycleEnd) nv
-        CROSS APPLY
-        (
-            SELECT CASE nv.NifaSfn
-                WHEN '201' THEN 'HATCH'
-                WHEN '202' THEN 'HATCH'
-                WHEN '204' THEN '204'
-                WHEN '205' THEN '205'
-                ELSE '__UNMAPPED__'
-            END AS ExpectedPgmSfnBucket
-        ) expected
-        OUTER APPLY
-        (
-            SELECT
-                STRING_AGG(CAST(pgmMatch.ProjectNumber AS NVARCHAR(MAX)), ', ')
-                    WITHIN GROUP (ORDER BY pgmMatch.ProjectNumber) AS PgmProjectNumbers,
-                CASE WHEN COUNT_BIG(*) > 0 THEN 1 ELSE 0 END AS HasPgmMatch,
-                MAX(pgmMatch.HasSfnMismatch) AS HasSfnMismatch
-            FROM
-            (
-                SELECT
-                    pc.ProjectNumber,
-                    CASE
-                        -- any matched PGM award whose bucket conflicts with the NIFA
-                        -- SFN (201/202 collapse to HATCH; silent when the PGM bucket is
-                        -- NULL)
-                        WHEN pc.PgmSfnBucket IS NOT NULL
-                             AND pc.PgmSfnBucket <> expected.ExpectedPgmSfnBucket
-                        THEN 1
-                        ELSE 0
-                    END AS HasSfnMismatch
-                FROM [data].[v_PgmProjectSfnBuckets] pc
-                WHERE pc.AwardKey = nv.AwardKey
-            ) pgmMatch
-        ) pgm
-        WHERE nv.ExcludeFromUi = 0
-    ) ActiveWithPgm
+    FROM ActiveWithPgm
 );
