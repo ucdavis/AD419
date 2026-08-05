@@ -29,10 +29,10 @@ RETURN
         a.PgmAwardKeyOverride,
         a.SfnOverride,
         CASE WHEN ap.AllProjectId IS NULL THEN 0 ELSE 1 END AS InAllProjects,
-        COALESCE(NULLIF(LTRIM(RTRIM(a.SfnOverride)), ''), derived.NifaSfn) AS NifaSfn,
+        COALESCE(a.SfnOverride, derived.NifaSfn) AS NifaSfn,
         ap.AwardNumber,
         COALESCE(
-            a.PgmAwardKeyOverrideNormalized,
+            a.PgmAwardKeyOverride,
             ap.AwardKey
         ) AS AwardKey,
         ap.Title,
@@ -80,8 +80,8 @@ RETURN
             x.ProjectEndDate
         FROM [data].[AllProjects] x
         WHERE a.AllProjectIdOverride IS NULL
-          AND x.ProjectNumberNormalized = a.ProjectNumberNormalized
-          AND x.AccessionNumberNormalized = a.AccessionNumberNormalized
+          AND x.ProjectNumber = a.ProjectNumber
+          AND x.AccessionNumber = a.AccessionNumber
           AND (x.ProjectEndDate IS NULL OR x.ProjectEndDate >= @CycleStart)
           AND (x.ProjectStartDate IS NULL OR x.ProjectStartDate <= @CycleEnd)
         ORDER BY x.AllProjectId

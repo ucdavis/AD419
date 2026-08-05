@@ -489,6 +489,8 @@ public sealed class FlatFileImportService(
             }
         }
 
+        ApplyDerivedValues(definition, parsedValues);
+
         var result = new ImportRowResult(rowNumber, values, rowErrors, cellErrors);
         return new ParsedImportRow(rowNumber, result, parsedValues, sourceHeaders);
     }
@@ -544,8 +546,20 @@ public sealed class FlatFileImportService(
             }
         }
 
+        ApplyDerivedValues(definition, parsedValues);
+
         var result = new ImportRowResult(rowNumber, values, rowErrors, cellErrors);
         return new ParsedImportRow(rowNumber, result, parsedValues, sourceHeaders);
+    }
+
+    private static void ApplyDerivedValues(
+        ImportDatasetDefinition definition,
+        Dictionary<string, object?> parsedValues)
+    {
+        foreach (var column in definition.Columns.Where(column => column.ValueFactory is not null))
+        {
+            parsedValues[column.TargetColumn] = column.ValueFactory!(parsedValues);
+        }
     }
 
     private static string ReadCsvField(CsvReader csv, int columnNumber)

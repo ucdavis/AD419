@@ -51,7 +51,7 @@ RETURN
             pgm.PgmProjectNumbers,
             pgm.HasPgmMatch,
             CASE
-                WHEN NULLIF(LTRIM(RTRIM(nv.SfnOverride)), '') IS NOT NULL THEN 0
+                WHEN nv.SfnOverride IS NOT NULL THEN 0
                 ELSE pgm.HasSfnMismatch
             END AS HasSfnMismatch
         FROM [data].[NifaProjectsForCycle](@CycleStart, @CycleEnd) nv

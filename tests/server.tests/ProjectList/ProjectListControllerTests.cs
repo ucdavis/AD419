@@ -209,7 +209,10 @@ public class ProjectListControllerTests
             CancellationToken cancellationToken)
         {
             ReceivedCandidateCycles.Add(cycle);
-            return Task.FromResult<IReadOnlyList<SfnCandidateDto>>([new("204", "PGM master data")]);
+            return Task.FromResult<IReadOnlyList<SfnCandidateDto>>(
+            [
+                new("204", "Contracts, Grants, Research Coop Agreements", "PGM master data", true),
+            ]);
         }
 
         public Task<ProjectListUpdateResult> ExcludeAsync(

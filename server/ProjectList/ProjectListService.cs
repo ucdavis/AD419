@@ -65,8 +65,8 @@ public sealed class ProjectListService(
                 FROM [data].[ActiveProjects]
                 WHERE ISNULL([ExcludeFromUi], 0) = 1
                    OR [AllProjectIdOverride] IS NOT NULL
-                   OR [PgmAwardKeyOverrideNormalized] IS NOT NULL
-                   OR NULLIF(LTRIM(RTRIM([SfnOverride])), '') IS NOT NULL
+                   OR [PgmAwardKeyOverride] IS NOT NULL
+                   OR [SfnOverride] IS NOT NULL
             )
             THEN 1 ELSE 0 END AS BIT);
             """,
@@ -170,10 +170,10 @@ public sealed class ProjectListService(
             commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
             cancellationToken: cancellationToken))).ToList();
 
-        var candidates = new List<SfnCandidateDto>();
+        var recommendedSources = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (var row in values)
         {
-            AddSfnCandidate(candidates, row.NifaSfn, "NIFA project suffix");
+            AddSfnRecommendation(recommendedSources, row.NifaSfn, "NIFA project suffix");
 
             var pgmSfn = row.PgmSfnBucket switch
             {
@@ -181,10 +181,20 @@ public sealed class ProjectListService(
                 "HATCH" when row.NifaSfn is "201" or "202" => row.NifaSfn,
                 _ => null,
             };
-            AddSfnCandidate(candidates, pgmSfn, "PGM master data");
+            AddSfnRecommendation(recommendedSources, pgmSfn, "PGM master data");
         }
 
-        return candidates;
+        return SfnCatalog.Entries
+            .Select(entry =>
+            {
+                var sources = recommendedSources.GetValueOrDefault(entry.Code) ?? [];
+                return new SfnCandidateDto(
+                    entry.Code,
+                    entry.Description,
+                    sources.Count == 0 ? null : string.Join(", ", sources),
+                    sources.Count > 0);
+            })
+            .ToList();
     }
 
     public async Task<ProjectListUpdateResult> ExcludeAsync(
@@ -391,8 +401,7 @@ public sealed class ProjectListService(
         string sfn,
         CancellationToken cancellationToken)
     {
-        var normalizedSfn = sfn.Trim();
-        if (!SfnCatalog.Entries.Any(entry => entry.Code == normalizedSfn))
+        if (!SfnCatalog.Entries.Any(entry => entry.Code == sfn))
         {
             return new ProjectListUpdateResult(ProjectListUpdateStatus.InvalidRequest, "SFN is not valid for project resolution.");
         }
@@ -428,7 +437,7 @@ public sealed class ProjectListService(
             new
             {
                 accession = accession.Trim(),
-                sfn = normalizedSfn,
+                sfn,
                 cycleStart = cycle.CycleStart.ToDateTime(TimeOnly.MinValue),
                 cycleEnd = cycle.CycleEnd.ToDateTime(TimeOnly.MinValue),
             },
@@ -538,19 +547,27 @@ public sealed class ProjectListService(
             cycle.CycleStart.ToDateTime(TimeOnly.MinValue),
             cycle.CycleEnd.ToDateTime(TimeOnly.MinValue));
 
-    private static void AddSfnCandidate(
-        List<SfnCandidateDto> candidates,
+    private static void AddSfnRecommendation(
+        Dictionary<string, List<string>> recommendedSources,
         string? sfn,
         string source)
     {
         if (string.IsNullOrWhiteSpace(sfn)
-            || !SfnCatalog.Entries.Any(entry => entry.Code == sfn)
-            || candidates.Any(candidate => candidate.Sfn == sfn && candidate.Source == source))
+            || !SfnCatalog.Entries.Any(entry => entry.Code == sfn))
         {
             return;
         }
 
-        candidates.Add(new SfnCandidateDto(sfn, source));
+        if (!recommendedSources.TryGetValue(sfn, out var sources))
+        {
+            sources = [];
+            recommendedSources[sfn] = sources;
+        }
+
+        if (!sources.Contains(source))
+        {
+            sources.Add(source);
+        }
     }
 
     private static DateOnly? ToDateOnly(DateTime? value)
@@ -636,9 +653,7 @@ public sealed class ProjectListService(
         (
             SELECT
                 [AccessionNumber],
-                [ProjectNumber],
-                [AccessionNumberNormalized],
-                [ProjectNumberNormalized]
+                [ProjectNumber]
             FROM [data].[ActiveProjects]
             WHERE [AccessionNumber] = @accession
         )
@@ -668,8 +683,8 @@ public sealed class ProjectListService(
                 OR ap.[Department] LIKE '%' + @search + '%' ESCAPE '\'
           )
         ORDER BY
-            CASE WHEN cp.[ProjectNumberNormalized] IS NOT NULL AND ap.[ProjectNumberNormalized] = cp.[ProjectNumberNormalized] THEN 0 ELSE 1 END,
-            CASE WHEN cp.[AccessionNumberNormalized] IS NOT NULL AND ap.[AccessionNumberNormalized] = cp.[AccessionNumberNormalized] THEN 0 ELSE 1 END,
+            CASE WHEN cp.[ProjectNumber] IS NOT NULL AND ap.[ProjectNumber] = cp.[ProjectNumber] THEN 0 ELSE 1 END,
+            CASE WHEN cp.[AccessionNumber] IS NOT NULL AND ap.[AccessionNumber] = cp.[AccessionNumber] THEN 0 ELSE 1 END,
             ap.[AllProjectId];
         """;
 

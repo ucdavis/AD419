@@ -63,6 +63,19 @@ public class FlatFileImportServiceTests
     }
 
     [Fact]
+    public void All_projects_import_derives_award_key_from_trimmed_award_number()
+    {
+        var registry = new FlatFileImportRegistry();
+        var dataset = registry.Find("all-projects");
+        var column = dataset?.Columns.Single(item => item.TargetColumn == "AwardKey");
+
+        column.Should().NotBeNull();
+        column!.IsDerived.Should().BeTrue();
+        column.ValueFactory!(new Dictionary<string, object?> { ["AwardNumber"] = " 2025-001 " })
+            .Should().Be("2025001");
+    }
+
+    [Fact]
     public async Task Import_rejects_unsupported_file_types()
     {
         await using var db = TestDbContextFactory.CreateInMemory();

@@ -1,11 +1,9 @@
 CREATE VIEW [data].[v_PgmProjectSfnBuckets]
 AS
--- Each PGM award classified to an SFN bucket from its CFDA. The CFDA is
--- zero-padded to NN.NNN first because the warehouse stores 10.310 as the
--- number 10.31, then joined to the ALN catalog. The catalog is deduped by
--- ProgramNumber (imports may carry duplicates); a program counts as NIFA when
--- any of its rows says so. When the catalog has no match (or is not yet
--- loaded) the bucket is NULL.
+-- Each PGM award classified to an SFN bucket from its imported CFDA program
+-- number. The catalog is deduped by ProgramNumber (imports may carry
+-- duplicates); a program counts as NIFA when any of its rows says so. When the
+-- catalog has no match (or is not yet loaded) the bucket is NULL.
 WITH AlnCatalog AS
 (
     SELECT

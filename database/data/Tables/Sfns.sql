@@ -1,0 +1,6 @@
+CREATE TABLE [data].[Sfns]
+(
+    [Sfn] NVARCHAR(10) NOT NULL,
+    [Label] NVARCHAR(100) NOT NULL,
+    CONSTRAINT [PK_Sfns] PRIMARY KEY CLUSTERED ([Sfn])
+);

@@ -104,4 +104,15 @@ public class PgmProjectsImportServiceTests
         query.Should().NotContain("LoadedAt");
         query.Should().NotContain("SYSUTCDATETIME");
     }
+
+    [Fact]
+    public void BuildRemoteQuery_imports_raw_and_normalized_award_identifiers()
+    {
+        var query = PgmProjectsImportService.BuildRemoteQuery();
+
+        query.Should().Contain("NULLIF(TRIM(r.cfda), '') AS cfda");
+        query.Should().Contain("NULLIF(TRIM(r.sponsor_award_number), '') AS sponsor_award_number");
+        query.Should().Contain("NULLIF(REPLACE(TRIM(r.sponsor_award_number), '-', ''), '') AS sponsor_award_key");
+        query.Should().Contain("END AS cfda_program_number");
+    }
 }

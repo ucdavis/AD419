@@ -431,7 +431,20 @@ describe('AD419 workflow routes', () => {
         ({ params, request }) => {
           expect(params.accession).toBe('1055356');
           sfnCandidateFy = new URL(request.url).searchParams.get('fy');
-          return HttpResponse.json([{ sfn: '205', source: 'PGM master data' }]);
+          return HttpResponse.json([
+            {
+              description: 'Hatch Funds',
+              isRecommended: false,
+              sfn: '201',
+              source: null,
+            },
+            {
+              description: 'OtherFunds(AnimalHealthSec1433,Evans-Allen)',
+              isRecommended: true,
+              sfn: '205',
+              source: 'PGM master data',
+            },
+          ]);
         }
       ),
       http.post(
@@ -468,7 +481,9 @@ describe('AD419 workflow routes', () => {
 
       await user.click(screen.getByRole('button', { name: 'Select SFN' }));
       await user.click(
-        await screen.findByRole('button', { name: '205 · PGM master data' })
+        await screen.findByRole('button', {
+          name: '205 - OtherFunds(AnimalHealthSec1433,Evans-Allen) · PGM master data',
+        })
       );
 
       await waitFor(() => {

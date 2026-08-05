@@ -61,7 +61,9 @@ public sealed record PgmAwardCandidateDto(
 
 public sealed record SfnCandidateDto(
     string Sfn,
-    string Source);
+    string Description,
+    string? Source,
+    bool IsRecommended);
 
 public sealed record LinkAllProjectRequest(int? AllProjectId);
 

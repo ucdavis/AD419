@@ -75,8 +75,10 @@ export interface PgmAwardCandidate {
 }
 
 export interface SfnCandidate {
+  description: string;
+  isRecommended: boolean;
   sfn: string;
-  source: string;
+  source: string | null;
 }
 
 export interface ProjectResolutionEditsResponse {

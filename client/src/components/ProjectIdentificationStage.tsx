@@ -399,10 +399,49 @@ function ProjectIssueResolutionControl({
   }
 
   const pending = mutation.isPending;
+  const activePicker =
+    mode === 'all-project' ? (
+      <AllProjectPicker
+        accession={accession}
+        disabled={pending}
+        fiscalYear={fiscalYear}
+        onSelect={(candidate) =>
+          mutation.mutate({
+            allProjectId: candidate.allProjectId,
+            kind: 'link-all-project',
+          })
+        }
+        search={search}
+        setSearch={setSearch}
+      />
+    ) : mode === 'pgm-award' ? (
+      <PgmAwardPicker
+        accession={accession}
+        disabled={pending}
+        fiscalYear={fiscalYear}
+        onSelect={(candidate) =>
+          mutation.mutate({
+            awardKey: candidate.awardKey,
+            kind: 'link-pgm-award',
+          })
+        }
+        search={search}
+        setSearch={setSearch}
+      />
+    ) : mode === 'sfn' ? (
+      <SfnPicker
+        accession={accession}
+        disabled={pending}
+        fiscalYear={fiscalYear}
+        onSelect={(candidate) =>
+          mutation.mutate({ kind: 'set-sfn', sfn: candidate.sfn })
+        }
+      />
+    ) : null;
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-2">
+    <div className="relative space-y-2">
+      <div className="flex flex-wrap justify-end gap-2">
         {row.status === 'No PGM match' ? (
           <button
             className="btn btn-xs btn-outline"
@@ -457,47 +496,10 @@ function ProjectIssueResolutionControl({
         </div>
       ) : null}
 
-      {mode === 'all-project' ? (
-        <AllProjectPicker
-          accession={accession}
-          disabled={pending}
-          fiscalYear={fiscalYear}
-          onSelect={(candidate) =>
-            mutation.mutate({
-              allProjectId: candidate.allProjectId,
-              kind: 'link-all-project',
-            })
-          }
-          search={search}
-          setSearch={setSearch}
-        />
-      ) : null}
-
-      {mode === 'pgm-award' ? (
-        <PgmAwardPicker
-          accession={accession}
-          disabled={pending}
-          fiscalYear={fiscalYear}
-          onSelect={(candidate) =>
-            mutation.mutate({
-              awardKey: candidate.awardKey,
-              kind: 'link-pgm-award',
-            })
-          }
-          search={search}
-          setSearch={setSearch}
-        />
-      ) : null}
-
-      {mode === 'sfn' ? (
-        <SfnPicker
-          accession={accession}
-          disabled={pending}
-          fiscalYear={fiscalYear}
-          onSelect={(candidate) =>
-            mutation.mutate({ kind: 'set-sfn', sfn: candidate.sfn })
-          }
-        />
+      {activePicker ? (
+        <div className="absolute right-0 top-full z-30 mt-2 w-96 max-w-[calc(100vw-2rem)] text-left">
+          {activePicker}
+        </div>
       ) : null}
 
       <ConfirmationDialog
@@ -647,25 +649,61 @@ function SfnPicker({
   });
 
   if (query.isLoading) {
-    return <div className="text-xs text-slate-500">Loading SFNs...</div>;
+    return (
+      <div className="ml-auto w-80 max-w-full rounded border border-slate-200 bg-white p-2 text-left text-xs text-slate-500 shadow-sm">
+        Loading SFNs...
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-1 rounded border border-slate-200 bg-white p-2">
+    <div className="ml-auto w-80 max-w-full rounded border border-slate-200 bg-white p-1 text-left shadow-sm">
       {(query.data ?? []).length === 0 ? (
-        <p className="text-xs text-slate-500">No SFN candidates found.</p>
+        <p className="px-2 py-1 text-xs text-slate-500">
+          No SFN candidates found.
+        </p>
       ) : (
-        (query.data ?? []).map((candidate) => (
-          <button
-            className="btn btn-xs btn-outline mr-1"
-            disabled={disabled}
-            key={`${candidate.source}-${candidate.sfn}`}
-            onClick={() => onSelect(candidate)}
-            type="button"
-          >
-            {candidate.sfn} · {candidate.source}
-          </button>
-        ))
+        <div className="space-y-1">
+          {(query.data ?? []).map((candidate) => (
+            <button
+              aria-label={`${candidate.sfn} - ${candidate.description}${
+                candidate.source ? ` · ${candidate.source}` : ''
+              }`}
+              className={[
+                'flex w-full items-start gap-2 rounded px-2 py-1.5 text-left text-xs transition',
+                'disabled:cursor-not-allowed disabled:opacity-60',
+                candidate.isRecommended
+                  ? 'bg-sky-50 text-slate-950 hover:bg-sky-100'
+                  : 'text-slate-700 hover:bg-slate-100',
+              ].join(' ')}
+              disabled={disabled}
+              key={`${candidate.source}-${candidate.sfn}`}
+              onClick={() => onSelect(candidate)}
+              type="button"
+            >
+              <span
+                className={[
+                  'shrink-0 rounded border px-1.5 py-0.5 font-semibold leading-none',
+                  candidate.isRecommended
+                    ? 'border-sky-700 bg-sky-700 text-white'
+                    : 'border-slate-300 bg-slate-50 text-slate-700',
+                ].join(' ')}
+              >
+                {candidate.sfn}
+              </span>
+              <span className="min-w-0">
+                <span className="block break-words font-medium leading-snug">
+                  {candidate.description}
+                </span>
+                {candidate.source ? (
+                  <span className="mt-0.5 block break-words text-[0.68rem] leading-snug text-slate-500">
+                    {candidate.source}
+                  </span>
+                ) : null}
+              </span>
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -687,7 +725,7 @@ function CandidatePanel({
   setSearch: (value: string) => void;
 }) {
   return (
-    <div className="space-y-2 rounded border border-slate-200 bg-white p-2">
+    <div className="space-y-2 rounded border border-slate-200 bg-white p-2 shadow-sm">
       <input
         aria-label="Search candidates"
         className="input input-bordered input-xs w-full"

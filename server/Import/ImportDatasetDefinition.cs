@@ -16,7 +16,11 @@ public sealed record ImportColumn(
     ImportColumnType Type,
     bool Required,
     int? MaxLength,
-    IReadOnlyList<string> SourceHeaders);
+    IReadOnlyList<string> SourceHeaders,
+    Func<IReadOnlyDictionary<string, object?>, object?>? ValueFactory = null)
+{
+    public bool IsDerived => ValueFactory is not null;
+}
 
 public sealed record ImportUniqueKey(string Name, IReadOnlyList<string> Columns);
 
@@ -45,6 +49,11 @@ public sealed partial class ImportDatasetDefinition
         var normalizedHeaderSources = new Dictionary<string, (ImportColumn Column, string SourceHeader)>();
         foreach (var column in columns)
         {
+            if (column.IsDerived)
+            {
+                continue;
+            }
+
             foreach (var sourceHeader in column.SourceHeaders.Append(column.TargetColumn))
             {
                 var normalized = NormalizeHeader(sourceHeader);

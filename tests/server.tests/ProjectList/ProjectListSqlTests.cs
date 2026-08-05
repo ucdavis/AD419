@@ -14,8 +14,10 @@ public class ProjectListSqlTests
         sql.Should().Contain("@CycleEnd DATE");
         sql.Should().Contain("x.ProjectEndDate >= @CycleStart");
         sql.Should().Contain("x.ProjectStartDate <= @CycleEnd");
-        sql.Should().Contain("x.ProjectNumberNormalized = a.ProjectNumberNormalized");
-        sql.Should().Contain("x.AccessionNumberNormalized = a.AccessionNumberNormalized");
+        sql.Should().Contain("x.ProjectNumber = a.ProjectNumber");
+        sql.Should().Contain("x.AccessionNumber = a.AccessionNumber");
+        sql.Should().NotContain("ProjectNumberNormalized");
+        sql.Should().NotContain("AccessionNumberNormalized");
         sql.Should().NotContain("GETDATE()");
     }
 
@@ -76,35 +78,43 @@ public class ProjectListSqlTests
     }
 
     [Fact]
-    public void Project_list_tables_define_normalized_keys_for_matching()
+    public void Project_list_tables_store_imported_lookup_keys_without_computed_cleanup()
     {
         var activeProjectsSql = ReadDatabaseFile("data/Tables/ActiveProjects.sql");
         var allProjectsSql = ReadDatabaseFile("data/Tables/AllProjects.sql");
         var pgmProjectsSql = ReadDatabaseFile("data/Tables/PGMProjects.sql");
         var pgmBucketSql = ReadDatabaseFile("data/Views/v_PgmProjectSfnBuckets.sql");
+        var sfnSql = ReadDatabaseFile("data/Tables/Sfns.sql");
 
-        activeProjectsSql.Should().Contain("[ProjectNumberNormalized]");
-        activeProjectsSql.Should().Contain("[AccessionNumberNormalized]");
-        activeProjectsSql.Should().Contain("[PgmAwardKeyOverrideNormalized]");
-        activeProjectsSql.Should().Contain("[CK_ActiveProjects_SfnOverride_Domain]");
+        activeProjectsSql.Should().Contain("[FK_ActiveProjects_Sfns_SfnOverride]");
         activeProjectsSql.Should().Contain("[CK_ActiveProjects_PgmAwardKeyOverride_NotBlank]");
-        allProjectsSql.Should().Contain("[ProjectNumberNormalized]");
-        allProjectsSql.Should().Contain("[AccessionNumberNormalized]");
-        allProjectsSql.Should().Contain("[AwardKey]");
-        pgmProjectsSql.Should().Contain("[SponsorAwardKey]");
-        pgmProjectsSql.Should().Contain("[CfdaProgramNumber]");
+        activeProjectsSql.Should().NotContain("LTRIM");
+        activeProjectsSql.Should().NotContain("RTRIM");
+        activeProjectsSql.Should().NotContain("PgmAwardKeyOverrideNormalized");
+        allProjectsSql.Should().Contain("[AwardKey] NVARCHAR(16) NULL");
+        allProjectsSql.Should().NotContain(" AS CONVERT");
+        allProjectsSql.Should().NotContain("ProjectNumberNormalized");
+        allProjectsSql.Should().NotContain("AccessionNumberNormalized");
+        pgmProjectsSql.Should().Contain("[SponsorAwardKey] NVARCHAR(100) NULL");
+        pgmProjectsSql.Should().Contain("[CfdaProgramNumber] NVARCHAR(200) NULL");
+        pgmProjectsSql.Should().NotContain(" AS (");
+        pgmProjectsSql.Should().NotContain("LTRIM");
         pgmBucketSql.Should().Contain("pgm.SponsorAwardKey AS AwardKey");
         pgmBucketSql.Should().Contain("pgm.CfdaProgramNumber");
         pgmBucketSql.Should().NotContain("REPLACE(pgm.SponsorAwardNumber");
+        sfnSql.Should().Contain("CREATE TABLE [data].[Sfns]");
+        sfnSql.Should().Contain("[Sfn] NVARCHAR(10) NOT NULL");
+        sfnSql.Should().Contain("[Label] NVARCHAR(100) NOT NULL");
     }
 
     [Fact]
     public void Project_list_matching_columns_have_supporting_indexes()
     {
-        var allProjectsIndexSql = ReadDatabaseFile("data/Indexes/IX_AllProjects_ProjectAccessionNormalized_Cycle.sql");
+        var allProjectsIndexSql = ReadDatabaseFile("data/Indexes/IX_AllProjects_ProjectAccession_Cycle.sql");
         var pgmProjectsIndexSql = ReadDatabaseFile("data/Indexes/IX_PGMProjects_SponsorAwardKey.sql");
 
-        allProjectsIndexSql.Should().Contain("([ProjectNumberNormalized], [AccessionNumberNormalized], [ProjectEndDate], [ProjectStartDate])");
+        allProjectsIndexSql.Should().Contain("([ProjectNumber], [AccessionNumber], [ProjectEndDate], [ProjectStartDate])");
+        allProjectsIndexSql.Should().NotContain("Normalized");
         pgmProjectsIndexSql.Should().Contain("ON [data].[PGMProjects] ([SponsorAwardKey])");
     }
 

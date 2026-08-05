@@ -55,6 +55,8 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
         ("award_end_date", "AwardEndDate"),
         ("cfda", "Cfda"),
         ("sponsor_award_number", "SponsorAwardNumber"),
+        ("sponsor_award_key", "SponsorAwardKey"),
+        ("cfda_program_number", "CfdaProgramNumber"),
         ("primary_sponsor", "PrimarySponsor"),
         ("primary_sponsor_name", "PrimarySponsorName"),
         ("funding_source_name", "FundingSourceName"),
@@ -393,7 +395,16 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
         SELECT r.project_id, r.project_number, r.project_name, r.project_start_date, r.project_end_date,
             r.project_legal_entity, r.project_burden_schedule_base, r.project_burden_cost_rate,
             r.award_number, r.award_name, r.award_status, r.award_type, r.award_purpose,
-            r.award_start_date, r.award_end_date, r.cfda, r.sponsor_award_number,
+            r.award_start_date, r.award_end_date,
+            NULLIF(TRIM(r.cfda), '') AS cfda,
+            NULLIF(TRIM(r.sponsor_award_number), '') AS sponsor_award_number,
+            NULLIF(REPLACE(TRIM(r.sponsor_award_number), '-', ''), '') AS sponsor_award_key,
+            CASE
+                WHEN POSITION('.' IN TRIM(r.cfda)) > 0
+                THEN LEFT(TRIM(r.cfda), POSITION('.' IN TRIM(r.cfda)))
+                     || LEFT(SUBSTRING(TRIM(r.cfda), POSITION('.' IN TRIM(r.cfda)) + 1, 10) || '000', 3)
+                ELSE NULLIF(TRIM(r.cfda), '')
+            END AS cfda_program_number,
             r.primary_sponsor, r.primary_sponsor_name, r.funding_source_name, r.funding_source_number,
             r.awardfundcode, r.fund, r.owning_org_name,
             NULLIF(LEFT(r.organization, 7), '') AS financial_dept_code,
