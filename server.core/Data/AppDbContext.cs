@@ -12,6 +12,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<User> Users => Set<User>();
     public DbSet<WorkflowRun> WorkflowRuns => Set<WorkflowRun>();
     public DbSet<WorkflowChecklistItemState> WorkflowChecklistItemStates => Set<WorkflowChecklistItemState>();
+    public DbSet<ImportRun> ImportRuns => Set<ImportRun>();
+    public DbSet<ImportRunStage> ImportRunStages => Set<ImportRunStage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -22,6 +24,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<User>().ToTable("Users", AppSchema);
         modelBuilder.Entity<WorkflowRun>().ToTable("WorkflowRun", AppSchema);
         modelBuilder.Entity<WorkflowChecklistItemState>().ToTable("WorkflowChecklistItemState", AppSchema);
+        modelBuilder.Entity<ImportRun>().ToTable("ImportRun", AppSchema);
+        modelBuilder.Entity<ImportRunStage>().ToTable("ImportRunStage", AppSchema);
 
         modelBuilder.Entity<WorkflowRun>()
             .HasIndex(run => run.IsCurrent)
@@ -39,5 +43,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .WithMany()
             .HasForeignKey(state => state.SourceImportLogId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<ImportRun>()
+            .HasMany(run => run.Stages)
+            .WithOne(stage => stage.ImportRun)
+            .HasForeignKey(stage => stage.ImportRunId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ImportRun>()
+            .HasIndex(run => run.Status);
     }
 }
