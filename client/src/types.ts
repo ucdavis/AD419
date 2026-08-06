@@ -1,5 +1,6 @@
 export type WorkflowStageId =
   | 'project-identification'
+  | 'data-import'
   | 'data-classification'
   | 'expense-review'
   | 'auto-associations'
