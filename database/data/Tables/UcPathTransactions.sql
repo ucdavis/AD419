@@ -23,6 +23,7 @@ CREATE TABLE [data].[UcPathTransactions]
     [FinanceDocTypeCd]       NVARCHAR(4)    NULL,
     -- Components of the natural key are required.
     [ErnCode]                NVARCHAR(3)    NOT NULL,   -- ERNCD for salary rows, 'XXX' for fringe rows (source ERNCD is blank on most fringe)
+    [ErnDescription]         NVARCHAR(120)  NULL,       -- UC_EARNCD_DESCR from the salary view; NULL on fringe rows. Feeds the Ern seed in SegmentClassifications
     [EmployeeId]             NVARCHAR(10)   NOT NULL,
     [EmployeeName]           NVARCHAR(100)  NULL,
     [PositionNumber]         NVARCHAR(8)    NOT NULL,   -- rare source rows without one are excluded at import

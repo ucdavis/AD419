@@ -43,6 +43,7 @@ CREATE TABLE [data].[AETransactions]
     -- Persisted exclusions for rules not owned by step 2 classification.
     -- NULL = not yet classified (fails closed downstream).
     [ExcludedByDate]                 BIT            NULL,
+    [AccountInUcPath]                BIT            NULL,  -- account also appears in UCPath data (dollars come from payroll detail instead)
 
     [LoadedAt]                       DATETIME2(3)   NULL CONSTRAINT [DF_AETransactions_LoadedAt] DEFAULT (SYSUTCDATETIME()),
     CONSTRAINT [PK_AETransactions] PRIMARY KEY CLUSTERED ([Id])

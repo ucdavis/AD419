@@ -8,11 +8,13 @@ BEGIN
     -- Existing rows and their classifications are never modified: unclassified
     -- fails closed downstream until someone classifies the code in step 2.
     --
-    -- Descriptions come from the ChartSegments reference data where available.
-    -- ERN codes (UCPath earnings codes) have no local description source;
-    -- the UCPath import fills those in from the PeopleSoft earnings table.
-    -- 'XXX' is the placeholder ERN code on fringe rows, which carry no FTE, so
-    -- classifying it is meaningless and it is not seeded.
+    -- Descriptions come from the ChartSegments reference data where available;
+    -- ERN descriptions come from the imported UcPathTransactions rows, which
+    -- carry UC_EARNCD_DESCR from the salary view. Existing Ern rows with a
+    -- NULL description are backfilled the same way (a description is metadata,
+    -- not a classification). 'XXX' is the placeholder ERN code on fringe rows,
+    -- which carry no FTE, so classifying it is meaningless and it is not
+    -- seeded.
 
     DECLARE @inserted TABLE ([SegmentType] NVARCHAR(20) NOT NULL);
 
@@ -45,10 +47,18 @@ BEGIN
     SELECT
         tv.SegmentType,
         tv.Code,
-        LEFT(cs.[Description], 300)
+        LEFT(COALESCE(cs.[Description], ern.[Description]), 300)
     FROM TransactionValues tv
     LEFT JOIN [data].[ChartSegments] cs
         ON cs.[SegmentName] = tv.SegmentType AND cs.[Code] = tv.Code
+    LEFT JOIN
+    (
+        SELECT [ErnCode], MAX([ErnDescription]) AS [Description]
+        FROM [data].[UcPathTransactions]
+        WHERE [ErnDescription] IS NOT NULL
+        GROUP BY [ErnCode]
+    ) ern
+        ON tv.SegmentType = 'Ern' AND ern.[ErnCode] = tv.Code
     WHERE NOT EXISTS
     (
         SELECT 1
@@ -56,6 +66,22 @@ BEGIN
         WHERE existing.[SegmentType] = tv.SegmentType
           AND existing.[Code] = tv.Code
     );
+
+    -- Backfill descriptions on Ern rows seeded before their description was
+    -- available (for example a code first seen on rows imported after the
+    -- code itself was seeded).
+    UPDATE sc
+    SET sc.[Description] = LEFT(ern.[Description], 300)
+    FROM [data].[SegmentClassifications] sc
+    JOIN
+    (
+        SELECT [ErnCode], MAX([ErnDescription]) AS [Description]
+        FROM [data].[UcPathTransactions]
+        WHERE [ErnDescription] IS NOT NULL
+        GROUP BY [ErnCode]
+    ) ern
+        ON ern.[ErnCode] = sc.[Code]
+    WHERE sc.[SegmentType] = 'Ern' AND sc.[Description] IS NULL;
 
     -- One row per segment type with the number of newly seeded codes
     -- (types with nothing new are omitted).
