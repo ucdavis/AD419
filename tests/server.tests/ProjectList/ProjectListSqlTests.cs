@@ -14,6 +14,8 @@ public class ProjectListSqlTests
         sql.Should().Contain("@CycleEnd DATE");
         sql.Should().Contain("x.ProjectEndDate >= @CycleStart");
         sql.Should().Contain("x.ProjectStartDate <= @CycleEnd");
+        sql.Should().Contain("overrideProject.ProjectEndDate >= @CycleStart");
+        sql.Should().Contain("overrideProject.ProjectStartDate <= @CycleEnd");
         sql.Should().Contain("x.ProjectNumber = a.ProjectNumber");
         sql.Should().Contain("x.AccessionNumber = a.AccessionNumber");
         sql.Should().Contain("MIN(x.AllProjectId) AS AllProjectId");
