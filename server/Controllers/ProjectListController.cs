@@ -1,11 +1,15 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Server.Core.Data;
 using Server.Models;
 using Server.Models.ProjectList;
 using Server.ProjectList;
 
 namespace Server.Controllers;
 
-public sealed class ProjectListController(IProjectListService projectListService) : ApiControllerBase
+public sealed class ProjectListController(
+    IProjectListService projectListService,
+    AppDbContext appDb) : ApiControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Get([FromQuery] string? fy, CancellationToken cancellationToken)
@@ -74,15 +78,19 @@ public sealed class ProjectListController(IProjectListService projectListService
         return Ok(response);
     }
 
+    // Resolution writes source the cycle from the confirmed fiscal period,
+    // never from the client: a stale browser tab must not be able to apply
+    // edits against the wrong year. Reads keep the client fy because they only
+    // window what is displayed.
     [HttpPost("{accession}/exclude")]
     public async Task<IActionResult> Exclude(
         [FromRoute] string accession,
-        [FromQuery] string? fy,
         CancellationToken cancellationToken)
     {
-        if (!TryParseCycle(fy, out var cycle, out var error))
+        var (cycle, cycleError) = await GetConfirmedCycleAsync(cancellationToken);
+        if (cycle is null)
         {
-            return BadRequest(error);
+            return cycleError!;
         }
 
         var result = await projectListService.ExcludeAsync(cycle, accession, cancellationToken);
@@ -92,13 +100,13 @@ public sealed class ProjectListController(IProjectListService projectListService
     [HttpPost("{accession}/link-all-project")]
     public async Task<IActionResult> LinkAllProject(
         [FromRoute] string accession,
-        [FromQuery] string? fy,
         LinkAllProjectRequest request,
         CancellationToken cancellationToken)
     {
-        if (!TryParseCycle(fy, out var cycle, out var error))
+        var (cycle, cycleError) = await GetConfirmedCycleAsync(cancellationToken);
+        if (cycle is null)
         {
-            return BadRequest(error);
+            return cycleError!;
         }
 
         if (request.AllProjectId is not { } allProjectId)
@@ -113,13 +121,13 @@ public sealed class ProjectListController(IProjectListService projectListService
     [HttpPost("{accession}/link-pgm-award")]
     public async Task<IActionResult> LinkPgmAward(
         [FromRoute] string accession,
-        [FromQuery] string? fy,
         LinkPgmAwardRequest request,
         CancellationToken cancellationToken)
     {
-        if (!TryParseCycle(fy, out var cycle, out var error))
+        var (cycle, cycleError) = await GetConfirmedCycleAsync(cancellationToken);
+        if (cycle is null)
         {
-            return BadRequest(error);
+            return cycleError!;
         }
 
         if (string.IsNullOrWhiteSpace(request.AwardKey))
@@ -134,13 +142,13 @@ public sealed class ProjectListController(IProjectListService projectListService
     [HttpPost("{accession}/set-sfn")]
     public async Task<IActionResult> SetSfn(
         [FromRoute] string accession,
-        [FromQuery] string? fy,
         SetSfnRequest request,
         CancellationToken cancellationToken)
     {
-        if (!TryParseCycle(fy, out var cycle, out var error))
+        var (cycle, cycleError) = await GetConfirmedCycleAsync(cancellationToken);
+        if (cycle is null)
         {
-            return BadRequest(error);
+            return cycleError!;
         }
 
         if (string.IsNullOrWhiteSpace(request.Sfn))
@@ -150,6 +158,18 @@ public sealed class ProjectListController(IProjectListService projectListService
 
         var result = await projectListService.SetSfnAsync(cycle, accession, request.Sfn, cancellationToken);
         return MapProjectListUpdateResult(result);
+    }
+
+    private async Task<(FiscalYearCycle? Cycle, IActionResult? Error)> GetConfirmedCycleAsync(
+        CancellationToken cancellationToken)
+    {
+        var run = await appDb.WorkflowRuns.SingleOrDefaultAsync(r => r.IsCurrent, cancellationToken);
+        if (run is null || !FiscalYearCycle.TryParse(run.FiscalYear, out var cycle))
+        {
+            return (null, Conflict("No fiscal period has been confirmed in Project Identification."));
+        }
+
+        return (cycle, null);
     }
 
     private static bool TryParseCycle(

@@ -1,6 +1,8 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Server.Controllers;
+using Server.Core.Data;
+using Server.Core.Domain;
 using Server.Models;
 using Server.Models.ProjectList;
 using Server.ProjectList;
@@ -9,6 +11,22 @@ namespace Server.Tests.ProjectList;
 
 public class ProjectListControllerTests
 {
+    private static async Task<AppDbContext> CreateDbWithConfirmedRunAsync(string fiscalYear = "FY25")
+    {
+        var db = TestDbContextFactory.CreateInMemory();
+        db.WorkflowRuns.Add(new WorkflowRun
+        {
+            FiscalYear = fiscalYear,
+            CycleStart = new DateOnly(2024, 10, 1),
+            CycleEnd = new DateOnly(2025, 9, 30),
+            IsCurrent = true,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
+        await db.SaveChangesAsync();
+        return db;
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -16,7 +34,8 @@ public class ProjectListControllerTests
     [InlineData("FY10000")]
     public async Task Get_returns_bad_request_for_missing_or_invalid_fy(string? fy)
     {
-        var controller = new ProjectListController(new StubProjectListService());
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var controller = new ProjectListController(new StubProjectListService(), db);
 
         var result = await controller.Get(fy, CancellationToken.None);
 
@@ -26,8 +45,9 @@ public class ProjectListControllerTests
     [Fact]
     public async Task Get_passes_cycle_to_service_and_returns_response()
     {
+        await using var db = TestDbContextFactory.CreateInMemory();
         var service = new StubProjectListService();
-        var controller = new ProjectListController(service);
+        var controller = new ProjectListController(service, db);
 
         var result = await controller.Get("FY26", CancellationToken.None);
 
@@ -42,11 +62,11 @@ public class ProjectListControllerTests
     [Fact]
     public async Task Link_all_project_requires_id()
     {
-        var controller = new ProjectListController(new StubProjectListService());
+        await using var db = await CreateDbWithConfirmedRunAsync();
+        var controller = new ProjectListController(new StubProjectListService(), db);
 
         var result = await controller.LinkAllProject(
             "1000002",
-            "FY26",
             new LinkAllProjectRequest(null),
             CancellationToken.None);
 
@@ -56,13 +76,14 @@ public class ProjectListControllerTests
     [Fact]
     public async Task Exclude_maps_conflicts_from_service()
     {
+        await using var db = await CreateDbWithConfirmedRunAsync();
         var service = new StubProjectListService
         {
             NextUpdateResult = new ProjectListUpdateResult(ProjectListUpdateStatus.Conflict, "Wrong status."),
         };
-        var controller = new ProjectListController(service);
+        var controller = new ProjectListController(service, db);
 
-        var result = await controller.Exclude("1000002", "FY25", CancellationToken.None);
+        var result = await controller.Exclude("1000002", CancellationToken.None);
 
         result.Should().BeOfType<ConflictObjectResult>();
         service.ReceivedUpdateCycle.Should().Be(new FiscalYearCycle(
@@ -74,8 +95,9 @@ public class ProjectListControllerTests
     [Fact]
     public async Task Candidate_endpoints_return_service_results()
     {
+        await using var db = TestDbContextFactory.CreateInMemory();
         var service = new StubProjectListService();
-        var controller = new ProjectListController(service);
+        var controller = new ProjectListController(service, db);
 
         var allProjects = await controller.AllProjectCandidates("1000002", "FY25", null, CancellationToken.None);
         var pgmAwards = await controller.PgmAwardCandidates("1000002", "FY25", null, CancellationToken.None);
@@ -97,25 +119,53 @@ public class ProjectListControllerTests
     }
 
     [Fact]
-    public async Task Candidate_and_resolution_endpoints_require_fy()
+    public async Task Candidate_endpoints_require_fy()
     {
-        var controller = new ProjectListController(new StubProjectListService());
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var controller = new ProjectListController(new StubProjectListService(), db);
 
         var candidates = await controller.PgmAwardCandidates("1000002", null, null, CancellationToken.None);
-        var resolution = await controller.SetSfn(
+
+        candidates.Result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task Resolution_writes_use_the_confirmed_cycle_not_the_client()
+    {
+        await using var db = await CreateDbWithConfirmedRunAsync();
+        var service = new StubProjectListService();
+        var controller = new ProjectListController(service, db);
+
+        var result = await controller.SetSfn(
             "1000002",
-            null,
             new SetSfnRequest("204"),
             CancellationToken.None);
 
-        candidates.Result.Should().BeOfType<BadRequestObjectResult>();
-        resolution.Should().BeOfType<BadRequestObjectResult>();
+        result.Should().BeOfType<NoContentResult>();
+        service.ReceivedUpdateCycle.Should().Be(new FiscalYearCycle(
+            "FY25",
+            new DateOnly(2024, 10, 1),
+            new DateOnly(2025, 9, 30)));
+    }
+
+    [Fact]
+    public async Task Resolution_writes_conflict_when_no_fiscal_period_is_confirmed()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var controller = new ProjectListController(new StubProjectListService(), db);
+
+        var exclude = await controller.Exclude("1000002", CancellationToken.None);
+        var setSfn = await controller.SetSfn("1000002", new SetSfnRequest("204"), CancellationToken.None);
+
+        exclude.Should().BeOfType<ConflictObjectResult>();
+        setSfn.Should().BeOfType<ConflictObjectResult>();
     }
 
     [Fact]
     public async Task Resolution_edits_returns_service_flag()
     {
-        var controller = new ProjectListController(new StubProjectListService { HasResolutionEdits = true });
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var controller = new ProjectListController(new StubProjectListService { HasResolutionEdits = true }, db);
 
         var result = await controller.ResolutionEdits(CancellationToken.None);
 
