@@ -5,6 +5,7 @@ CREATE TABLE [data].[AllProjects]
     [ProjectNumber] NVARCHAR(20) NULL,
     [ProposalNumber] NVARCHAR(10) NULL,
     [AwardNumber] NVARCHAR(16) NULL,
+    [AwardKey] NVARCHAR(16) NULL,
     [Title] NVARCHAR(MAX) NULL,
     [OrganizationName] NVARCHAR(300) NOT NULL,
     [Department] NVARCHAR(300) NULL,

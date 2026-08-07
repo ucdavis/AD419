@@ -104,3 +104,12 @@ export async function setChecklistItemCompletion(
     }
   );
 }
+
+export async function finalizeProjects() {
+  return fetchJson<ProjectIdentificationSetupResponse>(
+    '/api/projectidentification/finalize',
+    {
+      method: 'POST',
+    }
+  );
+}

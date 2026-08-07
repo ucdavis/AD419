@@ -3,7 +3,10 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { FlatFileImportPanel } from '@/components/FlatFileImportPanel.tsx';
+import {
+  FlatFileImportChecklistItem,
+  FlatFileImportPanel,
+} from '@/components/FlatFileImportPanel.tsx';
 import { server } from '@/test/mswUtils.ts';
 
 describe('FlatFileImportPanel', () => {
@@ -344,6 +347,128 @@ describe('FlatFileImportPanel', () => {
       ).toBeInTheDocument();
       expect(screen.getByLabelText('Import file')).toHaveValue('');
       expect(screen.getByRole('button', { name: 'Upload' })).toBeDisabled();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('asks for confirmation before a re-import when resolution edits exist', async () => {
+    const user = userEvent.setup();
+    let postCount = 0;
+
+    server.use(
+      http.get('/api/projectlist/resolution-edits', () =>
+        HttpResponse.json({ hasResolutionEdits: true })
+      ),
+      http.get('/api/imports/:id', () =>
+        HttpResponse.json({
+          attemptedRows: 1,
+          dataset: 'active-projects',
+          filename: 'active-projects.csv',
+          id: 50,
+          importedAt: '2026-06-09T18:30:00Z',
+          rowsImported: 1,
+          status: 'Succeeded',
+          validation: null,
+        })
+      ),
+      http.post('/api/imports/:dataset', () => {
+        postCount += 1;
+
+        return HttpResponse.json({
+          dataset: 'active-projects',
+          filename: 'active-projects.csv',
+          importedAt: '2026-06-09T18:30:00Z',
+          importLogId: 50,
+          rowsImported: 1,
+          succeeded: true,
+        });
+      })
+    );
+
+    const { cleanup } = renderChecklistImport();
+
+    try {
+      await user.upload(
+        screen.getByLabelText('Import file'),
+        new File(['test'], 'active-projects.csv', {
+          type: 'text/csv',
+        })
+      );
+      await user.click(screen.getByRole('button', { name: 'Upload' }));
+
+      expect(
+        await screen.findByRole('dialog', {
+          name: 'Replace imported project data?',
+        })
+      ).toBeInTheDocument();
+      expect(postCount).toBe(0);
+
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(
+        screen.queryByRole('dialog', {
+          name: 'Replace imported project data?',
+        })
+      ).not.toBeInTheDocument();
+      expect(postCount).toBe(0);
+
+      await user.click(screen.getByRole('button', { name: 'Upload' }));
+      await user.click(
+        await screen.findByRole('button', { name: 'Upload and replace' })
+      );
+
+      expect(
+        await screen.findByText(/Imported 1 rows from\s+active-projects\.csv/)
+      ).toBeInTheDocument();
+      expect(postCount).toBe(1);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('asks for confirmation before a re-import when resolution edits cannot be checked', async () => {
+    const user = userEvent.setup();
+    let postCount = 0;
+
+    server.use(
+      http.get('/api/projectlist/resolution-edits', () =>
+        HttpResponse.text('Unable to check resolution edits.', { status: 500 })
+      ),
+      http.post('/api/imports/:dataset', () => {
+        postCount += 1;
+
+        return HttpResponse.json({
+          dataset: 'active-projects',
+          filename: 'active-projects.csv',
+          importedAt: '2026-06-09T18:30:00Z',
+          importLogId: 50,
+          rowsImported: 1,
+          succeeded: true,
+        });
+      })
+    );
+
+    const { cleanup } = renderChecklistImport();
+
+    try {
+      await user.upload(
+        screen.getByLabelText('Import file'),
+        new File(['test'], 'active-projects.csv', {
+          type: 'text/csv',
+        })
+      );
+
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Upload' })).toBeEnabled()
+      );
+      await user.click(screen.getByRole('button', { name: 'Upload' }));
+
+      expect(
+        await screen.findByRole('dialog', {
+          name: 'Replace imported project data?',
+        })
+      ).toBeInTheDocument();
+      expect(postCount).toBe(0);
     } finally {
       cleanup();
     }
@@ -826,6 +951,44 @@ function renderPanel() {
   const view = render(
     <QueryClientProvider client={queryClient}>
       <FlatFileImportPanel />
+    </QueryClientProvider>
+  );
+
+  return {
+    cleanup: () => {
+      queryClient.clear();
+      view.unmount();
+    },
+  };
+}
+
+function renderChecklistImport() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      mutations: { retry: false },
+      queries: { retry: false },
+    },
+  });
+
+  const view = render(
+    <QueryClientProvider client={queryClient}>
+      <FlatFileImportChecklistItem
+        completed={false}
+        dataset="active-projects"
+        latestImport={{
+          attemptedRows: 12,
+          dataset: 'active-projects',
+          filename: 'active-projects.csv',
+          id: 49,
+          importedAt: '2026-06-08T18:30:00Z',
+          rowsImported: 12,
+          status: 'Succeeded',
+        }}
+        markDonePending={false}
+        onMarkDone={vi.fn()}
+        ready
+        stale={false}
+      />
     </QueryClientProvider>
   );
 

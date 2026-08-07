@@ -68,7 +68,7 @@
   }
 
   .workflow-main {
-    @apply mx-auto flex w-full max-w-[1500px] flex-col gap-6 px-4 py-6 lg:px-8;
+    @apply flex min-w-0 w-full max-w-none flex-col gap-6 px-4 py-6 lg:px-8;
   }
 
   .workflow-stage-header {
@@ -136,5 +136,13 @@
 
   .checklist-item__content {
     @apply border-t border-dashed border-slate-200 px-4 py-4 sm:pl-14;
+  }
+
+  .project-list-ae-column {
+    @apply min-w-96 max-w-[36rem];
+  }
+
+  .project-list-ae-cell {
+    @apply max-h-32 overflow-y-auto whitespace-normal break-words pr-2 leading-relaxed;
   }
 }

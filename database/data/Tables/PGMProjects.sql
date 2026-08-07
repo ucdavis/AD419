@@ -17,6 +17,8 @@ CREATE TABLE [data].[PGMProjects]
     [AwardEndDate] DATE NULL,
     [Cfda] NVARCHAR(200) NULL,
     [SponsorAwardNumber] NVARCHAR(100) NULL,
+    [SponsorAwardKey] NVARCHAR(100) NULL,
+    [CfdaProgramNumber] NVARCHAR(200) NULL,
     [PrimarySponsor] NVARCHAR(100) NULL,
     [PrimarySponsorName] NVARCHAR(300) NULL,
     [FundingSourceName] NVARCHAR(300) NULL,

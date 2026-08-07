@@ -9,6 +9,8 @@ import {
 import type { ColumnDef } from '@tanstack/react-table';
 import { useRef, useState } from 'react';
 import { DataTable } from '@/shared/dataTable.tsx';
+import { projectResolutionEditsQueryOptions } from '@/queries/projectList.ts';
+import { ConfirmationDialog } from '@/shared/ConfirmationDialog.tsx';
 
 export type ImportDatasetId =
   | 'active-projects'
@@ -231,6 +233,7 @@ export function FlatFileImportPanel() {
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['imports', 'recent'] });
+      void queryClient.invalidateQueries({ queryKey: ['projectList'] });
     },
     onSuccess: (response) => {
       setValidation(null);
@@ -362,10 +365,15 @@ export function FlatFileImportChecklistItem({
     null
   );
   const [success, setSuccess] = useState<ImportSuccessResponse | null>(null);
+  const [confirmingUpload, setConfirmingUpload] = useState<File | null>(null);
   const importDetailQuery = useQuery({
     enabled: selectedImportId !== null,
     queryFn: () => fetchImportDetail(selectedImportId!),
     queryKey: ['imports', 'detail', selectedImportId],
+  });
+  const resolutionEditsQuery = useQuery({
+    ...projectResolutionEditsQueryOptions(),
+    enabled: Boolean(latestImport),
   });
   const label = getDatasetLabel(dataset);
 
@@ -401,6 +409,7 @@ export function FlatFileImportChecklistItem({
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['imports', 'recent'] });
+      void queryClient.invalidateQueries({ queryKey: ['projectList'] });
       void queryClient.invalidateQueries({
         queryKey: ['projectIdentification', 'setup'],
       });
@@ -413,20 +422,35 @@ export function FlatFileImportChecklistItem({
     },
   });
 
-  const canUpload = Boolean(file) && !mutation.isPending;
+  const checkingResolutionEdits =
+    Boolean(latestImport) && resolutionEditsQuery.isLoading;
+  const requiresReimportConfirmation =
+    Boolean(latestImport) &&
+    (resolutionEditsQuery.data?.hasResolutionEdits === true ||
+      resolutionEditsQuery.isError);
+  const canUpload = Boolean(file) && !mutation.isPending && !checkingResolutionEdits;
   const canMarkDone = ready && !completed && !markDonePending;
 
-  const handleUpload = () => {
-    if (!file || mutation.isPending) {
-      return;
-    }
-
-    const selectedFile = file;
+  const startUpload = (selectedFile: File) => {
     clearInputFileSelection();
     setValidation(null);
     setSuccess(null);
     setSelectedImportId(null);
+    setConfirmingUpload(null);
     mutation.mutate({ dataset, file: selectedFile });
+  };
+
+  const handleUpload = () => {
+    if (!file || mutation.isPending || checkingResolutionEdits) {
+      return;
+    }
+
+    if (requiresReimportConfirmation) {
+      setConfirmingUpload(file);
+      return;
+    }
+
+    startUpload(file);
   };
 
   return (
@@ -480,7 +504,11 @@ export function FlatFileImportChecklistItem({
           onClick={handleUpload}
           type="button"
         >
-          {mutation.isPending ? 'Uploading' : 'Upload'}
+          {mutation.isPending
+            ? 'Uploading'
+            : checkingResolutionEdits
+              ? 'Checking'
+              : 'Upload'}
         </button>
 
         <button
@@ -514,6 +542,25 @@ export function FlatFileImportChecklistItem({
       )}
 
       {validation && <ValidationResults validation={validation} />}
+
+      <ConfirmationDialog
+        confirmClassName="btn-warning"
+        confirmLabel="Upload and replace"
+        onCancel={() => setConfirmingUpload(null)}
+        onConfirm={() => {
+          if (confirmingUpload) {
+            startUpload(confirmingUpload);
+          }
+        }}
+        open={confirmingUpload !== null}
+        title="Replace imported project data?"
+      >
+        <p>
+          Uploading a new {label} file replaces the imported table. Existing
+          project resolution edits can be cleared or recomputed after this
+          import.
+        </p>
+      </ConfirmationDialog>
     </div>
   );
 }

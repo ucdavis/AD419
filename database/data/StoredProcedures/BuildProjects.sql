@@ -1,4 +1,6 @@
 CREATE PROCEDURE [data].[BuildProjects]
+    @CycleStart DATE,
+    @CycleEnd DATE
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -6,7 +8,13 @@ BEGIN
     -- must roll back the whole rebuild so Projects is never left empty.
     SET XACT_ABORT ON;
 
-    -- Materializes the cycle's consolidated project list from v_NifaProjects
+    IF @CycleStart IS NULL OR @CycleEnd IS NULL
+        THROW 50000, '@CycleStart and @CycleEnd are required.', 1;
+
+    IF @CycleStart > @CycleEnd
+        THROW 50000, '@CycleStart must not be after @CycleEnd.', 1;
+
+    -- Materializes the cycle's consolidated project list from NifaProjectsForCycle
     -- and the PGM master data: one row per NIFA project x AE project pair, or
     -- a single row with null PGM fields when a non-204 project has no PGM
     -- master data match. Runs as an import stage after step 1 settles the
@@ -18,7 +26,7 @@ BEGIN
 
     -- Fail closed on the same definition the Project Identification UI shows:
     -- any non-Clean project means identification is not finished.
-    IF EXISTS (SELECT 1 FROM [data].[v_ProjectList] WHERE [Status] <> 'Clean')
+    IF EXISTS (SELECT 1 FROM [data].[ProjectListForCycle](@CycleStart, @CycleEnd) WHERE [Status] <> 'Clean')
         THROW 50000, 'Unresolved project issues exist; resolve them in Project Identification first.', 1;
 
     BEGIN TRAN;
@@ -55,7 +63,7 @@ BEGIN
         pc.[ProjectNumber],
         pc.[SponsorAwardNumber],
         pgm.[PrincipalInvestigatorNames]
-    FROM [data].[v_NifaProjects] nv
+    FROM [data].[NifaProjectsForCycle](@CycleStart, @CycleEnd) nv
     LEFT JOIN [data].[v_PgmProjectSfnBuckets] pc
         ON pc.[AwardKey] = nv.[AwardKey]
     LEFT JOIN [data].[PGMProjects] pgm

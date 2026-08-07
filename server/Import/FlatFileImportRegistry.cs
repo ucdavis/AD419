@@ -20,6 +20,7 @@ public sealed class FlatFileImportRegistry : IFlatFileImportRegistry
                 Text("ProjectNumber", false, 20, "Project Number"),
                 Text("ProposalNumber", false, 10, "Proposal Number"),
                 Text("AwardNumber", false, 16, "Award Number"),
+                DerivedText("AwardKey", 16, values => NormalizeAwardKey(values.GetValueOrDefault("AwardNumber"))),
                 Text("Title", false, null, "Project Title"),
                 Text("OrganizationName", true, 300, "Organization Name"),
                 Text("Department", false, 300),
@@ -131,6 +132,14 @@ public sealed class FlatFileImportRegistry : IFlatFileImportRegistry
         return new ImportColumn(targetColumn, ImportColumnType.String, required, maxLength, sourceHeaders);
     }
 
+    private static ImportColumn DerivedText(
+        string targetColumn,
+        int? maxLength,
+        Func<IReadOnlyDictionary<string, object?>, object?> valueFactory)
+    {
+        return new ImportColumn(targetColumn, ImportColumnType.String, false, maxLength, [], valueFactory);
+    }
+
     private static ImportColumn Flag(string targetColumn, bool required, params string[] sourceHeaders)
     {
         return new ImportColumn(targetColumn, ImportColumnType.Boolean, required, null, sourceHeaders);
@@ -149,5 +158,17 @@ public sealed class FlatFileImportRegistry : IFlatFileImportRegistry
     private static ImportColumn SmallInt(string targetColumn, bool required, params string[] sourceHeaders)
     {
         return new ImportColumn(targetColumn, ImportColumnType.Int16, required, null, sourceHeaders);
+    }
+
+    private static string? NormalizeAwardKey(object? value)
+    {
+        var text = Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        var normalized = text.Trim().Replace("-", "", StringComparison.Ordinal);
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 }

@@ -6,9 +6,16 @@ CREATE TABLE [data].[ActiveProjects]
     [UcPathName] NVARCHAR(200) NOT NULL,
     [Is204] BIT NOT NULL,
     [ExcludeFromUi] BIT NULL,
+    [AllProjectIdOverride] INT NULL,
+    [PgmAwardKeyOverride] NVARCHAR(100) NULL,
+    [SfnOverride] NVARCHAR(10) NULL,
     [Notes] NVARCHAR(MAX) NULL,
     [ProjectDirector] NVARCHAR(200) NOT NULL,
     [PdEmailAddress] NVARCHAR(320) NOT NULL,
     CONSTRAINT [PK_ActiveProjects] PRIMARY KEY CLUSTERED ([AccessionNumber]),
-    CONSTRAINT [UQ_ActiveProjects_ProjectNumber] UNIQUE ([ProjectNumber])
+    CONSTRAINT [UQ_ActiveProjects_ProjectNumber] UNIQUE ([ProjectNumber]),
+    CONSTRAINT [FK_ActiveProjects_Sfns_SfnOverride] FOREIGN KEY ([SfnOverride]) REFERENCES [data].[Sfns] ([Sfn]),
+    CONSTRAINT [CK_ActiveProjects_PgmAwardKeyOverride_NotBlank] CHECK (
+        [PgmAwardKeyOverride] IS NULL OR [PgmAwardKeyOverride] <> N''
+    )
 );

@@ -1,5 +1,6 @@
 import {
   confirmFiscalPeriod,
+  finalizeProjects,
   setChecklistItemCompletion,
   type ProjectChecklistItem,
   type ProjectIdentificationSetupResponse,
@@ -50,6 +51,15 @@ export function ProjectIdentificationSetupChecklist({
 
   const fiscalMutation = useMutation({
     mutationFn: confirmFiscalPeriod,
+    onSuccess: (response) => {
+      queryClient.setQueryData(['projectIdentification', 'setup'], response);
+      setOpenItemId(findFirstIncompleteItemId(response));
+      void queryClient.invalidateQueries({ queryKey: ['projectList'] });
+    },
+  });
+
+  const finalizeMutation = useMutation({
+    mutationFn: finalizeProjects,
     onSuccess: (response) => {
       queryClient.setQueryData(['projectIdentification', 'setup'], response);
       setOpenItemId(findFirstIncompleteItemId(response));
@@ -133,6 +143,8 @@ export function ProjectIdentificationSetupChecklist({
               {open ? (
                 <div className="checklist-item__content">
                   <ChecklistItemContent
+                    finalizeError={finalizeMutation.isError}
+                    finalizePending={finalizeMutation.isPending}
                     fiscalMutationPending={fiscalMutation.isPending}
                     issueCount={issueCount}
                     item={item}
@@ -140,6 +152,7 @@ export function ProjectIdentificationSetupChecklist({
                     onConfirmFiscalYear={(fiscalYear) =>
                       fiscalMutation.mutate(fiscalYear)
                     }
+                    onFinalize={() => finalizeMutation.mutate()}
                     onMarkDone={() => handleMarkDone(item.id)}
                     setup={setup}
                   />
@@ -154,19 +167,25 @@ export function ProjectIdentificationSetupChecklist({
 }
 
 function ChecklistItemContent({
+  finalizeError,
+  finalizePending,
   fiscalMutationPending,
   issueCount,
   item,
   markDonePending,
   onConfirmFiscalYear,
+  onFinalize,
   onMarkDone,
   setup,
 }: {
+  finalizeError: boolean;
+  finalizePending: boolean;
   fiscalMutationPending: boolean;
   issueCount: number | null;
   item: ProjectChecklistItem;
   markDonePending: boolean;
   onConfirmFiscalYear: (fiscalYear: string) => void;
+  onFinalize: () => void;
   onMarkDone: () => void;
   setup: ProjectIdentificationSetupResponse;
 }) {
@@ -219,7 +238,7 @@ function ChecklistItemContent({
             : issueCount > 0
               ? `${issueCount.toLocaleString()} ${
                   issueCount === 1 ? 'project needs' : 'projects need'
-                } review in the table below. Each issue must be resolved or explicitly accepted before finalizing.`
+                } review in the table below. Each issue must be resolved before finalizing.`
               : 'No project issues were detected. You can mark this checklist item reviewed.'}
         </p>
         <button
@@ -238,15 +257,31 @@ function ChecklistItemContent({
     );
   }
 
+  const canFinalize = item.ready && issueCount === 0 && !item.completed;
+
   return (
     <div className="space-y-3">
       <p className="text-sm text-slate-600">
-        Finalizing will be enabled when project issue acceptance and expense
-        pull behavior are implemented.
+        Finalizing builds the resolved project list after all project issues are
+        clear.
       </p>
-      <button className="btn btn-primary" disabled type="button">
-        Finalize projects
+      <button
+        className="btn btn-primary"
+        disabled={!canFinalize || finalizePending}
+        onClick={onFinalize}
+        type="button"
+      >
+        {finalizePending
+          ? 'Finalizing'
+          : item.completed
+            ? 'Finalized'
+            : 'Finalize projects'}
       </button>
+      {finalizeError ? (
+        <div className="alert alert-error py-2 text-xs" role="alert">
+          Projects could not be finalized.
+        </div>
+      ) : null}
     </div>
   );
 }

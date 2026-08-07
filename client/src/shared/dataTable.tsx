@@ -24,10 +24,12 @@ type TableActionsRenderer<TData extends object> =
   | ((table: Table<TData>) => ReactNode);
 
 interface DataTableProps<TData extends object> {
+  cellClassName?: string;
   columns: ColumnDef<TData>[];
   data: TData[];
   filterPlaceholder?: string;
   globalFilter?: 'left' | 'right' | 'none'; // Controls the position of the search box
+  headerClassName?: string;
   initialState?: InitialTableState; // Optional initial state for the table, use for stuff like setting page size or sorting
   pageSizeOptions?: number[];
   tableActions?: TableActionsRenderer<TData>;
@@ -35,10 +37,12 @@ interface DataTableProps<TData extends object> {
 }
 
 export const DataTable = <TData extends object>({
+  cellClassName,
   columns,
   data,
   filterPlaceholder = 'Search all columns...',
   globalFilter = 'right',
+  headerClassName,
   initialState,
   pageSizeOptions = [10, 25, 50, 100],
   tableActions,
@@ -148,6 +152,7 @@ export const DataTable = <TData extends object>({
                   <th
                     className={[
                       'cursor-pointer',
+                      headerClassName,
                       header.column.columnDef.meta?.headerClassName,
                     ]
                       .filter(Boolean)
@@ -177,7 +182,12 @@ export const DataTable = <TData extends object>({
               <tr key={row.id}>
                 {row.getVisibleCells().map((cell) => (
                   <td
-                    className={cell.column.columnDef.meta?.cellClassName}
+                    className={[
+                      cellClassName,
+                      cell.column.columnDef.meta?.cellClassName,
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
                     key={cell.id}
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

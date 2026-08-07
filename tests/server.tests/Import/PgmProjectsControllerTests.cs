@@ -103,6 +103,11 @@ public class PgmProjectsControllerTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<ProjectIdentificationSetupResponse?> FinalizeProjectsAsync(
+            ClaimsPrincipal user,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task RecordPgmImportAsync(
             PgmProjectsImportResult result,
             ClaimsPrincipal user,
