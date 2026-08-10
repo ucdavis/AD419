@@ -14,6 +14,7 @@ import {
   type AllProjectCandidate,
   type PgmAwardCandidate,
   type ProjectListRow,
+  type ProjectListResponse,
   type ProjectListStatus,
   type ProjectListSummary,
   type SfnCandidate,
@@ -26,12 +27,13 @@ import {
 } from '@/queries/projectIdentification.ts';
 import { ProjectIdentificationSetupChecklist } from '@/components/ProjectIdentificationSetupChecklist.tsx';
 
-type ProjectListTab = 'issues' | 'clean' | 'all';
+type ProjectListTab = 'issues' | 'clean' | 'all' | 'excluded';
 
 const tabs: { id: ProjectListTab; label: string }[] = [
   { id: 'issues', label: 'Issues' },
   { id: 'clean', label: 'Clean' },
   { id: 'all', label: 'All' },
+  { id: 'excluded', label: 'Excluded' },
 ];
 
 function displayValue(value: string | null): string {
@@ -41,6 +43,10 @@ function displayValue(value: string | null): string {
 function statusClassName(status: ProjectListStatus): string {
   if (status === 'Clean') {
     return 'badge badge-success badge-outline whitespace-nowrap';
+  }
+
+  if (status === 'Excluded') {
+    return 'badge badge-neutral badge-outline whitespace-nowrap';
   }
 
   if (status === 'SFN mismatch') {
@@ -60,6 +66,14 @@ function rowsForTab(rows: ProjectListRow[], tab: ProjectListTab) {
   }
 
   return rows;
+}
+
+function projectListHeading(counts: ProjectListResponse['counts']) {
+  if (counts.excluded > 0) {
+    return `Project list · ${counts.all} active (${counts.excluded} excluded by file)`;
+  }
+
+  return `Project list · ${counts.all}`;
 }
 
 function sfnDistributionText(summary: ProjectListSummary): string {
@@ -269,7 +283,11 @@ function ProjectIdentificationStageContent({
     );
   }
 
-  const visibleRows = data ? rowsForTab(data.rows, activeTab) : [];
+  const visibleRows = data
+    ? activeTab === 'excluded'
+      ? data.excludedRows
+      : rowsForTab(data.rows, activeTab)
+    : [];
 
   return (
     <div className="workflow-stack">
@@ -287,7 +305,7 @@ function ProjectIdentificationStageContent({
               Reference &amp; Issue Resolution
             </p>
             <h2 className="text-lg font-bold tracking-normal text-slate-950">
-              Project list{data ? ` · ${data.counts.all}` : ''}
+              {data ? projectListHeading(data.counts) : 'Project list'}
             </h2>
           </div>
         </div>
@@ -394,7 +412,7 @@ function ProjectIssueResolutionControl({
     },
   });
 
-  if (row.status === 'Clean' || !accession) {
+  if (row.status === 'Clean' || row.status === 'Excluded' || !accession) {
     return <span className="text-sm text-slate-400">-</span>;
   }
 
@@ -793,13 +811,14 @@ function ProjectSummaryCards({ summary }: { summary: ProjectListSummary }) {
     ['All NIFA', summary.allNifa],
     ['PGM records', summary.pgmRecords],
     ['ALN codes', summary.alnCodes],
+    ['Excluded NIFA', summary.excludedNifa],
     ['Issues to resolve', summary.issuesToResolve],
     ['SFN distribution', sfnDistributionText(summary)],
   ];
 
   return (
     <section className="rounded border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
         {summaryCards.map(([label, value]) => (
           <div
             className="rounded border border-slate-200 bg-slate-50 p-3"
