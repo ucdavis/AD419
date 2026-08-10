@@ -536,6 +536,134 @@ describe('AD419 workflow routes', () => {
     }
   });
 
+  it('allows project resolution dropdowns to be cancelled', async () => {
+    const user = userEvent.setup();
+    const resolutionProjectListResponse = {
+      ...projectListResponse,
+      counts: { all: 4, clean: 1, excluded: 1, issues: 3 },
+      rows: [
+        ...projectListResponse.rows,
+        {
+          accession: '1099999',
+          ae: null,
+          awardNumber: '2025-555',
+          department: 'PLS',
+          is204: false,
+          nifaProject: 'CA-D-555-H',
+          notes: null,
+          pdEmailAddress: 'chen@example.edu',
+          pi: 'Chen, Mira',
+          sfn: '201',
+          status: 'Not in All Projects',
+          ucPathName: 'Chen, Mira',
+          ucpEmployeeId: '10000005',
+        },
+      ],
+      summary: {
+        ...projectListResponse.summary,
+        issuesToResolve: 3,
+      },
+    };
+
+    server.use(
+      http.get('/api/user/me', () => {
+        return HttpResponse.json(mockUser);
+      }),
+      http.get('/api/imports/recent', () => {
+        return HttpResponse.json([]);
+      }),
+      http.get('/api/projectidentification/setup', () => {
+        return HttpResponse.json(setupResponse);
+      }),
+      http.get('/api/projectlist', () => {
+        return HttpResponse.json(resolutionProjectListResponse);
+      }),
+      http.get('/api/projectlist/:accession/sfn-candidates', () => {
+        return HttpResponse.json([
+          {
+            description: 'Hatch Funds',
+            isRecommended: true,
+            sfn: '201',
+            source: 'PGM master data',
+          },
+        ]);
+      }),
+      http.get('/api/projectlist/:accession/pgm-award-candidates', () => {
+        return HttpResponse.json([
+          {
+            awardKey: 'award-1',
+            awardName: 'Viticulture Research',
+            pgmSfnBucket: '204',
+            principalInvestigatorNames: 'Naidoo, Talia',
+            projectNumbers: 'CA-C-333-CG',
+            sponsorAwardNumber: '2025-333',
+          },
+        ]);
+      }),
+      http.get('/api/projectlist/:accession/all-project-candidates', () => {
+        return HttpResponse.json([
+          {
+            accessionNumber: '1099999',
+            allProjectId: 1,
+            awardNumber: '2025-555',
+            department: 'PLS',
+            projectDirector: 'Chen, Mira',
+            projectEndDate: null,
+            projectNumber: 'CA-D-555-H',
+            projectStartDate: null,
+            title: 'Plant Sciences Research',
+          },
+        ]);
+      })
+    );
+
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/project-identification',
+    });
+
+    try {
+      expect(await screen.findByText('SFN mismatch')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Select SFN' }));
+      expect(
+        await screen.findByRole('button', { name: /201 - Hatch Funds/ })
+      ).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByRole('button', { name: /201 - Hatch Funds/ })
+        ).not.toBeInTheDocument();
+      });
+
+      await user.click(
+        screen.getByRole('button', { name: 'Select PGM award' })
+      );
+      expect(await screen.findByLabelText('Search candidates')).toBeInTheDocument();
+      await user.keyboard('{Escape}');
+
+      await waitFor(() => {
+        expect(
+          screen.queryByLabelText('Search candidates')
+        ).not.toBeInTheDocument();
+      });
+
+      await user.click(
+        screen.getByRole('button', { name: 'Select All Projects' })
+      );
+      expect(await screen.findByLabelText('Search candidates')).toBeInTheDocument();
+      await user.click(screen.getByText('Active NIFA'));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByLabelText('Search candidates')
+        ).not.toBeInTheDocument();
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
   it('confirms exclude actions and shows server resolution errors', async () => {
     const user = userEvent.setup();
     let excludeRequests = 0;
