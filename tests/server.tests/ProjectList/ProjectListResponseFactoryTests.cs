@@ -68,7 +68,7 @@ public class ProjectListResponseFactoryTests
                 "2025-4",
                 null,
                 true,
-                "Excluded by file",
+                "Excluded from associations",
                 "Singh, R.",
                 "singh@example.edu",
                 "10000004",

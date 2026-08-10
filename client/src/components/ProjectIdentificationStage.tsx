@@ -70,7 +70,7 @@ function rowsForTab(rows: ProjectListRow[], tab: ProjectListTab) {
 
 function projectListHeading(counts: ProjectListResponse['counts']) {
   if (counts.excluded > 0) {
-    return `Project list · ${counts.all} active (${counts.excluded} excluded by file)`;
+    return `Project list · ${counts.all} active (${counts.excluded} excluded from associations)`;
   }
 
   return `Project list · ${counts.all}`;

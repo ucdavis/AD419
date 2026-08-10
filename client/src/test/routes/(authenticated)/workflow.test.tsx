@@ -29,7 +29,7 @@ const projectListResponse = {
       department: 'PLS',
       is204: true,
       nifaProject: 'CA-D-444-CG',
-      notes: 'Excluded by file',
+      notes: 'Excluded from associations',
       pdEmailAddress: 'singh@example.edu',
       pi: 'Singh, R.',
       sfn: '204',
@@ -279,7 +279,7 @@ describe('AD419 workflow routes', () => {
       expect(screen.getByText('Import PGM Master Data')).toBeInTheDocument();
       expect(
         await screen.findByRole('heading', {
-          name: 'Project list · 3 active (1 excluded by file)',
+          name: 'Project list · 3 active (1 excluded from associations)',
         })
       ).toBeInTheDocument();
       expect(screen.getByText('Active NIFA')).toBeInTheDocument();
@@ -409,7 +409,7 @@ describe('AD419 workflow routes', () => {
       await user.click(screen.getByRole('tab', { name: /excluded\s*1/i }));
 
       expect(await screen.findByText('Singh, R.')).toBeInTheDocument();
-      expect(screen.getByText('Excluded by file')).toBeInTheDocument();
+      expect(screen.getByText('Excluded from associations')).toBeInTheDocument();
       expect(screen.queryByText('Okonkwo, Y.')).not.toBeInTheDocument();
       expect(
         screen.queryByRole('button', { name: 'Exclude' })
@@ -719,7 +719,7 @@ describe('AD419 workflow routes', () => {
 
       expect(
         await screen.findByRole('heading', {
-          name: 'Project list · 3 active (1 excluded by file)',
+          name: 'Project list · 3 active (1 excluded from associations)',
         })
       ).toBeInTheDocument();
       expect(projectListRequests).toBe(2);
