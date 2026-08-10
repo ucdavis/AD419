@@ -81,7 +81,8 @@ public class ProjectListSqlTests
 
         sql.Should().Contain("@CycleStart DATE");
         sql.Should().Contain("@CycleEnd DATE");
-        sql.Should().Contain("FROM [data].[ProjectListForCycle](@CycleStart, @CycleEnd)");
+        // the non-Clean check lives in the shared readiness function
+        sql.Should().Contain("[data].[ImportBlockingIssueForCycle](@CycleStart, @CycleEnd)");
         sql.Should().Contain("FROM [data].[NifaProjectsForCycle](@CycleStart, @CycleEnd) nv");
         sql.Should().NotContain("[data].[v_ProjectList]");
         sql.Should().NotContain("[data].[v_NifaProjects]");

@@ -62,6 +62,22 @@ BEGIN
     LEFT JOIN [data].[ChartSegments] cs
         ON cs.[SegmentName] = 'Account' AND cs.[Code] = t.[Account];
 
+    -- AccountInUcPath, AE: accounts that also appear in the UCPath pull. Those
+    -- dollars are reported from payroll detail, so the AE rows are excluded to
+    -- avoid double counting (2025 deleted them; a flag keeps them reviewable).
+    UPDATE t
+    SET [AccountInUcPath] =
+        CASE
+            WHEN t.[Account] IS NULL THEN 0
+            WHEN EXISTS
+            (
+                SELECT 1 FROM [data].[UcPathTransactions] u
+                WHERE u.[Account] = t.[Account]
+            ) THEN 1
+            ELSE 0
+        END
+    FROM [data].[AETransactions] t;
+
     -- Row counts for the import run stage.
     SELECT
         (SELECT COUNT(*) FROM [data].[AETransactions])     AS AeRowsClassified,

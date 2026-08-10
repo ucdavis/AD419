@@ -14,9 +14,11 @@ CREATE TABLE [data].[Projects]
     [Is204]                       BIT           NOT NULL,
     [Sfn]                         NVARCHAR(7)   NOT NULL, -- from project number suffix: 201 | 202 | 204 | 205 | UNKNOWN
 
-    -- AE side (from PGMProjects via award number match). Null when a non-204
-    -- project has no PGM master data match; NIFA/PGM SFN agreement is checked
-    -- during Project Identification.
+    -- AE side (from PGMProjects via award number match). Null when the project
+    -- has no PGM master data match, which is the norm for non-204 projects
+    -- (Hatch and animal health are state funded with no AE project). The
+    -- Project Identification guard requires a match, and therefore a value,
+    -- for every 204 row; only the 204 rows feed the import carve-out lists.
     [AEProjectNumber]             NVARCHAR(50)  NULL,
     [SponsorAwardNumber]          NVARCHAR(100) NULL,
     [PrincipalInvestigatorNames]  NVARCHAR(MAX) NULL,
