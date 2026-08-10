@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Server.Core.Data;
+using Server.Core.Import;
 
 public interface IDbInitializer
 {
@@ -25,6 +26,8 @@ public class DbInitializer : IDbInitializer
         _logger.LogInformation("Applying database migrations...");
         await _db.Database.MigrateAsync(cancellationToken);
         _logger.LogInformation("Migrations applied.");
+
+        await ImportRunOrchestrator.FailInterruptedRunsAsync(_db, cancellationToken);
 
         if (includeDevSeed)
         {
