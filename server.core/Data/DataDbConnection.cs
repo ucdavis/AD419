@@ -6,7 +6,9 @@ public static class DataDbConnection
 {
     public const string EnvironmentVariableName = "DATA_DB_CONNECTION";
     public const string ConnectionStringName = "DataConnection";
-    public const int ImportCommandTimeoutSeconds = 600;
+    // The AE pull streams ~465k rows through the linked server's row-by-row ODBC
+    // fetch, which takes over 10 minutes on its own; 600s timed out in practice.
+    public const int ImportCommandTimeoutSeconds = 3600;
 
     public static string Resolve(IConfiguration configuration, string? fallbackConnectionString)
     {
