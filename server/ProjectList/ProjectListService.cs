@@ -33,6 +33,12 @@ public sealed class ProjectListService(
             commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
             cancellationToken: cancellationToken))).ToList();
 
+        var excludedRows = (await connection.QueryAsync<ProjectListRowDto>(new CommandDefinition(
+            ExcludedProjectRowsSql,
+            CycleParameters(cycle),
+            commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
+            cancellationToken: cancellationToken))).ToList();
+
         var summaryCounts = await connection.QuerySingleAsync<ProjectListSummaryCounts>(new CommandDefinition(
             SummaryCountsSql,
             new
@@ -46,6 +52,7 @@ public sealed class ProjectListService(
         return ProjectListResponseFactory.Create(
             cycle,
             rows,
+            excludedRows,
             summaryCounts.ActiveNifa,
             summaryCounts.AllNifa,
             summaryCounts.PgmRecords,
@@ -686,6 +693,56 @@ public sealed class ProjectListService(
             CASE WHEN cp.[ProjectNumber] IS NOT NULL AND ap.[ProjectNumber] = cp.[ProjectNumber] THEN 0 ELSE 1 END,
             CASE WHEN cp.[AccessionNumber] IS NOT NULL AND ap.[AccessionNumber] = cp.[AccessionNumber] THEN 0 ELSE 1 END,
             ap.[AllProjectId];
+        """;
+
+    private const string ExcludedProjectRowsSql = """
+        WITH ExcludedNifa AS
+        (
+            SELECT
+                nv.AccessionNumber,
+                nv.ProjectNumber,
+                nv.AwardNumber,
+                nv.AwardKey,
+                nv.Is204,
+                nv.Notes,
+                COALESCE(NULLIF(nv.ProjectDirector, ''), NULLIF(nv.AllProjectDirector, '')) AS Pi,
+                nv.PdEmailAddress,
+                nv.UcpEmployeeId,
+                nv.UcPathName,
+                nv.Department,
+                nv.NifaSfn
+            FROM [data].[NifaProjectsForCycle](@cycleStart, @cycleEnd) nv
+            WHERE nv.ExcludeFromUi = 1
+        ),
+        PgmByProject AS
+        (
+            SELECT
+                nv.AccessionNumber,
+                STRING_AGG(CAST(pc.ProjectNumber AS NVARCHAR(MAX)), ', ')
+                    WITHIN GROUP (ORDER BY pc.ProjectNumber) AS PgmProjectNumbers
+            FROM ExcludedNifa nv
+            LEFT JOIN [data].[v_PgmProjectSfnBuckets] pc
+                ON pc.AwardKey = nv.AwardKey
+            GROUP BY nv.AccessionNumber
+        )
+        SELECT
+            CAST(nv.ProjectNumber AS NVARCHAR(20))       AS NifaProject,
+            CAST(nv.AccessionNumber AS NVARCHAR(50))     AS Accession,
+            CAST(nv.AwardNumber AS NVARCHAR(100))        AS AwardNumber,
+            CAST(pgm.PgmProjectNumbers AS NVARCHAR(MAX)) AS Ae,
+            CAST(nv.Is204 AS BIT)                        AS Is204,
+            CAST(nv.Notes AS NVARCHAR(MAX))              AS Notes,
+            CAST(nv.Pi AS NVARCHAR(200))                 AS Pi,
+            CAST(nv.PdEmailAddress AS NVARCHAR(320))     AS PdEmailAddress,
+            CAST(nv.UcpEmployeeId AS NVARCHAR(8))        AS UcpEmployeeId,
+            CAST(nv.UcPathName AS NVARCHAR(200))         AS UcPathName,
+            CAST(nv.Department AS NVARCHAR(300))         AS Department,
+            CAST(nv.NifaSfn AS NVARCHAR(10))             AS Sfn,
+            CAST('Excluded' AS NVARCHAR(30))             AS [Status]
+        FROM ExcludedNifa nv
+        LEFT JOIN PgmByProject pgm
+            ON pgm.AccessionNumber = nv.AccessionNumber
+        ORDER BY nv.AccessionNumber;
         """;
 
     private const string PgmAwardCandidatesSql = """

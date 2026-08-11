@@ -6,18 +6,21 @@ public sealed record ProjectListResponse(
     DateOnly CycleEnd,
     ProjectListCountsDto Counts,
     ProjectListSummaryDto Summary,
-    IReadOnlyList<ProjectListRowDto> Rows);
+    IReadOnlyList<ProjectListRowDto> Rows,
+    IReadOnlyList<ProjectListRowDto> ExcludedRows);
 
 public sealed record ProjectListCountsDto(
     int Issues,
     int Clean,
-    int All);
+    int All,
+    int Excluded);
 
 public sealed record ProjectListSummaryDto(
     int ActiveNifa,
     int AllNifa,
     int PgmRecords,
     int AlnCodes,
+    int ExcludedNifa,
     int IssuesToResolve,
     IReadOnlyList<SfnDistributionDto> SfnDistribution);
 

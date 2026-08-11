@@ -33,6 +33,7 @@ public class ProjectListSqlTests
 
         sql.Should().Contain("CREATE FUNCTION [data].[ProjectListForCycle]");
         sql.Should().Contain("FROM [data].[NifaProjectsForCycle](@CycleStart, @CycleEnd) nv");
+        sql.Should().Contain("WHERE nv.ExcludeFromUi = 0");
         CountOccurrences(sql, "JOIN [data].[v_PgmProjectSfnBuckets] pc").Should().Be(1);
         sql.Should().Contain("WITH IncludedNifa AS");
         sql.Should().Contain("PgmByProject AS");
@@ -83,6 +84,7 @@ public class ProjectListSqlTests
         sql.Should().Contain("@CycleEnd DATE");
         sql.Should().Contain("FROM [data].[ProjectListForCycle](@CycleStart, @CycleEnd)");
         sql.Should().Contain("FROM [data].[NifaProjectsForCycle](@CycleStart, @CycleEnd) nv");
+        sql.Should().Contain("WHERE nv.[ExcludeFromUi] = 0");
         sql.Should().NotContain("[data].[v_ProjectList]");
         sql.Should().NotContain("[data].[v_NifaProjects]");
     }
@@ -137,6 +139,8 @@ public class ProjectListSqlTests
         source.Should().Contain("CycleParameters(cycle)");
         source.Should().Contain("FROM [data].[ProjectListForCycle](@cycleStart, @cycleEnd)");
         source.Should().Contain("FROM [data].[NifaProjectsForCycle](@cycleStart, @cycleEnd) nv");
+        source.Should().Contain("WHERE nv.ExcludeFromUi = 1");
+        source.Should().Contain("CAST('Excluded' AS NVARCHAR(30))");
         source.Should().NotContain("FROM [data].[v_ProjectList]");
         source.Should().NotContain("FROM [data].[v_NifaProjects]");
     }

@@ -3,6 +3,7 @@ import { queryOptions } from '@tanstack/react-query';
 
 export type ProjectListStatus =
   | 'Clean'
+  | 'Excluded'
   | 'No PGM match'
   | 'Not in All Projects'
   | 'SFN mismatch'
@@ -27,6 +28,7 @@ export interface ProjectListRow {
 export interface ProjectListCounts {
   all: number;
   clean: number;
+  excluded: number;
   issues: number;
 }
 
@@ -39,6 +41,7 @@ export interface ProjectListSummary {
   activeNifa: number;
   allNifa: number;
   alnCodes: number;
+  excludedNifa: number;
   issuesToResolve: number;
   pgmRecords: number;
   sfnDistribution: SfnDistribution[];
@@ -48,6 +51,7 @@ export interface ProjectListResponse {
   counts: ProjectListCounts;
   cycleEnd: string;
   cycleStart: string;
+  excludedRows: ProjectListRow[];
   fiscalYear: string;
   rows: ProjectListRow[];
   summary: ProjectListSummary;

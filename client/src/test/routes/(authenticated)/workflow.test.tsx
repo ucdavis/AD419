@@ -16,10 +16,28 @@ const projectListResponse = {
   counts: {
     all: 3,
     clean: 1,
+    excluded: 1,
     issues: 2,
   },
   cycleEnd: '2026-09-30',
   cycleStart: '2025-10-01',
+  excludedRows: [
+    {
+      accession: '1088888',
+      ae: null,
+      awardNumber: '2025-444',
+      department: 'PLS',
+      is204: true,
+      nifaProject: 'CA-D-444-CG',
+      notes: 'Excluded from associations',
+      pdEmailAddress: 'singh@example.edu',
+      pi: 'Singh, R.',
+      sfn: '204',
+      status: 'Excluded',
+      ucPathName: 'Singh, Riya',
+      ucpEmployeeId: '10000004',
+    },
+  ],
   fiscalYear: 'FY26',
   rows: [
     {
@@ -72,6 +90,7 @@ const projectListResponse = {
     activeNifa: 25,
     allNifa: 42,
     alnCodes: 7,
+    excludedNifa: 1,
     issuesToResolve: 2,
     pgmRecords: 18,
     sfnDistribution: [
@@ -259,7 +278,9 @@ describe('AD419 workflow routes', () => {
       expect(screen.getByText('Upload All Projects List')).toBeInTheDocument();
       expect(screen.getByText('Import PGM Master Data')).toBeInTheDocument();
       expect(
-        await screen.findByRole('heading', { name: 'Project list · 3' })
+        await screen.findByRole('heading', {
+          name: 'Project list · 3 active (1 excluded from associations)',
+        })
       ).toBeInTheDocument();
       expect(screen.getByText('Active NIFA')).toBeInTheDocument();
       expect(screen.getByText('Issues to resolve')).toBeInTheDocument();
@@ -271,6 +292,9 @@ describe('AD419 workflow routes', () => {
         screen.getByRole('tab', { name: /clean\s*1/i })
       ).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: /all\s*3/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('tab', { name: /excluded\s*1/i })
+      ).toBeInTheDocument();
       expect(
         screen.getByRole('columnheader', { name: 'NIFA Project' })
       ).toBeInTheDocument();
@@ -314,6 +338,7 @@ describe('AD419 workflow routes', () => {
         screen.getByRole('columnheader', { name: 'Actions' })
       ).toBeInTheDocument();
       expect(screen.getByText('SFN mismatch')).toBeInTheDocument();
+      expect(screen.queryByText('Singh, R.')).not.toBeInTheDocument();
 
       await waitFor(() => {
         expect(router.state.location.pathname).toBe(
@@ -353,13 +378,16 @@ describe('AD419 workflow routes', () => {
     try {
       expect(await screen.findByText('Okonkwo, Y.')).toBeInTheDocument();
       expect(screen.queryByText('Larkspur, S.')).not.toBeInTheDocument();
+      expect(screen.queryByText('Singh, R.')).not.toBeInTheDocument();
 
       await user.click(screen.getByRole('tab', { name: /clean\s*1/i }));
       expect(await screen.findByText('Larkspur, S.')).toBeInTheDocument();
       expect(screen.queryByText('Okonkwo, Y.')).not.toBeInTheDocument();
+      expect(screen.queryByText('Singh, R.')).not.toBeInTheDocument();
 
       await user.click(screen.getByRole('tab', { name: /all\s*3/i }));
       expect(await screen.findByText('Naidoo, T.')).toBeInTheDocument();
+      expect(screen.queryByText('Singh, R.')).not.toBeInTheDocument();
       const searchInput = screen.getByPlaceholderText(
         'Search project, accession, person...'
       );
@@ -376,6 +404,16 @@ describe('AD419 workflow routes', () => {
       expect(screen.getByText('Okonkwo, Y.')).toBeInTheDocument();
       expect(screen.getByText('Okonkwo, Yara')).toBeInTheDocument();
       expect(screen.queryByText('Naidoo, T.')).not.toBeInTheDocument();
+
+      await user.clear(searchInput);
+      await user.click(screen.getByRole('tab', { name: /excluded\s*1/i }));
+
+      expect(await screen.findByText('Singh, R.')).toBeInTheDocument();
+      expect(screen.getByText('Excluded from associations')).toBeInTheDocument();
+      expect(screen.queryByText('Okonkwo, Y.')).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Exclude' })
+      ).not.toBeInTheDocument();
     } finally {
       cleanup();
     }
@@ -456,7 +494,7 @@ describe('AD419 workflow routes', () => {
           postedSfn = body.sfn;
           currentProjectList = {
             ...fy25ProjectListResponse,
-            counts: { all: 3, clean: 2, issues: 1 },
+            counts: { all: 3, clean: 2, excluded: 1, issues: 1 },
             rows: fy25ProjectListResponse.rows.map((row) =>
               row.accession === '1055356'
                 ? { ...row, sfn: body.sfn, status: 'Clean' }
@@ -492,6 +530,134 @@ describe('AD419 workflow routes', () => {
         expect(postedFy).toBe('FY25');
         expect(projectListRequests).toBeGreaterThanOrEqual(2);
         expect(screen.queryByText('SFN mismatch')).not.toBeInTheDocument();
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('allows project resolution dropdowns to be cancelled', async () => {
+    const user = userEvent.setup();
+    const resolutionProjectListResponse = {
+      ...projectListResponse,
+      counts: { all: 4, clean: 1, excluded: 1, issues: 3 },
+      rows: [
+        ...projectListResponse.rows,
+        {
+          accession: '1099999',
+          ae: null,
+          awardNumber: '2025-555',
+          department: 'PLS',
+          is204: false,
+          nifaProject: 'CA-D-555-H',
+          notes: null,
+          pdEmailAddress: 'chen@example.edu',
+          pi: 'Chen, Mira',
+          sfn: '201',
+          status: 'Not in All Projects',
+          ucPathName: 'Chen, Mira',
+          ucpEmployeeId: '10000005',
+        },
+      ],
+      summary: {
+        ...projectListResponse.summary,
+        issuesToResolve: 3,
+      },
+    };
+
+    server.use(
+      http.get('/api/user/me', () => {
+        return HttpResponse.json(mockUser);
+      }),
+      http.get('/api/imports/recent', () => {
+        return HttpResponse.json([]);
+      }),
+      http.get('/api/projectidentification/setup', () => {
+        return HttpResponse.json(setupResponse);
+      }),
+      http.get('/api/projectlist', () => {
+        return HttpResponse.json(resolutionProjectListResponse);
+      }),
+      http.get('/api/projectlist/:accession/sfn-candidates', () => {
+        return HttpResponse.json([
+          {
+            description: 'Hatch Funds',
+            isRecommended: true,
+            sfn: '201',
+            source: 'PGM master data',
+          },
+        ]);
+      }),
+      http.get('/api/projectlist/:accession/pgm-award-candidates', () => {
+        return HttpResponse.json([
+          {
+            awardKey: 'award-1',
+            awardName: 'Viticulture Research',
+            pgmSfnBucket: '204',
+            principalInvestigatorNames: 'Naidoo, Talia',
+            projectNumbers: 'CA-C-333-CG',
+            sponsorAwardNumber: '2025-333',
+          },
+        ]);
+      }),
+      http.get('/api/projectlist/:accession/all-project-candidates', () => {
+        return HttpResponse.json([
+          {
+            accessionNumber: '1099999',
+            allProjectId: 1,
+            awardNumber: '2025-555',
+            department: 'PLS',
+            projectDirector: 'Chen, Mira',
+            projectEndDate: null,
+            projectNumber: 'CA-D-555-H',
+            projectStartDate: null,
+            title: 'Plant Sciences Research',
+          },
+        ]);
+      })
+    );
+
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/project-identification',
+    });
+
+    try {
+      expect(await screen.findByText('SFN mismatch')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Select SFN' }));
+      expect(
+        await screen.findByRole('button', { name: /201 - Hatch Funds/ })
+      ).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByRole('button', { name: /201 - Hatch Funds/ })
+        ).not.toBeInTheDocument();
+      });
+
+      await user.click(
+        screen.getByRole('button', { name: 'Select PGM award' })
+      );
+      expect(await screen.findByLabelText('Search candidates')).toBeInTheDocument();
+      await user.keyboard('{Escape}');
+
+      await waitFor(() => {
+        expect(
+          screen.queryByLabelText('Search candidates')
+        ).not.toBeInTheDocument();
+      });
+
+      await user.click(
+        screen.getByRole('button', { name: 'Select All Projects' })
+      );
+      expect(await screen.findByLabelText('Search candidates')).toBeInTheDocument();
+      await user.click(screen.getByText('Active NIFA'));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByLabelText('Search candidates')
+        ).not.toBeInTheDocument();
       });
     } finally {
       cleanup();
@@ -556,7 +722,7 @@ describe('AD419 workflow routes', () => {
     let finalizeRequests = 0;
     const cleanProjectList = {
       ...projectListResponse,
-      counts: { all: 3, clean: 3, issues: 0 },
+      counts: { all: 3, clean: 3, excluded: 1, issues: 0 },
       rows: projectListResponse.rows.map((row) => ({
         ...row,
         status: 'Clean',
@@ -680,7 +846,9 @@ describe('AD419 workflow routes', () => {
       await user.click(screen.getByRole('button', { name: 'Retry' }));
 
       expect(
-        await screen.findByRole('heading', { name: 'Project list · 3' })
+        await screen.findByRole('heading', {
+          name: 'Project list · 3 active (1 excluded from associations)',
+        })
       ).toBeInTheDocument();
       expect(projectListRequests).toBe(2);
     } finally {
