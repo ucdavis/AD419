@@ -1,3 +1,4 @@
+import { HttpError } from '@/lib/api.ts';
 import { SectionPanel } from '@/components/SectionPanel.tsx';
 import {
   bufferedImportWindow,
@@ -55,7 +56,8 @@ function DataImportStageContent({
   setup: ProjectIdentificationSetupResponse;
 }) {
   const queryClient = useQueryClient();
-  const { data: run } = useQuery(importRunQueryOptions());
+  const runQuery = useQuery(importRunQueryOptions());
+  const run = runQuery.data;
 
   const start = useMutation({
     mutationFn: startImportRun,
@@ -63,6 +65,29 @@ function DataImportStageContent({
       queryClient.setQueryData(importRunQueryOptions().queryKey, created);
     },
   });
+
+  if (runQuery.isLoading) {
+    return <p>Loading data import...</p>;
+  }
+
+  if (runQuery.isError) {
+    return (
+      <div className="alert alert-error items-start" role="alert">
+        <div>
+          <h2 className="font-bold">Unable to load import status</h2>
+          <p>The current import run could not be loaded.</p>
+          <button
+            className="btn btn-sm mt-3"
+            disabled={runQuery.isFetching}
+            onClick={() => void runQuery.refetch()}
+            type="button"
+          >
+            {runQuery.isFetching ? 'Retrying...' : 'Retry'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const periodLabel =
     setup.fiscalPeriodOptions.find(
@@ -138,11 +163,7 @@ function DataImportStageContent({
 
         {start.error ? (
           <div className="alert alert-error" role="alert">
-            <span>
-              {start.error instanceof Error
-                ? start.error.message
-                : 'Failed to start the import.'}
-            </span>
+            <span>{startErrorMessage(start.error)}</span>
           </div>
         ) : null}
 
@@ -202,6 +223,28 @@ function DataImportStageContent({
       </div>
     </SectionPanel>
   );
+}
+
+// The server explains start rejections (no confirmed period, run already in
+// progress, readiness issues) as a plain-string Conflict body.
+function startErrorMessage(error: unknown) {
+  if (error instanceof HttpError) {
+    if (typeof error.body === 'string' && error.body.trim()) {
+      return error.body;
+    }
+
+    if (
+      error.body &&
+      typeof error.body === 'object' &&
+      'message' in error.body &&
+      typeof error.body.message === 'string' &&
+      error.body.message.trim()
+    ) {
+      return error.body.message;
+    }
+  }
+
+  return 'Failed to start the import.';
 }
 
 function formatDate(value: string) {

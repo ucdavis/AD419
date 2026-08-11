@@ -51,16 +51,11 @@ const IMPORT_RUN_KEY = ['importRun'] as const;
 
 export const importRunQueryOptions = () =>
   queryOptions({
-    queryFn: async ({ signal }): Promise<ImportRun | null> => {
-      const response = await fetch('/api/importruns/current', { signal });
-      if (response.status === 204) {
-        return null;
-      }
-      if (!response.ok) {
-        throw new Error(`Failed to load import run (${response.status})`);
-      }
-      return (await response.json()) as ImportRun;
-    },
+    // fetchJson resolves undefined for the 204 "no run yet" response; the
+    // query needs null so react-query treats it as data, not a missing value.
+    queryFn: async ({ signal }): Promise<ImportRun | null> =>
+      (await fetchJson<ImportRun | null>('/api/importruns/current', {}, signal)) ??
+      null,
     queryKey: IMPORT_RUN_KEY,
     refetchInterval: (query) =>
       query.state.data?.status === 'Running' ? 2000 : false,

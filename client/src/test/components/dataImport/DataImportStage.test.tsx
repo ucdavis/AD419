@@ -117,6 +117,61 @@ describe('Data Import stage', () => {
     }
   });
 
+  it('shows an error with retry when the import run cannot be loaded', async () => {
+    let requests = 0;
+    useSetupHandler();
+    server.use(
+      http.get('/api/importruns/current', () => {
+        requests += 1;
+        return requests > 1
+          ? HttpResponse.json(succeededRun)
+          : new HttpResponse(null, { status: 500 });
+      })
+    );
+    const { cleanup } = renderRoute({ initialPath: '/workflow/data-import' });
+    try {
+      expect(
+        await screen.findByRole('heading', { name: 'Unable to load import status' })
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText('No import has run yet for this cycle.')
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /start import/i })
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+      expect(await screen.findByText('AE transactions')).toBeInTheDocument();
+      expect(requests).toBe(2);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('shows the server explanation when starting the import fails', async () => {
+    useSetupHandler();
+    server.use(
+      http.get('/api/importruns/current', () => new HttpResponse(null, { status: 204 })),
+      http.post(
+        '/api/importruns',
+        () =>
+          new HttpResponse('An import run is already in progress.', {
+            status: 409,
+          })
+      )
+    );
+    const { cleanup } = renderRoute({ initialPath: '/workflow/data-import' });
+    try {
+      fireEvent.click(await screen.findByRole('button', { name: /start import/i }));
+      expect(
+        await screen.findByText('An import run is already in progress.')
+      ).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
   it('surfaces stage errors', async () => {
     const failedRun = {
       ...succeededRun,

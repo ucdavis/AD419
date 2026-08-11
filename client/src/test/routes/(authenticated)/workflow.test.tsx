@@ -693,6 +693,9 @@ describe('AD419 workflow routes', () => {
       http.get('/api/user/me', () => {
         return HttpResponse.json(mockUser);
       }),
+      http.get('/api/projectidentification/setup', () => {
+        return HttpResponse.json(setupResponse);
+      }),
       http.get('/api/importruns/current', () => {
         return new HttpResponse(null, { status: 204 });
       })
