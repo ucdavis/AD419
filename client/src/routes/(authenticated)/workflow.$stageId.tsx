@@ -4,6 +4,7 @@ import {
 } from '@/mockData.ts';
 import { workflowSnapshotQueryOptions } from '@/queries.ts';
 import { DataClassificationStage } from '@/components/dataClassification/DataClassificationStage.tsx';
+import { DataImportStage } from '@/components/dataImport/DataImportStage.tsx';
 import { ProjectIdentificationStage } from '@/components/ProjectIdentificationStage.tsx';
 import { SectionPanel } from '@/components/SectionPanel.tsx';
 import { WorkflowShell } from '@/components/WorkflowShell.tsx';
@@ -51,6 +52,8 @@ function WorkflowStageRoute() {
           <ProjectIdentificationStage />
         ) : workflowStageId === 'data-classification' ? (
           <DataClassificationStage />
+        ) : workflowStageId === 'data-import' ? (
+          <DataImportStage />
         ) : (
           <SectionPanel title="Coming soon">
             <p>This step is coming soon.</p>

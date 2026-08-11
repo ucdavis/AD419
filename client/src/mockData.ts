@@ -14,37 +14,44 @@ export const workflowStages: WorkflowStage[] = [
   },
   {
     description:
+      'Pull AE and UCPath transactions for the cycle and seed new chart-string segments for classification.',
+    id: 'data-import',
+    number: 2,
+    title: 'Data Import',
+  },
+  {
+    description:
       'Classify new chart-string segments before they can be included in the AD419 report.',
     id: 'data-classification',
-    number: 2,
+    number: 3,
     title: 'Data Classification',
   },
   {
     description:
       'Confirm the right transactions are included before triggering auto-associations.',
     id: 'expense-review',
-    number: 3,
+    number: 4,
     title: 'Expense Review',
   },
   {
     description:
       'Run the rules engine to associate as many expenses as possible before manual review.',
     id: 'auto-associations',
-    number: 4,
+    number: 5,
     title: 'Auto-Associations',
   },
   {
     description:
       'Resolve flagged items after manual associations are complete.',
     id: 'post-association-review',
-    number: 5,
+    number: 6,
     title: 'Post-Association Review',
   },
   {
     description:
       'Generate the final files for ANR submission and cycle signoff.',
     id: 'final-reports',
-    number: 6,
+    number: 7,
     title: 'Final Reports',
   },
 ];
