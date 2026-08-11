@@ -185,8 +185,8 @@ public class ProjectListControllerTests
             "FY26",
             new DateOnly(2025, 10, 1),
             new DateOnly(2026, 9, 30),
-            new ProjectListCountsDto(1, 1, 2),
-            new ProjectListSummaryDto(2, 3, 4, 5, 1, []),
+            new ProjectListCountsDto(1, 1, 2, 1),
+            new ProjectListSummaryDto(2, 3, 4, 5, 1, 1, []),
             [
                 new ProjectListRowDto(
                     "CA-A-111-H",
@@ -216,6 +216,22 @@ public class ProjectListControllerTests
                     "ANS",
                     "204",
                     "SFN mismatch"),
+            ],
+            [
+                new ProjectListRowDto(
+                    "CA-D-444-CG",
+                    "1000004",
+                    "2025-4",
+                    null,
+                    true,
+                    "Excluded from associations",
+                    "Singh, R.",
+                    "singh@example.edu",
+                    "10000004",
+                    "Singh, Riya",
+                    "PLS",
+                    "204",
+                    "Excluded"),
             ]);
 
         public Task<ProjectListResponse> GetAsync(FiscalYearCycle cycle, CancellationToken cancellationToken)

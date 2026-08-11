@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Server.Import;
 using Server.Models.Imports;
+using System.Reflection;
 using System.Text.Json;
 
 namespace Server.Tests.Import;
@@ -62,17 +63,20 @@ public class FlatFileImportServiceTests
         dataset.FindColumnBySourceHeader("ProjectID")?.TargetColumn.Should().Be("ProjectID");
     }
 
-    [Fact]
-    public void All_projects_import_derives_award_key_from_trimmed_award_number()
+    [Theory]
+    [InlineData("all-projects.csv")]
+    [InlineData("all-projects.xlsx")]
+    public void All_projects_parser_derives_award_key_from_trimmed_award_number(string filename)
     {
         var registry = new FlatFileImportRegistry();
         var dataset = registry.Find("all-projects");
-        var column = dataset?.Columns.Single(item => item.TargetColumn == "AwardKey");
+        var file = CreateImportFile(filename,
+            AllProjectsHeadersWithAwardNumber(),
+            [["A-1", "PRJ-1", "", " 2025-001 ", "Org", "Director", "Federal", "Initial", "Active", "NIF"]]);
 
-        column.Should().NotBeNull();
-        column!.IsDerived.Should().BeTrue();
-        column.ValueFactory!(new Dictionary<string, object?> { ["AwardNumber"] = " 2025-001 " })
-            .Should().Be("2025001");
+        var parsedValues = ParseSingleRowValues(dataset!, file);
+
+        parsedValues["AwardKey"].Should().Be("2025001");
     }
 
     [Fact]
@@ -472,6 +476,62 @@ public class FlatFileImportServiceTests
             "Project Status",
             "Source",
         ];
+    }
+
+    private static string[] AllProjectsHeadersWithAwardNumber()
+    {
+        return
+        [
+            "Accession Number",
+            "Project Number",
+            "Proposal Number",
+            "Award Number",
+            "Organization Name",
+            "Project Director",
+            "Funding Source",
+            "Document Type",
+            "Project Status",
+            "Source",
+        ];
+    }
+
+    private static IFormFile CreateImportFile(string filename, string[] headers, string[][] rows)
+    {
+        return Path.GetExtension(filename).Equals(".csv", StringComparison.OrdinalIgnoreCase)
+            ? CreateCsvFile(filename, headers, rows)
+            : CreateWorkbook(filename, headers, rows);
+    }
+
+    private static IReadOnlyDictionary<string, object?> ParseSingleRowValues(
+        ImportDatasetDefinition definition,
+        IFormFile file)
+    {
+        var parseMethod = typeof(FlatFileImportService).GetMethod(
+            "ParseFile",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        parseMethod.Should().NotBeNull();
+        var parseResult = parseMethod!.Invoke(null, [definition, file]);
+        parseResult.Should().NotBeNull();
+
+        var parseResultType = parseResult!.GetType();
+        var fileErrors = (IEnumerable<ImportFileError>)parseResultType
+            .GetProperty("FileErrors")!
+            .GetValue(parseResult)!;
+        var rows = (IEnumerable<ImportRowResult>)parseResultType
+            .GetProperty("Rows")!
+            .GetValue(parseResult)!;
+        var parsedRows = (System.Collections.IEnumerable)parseResultType
+            .GetProperty("ParsedRows")!
+            .GetValue(parseResult)!;
+
+        fileErrors.Should().BeEmpty();
+        rows.Should().ContainSingle();
+
+        var parsedRow = parsedRows.Cast<object>().Should().ContainSingle().Subject;
+        return (IReadOnlyDictionary<string, object?>)parsedRow.GetType()
+            .GetProperty("ParsedValues")!
+            .GetValue(parsedRow)!;
     }
 
     private static FlatFileImportService CreateService(

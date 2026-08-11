@@ -10,6 +10,7 @@ public static class ProjectListResponseFactory
     public static ProjectListResponse Create(
         FiscalYearCycle cycle,
         IReadOnlyList<ProjectListRowDto> rows,
+        IReadOnlyList<ProjectListRowDto> excludedRows,
         int activeNifa,
         int allNifa,
         int pgmRecords,
@@ -28,14 +29,16 @@ public static class ProjectListResponseFactory
             cycle.FiscalYear,
             cycle.CycleStart,
             cycle.CycleEnd,
-            new ProjectListCountsDto(issues, clean, rows.Count),
+            new ProjectListCountsDto(issues, clean, rows.Count, excludedRows.Count),
             new ProjectListSummaryDto(
                 activeNifa,
                 allNifa,
                 pgmRecords,
                 alnCodes,
+                excludedRows.Count,
                 issues,
                 sfnDistribution),
-            rows);
+            rows,
+            excludedRows);
     }
 }

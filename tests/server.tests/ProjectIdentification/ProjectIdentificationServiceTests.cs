@@ -296,8 +296,9 @@ public class ProjectIdentificationServiceTests
                 cycle.FiscalYear,
                 cycle.CycleStart,
                 cycle.CycleEnd,
-                new ProjectListCountsDto(IssuesToResolve, 0, IssuesToResolve),
-                new ProjectListSummaryDto(0, 0, 0, 0, IssuesToResolve, []),
+                new ProjectListCountsDto(IssuesToResolve, 0, IssuesToResolve, 0),
+                new ProjectListSummaryDto(0, 0, 0, 0, 0, IssuesToResolve, []),
+                [],
                 []));
 
         public Task<bool> HasResolutionEditsAsync(CancellationToken cancellationToken) =>

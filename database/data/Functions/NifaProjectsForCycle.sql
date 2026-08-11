@@ -8,8 +8,8 @@ AS
 RETURN
 (
     -- The canonical reportable NIFA project list: exactly one row per
-    -- ActiveProjects row. Overrides join directly by AllProjectId. Automatic
-    -- AllProjects matches are cycle-filtered, grouped to the lowest
+    -- ActiveProjects row. Overrides match directly by AllProjectId. AllProjects
+    -- matches are cycle-filtered, grouped to the lowest
     -- AllProjectId, then joined back so duplicate AllProjects rows never fan
     -- out the result.
     SELECT
@@ -56,6 +56,8 @@ RETURN
     ) a
     LEFT JOIN [data].[AllProjects] overrideProject
         ON a.AllProjectIdOverride = overrideProject.AllProjectId
+       AND (overrideProject.ProjectEndDate IS NULL OR overrideProject.ProjectEndDate >= @CycleStart)
+       AND (overrideProject.ProjectStartDate IS NULL OR overrideProject.ProjectStartDate <= @CycleEnd)
     LEFT JOIN
     (
         SELECT

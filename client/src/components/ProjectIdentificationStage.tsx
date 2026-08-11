@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { DataTable } from '@/shared/dataTable.tsx';
 import { ConfirmationDialog } from '@/shared/ConfirmationDialog.tsx';
 import { HttpError } from '@/lib/api.ts';
@@ -14,6 +21,7 @@ import {
   type AllProjectCandidate,
   type PgmAwardCandidate,
   type ProjectListRow,
+  type ProjectListResponse,
   type ProjectListStatus,
   type ProjectListSummary,
   type SfnCandidate,
@@ -26,12 +34,13 @@ import {
 } from '@/queries/projectIdentification.ts';
 import { ProjectIdentificationSetupChecklist } from '@/components/ProjectIdentificationSetupChecklist.tsx';
 
-type ProjectListTab = 'issues' | 'clean' | 'all';
+type ProjectListTab = 'issues' | 'clean' | 'all' | 'excluded';
 
 const tabs: { id: ProjectListTab; label: string }[] = [
   { id: 'issues', label: 'Issues' },
   { id: 'clean', label: 'Clean' },
   { id: 'all', label: 'All' },
+  { id: 'excluded', label: 'Excluded' },
 ];
 
 function displayValue(value: string | null): string {
@@ -41,6 +50,10 @@ function displayValue(value: string | null): string {
 function statusClassName(status: ProjectListStatus): string {
   if (status === 'Clean') {
     return 'badge badge-success badge-outline whitespace-nowrap';
+  }
+
+  if (status === 'Excluded') {
+    return 'badge badge-neutral badge-outline whitespace-nowrap';
   }
 
   if (status === 'SFN mismatch') {
@@ -60,6 +73,14 @@ function rowsForTab(rows: ProjectListRow[], tab: ProjectListTab) {
   }
 
   return rows;
+}
+
+function projectListHeading(counts: ProjectListResponse['counts']) {
+  if (counts.excluded > 0) {
+    return `Project list · ${counts.all} active (${counts.excluded} excluded from associations)`;
+  }
+
+  return `Project list · ${counts.all}`;
 }
 
 function sfnDistributionText(summary: ProjectListSummary): string {
@@ -269,7 +290,11 @@ function ProjectIdentificationStageContent({
     );
   }
 
-  const visibleRows = data ? rowsForTab(data.rows, activeTab) : [];
+  const visibleRows = data
+    ? activeTab === 'excluded'
+      ? data.excludedRows
+      : rowsForTab(data.rows, activeTab)
+    : [];
 
   return (
     <div className="workflow-stack">
@@ -287,7 +312,7 @@ function ProjectIdentificationStageContent({
               Reference &amp; Issue Resolution
             </p>
             <h2 className="text-lg font-bold tracking-normal text-slate-950">
-              Project list{data ? ` · ${data.counts.all}` : ''}
+              {data ? projectListHeading(data.counts) : 'Project list'}
             </h2>
           </div>
         </div>
@@ -361,6 +386,11 @@ function ProjectIssueResolutionControl({
   const [mode, setMode] = useState<ResolutionMode | null>(null);
   const [search, setSearch] = useState('');
   const [confirmingExclude, setConfirmingExclude] = useState(false);
+  const controlRef = useRef<HTMLDivElement>(null);
+  const closePicker = useCallback(() => {
+    setMode(null);
+    setSearch('');
+  }, []);
   const invalidateProjectState = () => {
     void queryClient.invalidateQueries({ queryKey: ['projectList'] });
     void queryClient.invalidateQueries({
@@ -387,14 +417,41 @@ function ProjectIssueResolutionControl({
       }
     },
     onSuccess: () => {
-      setMode(null);
-      setSearch('');
+      closePicker();
       setConfirmingExclude(false);
       invalidateProjectState();
     },
   });
 
-  if (row.status === 'Clean' || !accession) {
+  useEffect(() => {
+    if (mode === null) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closePicker();
+      }
+    };
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+
+      if (target && !controlRef.current?.contains(target)) {
+        closePicker();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousedown', handlePointerDown);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handlePointerDown);
+    };
+  }, [closePicker, mode]);
+
+  if (row.status === 'Clean' || row.status === 'Excluded' || !accession) {
     return <span className="text-sm text-slate-400">-</span>;
   }
 
@@ -405,6 +462,7 @@ function ProjectIssueResolutionControl({
         accession={accession}
         disabled={pending}
         fiscalYear={fiscalYear}
+        onCancel={closePicker}
         onSelect={(candidate) =>
           mutation.mutate({
             allProjectId: candidate.allProjectId,
@@ -419,6 +477,7 @@ function ProjectIssueResolutionControl({
         accession={accession}
         disabled={pending}
         fiscalYear={fiscalYear}
+        onCancel={closePicker}
         onSelect={(candidate) =>
           mutation.mutate({
             awardKey: candidate.awardKey,
@@ -433,6 +492,7 @@ function ProjectIssueResolutionControl({
         accession={accession}
         disabled={pending}
         fiscalYear={fiscalYear}
+        onCancel={closePicker}
         onSelect={(candidate) =>
           mutation.mutate({ kind: 'set-sfn', sfn: candidate.sfn })
         }
@@ -440,7 +500,7 @@ function ProjectIssueResolutionControl({
     ) : null;
 
   return (
-    <div className="relative space-y-2">
+    <div className="relative space-y-2" ref={controlRef}>
       <div className="flex flex-wrap justify-end gap-2">
         {row.status === 'No PGM match' ? (
           <button
@@ -526,6 +586,7 @@ function AllProjectPicker({
   accession,
   disabled,
   fiscalYear,
+  onCancel,
   onSelect,
   search,
   setSearch,
@@ -533,6 +594,7 @@ function AllProjectPicker({
   accession: string;
   disabled: boolean;
   fiscalYear: string;
+  onCancel: () => void;
   onSelect: (candidate: AllProjectCandidate) => void;
   search: string;
   setSearch: (value: string) => void;
@@ -549,6 +611,7 @@ function AllProjectPicker({
       emptyText="No All Projects matches found."
       isEmpty={candidates.length === 0}
       isLoading={query.isLoading}
+      onCancel={onCancel}
       search={search}
       setSearch={setSearch}
     >
@@ -581,6 +644,7 @@ function PgmAwardPicker({
   accession,
   disabled,
   fiscalYear,
+  onCancel,
   onSelect,
   search,
   setSearch,
@@ -588,6 +652,7 @@ function PgmAwardPicker({
   accession: string;
   disabled: boolean;
   fiscalYear: string;
+  onCancel: () => void;
   onSelect: (candidate: PgmAwardCandidate) => void;
   search: string;
   setSearch: (value: string) => void;
@@ -604,6 +669,7 @@ function PgmAwardPicker({
       emptyText="No PGM awards found."
       isEmpty={candidates.length === 0}
       isLoading={query.isLoading}
+      onCancel={onCancel}
       search={search}
       setSearch={setSearch}
     >
@@ -636,11 +702,13 @@ function SfnPicker({
   accession,
   disabled,
   fiscalYear,
+  onCancel,
   onSelect,
 }: {
   accession: string;
   disabled: boolean;
   fiscalYear: string;
+  onCancel: () => void;
   onSelect: (candidate: SfnCandidate) => void;
 }) {
   const query = useQuery({
@@ -650,8 +718,17 @@ function SfnPicker({
 
   if (query.isLoading) {
     return (
-      <div className="ml-auto w-80 max-w-full rounded border border-slate-200 bg-white p-2 text-left text-xs text-slate-500 shadow-sm">
+      <div className="ml-auto w-80 max-w-full space-y-2 rounded border border-slate-200 bg-white p-2 text-left text-xs text-slate-500 shadow-sm">
         Loading SFNs...
+        <div className="flex justify-end">
+          <button
+            className="btn btn-ghost btn-xs"
+            onClick={onCancel}
+            type="button"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     );
   }
@@ -705,6 +782,15 @@ function SfnPicker({
           ))}
         </div>
       )}
+      <div className="mt-1 flex justify-end border-t border-slate-100 pt-1">
+        <button
+          className="btn btn-ghost btn-xs"
+          onClick={onCancel}
+          type="button"
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }
@@ -714,6 +800,7 @@ function CandidatePanel({
   emptyText,
   isEmpty,
   isLoading,
+  onCancel,
   search,
   setSearch,
 }: {
@@ -721,6 +808,7 @@ function CandidatePanel({
   emptyText: string;
   isEmpty: boolean;
   isLoading: boolean;
+  onCancel: () => void;
   search: string;
   setSearch: (value: string) => void;
 }) {
@@ -741,6 +829,15 @@ function CandidatePanel({
       ) : (
         <div className="max-h-60 space-y-1 overflow-y-auto">{children}</div>
       )}
+      <div className="flex justify-end border-t border-slate-100 pt-2">
+        <button
+          className="btn btn-ghost btn-xs"
+          onClick={onCancel}
+          type="button"
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }
@@ -793,13 +890,14 @@ function ProjectSummaryCards({ summary }: { summary: ProjectListSummary }) {
     ['All NIFA', summary.allNifa],
     ['PGM records', summary.pgmRecords],
     ['ALN codes', summary.alnCodes],
+    ['Excluded NIFA', summary.excludedNifa],
     ['Issues to resolve', summary.issuesToResolve],
     ['SFN distribution', sfnDistributionText(summary)],
   ];
 
   return (
     <section className="rounded border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
         {summaryCards.map(([label, value]) => (
           <div
             className="rounded border border-slate-200 bg-slate-50 p-3"
