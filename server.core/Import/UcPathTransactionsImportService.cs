@@ -9,7 +9,6 @@ namespace Server.Core.Import;
 
 public sealed class UcPathTransactionsImportService
 {
-    public const string ConnectionStringName = "Datamart";
     public const string HcmLinkedServer = "AIT_BISTG_PRD-CAES_HCMODS_APPUSER";
 
     private const int CommandTimeoutSeconds = DataDbConnection.ImportCommandTimeoutSeconds;
@@ -67,15 +66,7 @@ public sealed class UcPathTransactionsImportService
 
     public async Task<int> ImportAsync(DateOnly cycleStart, DateOnly cycleEnd, CancellationToken cancellationToken = default)
     {
-        var sourceConnectionString = _configuration["DATAMART_CONNECTION"]
-            ?? _configuration.GetConnectionString(ConnectionStringName);
-        if (string.IsNullOrWhiteSpace(sourceConnectionString))
-        {
-            throw new InvalidOperationException(
-                "No datamart connection string configured. Set the DATAMART_CONNECTION environment variable " +
-                $"or configure ConnectionStrings:{ConnectionStringName}.");
-        }
-
+        var sourceConnectionString = DatamartConnection.Resolve(_configuration);
         var destinationConnectionString = DataDbConnection.Resolve(
             _configuration,
             _dataDbContext.Database.GetConnectionString());
@@ -83,7 +74,7 @@ public sealed class UcPathTransactionsImportService
         await using var destination = new SqlConnection(destinationConnectionString);
         await destination.OpenAsync(cancellationToken);
 
-        var projects204 = await ReadListAsync(destination, ImportSql.Projects204Sql, cancellationToken);
+        var projects204 = await ImportSql.ReadListAsync(destination, ImportSql.Projects204Sql, cancellationToken);
         var (windowStart, windowEnd) = ImportSql.BufferedWindow(cycleStart, cycleEnd);
         var fteDenominatorHours = ImportSql.HoursInFederalFiscalYear(cycleEnd.Year);
 
@@ -270,19 +261,6 @@ public sealed class UcPathTransactionsImportService
           AND JOBCODE NOT LIKE ' %'
           AND EFFDT <= ?
         """;
-
-    private static async Task<List<string>> ReadListAsync(SqlConnection connection, string sql, CancellationToken ct)
-    {
-        var values = new List<string>();
-        await using var command = new SqlCommand(sql, connection) { CommandTimeout = CommandTimeoutSeconds };
-        await using var reader = await command.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-        {
-            values.Add(reader.GetString(0));
-        }
-
-        return values;
-    }
 
     // Column names verified against the warehouse 2026-07-30 (ALL_TAB_COLUMNS for
     // both labor views). PAY_END_DT is the pay period end date used for the window

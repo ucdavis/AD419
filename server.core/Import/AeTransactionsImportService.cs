@@ -9,7 +9,6 @@ namespace Server.Core.Import;
 
 public sealed class AeTransactionsImportService
 {
-    public const string ConnectionStringName = "Datamart";
     public const string RemoteLinkedServer = "AE_Redshift_PROD";
 
     private const int CommandTimeoutSeconds = DataDbConnection.ImportCommandTimeoutSeconds;
@@ -77,15 +76,7 @@ public sealed class AeTransactionsImportService
 
     public async Task<int> ImportAsync(DateOnly cycleStart, DateOnly cycleEnd, CancellationToken cancellationToken = default)
     {
-        var sourceConnectionString = _configuration["DATAMART_CONNECTION"]
-            ?? _configuration.GetConnectionString(ConnectionStringName);
-        if (string.IsNullOrWhiteSpace(sourceConnectionString))
-        {
-            throw new InvalidOperationException(
-                "No datamart connection string configured. Set the DATAMART_CONNECTION environment variable " +
-                $"or configure ConnectionStrings:{ConnectionStringName}.");
-        }
-
+        var sourceConnectionString = DatamartConnection.Resolve(_configuration);
         var destinationConnectionString = DataDbConnection.Resolve(
             _configuration,
             _dataDbContext.Database.GetConnectionString());
@@ -93,9 +84,9 @@ public sealed class AeTransactionsImportService
         await using var destination = new SqlConnection(destinationConnectionString);
         await destination.OpenAsync(cancellationToken);
 
-        var caesAnrDepartments = await ReadListAsync(destination, CaesAnrDepartmentsSql, cancellationToken);
-        var bcbsDepartments = await ReadListAsync(destination, BcbsDepartmentsSql, cancellationToken);
-        var projects204 = await ReadListAsync(destination, ImportSql.Projects204Sql, cancellationToken);
+        var caesAnrDepartments = await ImportSql.ReadListAsync(destination, CaesAnrDepartmentsSql, cancellationToken);
+        var bcbsDepartments = await ImportSql.ReadListAsync(destination, BcbsDepartmentsSql, cancellationToken);
+        var projects204 = await ImportSql.ReadListAsync(destination, ImportSql.Projects204Sql, cancellationToken);
 
         var (windowStart, windowEnd) = ImportSql.BufferedWindow(cycleStart, cycleEnd);
         var periods = ImportSql.PeriodNames(windowStart, windowEnd);
@@ -143,19 +134,6 @@ public sealed class AeTransactionsImportService
 
         _logger.LogInformation("Imported {RowCount} AE transactions", rowsImported);
         return rowsImported;
-    }
-
-    private static async Task<List<string>> ReadListAsync(SqlConnection connection, string sql, CancellationToken ct)
-    {
-        var values = new List<string>();
-        await using var command = new SqlCommand(sql, connection) { CommandTimeout = CommandTimeoutSeconds };
-        await using var reader = await command.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-        {
-            values.Add(reader.GetString(0));
-        }
-
-        return values;
     }
 
     public static string BuildRemoteQuery(

@@ -9,7 +9,6 @@ namespace Server.Core.Import;
 
 public sealed class ChartSegmentsImportService
 {
-    public const string ConnectionStringName = "Datamart";
     public const string RemoteLinkedServer = "AE_Redshift_PROD";
 
     private const int CommandTimeoutSeconds = DataDbConnection.ImportCommandTimeoutSeconds;
@@ -69,15 +68,7 @@ public sealed class ChartSegmentsImportService
     {
         var (_, sourceTable) = Segments.Single(s => s.SegmentName == segmentName);
 
-        var sourceConnectionString = _configuration["DATAMART_CONNECTION"]
-            ?? _configuration.GetConnectionString(ConnectionStringName);
-        if (string.IsNullOrWhiteSpace(sourceConnectionString))
-        {
-            throw new InvalidOperationException(
-                "No datamart connection string configured. Set the DATAMART_CONNECTION environment variable " +
-                $"or configure ConnectionStrings:{ConnectionStringName}.");
-        }
-
+        var sourceConnectionString = DatamartConnection.Resolve(_configuration);
         var destinationConnectionString = DataDbConnection.Resolve(
             _configuration,
             _dataDbContext.Database.GetConnectionString());

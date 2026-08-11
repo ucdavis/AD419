@@ -1,4 +1,6 @@
 using System.Globalization;
+using Microsoft.Data.SqlClient;
+using Server.Core.Data;
 
 namespace Server.Core.Import;
 
@@ -35,4 +37,20 @@ public static class ImportSql
 
     public static (DateOnly Start, DateOnly End) BufferedWindow(DateOnly cycleStart, DateOnly cycleEnd) =>
         (cycleStart.AddMonths(-3), cycleEnd.AddMonths(3));
+
+    public static async Task<List<string>> ReadListAsync(SqlConnection connection, string sql, CancellationToken cancellationToken)
+    {
+        var values = new List<string>();
+        await using var command = new SqlCommand(sql, connection)
+        {
+            CommandTimeout = DataDbConnection.ImportCommandTimeoutSeconds,
+        };
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            values.Add(reader.GetString(0));
+        }
+
+        return values;
+    }
 }
