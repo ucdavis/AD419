@@ -40,4 +40,6 @@ public class WorkflowRun
     public string? UpdatedByEmail { get; set; }
 
     public List<WorkflowChecklistItemState> ChecklistItemStates { get; set; } = [];
+
+    public List<WorkflowStageState> StageStates { get; set; } = [];
 }

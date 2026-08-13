@@ -13,6 +13,7 @@ using Server.Core.Notification;
 using Server.Helpers;
 using Server.ProjectIdentification;
 using Server.ProjectList;
+using Server.Workflow;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -60,6 +61,7 @@ builder.Services.AddSingleton<IFlatFileImportRegistry, FlatFileImportRegistry>()
 builder.Services.AddScoped<IFlatFileImportService, FlatFileImportService>();
 builder.Services.AddScoped<IProjectIdentificationService, ProjectIdentificationService>();
 builder.Services.AddScoped<IProjectListService, ProjectListService>();
+builder.Services.AddScoped<IWorkflowService, WorkflowService>();
 builder.Services.AddScoped<ImportRunOrchestrator>();
 builder.Services.AddSingleton<IImportRunStarter, ImportRunStarter>();
 builder.Services.AddScoped<ChartSegmentsImportService>();
