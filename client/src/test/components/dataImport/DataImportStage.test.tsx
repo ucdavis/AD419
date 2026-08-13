@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { server } from '@/test/mswUtils.ts';
+import { createWorkflowSnapshot, server } from '@/test/mswUtils.ts';
 import { renderRoute } from '@/test/routerUtils.tsx';
 
 const mockUser = {
@@ -47,6 +47,14 @@ const succeededRun = {
 function useSetupHandler() {
   server.use(
     http.get('/api/user/me', () => HttpResponse.json(mockUser)),
+    http.get('/api/workflow/snapshot', () =>
+      HttpResponse.json(
+        createWorkflowSnapshot({
+          'data-import': 'InProgress',
+          'project-identification': 'Complete',
+        })
+      )
+    ),
     http.get('/api/projectidentification/setup', () =>
       HttpResponse.json(setupResponse)
     )
@@ -85,6 +93,44 @@ describe('Data Import stage', () => {
         screen.getByText('479 AE projects, 364 NIFA projects')
       ).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /start import/i })).toBeEnabled();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('continues to classification after updating the workflow stage', async () => {
+    let updateRequests = 0;
+    useSetupHandler();
+    server.use(
+      http.get('/api/importruns/current', () => HttpResponse.json(succeededRun)),
+      http.put('/api/workflow/stages/:stageId', async ({ params, request }) => {
+        expect(params.stageId).toBe('data-import');
+        expect(await request.json()).toEqual({ status: 'Complete' });
+        updateRequests += 1;
+        return HttpResponse.json(
+          createWorkflowSnapshot({
+            'data-classification': 'InProgress',
+            'data-import': 'Complete',
+            'project-identification': 'Complete',
+          })
+        );
+      }),
+      http.get('/api/segmentclassifications', () => HttpResponse.json([]))
+    );
+    const { cleanup, router } = renderRoute({ initialPath: '/workflow/data-import' });
+    try {
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: /continue to data classification/i,
+        })
+      );
+
+      await waitFor(() => {
+        expect(updateRequests).toBe(1);
+        expect(router.state.location.pathname).toBe(
+          '/workflow/data-classification'
+        );
+      });
     } finally {
       cleanup();
     }
