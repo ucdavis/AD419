@@ -35,6 +35,52 @@ public class WorkflowServiceTests
     }
 
     [Fact]
+    public async Task Snapshot_adds_missing_stage_states_without_recreating_existing_states()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var startedAt = DateTimeOffset.Parse("2026-06-01T12:00:00Z");
+        var run = new WorkflowRun
+        {
+            FiscalYear = "FY26",
+            CycleStart = new DateOnly(2025, 10, 1),
+            CycleEnd = new DateOnly(2026, 9, 30),
+            CreatedAt = startedAt,
+            IsCurrent = true,
+            UpdatedAt = startedAt,
+            StageStates =
+            {
+                new WorkflowStageState
+                {
+                    StageId = WorkflowStageIds.ProjectIdentification,
+                    Status = WorkflowStageStatus.InProgress,
+                    StartedAt = startedAt,
+                    StartedByName = "Original User",
+                    StartedByEmail = "original@example.edu",
+                },
+            },
+        };
+        db.WorkflowRuns.Add(run);
+        await db.SaveChangesAsync();
+        var projectIdentificationStateId = run.StageStates.Single().Id;
+        var service = new WorkflowService(db);
+
+        var snapshot = await service.GetSnapshotAsync(User, CancellationToken.None);
+
+        snapshot.WorkflowRunId.Should().Be(run.Id);
+        snapshot.Stages.Should().HaveCount(7);
+        snapshot.CurrentStageId.Should().Be(WorkflowStageIds.ProjectIdentification);
+        db.WorkflowStageStates.Should().HaveCount(7);
+        var projectIdentificationStates = await db.WorkflowStageStates
+            .Where(state => state.StageId == WorkflowStageIds.ProjectIdentification)
+            .ToListAsync();
+        projectIdentificationStates.Should().ContainSingle();
+        projectIdentificationStates[0].Id.Should().Be(projectIdentificationStateId);
+        projectIdentificationStates[0].StartedAt.Should().Be(startedAt);
+        projectIdentificationStates[0].StartedByName.Should().Be("Original User");
+        projectIdentificationStates[0].StartedByEmail.Should().Be("original@example.edu");
+    }
+
+    [Fact]
     public async Task Completing_stages_advances_current_stage_and_blocks_skipping_ahead()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
@@ -105,6 +151,55 @@ public class WorkflowServiceTests
             state => state.StageId == WorkflowStageIds.DataClassification);
         dataClassification.CompletedAt.Should().BeNull();
         dataClassification.StartedAt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Repeating_in_progress_preserves_started_audit_and_clears_completion_and_downstream()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var service = new WorkflowService(db);
+        await service.GetSnapshotAsync(User, CancellationToken.None);
+        var startedAt = DateTimeOffset.Parse("2026-06-01T12:00:00Z");
+        var completedAt = DateTimeOffset.Parse("2026-06-02T12:00:00Z");
+        var originalStartedBy = Guid.Parse("33333333-3333-3333-3333-333333333333");
+
+        var projectIdentification = await db.WorkflowStageStates.SingleAsync(
+            state => state.StageId == WorkflowStageIds.ProjectIdentification);
+        projectIdentification.Status = WorkflowStageStatus.InProgress;
+        projectIdentification.StartedAt = startedAt;
+        projectIdentification.StartedByEntraId = originalStartedBy;
+        projectIdentification.StartedByName = "Original User";
+        projectIdentification.StartedByEmail = "original@example.edu";
+        projectIdentification.CompletedAt = completedAt;
+        projectIdentification.CompletedByEntraId = originalStartedBy;
+        projectIdentification.CompletedByName = "Completing User";
+        projectIdentification.CompletedByEmail = "complete@example.edu";
+
+        var dataImport = await db.WorkflowStageStates.SingleAsync(
+            state => state.StageId == WorkflowStageIds.DataImport);
+        dataImport.Status = WorkflowStageStatus.Complete;
+        dataImport.StartedAt = startedAt;
+        dataImport.CompletedAt = completedAt;
+        await db.SaveChangesAsync();
+
+        var updated = await service.SetStageStatusAsync(
+            WorkflowStageIds.ProjectIdentification,
+            WorkflowStageStatus.InProgress,
+            User,
+            CancellationToken.None);
+
+        updated.Should().NotBeNull();
+        projectIdentification.StartedAt.Should().Be(startedAt);
+        projectIdentification.StartedByEntraId.Should().Be(originalStartedBy);
+        projectIdentification.StartedByName.Should().Be("Original User");
+        projectIdentification.StartedByEmail.Should().Be("original@example.edu");
+        projectIdentification.CompletedAt.Should().BeNull();
+        projectIdentification.CompletedByEntraId.Should().BeNull();
+        projectIdentification.CompletedByName.Should().BeNull();
+        projectIdentification.CompletedByEmail.Should().BeNull();
+        dataImport.Status.Should().Be(WorkflowStageStatus.NotStarted);
+        dataImport.StartedAt.Should().BeNull();
+        dataImport.CompletedAt.Should().BeNull();
     }
 
     [Fact]
