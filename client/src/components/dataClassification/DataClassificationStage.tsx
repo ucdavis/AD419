@@ -13,15 +13,32 @@ import {
   type SegmentClassification,
   useUpdateSegmentClassification,
 } from '@/queries/segmentClassifications.ts';
-import { Link } from '@tanstack/react-router';
-import { useQuery } from '@tanstack/react-query';
+import {
+  WORKFLOW_SNAPSHOT_KEY,
+  updateWorkflowStageStatus,
+} from '@/queries.ts';
+import { useNavigate } from '@tanstack/react-router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export function DataClassificationStage() {
   const { data: segments = [], isLoading } = useQuery(
     segmentClassificationsQueryOptions()
   );
   const updateClassification = useUpdateSegmentClassification();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [activeType, setActiveType] = useState(SEGMENT_TABS[0].type);
+  const continueMutation = useMutation({
+    mutationFn: () =>
+      updateWorkflowStageStatus('data-classification', 'Complete'),
+    onSuccess: (snapshot) => {
+      queryClient.setQueryData(WORKFLOW_SNAPSHOT_KEY, snapshot);
+      void navigate({
+        params: { stageId: 'expense-review' },
+        to: '/workflow/$stageId',
+      });
+    },
+  });
 
   if (isLoading) {
     return <p>Loading segments...</p>;
@@ -105,19 +122,31 @@ export function DataClassificationStage() {
             : 'Unclassified rows must be set before the next step.'}
         </span>
         {gateOpen ? (
-          <Link
+          <button
             className="btn btn-primary"
-            params={{ stageId: 'expense-review' }}
-            to="/workflow/$stageId"
+            disabled={continueMutation.isPending}
+            onClick={() => continueMutation.mutate()}
+            type="button"
           >
-            Continue to Expense Review
-          </Link>
+            {continueMutation.isPending
+              ? 'Continuing...'
+              : 'Continue to Expense Review'}
+          </button>
         ) : (
           <button className="btn btn-primary" disabled type="button">
             Continue to Expense Review
           </button>
         )}
       </div>
+      {continueMutation.isError ? (
+        <div className="alert alert-error" role="alert">
+          <span>
+            {continueMutation.error instanceof Error
+              ? continueMutation.error.message
+              : 'Could not update the workflow stage.'}
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { screen, waitFor } from '@testing-library/react';
-import { server } from '@/test/mswUtils.ts';
+import { createWorkflowSnapshot, server } from '@/test/mswUtils.ts';
 import { renderRoute } from '@/test/routerUtils.tsx';
 import { userEvent } from '@testing-library/user-event';
 
@@ -339,6 +339,9 @@ describe('AD419 workflow routes', () => {
       ).toBeInTheDocument();
       expect(screen.getByText('SFN mismatch')).toBeInTheDocument();
       expect(screen.queryByText('Singh, R.')).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /data import/i })
+      ).toBeDisabled();
 
       await waitFor(() => {
         expect(router.state.location.pathname).toBe(
@@ -346,6 +349,42 @@ describe('AD419 workflow routes', () => {
         );
       });
       expect(requestedFy).toBe('FY26');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('redirects the authenticated homepage to the API-provided current stage', async () => {
+    server.use(
+      http.get('/api/user/me', () => {
+        return HttpResponse.json(mockUser);
+      }),
+      http.get('/api/workflow/snapshot', () => {
+        return HttpResponse.json(
+          createWorkflowSnapshot({
+            'data-import': 'InProgress',
+            'project-identification': 'Complete',
+          })
+        );
+      }),
+      http.get('/api/projectidentification/setup', () => {
+        return HttpResponse.json(setupResponse);
+      }),
+      http.get('/api/importruns/current', () => {
+        return new HttpResponse(null, { status: 204 });
+      })
+    );
+
+    const { cleanup, router } = renderRoute({ initialPath: '/' });
+
+    try {
+      expect(
+        await screen.findByRole('heading', { level: 1, name: 'Data Import' })
+      ).toBeInTheDocument();
+
+      await waitFor(() => {
+        expect(router.state.location.pathname).toBe('/workflow/data-import');
+      });
     } finally {
       cleanup();
     }
@@ -775,10 +814,23 @@ describe('AD419 workflow routes', () => {
       http.post('/api/projectidentification/finalize', () => {
         finalizeRequests += 1;
         return HttpResponse.json(finalizedSetup);
+      }),
+      http.put('/api/workflow/stages/:stageId', async ({ params, request }) => {
+        expect(params.stageId).toBe('project-identification');
+        expect(await request.json()).toEqual({ status: 'Complete' });
+        return HttpResponse.json(
+          createWorkflowSnapshot({
+            'data-import': 'InProgress',
+            'project-identification': 'Complete',
+          })
+        );
+      }),
+      http.get('/api/importruns/current', () => {
+        return new HttpResponse(null, { status: 204 });
       })
     );
 
-    const { cleanup } = renderRoute({
+    const { cleanup, router } = renderRoute({
       initialPath: '/workflow/project-identification',
     });
 
@@ -793,6 +845,16 @@ describe('AD419 workflow routes', () => {
       await waitFor(() => {
         expect(finalizeRequests).toBe(1);
         expect(screen.getByText('7 of 7 complete')).toBeInTheDocument();
+      });
+
+      await user.click(
+        await screen.findByRole('button', {
+          name: /continue to data import/i,
+        })
+      );
+
+      await waitFor(() => {
+        expect(router.state.location.pathname).toBe('/workflow/data-import');
       });
     } finally {
       cleanup();
@@ -864,6 +926,14 @@ describe('AD419 workflow routes', () => {
       http.get('/api/projectidentification/setup', () => {
         return HttpResponse.json(setupResponse);
       }),
+      http.get('/api/workflow/snapshot', () => {
+        return HttpResponse.json(
+          createWorkflowSnapshot({
+            'data-import': 'InProgress',
+            'project-identification': 'Complete',
+          })
+        );
+      }),
       http.get('/api/importruns/current', () => {
         return new HttpResponse(null, { status: 204 });
       })
@@ -879,13 +949,86 @@ describe('AD419 workflow routes', () => {
     }
   });
 
-  it('loads any workflow stage directly without locking', async () => {
+  it('allows placeholder workflow stages to complete and advance', async () => {
+    const user = userEvent.setup();
+    let updateRequests = 0;
+
+    server.use(
+      http.get('/api/user/me', () => {
+        return HttpResponse.json(mockUser);
+      }),
+      http.get('/api/workflow/snapshot', () => {
+        return HttpResponse.json(
+          createWorkflowSnapshot({
+            'data-classification': 'Complete',
+            'data-import': 'Complete',
+            'expense-review': 'InProgress',
+            'project-identification': 'Complete',
+          })
+        );
+      }),
+      http.put('/api/workflow/stages/:stageId', async ({ params, request }) => {
+        expect(params.stageId).toBe('expense-review');
+        expect(await request.json()).toEqual({ status: 'Complete' });
+        updateRequests += 1;
+
+        return HttpResponse.json(
+          createWorkflowSnapshot({
+            'auto-associations': 'InProgress',
+            'data-classification': 'Complete',
+            'data-import': 'Complete',
+            'expense-review': 'Complete',
+            'project-identification': 'Complete',
+          })
+        );
+      })
+    );
+
+    const { cleanup, router } = renderRoute({
+      initialPath: '/workflow/expense-review',
+    });
+
+    try {
+      expect(
+        await screen.findByRole('heading', { level: 1, name: 'Expense Review' })
+      ).toBeInTheDocument();
+
+      await user.click(
+        screen.getByRole('button', {
+          name: /continue to auto-associations/i,
+        })
+      );
+
+      await waitFor(() => {
+        expect(updateRequests).toBe(1);
+        expect(router.state.location.pathname).toBe(
+          '/workflow/auto-associations'
+        );
+      });
+      expect(
+        await screen.findByRole('heading', {
+          level: 1,
+          name: 'Auto-Associations',
+        })
+      ).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('redirects locked future workflow stages to the current stage', async () => {
     server.use(
       http.get('/api/user/me', () => {
         return HttpResponse.json(mockUser);
       }),
       http.get('/api/imports/recent', () => {
         return HttpResponse.json([]);
+      }),
+      http.get('/api/projectidentification/setup', () => {
+        return HttpResponse.json(setupResponse);
+      }),
+      http.get('/api/projectlist', () => {
+        return HttpResponse.json(projectListResponse);
       })
     );
 
@@ -895,15 +1038,13 @@ describe('AD419 workflow routes', () => {
 
     try {
       expect(
-        await screen.findByRole('heading', { name: 'Final Reports' })
-      ).toBeInTheDocument();
-
-      expect(
-        await screen.findByRole('heading', { name: 'Coming soon' })
+        await screen.findByRole('heading', { name: 'Project Identification' })
       ).toBeInTheDocument();
 
       await waitFor(() => {
-        expect(router.state.location.pathname).toBe('/workflow/final-reports');
+        expect(router.state.location.pathname).toBe(
+          '/workflow/project-identification'
+        );
       });
     } finally {
       cleanup();

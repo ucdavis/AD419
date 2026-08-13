@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { server } from '@/test/mswUtils.ts';
+import { createWorkflowSnapshot, server } from '@/test/mswUtils.ts';
 import { renderRoute } from '@/test/routerUtils.tsx';
 
 const mockUser = {
@@ -27,6 +27,15 @@ function mockApi() {
   let current = [...segments];
   server.use(
     http.get('/api/user/me', () => HttpResponse.json(mockUser)),
+    http.get('/api/workflow/snapshot', () =>
+      HttpResponse.json(
+        createWorkflowSnapshot({
+          'data-classification': 'InProgress',
+          'data-import': 'Complete',
+          'project-identification': 'Complete',
+        })
+      )
+    ),
     http.get('/api/segmentclassifications', () => HttpResponse.json(current)),
     http.patch('/api/segmentclassifications', async ({ request }) => {
       const body = await request.json() as { code: string; includeInReport: boolean; segmentType: string; sfn: string | null };
@@ -72,8 +81,64 @@ describe('Data Classification stage', () => {
 
       await waitFor(() => {
         expect(
-          screen.getByRole('link', { name: /Continue to Expense Review/ })
+          screen.getByRole('button', { name: /Continue to Expense Review/ })
         ).toBeInTheDocument();
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('continues to expense review after updating the workflow stage', async () => {
+    let updateRequests = 0;
+    server.use(
+      http.get('/api/user/me', () => HttpResponse.json(mockUser)),
+      http.get('/api/workflow/snapshot', () =>
+        HttpResponse.json(
+          createWorkflowSnapshot({
+            'data-classification': 'InProgress',
+            'data-import': 'Complete',
+            'project-identification': 'Complete',
+          })
+        )
+      ),
+      http.get('/api/segmentclassifications', () =>
+        HttpResponse.json(
+          segments.map((segment) => ({
+            ...segment,
+            includeInReport: true,
+            sfn: segment.segmentType === 'Fund' ? '201' : null,
+          }))
+        )
+      ),
+      http.put('/api/workflow/stages/:stageId', async ({ params, request }) => {
+        expect(params.stageId).toBe('data-classification');
+        expect(await request.json()).toEqual({ status: 'Complete' });
+        updateRequests += 1;
+        return HttpResponse.json(
+          createWorkflowSnapshot({
+            'data-classification': 'Complete',
+            'data-import': 'Complete',
+            'expense-review': 'InProgress',
+            'project-identification': 'Complete',
+          })
+        );
+      })
+    );
+    const { cleanup, router } = renderRoute({
+      initialPath: '/workflow/data-classification',
+    });
+
+    try {
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: /continue to expense review/i,
+        })
+      );
+
+      await waitFor(() => {
+        expect(updateRequests).toBe(1);
+        expect(router.state.location.pathname).toBe('/workflow/expense-review');
       });
     } finally {
       cleanup();

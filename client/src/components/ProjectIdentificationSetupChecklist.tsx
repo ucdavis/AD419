@@ -12,6 +12,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { fetchJson } from '@/lib/api.ts';
+import { WORKFLOW_SNAPSHOT_KEY } from '@/queries.ts';
 
 interface PgmImportResponse {
   reportDate: string;
@@ -46,6 +47,7 @@ export function ProjectIdentificationSetupChecklist({
       queryClient.setQueryData(['projectIdentification', 'setup'], response);
       setOpenItemId(findFirstIncompleteItemId(response));
       void queryClient.invalidateQueries({ queryKey: ['projectList'] });
+      void queryClient.invalidateQueries({ queryKey: WORKFLOW_SNAPSHOT_KEY });
     },
   });
 
@@ -55,6 +57,7 @@ export function ProjectIdentificationSetupChecklist({
       queryClient.setQueryData(['projectIdentification', 'setup'], response);
       setOpenItemId(findFirstIncompleteItemId(response));
       void queryClient.invalidateQueries({ queryKey: ['projectList'] });
+      void queryClient.invalidateQueries({ queryKey: WORKFLOW_SNAPSHOT_KEY });
     },
   });
 
@@ -64,6 +67,7 @@ export function ProjectIdentificationSetupChecklist({
       queryClient.setQueryData(['projectIdentification', 'setup'], response);
       setOpenItemId(findFirstIncompleteItemId(response));
       void queryClient.invalidateQueries({ queryKey: ['projectList'] });
+      void queryClient.invalidateQueries({ queryKey: WORKFLOW_SNAPSHOT_KEY });
     },
   });
 
@@ -378,6 +382,7 @@ function PgmImportChecklistContent({
         queryKey: ['projectIdentification', 'setup'],
       });
       void queryClient.invalidateQueries({ queryKey: ['projectList'] });
+      void queryClient.invalidateQueries({ queryKey: WORKFLOW_SNAPSHOT_KEY });
     },
   });
   const rows = result?.rowsImported ?? item.source?.rows ?? null;
