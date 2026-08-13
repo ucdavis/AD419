@@ -12,6 +12,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<User> Users => Set<User>();
     public DbSet<WorkflowRun> WorkflowRuns => Set<WorkflowRun>();
     public DbSet<WorkflowChecklistItemState> WorkflowChecklistItemStates => Set<WorkflowChecklistItemState>();
+    public DbSet<WorkflowStageState> WorkflowStageStates => Set<WorkflowStageState>();
     public DbSet<ImportRun> ImportRuns => Set<ImportRun>();
     public DbSet<ImportRunStage> ImportRunStages => Set<ImportRunStage>();
 
@@ -24,6 +25,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<User>().ToTable("Users", AppSchema);
         modelBuilder.Entity<WorkflowRun>().ToTable("WorkflowRun", AppSchema);
         modelBuilder.Entity<WorkflowChecklistItemState>().ToTable("WorkflowChecklistItemState", AppSchema);
+        modelBuilder.Entity<WorkflowStageState>().ToTable("WorkflowStageState", AppSchema);
         modelBuilder.Entity<ImportRun>().ToTable("ImportRun", AppSchema);
         modelBuilder.Entity<ImportRunStage>().ToTable("ImportRunStage", AppSchema);
 
@@ -34,6 +36,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         modelBuilder.Entity<WorkflowRun>()
             .HasMany(run => run.ChecklistItemStates)
+            .WithOne(state => state.WorkflowRun)
+            .HasForeignKey(state => state.WorkflowRunId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<WorkflowRun>()
+            .HasMany(run => run.StageStates)
             .WithOne(state => state.WorkflowRun)
             .HasForeignKey(state => state.WorkflowRunId)
             .OnDelete(DeleteBehavior.Cascade);
