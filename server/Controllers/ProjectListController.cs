@@ -4,12 +4,14 @@ using Server.Core.Data;
 using Server.Models;
 using Server.Models.ProjectList;
 using Server.ProjectList;
+using Server.Workflow;
 
 namespace Server.Controllers;
 
 public sealed class ProjectListController(
     IProjectListService projectListService,
-    AppDbContext appDb) : ApiControllerBase
+    AppDbContext appDb,
+    IWorkflowService workflowService) : ApiControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Get([FromQuery] string? fy, CancellationToken cancellationToken)
@@ -94,7 +96,7 @@ public sealed class ProjectListController(
         }
 
         var result = await projectListService.ExcludeAsync(cycle, accession, cancellationToken);
-        return MapProjectListUpdateResult(result);
+        return await MapProjectListUpdateResultAsync(result, cancellationToken);
     }
 
     [HttpPost("{accession}/link-all-project")]
@@ -115,7 +117,7 @@ public sealed class ProjectListController(
         }
 
         var result = await projectListService.LinkAllProjectAsync(cycle, accession, allProjectId, cancellationToken);
-        return MapProjectListUpdateResult(result);
+        return await MapProjectListUpdateResultAsync(result, cancellationToken);
     }
 
     [HttpPost("{accession}/link-pgm-award")]
@@ -136,7 +138,7 @@ public sealed class ProjectListController(
         }
 
         var result = await projectListService.LinkPgmAwardAsync(cycle, accession, request.AwardKey, cancellationToken);
-        return MapProjectListUpdateResult(result);
+        return await MapProjectListUpdateResultAsync(result, cancellationToken);
     }
 
     [HttpPost("{accession}/set-sfn")]
@@ -157,7 +159,7 @@ public sealed class ProjectListController(
         }
 
         var result = await projectListService.SetSfnAsync(cycle, accession, request.Sfn, cancellationToken);
-        return MapProjectListUpdateResult(result);
+        return await MapProjectListUpdateResultAsync(result, cancellationToken);
     }
 
     private async Task<(FiscalYearCycle? Cycle, IActionResult? Error)> GetConfirmedCycleAsync(
@@ -189,8 +191,18 @@ public sealed class ProjectListController(
         return false;
     }
 
-    private IActionResult MapProjectListUpdateResult(ProjectListUpdateResult result)
+    private async Task<IActionResult> MapProjectListUpdateResultAsync(
+        ProjectListUpdateResult result,
+        CancellationToken cancellationToken)
     {
+        if (result.Status == ProjectListUpdateStatus.Updated)
+        {
+            await workflowService.ResetFromStageAsync(
+                WorkflowStageIds.ProjectIdentification,
+                User,
+                cancellationToken);
+        }
+
         return result.Status switch
         {
             ProjectListUpdateStatus.Updated => NoContent(),
