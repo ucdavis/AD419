@@ -6,6 +6,7 @@ using Server.Core.Domain;
 using Server.Core.Import;
 using Server.Models.ImportRuns;
 using System.Security.Claims;
+using Server.Workflow;
 
 namespace Server.Controllers;
 
@@ -41,17 +42,20 @@ public class ImportRunsController : ApiControllerBase
     private readonly IImportStageProvider _stageProvider;
     private readonly IImportRunStarter _runStarter;
     private readonly IImportReadinessCheck _readinessCheck;
+    private readonly IWorkflowService _workflowService;
 
     public ImportRunsController(
         AppDbContext appDb,
         IImportStageProvider stageProvider,
         IImportRunStarter runStarter,
-        IImportReadinessCheck readinessCheck)
+        IImportReadinessCheck readinessCheck,
+        IWorkflowService workflowService)
     {
         _appDb = appDb;
         _stageProvider = stageProvider;
         _runStarter = runStarter;
         _readinessCheck = readinessCheck;
+        _workflowService = workflowService;
     }
 
     // POST api/importruns
@@ -94,6 +98,10 @@ public class ImportRunsController : ApiControllerBase
 
         _appDb.ImportRuns.Add(run);
         await _appDb.SaveChangesAsync(cancellationToken);
+        await _workflowService.ResetFromStageAsync(
+            WorkflowStageIds.DataImport,
+            User,
+            cancellationToken);
 
         _runStarter.Start(run.Id);
 
@@ -104,8 +112,17 @@ public class ImportRunsController : ApiControllerBase
     [HttpGet("current")]
     public async Task<ActionResult<ImportRunDto>> Current(CancellationToken cancellationToken)
     {
+        var workflowRun = await _appDb.WorkflowRuns
+            .SingleOrDefaultAsync(r => r.IsCurrent, cancellationToken);
+
+        if (workflowRun is null)
+        {
+            return NoContent();
+        }
+
         var run = await _appDb.ImportRuns
             .Include(r => r.Stages)
+            .Where(r => r.CycleStart == workflowRun.CycleStart && r.CycleEnd == workflowRun.CycleEnd)
             .OrderByDescending(r => r.Id)
             .FirstOrDefaultAsync(cancellationToken);
 

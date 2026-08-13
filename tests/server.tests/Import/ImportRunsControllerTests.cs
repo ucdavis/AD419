@@ -8,6 +8,7 @@ using Server.Core.Domain;
 using Server.Core.Import;
 using Server.Models.ImportRuns;
 using System.Security.Claims;
+using Server.Workflow;
 
 namespace Server.Tests.Import;
 
@@ -54,7 +55,11 @@ public class ImportRunsControllerTests
         AppDbContext db, RecordingRunStarter starter, string? blockingIssue = null)
     {
         var controller = new ImportRunsController(
-            db, new FakeStageProvider(), starter, new FakeReadinessCheck(blockingIssue));
+            db,
+            new FakeStageProvider(),
+            starter,
+            new FakeReadinessCheck(blockingIssue),
+            new WorkflowService(db));
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext
@@ -141,6 +146,41 @@ public class ImportRunsControllerTests
     }
 
     [Fact]
+    public async Task Start_resets_workflow_from_data_import()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        await SeedWorkflowRunAsync(db);
+        var workflowService = new WorkflowService(db);
+        await workflowService.SetStageStatusAsync(
+            WorkflowStageIds.ProjectIdentification,
+            WorkflowStageStatus.Complete,
+            User(),
+            CancellationToken.None);
+        await workflowService.SetStageStatusAsync(
+            WorkflowStageIds.DataImport,
+            WorkflowStageStatus.Complete,
+            User(),
+            CancellationToken.None);
+        await workflowService.SetStageStatusAsync(
+            WorkflowStageIds.DataClassification,
+            WorkflowStageStatus.Complete,
+            User(),
+            CancellationToken.None);
+        var controller = CreateController(db, new RecordingRunStarter());
+
+        await controller.Start(CancellationToken.None);
+
+        var snapshot = await workflowService.GetSnapshotAsync(User(), CancellationToken.None);
+        snapshot.CurrentStageId.Should().Be(WorkflowStageIds.DataImport);
+        snapshot.Stages.Single(stage => stage.Id == WorkflowStageIds.ProjectIdentification)
+            .Status.Should().Be(WorkflowStageStatus.Complete);
+        snapshot.Stages.Single(stage => stage.Id == WorkflowStageIds.DataImport)
+            .Status.Should().Be(WorkflowStageStatus.InProgress);
+        snapshot.Stages.Single(stage => stage.Id == WorkflowStageIds.DataClassification)
+            .Status.Should().Be(WorkflowStageStatus.NotStarted);
+    }
+
+    [Fact]
     public async Task Current_returns_latest_run_or_204()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
@@ -148,6 +188,7 @@ public class ImportRunsControllerTests
 
         (await controller.Current(CancellationToken.None)).Result.Should().BeOfType<NoContentResult>();
 
+        await SeedWorkflowRunAsync(db);
         db.ImportRuns.AddRange(
             new ImportRun { CycleStart = new(2023, 10, 1), CycleEnd = new(2024, 9, 30), Status = ImportRunStatus.Succeeded, StartedAt = DateTimeOffset.UtcNow.AddDays(-2) },
             new ImportRun { CycleStart = new(2024, 10, 1), CycleEnd = new(2025, 9, 30), Status = ImportRunStatus.Failed, StartedAt = DateTimeOffset.UtcNow });
@@ -157,4 +198,26 @@ public class ImportRunsControllerTests
         dto.Status.Should().Be(ImportRunStatus.Failed);
         dto.CycleStart.Should().Be(new DateOnly(2024, 10, 1));
     }
+
+    [Fact]
+    public async Task Current_returns_latest_run_for_current_workflow_cycle()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        await SeedWorkflowRunAsync(db);
+        db.ImportRuns.AddRange(
+            new ImportRun { CycleStart = new(2024, 10, 1), CycleEnd = new(2025, 9, 30), Status = ImportRunStatus.Succeeded, StartedAt = DateTimeOffset.UtcNow.AddDays(-2) },
+            new ImportRun { CycleStart = new(2023, 10, 1), CycleEnd = new(2024, 9, 30), Status = ImportRunStatus.Failed, StartedAt = DateTimeOffset.UtcNow });
+        await db.SaveChangesAsync();
+        var controller = CreateController(db, new RecordingRunStarter());
+
+        var dto = (await controller.Current(CancellationToken.None)).Value!;
+
+        dto.Status.Should().Be(ImportRunStatus.Succeeded);
+        dto.CycleStart.Should().Be(new DateOnly(2024, 10, 1));
+        dto.CycleEnd.Should().Be(new DateOnly(2025, 9, 30));
+    }
+
+    private static ClaimsPrincipal User() => new(new ClaimsIdentity(
+        [new Claim("name", "Rob Martinsen"), new Claim("preferred_username", "rob@ucdavis.edu")],
+        "test"));
 }

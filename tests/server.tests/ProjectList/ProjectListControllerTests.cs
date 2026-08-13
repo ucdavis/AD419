@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Server.Controllers;
 using Server.Core.Data;
@@ -6,6 +7,8 @@ using Server.Core.Domain;
 using Server.Models;
 using Server.Models.ProjectList;
 using Server.ProjectList;
+using Server.Workflow;
+using System.Security.Claims;
 
 namespace Server.Tests.ProjectList;
 
@@ -35,7 +38,7 @@ public class ProjectListControllerTests
     public async Task Get_returns_bad_request_for_missing_or_invalid_fy(string? fy)
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var controller = new ProjectListController(new StubProjectListService(), db);
+        var controller = CreateController(new StubProjectListService(), db);
 
         var result = await controller.Get(fy, CancellationToken.None);
 
@@ -47,7 +50,7 @@ public class ProjectListControllerTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         var service = new StubProjectListService();
-        var controller = new ProjectListController(service, db);
+        var controller = CreateController(service, db);
 
         var result = await controller.Get("FY26", CancellationToken.None);
 
@@ -63,7 +66,7 @@ public class ProjectListControllerTests
     public async Task Link_all_project_requires_id()
     {
         await using var db = await CreateDbWithConfirmedRunAsync();
-        var controller = new ProjectListController(new StubProjectListService(), db);
+        var controller = CreateController(new StubProjectListService(), db);
 
         var result = await controller.LinkAllProject(
             "1000002",
@@ -81,7 +84,7 @@ public class ProjectListControllerTests
         {
             NextUpdateResult = new ProjectListUpdateResult(ProjectListUpdateStatus.Conflict, "Wrong status."),
         };
-        var controller = new ProjectListController(service, db);
+        var controller = CreateController(service, db);
 
         var result = await controller.Exclude("1000002", CancellationToken.None);
 
@@ -97,7 +100,7 @@ public class ProjectListControllerTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         var service = new StubProjectListService();
-        var controller = new ProjectListController(service, db);
+        var controller = CreateController(service, db);
 
         var allProjects = await controller.AllProjectCandidates("1000002", "FY25", null, CancellationToken.None);
         var pgmAwards = await controller.PgmAwardCandidates("1000002", "FY25", null, CancellationToken.None);
@@ -122,7 +125,7 @@ public class ProjectListControllerTests
     public async Task Candidate_endpoints_require_fy()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var controller = new ProjectListController(new StubProjectListService(), db);
+        var controller = CreateController(new StubProjectListService(), db);
 
         var candidates = await controller.PgmAwardCandidates("1000002", null, null, CancellationToken.None);
 
@@ -134,7 +137,7 @@ public class ProjectListControllerTests
     {
         await using var db = await CreateDbWithConfirmedRunAsync();
         var service = new StubProjectListService();
-        var controller = new ProjectListController(service, db);
+        var controller = CreateController(service, db);
 
         var result = await controller.SetSfn(
             "1000002",
@@ -152,7 +155,7 @@ public class ProjectListControllerTests
     public async Task Resolution_writes_conflict_when_no_fiscal_period_is_confirmed()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var controller = new ProjectListController(new StubProjectListService(), db);
+        var controller = CreateController(new StubProjectListService(), db);
 
         var exclude = await controller.Exclude("1000002", CancellationToken.None);
         var setSfn = await controller.SetSfn("1000002", new SetSfnRequest("204"), CancellationToken.None);
@@ -165,7 +168,7 @@ public class ProjectListControllerTests
     public async Task Resolution_edits_returns_service_flag()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var controller = new ProjectListController(new StubProjectListService { HasResolutionEdits = true }, db);
+        var controller = CreateController(new StubProjectListService { HasResolutionEdits = true }, db);
 
         var result = await controller.ResolutionEdits(CancellationToken.None);
 
@@ -322,5 +325,22 @@ public class ProjectListControllerTests
 
         public Task<int> BuildProjectsAsync(FiscalYearCycle cycle, CancellationToken cancellationToken) =>
             Task.FromResult(12);
+    }
+
+    private static ProjectListController CreateController(
+        IProjectListService projectListService,
+        AppDbContext db)
+    {
+        var controller = new ProjectListController(projectListService, db, new WorkflowService(db));
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                    [new Claim("name", "Shannon Taylor"), new Claim("preferred_username", "shannon@example.edu")],
+                    "test")),
+            },
+        };
+        return controller;
     }
 }
