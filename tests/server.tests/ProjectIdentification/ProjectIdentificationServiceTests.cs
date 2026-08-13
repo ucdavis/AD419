@@ -7,6 +7,7 @@ using Server.Models;
 using Server.Models.ProjectList;
 using Server.ProjectIdentification;
 using Server.ProjectList;
+using Server.Workflow;
 
 namespace Server.Tests.ProjectIdentification;
 
@@ -258,10 +259,43 @@ public class ProjectIdentificationServiceTests
             .Completed.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task Fiscal_period_change_resets_top_level_workflow_to_project_identification()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var service = CreateService(db);
+        var workflowService = new WorkflowService(db);
+
+        await service.ConfirmFiscalPeriodAsync("FY26", User, CancellationToken.None);
+        await workflowService.SetStageStatusAsync(
+            WorkflowStageIds.ProjectIdentification,
+            WorkflowStageStatus.Complete,
+            User,
+            CancellationToken.None);
+        await workflowService.SetStageStatusAsync(
+            WorkflowStageIds.DataImport,
+            WorkflowStageStatus.Complete,
+            User,
+            CancellationToken.None);
+
+        await service.ConfirmFiscalPeriodAsync("FY27", User, CancellationToken.None);
+
+        var snapshot = await workflowService.GetSnapshotAsync(User, CancellationToken.None);
+        snapshot.CurrentStageId.Should().Be(WorkflowStageIds.ProjectIdentification);
+        snapshot.Stages.Single(stage => stage.Id == WorkflowStageIds.ProjectIdentification)
+            .Status.Should().Be(WorkflowStageStatus.InProgress);
+        snapshot.Stages.Single(stage => stage.Id == WorkflowStageIds.DataImport)
+            .Status.Should().Be(WorkflowStageStatus.NotStarted);
+    }
+
     private static ProjectIdentificationService CreateService(
         Server.Core.Data.AppDbContext db,
         StubProjectListService? projectListService = null) =>
-        new(db, new FlatFileImportRegistry(), projectListService ?? new StubProjectListService());
+        new(
+            db,
+            new FlatFileImportRegistry(),
+            projectListService ?? new StubProjectListService(),
+            new WorkflowService(db));
 
     private static void AddImport(
         Server.Core.Data.AppDbContext db,
