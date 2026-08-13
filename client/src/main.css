@@ -59,6 +59,18 @@
     @apply border-sky-700 bg-sky-700 text-white;
   }
 
+  .workflow-step--complete .workflow-step__number {
+    @apply border-emerald-700 bg-emerald-700 text-white;
+  }
+
+  .workflow-step--locked .workflow-step__link {
+    @apply w-full cursor-not-allowed text-slate-400 opacity-70 hover:bg-transparent;
+  }
+
+  .workflow-step--locked .workflow-step__number {
+    @apply border-slate-200 bg-slate-100 text-slate-400;
+  }
+
   .workflow-step__text {
     @apply flex min-w-0 flex-col gap-1;
   }

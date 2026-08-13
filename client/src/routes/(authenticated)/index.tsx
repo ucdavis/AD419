@@ -1,4 +1,3 @@
-import { getCurrentAvailableStageId } from '@/mockData.ts';
 import { workflowSnapshotQueryOptions } from '@/queries.ts';
 import type { RouterContext } from '@/main.tsx';
 import { createFileRoute, redirect } from '@tanstack/react-router';
@@ -10,7 +9,7 @@ export const Route = createFileRoute('/(authenticated)/')({
     );
 
     throw redirect({
-      params: { stageId: getCurrentAvailableStageId(snapshot) },
+      params: { stageId: snapshot.currentStageId },
       to: '/workflow/$stageId',
     });
   },
