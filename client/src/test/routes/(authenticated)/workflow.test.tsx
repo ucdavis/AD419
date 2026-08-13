@@ -412,8 +412,8 @@ describe('AD419 workflow routes', () => {
       expect(screen.getByText('Excluded from associations')).toBeInTheDocument();
       expect(screen.queryByText('Okonkwo, Y.')).not.toBeInTheDocument();
       expect(
-        screen.queryByRole('button', { name: 'Exclude' })
-      ).not.toBeInTheDocument();
+        screen.getByRole('button', { name: 'Re-include' })
+      ).toBeInTheDocument();
     } finally {
       cleanup();
     }
@@ -681,13 +681,19 @@ describe('AD419 workflow routes', () => {
       http.get('/api/projectlist', () => {
         return HttpResponse.json(projectListResponse);
       }),
-      http.post('/api/projectlist/:accession/exclude', ({ params }) => {
-        expect(params.accession).toBe('1078258');
-        excludeRequests += 1;
-        return HttpResponse.text('Project has status Clean.', {
-          status: 409,
-        });
-      })
+      http.post(
+        '/api/projectlist/:accession/exclude',
+        async ({ params, request }) => {
+          expect(params.accession).toBe('1078258');
+          await expect(request.json()).resolves.toEqual({
+            notes: 'No matching PGM award',
+          });
+          excludeRequests += 1;
+          return HttpResponse.text('Project has status Clean.', {
+            status: 409,
+          });
+        }
+      )
     );
 
     const { cleanup } = renderRoute({
@@ -704,12 +710,123 @@ describe('AD419 workflow routes', () => {
         await screen.findByRole('dialog', { name: 'Exclude project?' })
       ).toBeInTheDocument();
 
+      await user.type(
+        screen.getByLabelText('Note'),
+        '  No matching PGM award  '
+      );
       await user.click(screen.getByRole('button', { name: 'Exclude project' }));
 
       expect(
         await screen.findByText('Project has status Clean.')
       ).toBeInTheDocument();
       expect(excludeRequests).toBe(1);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('sends null notes when excluding with blank note text', async () => {
+    const user = userEvent.setup();
+    let excludeRequests = 0;
+
+    server.use(
+      http.get('/api/user/me', () => {
+        return HttpResponse.json(mockUser);
+      }),
+      http.get('/api/imports/recent', () => {
+        return HttpResponse.json([]);
+      }),
+      http.get('/api/projectidentification/setup', () => {
+        return HttpResponse.json(setupResponse);
+      }),
+      http.get('/api/projectlist', () => {
+        return HttpResponse.json(projectListResponse);
+      }),
+      http.post('/api/projectlist/:accession/exclude', async ({ request }) => {
+        await expect(request.json()).resolves.toEqual({ notes: null });
+        excludeRequests += 1;
+        return new HttpResponse(null, { status: 204 });
+      })
+    );
+
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/project-identification',
+    });
+
+    try {
+      expect(await screen.findByText('No PGM match')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Exclude' }));
+      await user.type(await screen.findByLabelText('Note'), '   ');
+      await user.click(screen.getByRole('button', { name: 'Exclude project' }));
+
+      await waitFor(() => {
+        expect(excludeRequests).toBe(1);
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('re-includes excluded projects with edited notes and shows server errors', async () => {
+    const user = userEvent.setup();
+    let includeRequests = 0;
+
+    server.use(
+      http.get('/api/user/me', () => {
+        return HttpResponse.json(mockUser);
+      }),
+      http.get('/api/imports/recent', () => {
+        return HttpResponse.json([]);
+      }),
+      http.get('/api/projectidentification/setup', () => {
+        return HttpResponse.json(setupResponse);
+      }),
+      http.get('/api/projectlist', () => {
+        return HttpResponse.json(projectListResponse);
+      }),
+      http.post(
+        '/api/projectlist/:accession/include',
+        async ({ params, request }) => {
+          expect(params.accession).toBe('1088888');
+          await expect(request.json()).resolves.toEqual({
+            notes: 'Ready for review',
+          });
+          includeRequests += 1;
+          return HttpResponse.text('Project is not currently excluded.', {
+            status: 409,
+          });
+        }
+      )
+    );
+
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/project-identification',
+    });
+
+    try {
+      await user.click(
+        await screen.findByRole('tab', { name: /excluded\s*1/i })
+      );
+      await user.click(screen.getByRole('button', { name: 'Re-include' }));
+
+      expect(
+        await screen.findByRole('dialog', { name: 'Re-include project?' })
+      ).toBeInTheDocument();
+
+      const note = screen.getByLabelText('Note');
+      expect(note).toHaveValue('Excluded from associations');
+
+      await user.clear(note);
+      await user.type(note, '  Ready for review  ');
+      await user.click(
+        screen.getByRole('button', { name: 'Re-include project' })
+      );
+
+      expect(
+        await screen.findByText('Project is not currently excluded.')
+      ).toBeInTheDocument();
+      expect(includeRequests).toBe(1);
     } finally {
       cleanup();
     }

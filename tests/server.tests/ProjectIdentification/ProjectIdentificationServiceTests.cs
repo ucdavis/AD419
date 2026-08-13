@@ -327,6 +327,14 @@ public class ProjectIdentificationServiceTests
         public Task<ProjectListUpdateResult> ExcludeAsync(
             FiscalYearCycle cycle,
             string accession,
+            string? notes,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(ProjectListUpdateResult.Updated);
+
+        public Task<ProjectListUpdateResult> IncludeAsync(
+            FiscalYearCycle cycle,
+            string accession,
+            string? notes,
             CancellationToken cancellationToken) =>
             Task.FromResult(ProjectListUpdateResult.Updated);
 

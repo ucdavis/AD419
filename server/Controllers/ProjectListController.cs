@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 using Server.Core.Data;
 using Server.Models;
@@ -85,6 +86,7 @@ public sealed class ProjectListController(
     [HttpPost("{accession}/exclude")]
     public async Task<IActionResult> Exclude(
         [FromRoute] string accession,
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] ProjectExclusionRequest? request,
         CancellationToken cancellationToken)
     {
         var (cycle, cycleError) = await GetConfirmedCycleAsync(cancellationToken);
@@ -93,7 +95,23 @@ public sealed class ProjectListController(
             return cycleError!;
         }
 
-        var result = await projectListService.ExcludeAsync(cycle, accession, cancellationToken);
+        var result = await projectListService.ExcludeAsync(cycle, accession, request?.Notes, cancellationToken);
+        return MapProjectListUpdateResult(result);
+    }
+
+    [HttpPost("{accession}/include")]
+    public async Task<IActionResult> Include(
+        [FromRoute] string accession,
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] ProjectExclusionRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var (cycle, cycleError) = await GetConfirmedCycleAsync(cancellationToken);
+        if (cycle is null)
+        {
+            return cycleError!;
+        }
+
+        var result = await projectListService.IncludeAsync(cycle, accession, request?.Notes, cancellationToken);
         return MapProjectListUpdateResult(result);
     }
 

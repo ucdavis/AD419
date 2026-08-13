@@ -142,6 +142,9 @@ public class ProjectListSqlTests
         source.Should().Contain("FROM [data].[NifaProjectsForCycle](@cycleStart, @cycleEnd) nv");
         source.Should().Contain("WHERE nv.ExcludeFromUi = 1");
         source.Should().Contain("CAST('Excluded' AS NVARCHAR(30))");
+        source.Should().Contain("SET [ExcludeFromUi] = 1,\n                [Notes] = @notes");
+        source.Should().Contain("SET [ExcludeFromUi] = 0,\n                [Notes] = @notes");
+        source.Should().Contain("CAST(ISNULL(nv.[ExcludeFromUi], 0) AS BIT)");
         source.Should().NotContain("FROM [data].[v_ProjectList]");
         source.Should().NotContain("FROM [data].[v_NifaProjects]");
     }

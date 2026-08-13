@@ -204,10 +204,34 @@ function projectResolutionActionUrl(
   return `${projectResolutionUrl(accession, path)}?${params.toString()}`;
 }
 
-export async function excludeProject(fiscalYear: string, accession: string) {
+function normalizeProjectNotes(notes: string | null) {
+  const trimmed = notes?.trim() ?? '';
+  return trimmed ? trimmed : null;
+}
+
+export async function excludeProject(
+  fiscalYear: string,
+  accession: string,
+  notes: string | null
+) {
   return fetchJson<void>(
     projectResolutionActionUrl(fiscalYear, accession, 'exclude'),
     {
+      body: JSON.stringify({ notes: normalizeProjectNotes(notes) }),
+      method: 'POST',
+    }
+  );
+}
+
+export async function includeProject(
+  fiscalYear: string,
+  accession: string,
+  notes: string | null
+) {
+  return fetchJson<void>(
+    projectResolutionActionUrl(fiscalYear, accession, 'include'),
+    {
+      body: JSON.stringify({ notes: normalizeProjectNotes(notes) }),
       method: 'POST',
     }
   );
