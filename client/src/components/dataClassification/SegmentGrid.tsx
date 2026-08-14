@@ -42,13 +42,16 @@ export function SegmentGrid({
   segmentType: SegmentType;
   tableActions?: ReactNode;
 }) {
-  const levelKeys = [
-    ...new Set(
-      segments.flatMap((segment) =>
-        segment.hierarchy.map((level) => level.level)
-      )
-    ),
-  ].sort();
+  const levelKeys =
+    segmentType === 'Purpose'
+      ? []
+      : [
+          ...new Set(
+            segments.flatMap((segment) =>
+              segment.hierarchy.map((level) => level.level)
+            )
+          ),
+        ].sort();
 
   const levelColumns: ColumnDef<SegmentClassification>[] = levelKeys.map(
     (levelKey) => ({

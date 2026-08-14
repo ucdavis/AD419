@@ -21,13 +21,16 @@ export function buildSegmentExport(
   segments: SegmentClassification[],
   tab: SegmentTab
 ): { columns: CsvColumn<ExportRow>[]; filename: string; rows: ExportRow[] } {
-  const levelKeys = [
-    ...new Set(
-      segments.flatMap((segment) =>
-        segment.hierarchy.map((level) => level.level)
-      )
-    ),
-  ].sort();
+  const levelKeys =
+    tab.type === 'Purpose'
+      ? []
+      : [
+          ...new Set(
+            segments.flatMap((segment) =>
+              segment.hierarchy.map((level) => level.level)
+            )
+          ),
+        ].sort();
 
   const columns: CsvColumn<ExportRow>[] = [
     { header: 'Code', key: 'code' },

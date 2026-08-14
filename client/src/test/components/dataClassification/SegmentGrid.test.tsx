@@ -42,6 +42,20 @@ const accountSegments: SegmentClassification[] = [
   },
 ];
 
+const purposeSegments: SegmentClassification[] = [
+  {
+    code: '44',
+    description: 'Research',
+    hierarchy: [
+      { code: '1A', level: 'A', name: 'Purpose Categories' },
+      { code: '1D', level: 'B', name: 'Organized Research D' },
+    ],
+    includeInReport: true,
+    segmentType: 'Purpose',
+    sfn: null,
+  },
+];
+
 describe('SegmentGrid', () => {
   it('renders a column per hierarchy level with the code and hover title', () => {
     render(<SegmentGrid classificationHeader="SFN" onClassify={vi.fn()} segments={fundSegments} segmentType="Fund" />);
@@ -67,6 +81,18 @@ describe('SegmentGrid', () => {
 
     expect(screen.queryByRole('columnheader', { name: /^Level / })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Include' })).toBeInTheDocument();
+  });
+
+  it('hides hierarchy level columns for purpose segments', () => {
+    render(<SegmentGrid classificationHeader="Include in AD419?" onClassify={vi.fn()} segments={purposeSegments} segmentType="Purpose" />);
+
+    expect(screen.getByRole('columnheader', { name: 'Code' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Name' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Include in AD419?' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Level A' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Level B' })).not.toBeInTheDocument();
+    expect(screen.getByText('44')).toBeInTheDocument();
+    expect(screen.getByText('Research')).toBeInTheDocument();
   });
 
   it('sorts unclassified rows to the top by default', () => {
