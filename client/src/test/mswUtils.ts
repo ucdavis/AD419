@@ -53,9 +53,16 @@ const workflowStageDefinitions = [
   },
   {
     description:
+      'Import Field Station and CE Specialists data before generating final reports.',
+    id: 'station-specialist-import',
+    number: 7,
+    title: 'Station/Specialist Import',
+  },
+  {
+    description:
       'Generate the final files for ANR submission and cycle signoff.',
     id: 'final-reports',
-    number: 7,
+    number: 8,
     title: 'Final Reports',
   },
 ] satisfies Array<Pick<WorkflowStage, 'description' | 'id' | 'number' | 'title'>>;

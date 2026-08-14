@@ -25,13 +25,22 @@ public class WorkflowServiceTests
         var snapshot = await service.GetSnapshotAsync(User, CancellationToken.None);
 
         snapshot.WorkflowRunId.Should().BePositive();
-        snapshot.Stages.Should().HaveCount(7);
+        snapshot.Stages.Should().HaveCount(8);
+        snapshot.Stages.Select(stage => stage.Id).Should().Equal(
+            WorkflowStageIds.ProjectIdentification,
+            WorkflowStageIds.DataImport,
+            WorkflowStageIds.DataClassification,
+            WorkflowStageIds.ExpenseReview,
+            WorkflowStageIds.AutoAssociations,
+            WorkflowStageIds.PostAssociationReview,
+            WorkflowStageIds.StationSpecialistImport,
+            WorkflowStageIds.FinalReports);
         snapshot.CurrentStageId.Should().Be(WorkflowStageIds.ProjectIdentification);
         snapshot.Stages[0].Status.Should().Be(WorkflowStageStatus.InProgress);
         snapshot.Stages[0].CanAccess.Should().BeTrue();
         snapshot.Stages[1].Status.Should().Be(WorkflowStageStatus.NotStarted);
         snapshot.Stages[1].CanAccess.Should().BeFalse();
-        db.WorkflowStageStates.Should().HaveCount(7);
+        db.WorkflowStageStates.Should().HaveCount(8);
     }
 
     [Fact]
@@ -61,6 +70,34 @@ public class WorkflowServiceTests
             .Status.Should().Be(WorkflowStageStatus.InProgress);
         advanced.Stages.Single(stage => stage.Id == WorkflowStageIds.DataClassification)
             .CanAccess.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Completing_post_association_starts_station_specialist_import_before_final_reports()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var service = new WorkflowService(db);
+
+        await CompleteStageAsync(service, WorkflowStageIds.ProjectIdentification);
+        await CompleteStageAsync(service, WorkflowStageIds.DataImport);
+        await CompleteStageAsync(service, WorkflowStageIds.DataClassification);
+        await CompleteStageAsync(service, WorkflowStageIds.ExpenseReview);
+        await CompleteStageAsync(service, WorkflowStageIds.AutoAssociations);
+        var stationSpecialist = await CompleteStageAsync(service, WorkflowStageIds.PostAssociationReview);
+
+        stationSpecialist.CurrentStageId.Should().Be(WorkflowStageIds.StationSpecialistImport);
+        stationSpecialist.Stages.Single(stage => stage.Id == WorkflowStageIds.StationSpecialistImport)
+            .Status.Should().Be(WorkflowStageStatus.InProgress);
+        stationSpecialist.Stages.Single(stage => stage.Id == WorkflowStageIds.FinalReports)
+            .CanAccess.Should().BeFalse();
+
+        var finalReports = await CompleteStageAsync(service, WorkflowStageIds.StationSpecialistImport);
+
+        finalReports.CurrentStageId.Should().Be(WorkflowStageIds.FinalReports);
+        finalReports.Stages.Single(stage => stage.Id == WorkflowStageIds.StationSpecialistImport)
+            .Status.Should().Be(WorkflowStageStatus.Complete);
+        finalReports.Stages.Single(stage => stage.Id == WorkflowStageIds.FinalReports)
+            .Status.Should().Be(WorkflowStageStatus.InProgress);
     }
 
     [Fact]
@@ -138,5 +175,19 @@ public class WorkflowServiceTests
             .Status.Should().Be(WorkflowStageStatus.InProgress);
         snapshot.Stages.Single(stage => stage.Id == WorkflowStageIds.DataClassification)
             .Status.Should().Be(WorkflowStageStatus.NotStarted);
+    }
+
+    private static async Task<Server.Models.Workflow.WorkflowSnapshotResponse> CompleteStageAsync(
+        WorkflowService service,
+        string stageId)
+    {
+        var snapshot = await service.SetStageStatusAsync(
+            stageId,
+            WorkflowStageStatus.Complete,
+            User,
+            CancellationToken.None);
+
+        snapshot.Should().NotBeNull();
+        return snapshot!;
     }
 }

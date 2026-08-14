@@ -8,6 +8,7 @@ public static class WorkflowStageIds
     public const string ExpenseReview = "expense-review";
     public const string AutoAssociations = "auto-associations";
     public const string PostAssociationReview = "post-association-review";
+    public const string StationSpecialistImport = "station-specialist-import";
     public const string FinalReports = "final-reports";
 }
 
@@ -52,8 +53,13 @@ public static class WorkflowStages
             "Post-Association Review",
             "Resolve flagged items after manual associations are complete."),
         new(
-            WorkflowStageIds.FinalReports,
+            WorkflowStageIds.StationSpecialistImport,
             7,
+            "Station/Specialist Import",
+            "Import Field Station and CE Specialists data before generating final reports."),
+        new(
+            WorkflowStageIds.FinalReports,
+            8,
             "Final Reports",
             "Generate the final files for ANR submission and cycle signoff."),
     ];
