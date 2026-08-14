@@ -94,9 +94,21 @@ export const workflowStages: WorkflowStage[] = [
     completedByEmail: null,
     completedByName: null,
     description:
+      'Import Field Station and CE Specialists data before generating final reports.',
+    id: 'station-specialist-import',
+    number: 8,
+    status: 'NotStarted',
+    title: 'Station/Specialist Import',
+  },
+  {
+    canAccess: false,
+    completedAt: null,
+    completedByEmail: null,
+    completedByName: null,
+    description:
       'Generate the final files for ANR submission and cycle signoff.',
     id: 'final-reports',
-    number: 8,
+    number: 9,
     status: 'NotStarted',
     title: 'Final Reports',
   },
