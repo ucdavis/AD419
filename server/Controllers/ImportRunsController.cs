@@ -97,11 +97,13 @@ public class ImportRunsController : ApiControllerBase
         };
 
         _appDb.ImportRuns.Add(run);
+        await using var transaction = await _appDb.Database.BeginTransactionAsync(cancellationToken);
         await _appDb.SaveChangesAsync(cancellationToken);
         await _workflowService.ResetFromStageAsync(
             WorkflowStageIds.DataImport,
             User,
             cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         _runStarter.Start(run.Id);
 

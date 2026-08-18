@@ -80,13 +80,13 @@ public sealed class ProjectIdentificationService(
         var fiscalState = GetOrCreateState(run, FiscalPeriodItemId);
         CompleteState(fiscalState, user, now);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
         if (changed)
         {
-            await workflowService.ResetFromStageAsync(
-                WorkflowStageIds.ProjectIdentification,
-                user,
-                cancellationToken);
+            await SaveChangesAndResetProjectIdentificationAsync(user, cancellationToken);
+        }
+        else
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
         }
 
         var latestImports = await GetLatestImportsAsync(cancellationToken);
@@ -114,11 +114,7 @@ public sealed class ProjectIdentificationService(
         {
             ClearFrom(run, definition.Number);
             Touch(run, user, DateTimeOffset.UtcNow);
-            await dbContext.SaveChangesAsync(cancellationToken);
-            await workflowService.ResetFromStageAsync(
-                WorkflowStageIds.ProjectIdentification,
-                user,
-                cancellationToken);
+            await SaveChangesAndResetProjectIdentificationAsync(user, cancellationToken);
 
             return CreateSetupResponse(run, latestImports);
         }
@@ -172,11 +168,7 @@ public sealed class ProjectIdentificationService(
 
         ClearAfter(run, definition.Number);
         Touch(run, user, now);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await workflowService.ResetFromStageAsync(
-            WorkflowStageIds.ProjectIdentification,
-            user,
-            cancellationToken);
+        await SaveChangesAndResetProjectIdentificationAsync(user, cancellationToken);
 
         latestImports = await GetLatestImportsAsync(cancellationToken);
         return CreateSetupResponse(run, latestImports);
@@ -273,11 +265,20 @@ public sealed class ProjectIdentificationService(
 
         ClearAfter(run, ChecklistItems.Single(item => item.Id == PgmItemId).Number);
         Touch(run, user, now);
+        await SaveChangesAndResetProjectIdentificationAsync(user, cancellationToken);
+    }
+
+    private async Task SaveChangesAndResetProjectIdentificationAsync(
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         await workflowService.ResetFromStageAsync(
             WorkflowStageIds.ProjectIdentification,
             user,
             cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     private ProjectIdentificationSetupResponse CreateSetupResponse(
