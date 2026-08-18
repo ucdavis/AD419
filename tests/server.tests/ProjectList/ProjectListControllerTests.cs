@@ -141,7 +141,13 @@ public class ProjectListControllerTests
     {
         await using var db = await CreateDbWithConfirmedRunAsync();
         var service = new StubProjectListService();
-        var controller = CreateController(service, db);
+        var workflowService = new WorkflowService(db);
+        await workflowService.SetStageStatusAsync(
+            WorkflowStageIds.ProjectIdentification,
+            WorkflowStageStatus.Complete,
+            User(),
+            CancellationToken.None);
+        var controller = CreateController(service, db, workflowService);
 
         var result = await controller.SetSfn(
             "1000002",
@@ -153,6 +159,10 @@ public class ProjectListControllerTests
             "FY25",
             new DateOnly(2024, 10, 1),
             new DateOnly(2025, 9, 30)));
+        var snapshot = await workflowService.GetSnapshotAsync(User(), CancellationToken.None);
+        snapshot.CurrentStageId.Should().Be(WorkflowStageIds.ProjectIdentification);
+        snapshot.Stages.Single(stage => stage.Id == WorkflowStageIds.ProjectIdentification)
+            .Status.Should().Be(WorkflowStageStatus.InProgress);
     }
 
     [Fact]
@@ -384,9 +394,10 @@ public class ProjectListControllerTests
 
     private static ProjectListController CreateController(
         IProjectListService projectListService,
-        AppDbContext db)
+        AppDbContext db,
+        IWorkflowService? workflowService = null)
     {
-        var controller = new ProjectListController(projectListService, db, new WorkflowService(db));
+        var controller = new ProjectListController(projectListService, db, workflowService ?? new WorkflowService(db));
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext
@@ -398,4 +409,8 @@ public class ProjectListControllerTests
         };
         return controller;
     }
+
+    private static ClaimsPrincipal User() => new(new ClaimsIdentity(
+        [new Claim("name", "Shannon Taylor"), new Claim("preferred_username", "shannon@example.edu")],
+        "test"));
 }
