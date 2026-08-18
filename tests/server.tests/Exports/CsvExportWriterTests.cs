@@ -13,9 +13,9 @@ public class CsvExportWriterTests
 
         await CsvExportWriter.WriteAsync(
             output,
-            [
-                new ExportRow("D0123 - Plant, \"Sciences\"", "1234.50", null),
-            ],
+            ToAsyncEnumerable(
+                new ExportRow("D0123 - Plant, \"Sciences\"", "1234.50", null)
+            ),
             [
                 new CsvExportColumn<ExportRow>("Financial Dept", row => row.FinancialDept),
                 new CsvExportColumn<ExportRow>("Amount", row => row.Amount),
@@ -35,17 +35,48 @@ public class CsvExportWriterTests
 
         await CsvExportWriter.WriteAsync(
             output,
-            [],
+            ToAsyncEnumerable<ExportRow>(),
             [new CsvExportColumn<ExportRow>("Financial Dept", row => row.FinancialDept)],
             CancellationToken.None);
 
         output.ToArray().Should().NotBeEmpty();
     }
 
+    [Fact]
+    public async Task WriteAsync_enumerates_rows_during_writing()
+    {
+        await using var output = new MemoryStream();
+        var rowsEnumerated = 0;
+
+        await CsvExportWriter.WriteAsync(
+            output,
+            CreateRows(),
+            [new CsvExportColumn<ExportRow>("Financial Dept", row => row.FinancialDept)],
+            CancellationToken.None);
+
+        rowsEnumerated.Should().Be(1);
+
+        async IAsyncEnumerable<ExportRow> CreateRows()
+        {
+            rowsEnumerated++;
+            await Task.Yield();
+            yield return new ExportRow("D0123", "1234.50", null);
+        }
+    }
+
     private sealed record ExportRow(
         string FinancialDept,
         string Amount,
         string? Blank);
+
+    private static async IAsyncEnumerable<T> ToAsyncEnumerable<T>(params T[] rows)
+    {
+        foreach (var row in rows)
+        {
+            await Task.Yield();
+            yield return row;
+        }
+    }
 
     private sealed class SyncFlushThrowingStream : MemoryStream
     {

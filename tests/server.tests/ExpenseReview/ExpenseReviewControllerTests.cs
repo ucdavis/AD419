@@ -281,7 +281,7 @@ public class ExpenseReviewControllerTests
 
             await ExpenseReviewCsvWriter.WriteAsync(
                 output,
-                [
+                ToAsyncEnumerable(
                     new ExpenseReviewTransactionDto(
                         "UCP:1",
                         "1",
@@ -296,10 +296,19 @@ public class ExpenseReviewControllerTests
                         12.34m,
                         0.5m,
                         true,
-                        true),
-                ],
+                        true)
+                ),
                 columnIds,
                 cancellationToken);
+        }
+
+        private static async IAsyncEnumerable<T> ToAsyncEnumerable<T>(params T[] rows)
+        {
+            foreach (var row in rows)
+            {
+                await Task.Yield();
+                yield return row;
+            }
         }
     }
 }

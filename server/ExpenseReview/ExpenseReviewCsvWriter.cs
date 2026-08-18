@@ -23,7 +23,7 @@ public static class ExpenseReviewCsvWriter
 
     public static async Task WriteAsync(
         Stream output,
-        IEnumerable<ExpenseReviewTransactionDto> rows,
+        IAsyncEnumerable<ExpenseReviewTransactionDto> rows,
         IReadOnlyList<string> columnIds,
         CancellationToken cancellationToken)
     {

@@ -13,7 +13,7 @@ public static class CsvExportWriter
 {
     public static async Task WriteAsync<T>(
         Stream output,
-        IEnumerable<T> rows,
+        IAsyncEnumerable<T> rows,
         IReadOnlyList<CsvExportColumn<T>> columns,
         CancellationToken cancellationToken)
     {
@@ -33,7 +33,7 @@ public static class CsvExportWriter
 
         await csv.NextRecordAsync();
 
-        foreach (var row in rows)
+        await foreach (var row in rows.WithCancellation(cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
 

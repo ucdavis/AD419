@@ -83,13 +83,20 @@ function filenameFromContentDisposition(header: string | null) {
   return filename?.[1]?.trim() ?? null;
 }
 
+function isJsonContentType(contentType: string | null) {
+  const mediaType = contentType?.split(';')[0]?.trim().toLowerCase();
+  return (
+    mediaType === 'application/json' || mediaType?.endsWith('+json') === true
+  );
+}
+
 async function readErrorBody(response: Response) {
   const text = await response.text();
   if (!text) {
     return undefined;
   }
 
-  if (response.headers.get('content-type')?.includes('application/json')) {
+  if (isJsonContentType(response.headers.get('content-type'))) {
     try {
       return JSON.parse(text) as unknown;
     } catch {

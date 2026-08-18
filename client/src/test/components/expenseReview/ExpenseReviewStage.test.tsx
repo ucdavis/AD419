@@ -313,6 +313,8 @@ describe('Expense Review stage', () => {
 
       await waitFor(() => {
         expect(exportRequests).toHaveLength(1);
+        expect(download.createObjectURL).toHaveBeenCalled();
+        expect(download.click).toHaveBeenCalled();
       });
 
       const exportUrl = exportRequests[0];
@@ -333,8 +335,6 @@ describe('Expense Review stage', () => {
         'fte',
         'included',
       ]);
-      expect(download.createObjectURL).toHaveBeenCalled();
-      expect(download.click).toHaveBeenCalled();
     } finally {
       cleanup();
       download.restore();
@@ -347,7 +347,10 @@ describe('Expense Review stage', () => {
     mockExpenseReviewApi();
     server.use(
       http.get('/api/expensereview/transactions.csv', () =>
-        HttpResponse.json({ detail: 'CSV export failed.' }, { status: 500 })
+        new HttpResponse(JSON.stringify({ detail: 'CSV export failed.' }), {
+          headers: { 'Content-Type': 'application/problem+json' },
+          status: 500,
+        })
       )
     );
     const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });

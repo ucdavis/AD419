@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -111,15 +112,15 @@ public sealed class ExpenseReviewService(
         await connection.OpenAsync(cancellationToken);
 
         var parameters = CreateParameters(cycle, request);
-        var rows = await connection.QueryAsync<ExpenseReviewTransactionRow>(new CommandDefinition(
+        var rows = QueryTransactionRowsAsync(
+            connection,
             BuildTransactionsExportSql(request),
             parameters,
-            commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
-            cancellationToken: cancellationToken));
+            cancellationToken);
 
         await ExpenseReviewCsvWriter.WriteAsync(
             output,
-            rows.Select(ToDto),
+            ToDtos(rows, cancellationToken),
             columnIds,
             cancellationToken);
     }
@@ -484,6 +485,35 @@ public sealed class ExpenseReviewService(
             row.Fte,
             row.FteIncluded,
             row.Included);
+
+    private static async IAsyncEnumerable<ExpenseReviewTransactionRow> QueryTransactionRowsAsync(
+        SqlConnection connection,
+        string sql,
+        DynamicParameters parameters,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await using var reader = await connection.ExecuteReaderAsync(new CommandDefinition(
+            sql,
+            parameters,
+            commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
+            cancellationToken: cancellationToken));
+        var parser = reader.GetRowParser<ExpenseReviewTransactionRow>();
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            yield return parser(reader);
+        }
+    }
+
+    private static async IAsyncEnumerable<ExpenseReviewTransactionDto> ToDtos(
+        IAsyncEnumerable<ExpenseReviewTransactionRow> rows,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await foreach (var row in rows.WithCancellation(cancellationToken))
+        {
+            yield return ToDto(row);
+        }
+    }
 
     private static DynamicParameters CreateParameters(FiscalYearCycle cycle, ExpenseReviewTransactionsRequest request)
     {
