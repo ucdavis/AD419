@@ -30,6 +30,7 @@ import { useMemo, useState } from 'react';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const DEFAULT_PAGE_SIZE = 25;
+const DEFAULT_SORTING: SortingState = [{ desc: false, id: 'source' }];
 const FIELD_COLUMN_IDS = [
   'financialDept',
   'fund',
@@ -79,6 +80,14 @@ function emptyFilters(): ExpenseReviewFilters {
 
 function filterCount(filters: ExpenseReviewFilters) {
   return Object.values(filters).reduce((sum, values) => sum + values.length, 0);
+}
+
+function defaultSorting(): SortingState {
+  return [...DEFAULT_SORTING];
+}
+
+function normalizeSorting(sorting: SortingState) {
+  return sorting.length > 0 ? sorting : defaultSorting();
 }
 
 function sourceBadgeClass(source: ExpenseReviewTransaction['source']) {
@@ -434,9 +443,7 @@ export function ExpenseReviewStage() {
   );
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [sorting, setSorting] = useState<SortingState>([
-    { desc: false, id: 'source' },
-  ]);
+  const [sorting, setSorting] = useState<SortingState>(() => defaultSorting());
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -622,7 +629,7 @@ export function ExpenseReviewStage() {
           setPageIndex(0);
         }}
         onSortingChange={(nextSorting) => {
-          setSorting(nextSorting);
+          setSorting(normalizeSorting(nextSorting));
           setPageIndex(0);
         }}
         pageCount={transactions.pageCount}

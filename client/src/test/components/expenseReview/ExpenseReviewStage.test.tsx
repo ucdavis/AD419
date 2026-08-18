@@ -168,6 +168,27 @@ describe('Expense Review stage', () => {
         expect(requests.at(-1)?.searchParams.get('sortBy')).toBe(
           'financialDept'
         );
+        expect(requests.at(-1)?.searchParams.get('sortDirection')).toBe('asc');
+      });
+
+      await user.click(
+        screen.getByRole('columnheader', { name: /Financial Dept/ })
+      );
+      await waitFor(() => {
+        expect(requests.at(-1)?.searchParams.get('sortBy')).toBe(
+          'financialDept'
+        );
+        expect(requests.at(-1)?.searchParams.get('sortDirection')).toBe(
+          'desc'
+        );
+      });
+
+      await user.click(
+        screen.getByRole('columnheader', { name: /Financial Dept/ })
+      );
+      await waitFor(() => {
+        expect(requests.at(-1)?.searchParams.get('sortBy')).toBe('source');
+        expect(requests.at(-1)?.searchParams.get('sortDirection')).toBe('asc');
       });
 
       await user.click(screen.getByRole('button', { name: 'Next' }));
