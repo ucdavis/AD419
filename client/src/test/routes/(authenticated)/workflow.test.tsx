@@ -949,6 +949,73 @@ describe('AD419 workflow routes', () => {
     }
   });
 
+  it('allows placeholder workflow stages to complete and advance', async () => {
+    const user = userEvent.setup();
+    let updateRequests = 0;
+
+    server.use(
+      http.get('/api/user/me', () => {
+        return HttpResponse.json(mockUser);
+      }),
+      http.get('/api/workflow/snapshot', () => {
+        return HttpResponse.json(
+          createWorkflowSnapshot({
+            'data-classification': 'Complete',
+            'data-import': 'Complete',
+            'expense-review': 'InProgress',
+            'project-identification': 'Complete',
+          })
+        );
+      }),
+      http.put('/api/workflow/stages/:stageId', async ({ params, request }) => {
+        expect(params.stageId).toBe('expense-review');
+        expect(await request.json()).toEqual({ status: 'Complete' });
+        updateRequests += 1;
+
+        return HttpResponse.json(
+          createWorkflowSnapshot({
+            'auto-associations': 'InProgress',
+            'data-classification': 'Complete',
+            'data-import': 'Complete',
+            'expense-review': 'Complete',
+            'project-identification': 'Complete',
+          })
+        );
+      })
+    );
+
+    const { cleanup, router } = renderRoute({
+      initialPath: '/workflow/expense-review',
+    });
+
+    try {
+      expect(
+        await screen.findByRole('heading', { level: 1, name: 'Expense Review' })
+      ).toBeInTheDocument();
+
+      await user.click(
+        screen.getByRole('button', {
+          name: /continue to auto-associations/i,
+        })
+      );
+
+      await waitFor(() => {
+        expect(updateRequests).toBe(1);
+        expect(router.state.location.pathname).toBe(
+          '/workflow/auto-associations'
+        );
+      });
+      expect(
+        await screen.findByRole('heading', {
+          level: 1,
+          name: 'Auto-Associations',
+        })
+      ).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
   it('allows the Station/Specialist Import placeholder to complete and advance', async () => {
     const user = userEvent.setup();
     let updateRequests = 0;

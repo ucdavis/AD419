@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Server.Core.Data;
 
 namespace Server.Tests;
@@ -13,6 +14,7 @@ public static class TestDbContextFactory
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(databaseName: $"TestDb_{Guid.NewGuid():N}")
+            .ConfigureWarnings(warnings => warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning))
             .EnableSensitiveDataLogging()
             .Options;
 
@@ -29,6 +31,7 @@ public static class TestDbContextFactory
     {
         var options = new DbContextOptionsBuilder<DataDbContext>()
             .UseInMemoryDatabase(databaseName: $"TestDataDb_{Guid.NewGuid():N}")
+            .ConfigureWarnings(warnings => warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning))
             .EnableSensitiveDataLogging()
             .Options;
 

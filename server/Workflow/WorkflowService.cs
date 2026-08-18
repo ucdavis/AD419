@@ -43,7 +43,7 @@ public sealed class WorkflowService(AppDbContext dbContext) : IWorkflowService
             await dbContext.SaveChangesAsync(cancellationToken);
             return run;
         }
-        catch (DbUpdateException ex) when (IsCurrentRunUniquenessViolation(ex))
+        catch (DbUpdateException ex) when (IsSqlServerUniquenessViolation(ex))
         {
             dbContext.Entry(run).State = EntityState.Detached;
             return await GetCurrentRunAsync(cancellationToken)
@@ -57,8 +57,15 @@ public sealed class WorkflowService(AppDbContext dbContext) : IWorkflowService
     {
         var run = await GetOrCreateCurrentRunAsync(user, cancellationToken);
         EnsureStageStates(run, user, DateTimeOffset.UtcNow);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return CreateSnapshot(run);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return CreateSnapshot(run);
+        }
+        catch (DbUpdateException ex) when (IsSqlServerUniquenessViolation(ex))
+        {
+            return await ReloadSnapshotAfterStageStateUniquenessViolationAsync(ex, cancellationToken);
+        }
     }
 
     public async Task<WorkflowSnapshotResponse?> SetStageStatusAsync(
@@ -103,7 +110,7 @@ public sealed class WorkflowService(AppDbContext dbContext) : IWorkflowService
         }
         else
         {
-            StartStage(state, user, now);
+            StartStageIfNeeded(state, user, now);
             ClearCompleted(state);
             ClearDownstream(states, definition.Number);
         }
@@ -125,8 +132,9 @@ public sealed class WorkflowService(AppDbContext dbContext) : IWorkflowService
         EnsureStageStates(run, user, now);
 
         var states = StatesByStageId(run);
-        StartStage(states[definition.Id], user, now);
-        ClearCompleted(states[definition.Id]);
+        var state = states[definition.Id];
+        StartStageIfNeeded(state, user, now);
+        ClearCompleted(state);
         ClearDownstream(states, definition.Number);
 
         Touch(run, user, now);
@@ -140,6 +148,32 @@ public sealed class WorkflowService(AppDbContext dbContext) : IWorkflowService
             .Where(run => run.IsCurrent)
             .OrderByDescending(run => run.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
+
+    private async Task<WorkflowSnapshotResponse> ReloadSnapshotAfterStageStateUniquenessViolationAsync(
+        DbUpdateException exception,
+        CancellationToken cancellationToken)
+    {
+        foreach (var entry in dbContext.ChangeTracker.Entries<WorkflowStageState>()
+            .Where(entry => entry.State == EntityState.Added)
+            .ToList())
+        {
+            entry.State = EntityState.Detached;
+        }
+
+        var run = await dbContext.WorkflowRuns
+            .AsNoTracking()
+            .Include(item => item.ChecklistItemStates)
+            .Include(item => item.StageStates)
+            .Where(item => item.IsCurrent)
+            .OrderByDescending(item => item.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return run is not null
+            ? CreateSnapshot(run)
+            : throw new InvalidOperationException(
+                "Workflow stage states were initialized concurrently but the current workflow run could not be loaded.",
+                exception);
+    }
 
     private static void EnsureStageStates(
         WorkflowRun run,
@@ -220,6 +254,17 @@ public sealed class WorkflowService(AppDbContext dbContext) : IWorkflowService
 
     private static bool IsValidTransitionStatus(string status) =>
         status is WorkflowStageStatus.InProgress or WorkflowStageStatus.Complete;
+
+    private static void StartStageIfNeeded(
+        WorkflowStageState state,
+        ClaimsPrincipal user,
+        DateTimeOffset startedAt)
+    {
+        if (state.Status != WorkflowStageStatus.InProgress)
+        {
+            StartStage(state, user, startedAt);
+        }
+    }
 
     private static void StartStage(
         WorkflowStageState state,
@@ -330,7 +375,7 @@ public sealed class WorkflowService(AppDbContext dbContext) : IWorkflowService
         return value[..maxLength];
     }
 
-    private static bool IsCurrentRunUniquenessViolation(DbUpdateException exception) =>
+    private static bool IsSqlServerUniquenessViolation(DbUpdateException exception) =>
         exception.GetBaseException() is SqlException sqlException
         && sqlException.Errors.Cast<SqlError>().Any(error => error.Number is 2601 or 2627);
 }
