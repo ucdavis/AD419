@@ -39,6 +39,7 @@ public class WorkflowServiceTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         var startedAt = DateTimeOffset.Parse("2026-06-01T12:00:00Z");
+        var originalStartedBy = Guid.Parse("33333333-3333-3333-3333-333333333333");
         var run = new WorkflowRun
         {
             FiscalYear = "FY26",
@@ -54,6 +55,7 @@ public class WorkflowServiceTests
                     StageId = WorkflowStageIds.ProjectIdentification,
                     Status = WorkflowStageStatus.InProgress,
                     StartedAt = startedAt,
+                    StartedByEntraId = originalStartedBy,
                     StartedByName = "Original User",
                     StartedByEmail = "original@example.edu",
                 },
@@ -76,6 +78,7 @@ public class WorkflowServiceTests
         projectIdentificationStates.Should().ContainSingle();
         projectIdentificationStates[0].Id.Should().Be(projectIdentificationStateId);
         projectIdentificationStates[0].StartedAt.Should().Be(startedAt);
+        projectIdentificationStates[0].StartedByEntraId.Should().Be(originalStartedBy);
         projectIdentificationStates[0].StartedByName.Should().Be("Original User");
         projectIdentificationStates[0].StartedByEmail.Should().Be("original@example.edu");
     }
@@ -179,7 +182,13 @@ public class WorkflowServiceTests
             state => state.StageId == WorkflowStageIds.DataImport);
         dataImport.Status = WorkflowStageStatus.Complete;
         dataImport.StartedAt = startedAt;
+        dataImport.StartedByEntraId = originalStartedBy;
+        dataImport.StartedByName = "Downstream Starter";
+        dataImport.StartedByEmail = "downstream-starter@example.edu";
         dataImport.CompletedAt = completedAt;
+        dataImport.CompletedByEntraId = originalStartedBy;
+        dataImport.CompletedByName = "Downstream Completer";
+        dataImport.CompletedByEmail = "downstream-completer@example.edu";
         await db.SaveChangesAsync();
 
         var updated = await service.SetStageStatusAsync(
@@ -199,7 +208,13 @@ public class WorkflowServiceTests
         projectIdentification.CompletedByEmail.Should().BeNull();
         dataImport.Status.Should().Be(WorkflowStageStatus.NotStarted);
         dataImport.StartedAt.Should().BeNull();
+        dataImport.StartedByEntraId.Should().BeNull();
+        dataImport.StartedByName.Should().BeNull();
+        dataImport.StartedByEmail.Should().BeNull();
         dataImport.CompletedAt.Should().BeNull();
+        dataImport.CompletedByEntraId.Should().BeNull();
+        dataImport.CompletedByName.Should().BeNull();
+        dataImport.CompletedByEmail.Should().BeNull();
     }
 
     [Fact]
