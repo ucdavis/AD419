@@ -7,6 +7,8 @@ using Server.Models.ExpenseReview;
 
 namespace Server.Controllers;
 
+[ApiController]
+[Route("api/[controller]")]
 public sealed class ExpenseReviewController(
     IExpenseReviewService expenseReviewService,
     AppDbContext appDb) : ApiControllerBase

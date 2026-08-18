@@ -33,7 +33,7 @@ public sealed class ExpenseReviewService(
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
-        var parameters = CreateParameters(request);
+        var parameters = CreateParameters(cycle, request);
         var sql = BuildTransactionsSql(request);
 
         using var reader = await connection.QueryMultipleAsync(new CommandDefinition(
@@ -81,6 +81,7 @@ public sealed class ExpenseReviewService(
 
         var rows = (await connection.QueryAsync<ExpenseReviewFilterOptionRow>(new CommandDefinition(
             FilterOptionsSql,
+            CycleParameters(cycle),
             commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
             cancellationToken: cancellationToken))).ToList();
 
@@ -268,6 +269,7 @@ public sealed class ExpenseReviewService(
                AND purposeClass.[Code] = a.[Purpose]
             LEFT JOIN [data].[Sfns] sfn
                 ON sfn.[Sfn] = fundClass.[Sfn]
+            WHERE TRY_CONVERT(DATE, CONCAT('01-', a.[PeriodName]), 6) BETWEEN @cycleStart AND @cycleEnd
 
             UNION ALL
 
@@ -368,6 +370,7 @@ public sealed class ExpenseReviewService(
                AND ernClass.[Code] = u.[ErnCode]
             LEFT JOIN [data].[Sfns] sfn
                 ON sfn.[Sfn] = fundClass.[Sfn]
+            WHERE CAST(u.[PayPeriodEndDate] AS DATE) BETWEEN @cycleStart AND @cycleEnd
         )
         """;
 
@@ -380,9 +383,9 @@ public sealed class ExpenseReviewService(
         return new SqlConnection(connectionString);
     }
 
-    private static DynamicParameters CreateParameters(ExpenseReviewTransactionsRequest request)
+    private static DynamicParameters CreateParameters(FiscalYearCycle cycle, ExpenseReviewTransactionsRequest request)
     {
-        var parameters = new DynamicParameters();
+        var parameters = CycleParameters(cycle);
         parameters.Add("offset", (request.Page - 1) * request.PageSize);
         parameters.Add("pageSize", request.PageSize);
 
@@ -403,6 +406,14 @@ public sealed class ExpenseReviewService(
                 parameters.Add(name, values);
             }
         }
+    }
+
+    private static DynamicParameters CycleParameters(FiscalYearCycle cycle)
+    {
+        var parameters = new DynamicParameters();
+        parameters.Add("cycleStart", cycle.CycleStart.ToDateTime(TimeOnly.MinValue));
+        parameters.Add("cycleEnd", cycle.CycleEnd.ToDateTime(TimeOnly.MinValue));
+        return parameters;
     }
 
     private static string BuildFilterClause(ExpenseReviewFilters filters)

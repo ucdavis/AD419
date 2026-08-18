@@ -64,6 +64,15 @@ public class ExpenseReviewServiceSqlTests
     }
 
     [Fact]
+    public void Unified_sql_limits_each_source_to_the_selected_cycle()
+    {
+        var sql = ExpenseReviewService.UnifiedTransactionsCte;
+
+        sql.Should().Contain("TRY_CONVERT(DATE, CONCAT('01-', a.[PeriodName]), 6) BETWEEN @cycleStart AND @cycleEnd");
+        sql.Should().Contain("CAST(u.[PayPeriodEndDate] AS DATE) BETWEEN @cycleStart AND @cycleEnd");
+    }
+
+    [Fact]
     public void Dollar_include_predicates_fail_closed_for_persisted_flags_and_classifications()
     {
         var sql = ExpenseReviewService.UnifiedTransactionsCte;
@@ -143,6 +152,7 @@ public class ExpenseReviewServiceSqlTests
     {
         var sql = ExpenseReviewService.FilterOptionsSql;
 
+        sql.Should().Contain("BETWEEN @cycleStart AND @cycleEnd");
         sql.Should().Contain("CAST('financialDept' AS NVARCHAR(30)) AS [Filter]");
         sql.Should().Contain("CAST('fund' AS NVARCHAR(30)) AS [Filter]");
         sql.Should().Contain("CAST('account' AS NVARCHAR(30)) AS [Filter]");
