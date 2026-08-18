@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Server.Controllers;
 using Server.Core.Data;
@@ -73,6 +74,85 @@ public class ExpenseReviewControllerTests
     }
 
     [Fact]
+    public async Task Transactions_csv_sources_cycle_query_and_columns_and_streams_csv()
+    {
+        await using var db = await CreateDbWithConfirmedRunAsync();
+        var service = new StubExpenseReviewService();
+        var controller = new ExpenseReviewController(service, db)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext(),
+            },
+        };
+        await using var body = new MemoryStream();
+        controller.Response.Body = body;
+
+        var result = await controller.TransactionsCsv(
+            new ExpenseReviewTransactionsQuery
+            {
+                IncludeState = "excluded",
+                SortBy = "amount",
+                SortDirection = "desc",
+                FinancialDept = ["D0123"],
+                Source = ["ucp"],
+                Column = ["financialDept", "amount", "included"],
+            },
+            CancellationToken.None);
+
+        result.Should().BeOfType<EmptyResult>();
+        service.CsvCalled.Should().BeTrue();
+        service.ReceivedCsvCycle.Should().Be(new FiscalYearCycle(
+            "FY25",
+            new DateOnly(2024, 10, 1),
+            new DateOnly(2025, 9, 30)));
+        service.ReceivedCsvRequest.Should().NotBeNull();
+        service.ReceivedCsvRequest!.IncludeState.Should().Be(ExpenseReviewIncludeState.Excluded);
+        service.ReceivedCsvRequest.SortBy.Should().Be("amount");
+        service.ReceivedCsvRequest.SortDescending.Should().BeTrue();
+        service.ReceivedCsvRequest.Filters.FinancialDept.Should().Equal("D0123");
+        service.ReceivedCsvRequest.Filters.Source.Should().Equal("UCP");
+        service.ReceivedCsvColumns.Should().Equal("financialDept", "amount", "included");
+        controller.Response.ContentType.Should().Be("text/csv; charset=utf-8");
+        controller.Response.Headers.ContentDisposition.ToString()
+            .Should().Contain("expense-review-transactions-fy25.csv");
+
+        body.Position = 0;
+        using var reader = new StreamReader(body);
+        var csv = await reader.ReadToEndAsync();
+        csv.Should().Contain("Financial Dept,Amount,Include State");
+        csv.Should().Contain("D0123 - Department,12.34,Included");
+    }
+
+    [Fact]
+    public async Task Transactions_csv_conflicts_when_no_confirmed_workflow_cycle_exists()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var service = new StubExpenseReviewService();
+        var controller = new ExpenseReviewController(service, db);
+
+        var result = await controller.TransactionsCsv(new ExpenseReviewTransactionsQuery(), CancellationToken.None);
+
+        result.Should().BeOfType<ConflictObjectResult>();
+        service.CsvCalled.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Transactions_csv_validates_invalid_columns()
+    {
+        await using var db = await CreateDbWithConfirmedRunAsync();
+        var service = new StubExpenseReviewService();
+        var controller = new ExpenseReviewController(service, db);
+
+        var result = await controller.TransactionsCsv(
+            new ExpenseReviewTransactionsQuery { Column = ["sourceId"] },
+            CancellationToken.None);
+
+        result.Should().BeOfType<BadRequestObjectResult>();
+        service.CsvCalled.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Filters_sources_cycle_from_current_workflow_run()
     {
         await using var db = await CreateDbWithConfirmedRunAsync();
@@ -132,9 +212,13 @@ public class ExpenseReviewControllerTests
     {
         public bool TransactionsCalled { get; private set; }
         public bool FiltersCalled { get; private set; }
+        public bool CsvCalled { get; private set; }
         public FiscalYearCycle? ReceivedTransactionsCycle { get; private set; }
         public FiscalYearCycle? ReceivedFiltersCycle { get; private set; }
+        public FiscalYearCycle? ReceivedCsvCycle { get; private set; }
         public ExpenseReviewTransactionsRequest? ReceivedRequest { get; private set; }
+        public ExpenseReviewTransactionsRequest? ReceivedCsvRequest { get; private set; }
+        public IReadOnlyList<string> ReceivedCsvColumns { get; private set; } = [];
 
         public Task<ExpenseReviewTransactionsResponse> GetTransactionsAsync(
             FiscalYearCycle cycle,
@@ -181,6 +265,41 @@ public class ExpenseReviewControllerTests
             ReceivedFiltersCycle = cycle;
 
             return Task.FromResult(new ExpenseReviewFilterOptionsResponse([], [], [], [], [], [], []));
+        }
+
+        public async Task WriteTransactionsCsvAsync(
+            FiscalYearCycle cycle,
+            ExpenseReviewTransactionsRequest request,
+            IReadOnlyList<string> columnIds,
+            Stream output,
+            CancellationToken cancellationToken)
+        {
+            CsvCalled = true;
+            ReceivedCsvCycle = cycle;
+            ReceivedCsvRequest = request;
+            ReceivedCsvColumns = columnIds;
+
+            await ExpenseReviewCsvWriter.WriteAsync(
+                output,
+                [
+                    new ExpenseReviewTransactionDto(
+                        "UCP:1",
+                        "1",
+                        "UCP",
+                        new ExpenseReviewCodeNameDto("D0123", "Department"),
+                        new ExpenseReviewCodeNameDto("13U02", "Fund"),
+                        new ExpenseReviewCodeNameDto("500000", "Account"),
+                        new ExpenseReviewCodeNameDto("K1234", "Project"),
+                        "Oct-24",
+                        "220",
+                        "Agricultural Experiment Station",
+                        12.34m,
+                        0.5m,
+                        true,
+                        true),
+                ],
+                columnIds,
+                cancellationToken);
         }
     }
 }

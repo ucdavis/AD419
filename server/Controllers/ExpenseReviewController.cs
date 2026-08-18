@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Net.Http.Headers;
 using Server.Core.Data;
 using Server.ExpenseReview;
 using Server.Models;
@@ -31,6 +32,43 @@ public sealed class ExpenseReviewController(
 
         var response = await expenseReviewService.GetTransactionsAsync(cycle, request, cancellationToken);
         return Ok(response);
+    }
+
+    [HttpGet("transactions.csv")]
+    public async Task<IActionResult> TransactionsCsv(
+        [FromQuery] ExpenseReviewTransactionsQuery query,
+        CancellationToken cancellationToken)
+    {
+        if (!ExpenseReviewRequestParser.TryParse(query, out var request, out var error))
+        {
+            return BadRequest(error);
+        }
+
+        if (!ExpenseReviewRequestParser.TryParseCsvColumns(query.Column, out var columns, out error))
+        {
+            return BadRequest(error);
+        }
+
+        var (cycle, cycleError) = await GetConfirmedCycleAsync(cancellationToken);
+        if (cycle is null)
+        {
+            return cycleError!;
+        }
+
+        var filename = $"expense-review-transactions-{cycle.FiscalYear.ToLowerInvariant()}.csv";
+        Response.ContentType = "text/csv; charset=utf-8";
+        Response.Headers[HeaderNames.ContentDisposition] = new ContentDispositionHeaderValue("attachment")
+        {
+            FileNameStar = filename,
+        }.ToString();
+
+        await expenseReviewService.WriteTransactionsCsvAsync(
+            cycle,
+            request,
+            columns,
+            Response.Body,
+            cancellationToken);
+        return new EmptyResult();
     }
 
     [HttpGet("filters")]

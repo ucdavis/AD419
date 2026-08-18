@@ -1,8 +1,11 @@
 import { HttpError } from '@/lib/api.ts';
 import {
+  EXPENSE_REVIEW_CSV_COLUMN_IDS,
+  buildExpenseReviewTransactionsCsvUrl,
   expenseReviewFilterOptionsQueryOptions,
   expenseReviewTransactionsQueryOptions,
   type ExpenseReviewCodeName,
+  type ExpenseReviewCsvColumnId,
   type ExpenseReviewFilterOption,
   type ExpenseReviewFilters,
   type ExpenseReviewIncludeState,
@@ -14,6 +17,7 @@ import {
   updateWorkflowStageStatus,
 } from '@/queries.ts';
 import { DataTable } from '@/shared/dataTable.tsx';
+import { ExportEndpointButton } from '@/shared/exportDataButton.tsx';
 import { useNavigate } from '@tanstack/react-router';
 import {
   useMutation,
@@ -448,6 +452,7 @@ export function ExpenseReviewStage() {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sorting, setSorting] = useState<SortingState>(() => defaultSorting());
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [exportError, setExportError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const filterOptionsQuery = useQuery(expenseReviewFilterOptionsQueryOptions());
@@ -473,11 +478,26 @@ export function ExpenseReviewStage() {
     },
   });
   const columns = useMemo(() => buildColumns(), []);
+  const exportColumnIds = useMemo(
+    () =>
+      EXPENSE_REVIEW_CSV_COLUMN_IDS.filter(
+        (columnId) => columnVisibility[columnId] !== false
+      ) as ExpenseReviewCsvColumnId[],
+    [columnVisibility]
+  );
+  const exportUrl = buildExpenseReviewTransactionsCsvUrl({
+    columns: exportColumnIds,
+    filters,
+    includeState,
+    sortBy: (sort?.id as ExpenseReviewSortBy | undefined) ?? 'source',
+    sortDirection: sort?.desc ? 'desc' : 'asc',
+  });
   const counts = transactionsQuery.data?.counts;
   const activeFilterCount = filterCount(filters);
   const filterOptions = filterOptionsQuery.data;
 
   const resetToFirstPage = () => setPageIndex(0);
+  const resetExportError = () => setExportError(null);
   const addFilter = (filter: keyof ExpenseReviewFilters, value: string) => {
     setFilters((current) => ({
       ...current,
@@ -486,6 +506,7 @@ export function ExpenseReviewStage() {
         : [...current[filter], value],
     }));
     resetToFirstPage();
+    resetExportError();
   };
   const removeFilter = (filter: keyof ExpenseReviewFilters, value: string) => {
     setFilters((current) => ({
@@ -493,14 +514,17 @@ export function ExpenseReviewStage() {
       [filter]: current[filter].filter((candidate) => candidate !== value),
     }));
     resetToFirstPage();
+    resetExportError();
   };
   const clearFilters = () => {
     setFilters(emptyFilters());
     resetToFirstPage();
+    resetExportError();
   };
   const handleIncludeStateChange = (state: ExpenseReviewIncludeState) => {
     setIncludeState(state);
     resetToFirstPage();
+    resetExportError();
   };
 
   if (filterOptionsQuery.isLoading || transactionsQuery.isLoading) {
@@ -625,7 +649,10 @@ export function ExpenseReviewStage() {
         globalFilter="none"
         manualPagination
         manualSorting
-        onColumnVisibilityChange={setColumnVisibility}
+        onColumnVisibilityChange={(nextColumnVisibility) => {
+          setColumnVisibility(nextColumnVisibility);
+          resetExportError();
+        }}
         onPageIndexChange={setPageIndex}
         onPageSizeChange={(nextPageSize) => {
           setPageSize(nextPageSize);
@@ -634,6 +661,7 @@ export function ExpenseReviewStage() {
         onSortingChange={(nextSorting) => {
           setSorting(normalizeSorting(nextSorting));
           setPageIndex(0);
+          resetExportError();
         }}
         pageCount={transactions.pageCount}
         pageIndex={pageIndex}
@@ -649,17 +677,38 @@ export function ExpenseReviewStage() {
           Confirm the right transactions are included before triggering
           auto-associations.
         </span>
-        <button
-          className="btn btn-primary"
-          disabled={continueMutation.isPending}
-          onClick={() => continueMutation.mutate()}
-          type="button"
-        >
-          {continueMutation.isPending
-            ? 'Continuing...'
-            : 'Continue to Auto-Associations'}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportEndpointButton
+            className="btn-outline"
+            disabled={transactionsQuery.isFetching}
+            filename="expense-review-transactions.csv"
+            label="Export CSV"
+            onError={(error) =>
+              setExportError(
+                errorMessage(error, 'The CSV export could not be downloaded.')
+              )
+            }
+            onSuccess={() => setExportError(null)}
+            pendingLabel="Exporting..."
+            url={exportUrl}
+          />
+          <button
+            className="btn btn-primary"
+            disabled={continueMutation.isPending}
+            onClick={() => continueMutation.mutate()}
+            type="button"
+          >
+            {continueMutation.isPending
+              ? 'Continuing...'
+              : 'Continue to Auto-Associations'}
+          </button>
+        </div>
       </div>
+      {exportError ? (
+        <div className="alert alert-error" role="alert">
+          <span>{exportError}</span>
+        </div>
+      ) : null}
       {continueMutation.isError ? (
         <div className="alert alert-error" role="alert">
           <span>

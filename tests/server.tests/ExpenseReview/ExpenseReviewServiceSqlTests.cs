@@ -148,6 +148,46 @@ public class ExpenseReviewServiceSqlTests
     }
 
     [Fact]
+    public void Transaction_export_sql_applies_filters_sorting_without_pagination()
+    {
+        var sql = ExpenseReviewService.BuildTransactionsExportSql(Request(
+            includeState: ExpenseReviewIncludeState.Excluded,
+            sortBy: "amount",
+            sortDescending: true,
+            filters: new ExpenseReviewFilters(
+                ["D0123"],
+                ["45530"],
+                ["500000"],
+                ["K1234"],
+                ["Oct-24"],
+                ["AE"],
+                ["220"])));
+
+        sql.Should().Contain("[FinancialDeptCode] IN @financialDept");
+        sql.Should().Contain("[FundCode] IN @fund");
+        sql.Should().Contain("[AccountCode] IN @account");
+        sql.Should().Contain("[AeProjectCode] IN @aeProject");
+        sql.Should().Contain("[AccountingPeriod] IN @accountingPeriod");
+        sql.Should().Contain("[Source] IN @source");
+        sql.Should().Contain("[Sfn] IN @sfn");
+        sql.Should().Contain("WHERE [Included] = 0");
+        sql.Should().Contain("[Amount] DESC");
+        sql.Should().NotContain("OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY");
+        sql.Should().NotContain("INTO #Filtered");
+    }
+
+    [Fact]
+    public void Transaction_sql_and_export_sql_select_the_same_transaction_columns()
+    {
+        var pagedSql = ExpenseReviewService.BuildTransactionsSql(Request());
+        var exportSql = ExpenseReviewService.BuildTransactionsExportSql(Request());
+
+        SelectedColumns(pagedSql, "FROM #Filtered")
+            .Should()
+            .Be(SelectedColumns(exportSql, "FROM Filtered"));
+    }
+
+    [Fact]
     public void Transaction_sql_does_not_repeat_default_source_sort_as_tie_breaker()
     {
         var sql = ExpenseReviewService.BuildTransactionsSql(Request());
@@ -185,4 +225,17 @@ public class ExpenseReviewServiceSqlTests
             sortBy,
             sortDescending,
             filters ?? new ExpenseReviewFilters([], [], [], [], [], [], []));
+
+    private static string SelectedColumns(string sql, string fromClause)
+    {
+        var selectStart = sql.LastIndexOf("SELECT", StringComparison.Ordinal);
+        selectStart.Should().BeGreaterThanOrEqualTo(0);
+
+        var fromStart = sql.IndexOf(fromClause, selectStart, StringComparison.Ordinal);
+        fromStart.Should().BeGreaterThan(selectStart);
+
+        return sql[(selectStart + "SELECT".Length)..fromStart]
+            .ReplaceLineEndings("\n")
+            .Trim();
+    }
 }
