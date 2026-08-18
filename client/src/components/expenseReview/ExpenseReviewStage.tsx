@@ -407,15 +407,18 @@ function ColumnVisibilityControls({
           Show all
         </button>
       ) : null}
-      <details className="dropdown dropdown-end">
+      <details className="dropdown dropdown-start">
         <summary className="btn btn-outline btn-sm">Columns</summary>
-        <div className="menu dropdown-content bg-base-100 rounded-box z-10 mt-2 w-64 border p-2 shadow">
+        <div className="menu dropdown-content bg-base-100 rounded-box z-10 mt-2 w-52 border p-2 shadow">
           {FIELD_COLUMN_IDS.map((columnId) => {
             const column = table.getColumn(columnId);
 
             return (
-              <label className="label cursor-pointer gap-3" key={columnId}>
-                <span className="label-text">
+              <label
+                className="label grid cursor-pointer grid-cols-[1fr_auto] gap-3"
+                key={columnId}
+              >
+                <span className="label-text whitespace-nowrap">
                   {String(column?.columnDef.header ?? columnId)}
                 </span>
                 <input
