@@ -148,6 +148,17 @@ public class ExpenseReviewServiceSqlTests
     }
 
     [Fact]
+    public void Transaction_sql_does_not_repeat_default_source_sort_as_tie_breaker()
+    {
+        var sql = ExpenseReviewService.BuildTransactionsSql(Request());
+
+        sql.Should().Contain("CASE WHEN [Source] IS NULL THEN 1 ELSE 0 END");
+        sql.Should().Contain("[Source] ASC");
+        sql.Should().Contain("[SourceId]");
+        sql.Should().NotContain("[Source] ASC,\n            [Source],");
+    }
+
+    [Fact]
     public void Filter_options_sql_exposes_server_filter_sources()
     {
         var sql = ExpenseReviewService.FilterOptionsSql;
