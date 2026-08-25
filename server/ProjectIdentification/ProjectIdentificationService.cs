@@ -301,7 +301,7 @@ public sealed class ProjectIdentificationService(
 
     private static IReadOnlyList<FiscalPeriodOptionDto> CreateFiscalPeriodOptions(string selectedFiscalYear)
     {
-        var current = CurrentFiscalYearCycle();
+        var current = FiscalYearCycle.Current();
         var currentYear = ParseFiscalYearNumber(current.FiscalYear)
             ?? throw new InvalidOperationException($"Current fiscal year '{current.FiscalYear}' could not be parsed.");
         var selectedYear = ParseFiscalYearNumber(selectedFiscalYear) ?? currentYear;
@@ -614,20 +614,6 @@ public sealed class ProjectIdentificationService(
 
     private static bool IsSucceeded(RecentImportResponse import) =>
         string.Equals(import.Status, "Succeeded", StringComparison.OrdinalIgnoreCase);
-
-    private static FiscalYearCycle CurrentFiscalYearCycle()
-    {
-        var now = DateTimeOffset.Now;
-        var calendarYear = now.Year;
-        var fiscalYear = now.Month >= 10 ? calendarYear + 1 : calendarYear;
-        var fiscalYearText = $"FY{fiscalYear % 100:00}";
-        if (!FiscalYearCycle.TryParse(fiscalYearText, out var cycle))
-        {
-            throw new InvalidOperationException($"Current fiscal year '{fiscalYearText}' could not be parsed.");
-        }
-
-        return cycle;
-    }
 
     private static int? ParseFiscalYearNumber(string fiscalYear)
     {

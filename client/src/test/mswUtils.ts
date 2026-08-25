@@ -45,17 +45,23 @@ const workflowStageDefinitions = [
     title: 'Auto-Associations',
   },
   {
+    description: 'Complete any associations that require manual review in AD419 Next.',
+    id: 'manual-associations',
+    number: 6,
+    title: 'Manual Associations',
+  },
+  {
     description:
       'Resolve flagged items after manual associations are complete.',
     id: 'post-association-review',
-    number: 6,
+    number: 7,
     title: 'Post-Association Review',
   },
   {
     description:
       'Generate the final files for ANR submission and cycle signoff.',
     id: 'final-reports',
-    number: 7,
+    number: 8,
     title: 'Final Reports',
   },
 ] satisfies Array<Pick<WorkflowStage, 'description' | 'id' | 'number' | 'title'>>;

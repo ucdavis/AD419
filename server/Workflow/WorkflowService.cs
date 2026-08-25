@@ -22,7 +22,7 @@ public sealed class WorkflowService(AppDbContext dbContext) : IWorkflowService
             return run;
         }
 
-        var cycle = CurrentFiscalYearCycle();
+        var cycle = FiscalYearCycle.Current();
         var now = DateTimeOffset.UtcNow;
         run = new WorkflowRun
         {
@@ -325,20 +325,6 @@ public sealed class WorkflowService(AppDbContext dbContext) : IWorkflowService
         state.CompletedByEntraId = null;
         state.CompletedByName = null;
         state.CompletedByEmail = null;
-    }
-
-    private static FiscalYearCycle CurrentFiscalYearCycle()
-    {
-        var now = DateTimeOffset.Now;
-        var calendarYear = now.Year;
-        var fiscalYear = now.Month >= 10 ? calendarYear + 1 : calendarYear;
-        var fiscalYearText = $"FY{fiscalYear % 100:00}";
-        if (!FiscalYearCycle.TryParse(fiscalYearText, out var cycle))
-        {
-            throw new InvalidOperationException($"Current fiscal year '{fiscalYearText}' could not be parsed.");
-        }
-
-        return cycle;
     }
 
     private static void Touch(WorkflowRun run, ClaimsPrincipal user, DateTimeOffset updatedAt)
