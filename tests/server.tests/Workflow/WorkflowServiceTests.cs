@@ -25,13 +25,17 @@ public class WorkflowServiceTests
         var snapshot = await service.GetSnapshotAsync(User, CancellationToken.None);
 
         snapshot.WorkflowRunId.Should().BePositive();
-        snapshot.Stages.Should().HaveCount(7);
+        snapshot.Stages.Should().HaveCount(8);
+        snapshot.Stages.Select(stage => stage.Id).Should().ContainInOrder(
+            WorkflowStageIds.AutoAssociations,
+            WorkflowStageIds.ManualAssociations,
+            WorkflowStageIds.PostAssociationReview);
         snapshot.CurrentStageId.Should().Be(WorkflowStageIds.ProjectIdentification);
         snapshot.Stages[0].Status.Should().Be(WorkflowStageStatus.InProgress);
         snapshot.Stages[0].CanAccess.Should().BeTrue();
         snapshot.Stages[1].Status.Should().Be(WorkflowStageStatus.NotStarted);
         snapshot.Stages[1].CanAccess.Should().BeFalse();
-        db.WorkflowStageStates.Should().HaveCount(7);
+        db.WorkflowStageStates.Should().HaveCount(8);
     }
 
     [Fact]
@@ -69,9 +73,11 @@ public class WorkflowServiceTests
         var snapshot = await service.GetSnapshotAsync(User, CancellationToken.None);
 
         snapshot.WorkflowRunId.Should().Be(run.Id);
-        snapshot.Stages.Should().HaveCount(7);
+        snapshot.Stages.Should().HaveCount(8);
         snapshot.CurrentStageId.Should().Be(WorkflowStageIds.ProjectIdentification);
-        db.WorkflowStageStates.Should().HaveCount(7);
+        db.WorkflowStageStates.Should().HaveCount(8);
+        db.WorkflowStageStates.Should().Contain(state =>
+            state.StageId == WorkflowStageIds.ManualAssociations);
         var projectIdentificationStates = await db.WorkflowStageStates
             .Where(state => state.StageId == WorkflowStageIds.ProjectIdentification)
             .ToListAsync();
