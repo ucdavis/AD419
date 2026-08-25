@@ -20,7 +20,8 @@ public class WorkflowServiceTests
     public async Task Snapshot_lazily_creates_all_stage_states_and_starts_project_identification()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = new WorkflowService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = new WorkflowService(db, dataDb);
 
         var snapshot = await service.GetSnapshotAsync(User, CancellationToken.None);
 
@@ -42,6 +43,7 @@ public class WorkflowServiceTests
     public async Task Snapshot_adds_missing_stage_states_without_recreating_existing_states()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
         var startedAt = DateTimeOffset.Parse("2026-06-01T12:00:00Z");
         var originalStartedBy = Guid.Parse("33333333-3333-3333-3333-333333333333");
         var run = new WorkflowRun
@@ -68,7 +70,7 @@ public class WorkflowServiceTests
         db.WorkflowRuns.Add(run);
         await db.SaveChangesAsync();
         var projectIdentificationStateId = run.StageStates.Single().Id;
-        var service = new WorkflowService(db);
+        var service = new WorkflowService(db, dataDb);
 
         var snapshot = await service.GetSnapshotAsync(User, CancellationToken.None);
 
@@ -93,7 +95,8 @@ public class WorkflowServiceTests
     public async Task Completing_stages_advances_current_stage_and_blocks_skipping_ahead()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = new WorkflowService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = new WorkflowService(db, dataDb);
         await service.GetSnapshotAsync(User, CancellationToken.None);
 
         var blocked = await service.SetStageStatusAsync(
@@ -122,7 +125,8 @@ public class WorkflowServiceTests
     public async Task Reopening_completed_stage_clears_downstream_stages()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = new WorkflowService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = new WorkflowService(db, dataDb);
         await service.SetStageStatusAsync(
             WorkflowStageIds.ProjectIdentification,
             WorkflowStageStatus.Complete,
@@ -202,7 +206,8 @@ public class WorkflowServiceTests
     public async Task Repeating_in_progress_preserves_started_audit_and_clears_completion_and_downstream()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = new WorkflowService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = new WorkflowService(db, dataDb);
         await service.GetSnapshotAsync(User, CancellationToken.None);
         var startedAt = DateTimeOffset.Parse("2026-06-01T12:00:00Z");
         var completedAt = DateTimeOffset.Parse("2026-06-02T12:00:00Z");
@@ -263,7 +268,8 @@ public class WorkflowServiceTests
     public async Task Reset_from_stage_keeps_previous_stages_and_clears_downstream()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = new WorkflowService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = new WorkflowService(db, dataDb);
         await service.SetStageStatusAsync(
             WorkflowStageIds.ProjectIdentification,
             WorkflowStageStatus.Complete,

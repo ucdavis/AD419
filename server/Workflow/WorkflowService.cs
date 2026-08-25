@@ -11,7 +11,7 @@ namespace Server.Workflow;
 
 public sealed class WorkflowService(
     AppDbContext dbContext,
-    DataDbContext? dataDbContext = null) : IWorkflowService
+    DataDbContext dataDbContext) : IWorkflowService
 {
     public async Task<WorkflowRun> GetOrCreateCurrentRunAsync(
         ClaimsPrincipal user,
@@ -266,7 +266,7 @@ public sealed class WorkflowService(
         string stageId,
         CancellationToken cancellationToken)
     {
-        if (stageId != WorkflowStageIds.DataClassification || dataDbContext is null)
+        if (stageId != WorkflowStageIds.DataClassification)
         {
             return true;
         }
