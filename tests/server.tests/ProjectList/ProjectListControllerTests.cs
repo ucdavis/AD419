@@ -6,6 +6,7 @@ using Server.Core.Data;
 using Server.Core.Domain;
 using Server.Models;
 using Server.Models.ProjectList;
+using Server.Models.Workflow;
 using Server.ProjectList;
 using Server.Workflow;
 using System.Security.Claims;
@@ -140,8 +141,9 @@ public class ProjectListControllerTests
     public async Task Resolution_writes_use_the_confirmed_cycle_not_the_client()
     {
         await using var db = await CreateDbWithConfirmedRunAsync();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
         var service = new StubProjectListService();
-        var workflowService = new WorkflowService(db);
+        var workflowService = new WorkflowService(db, dataDb);
         await workflowService.SetStageStatusAsync(
             WorkflowStageIds.ProjectIdentification,
             WorkflowStageStatus.Complete,
@@ -397,7 +399,7 @@ public class ProjectListControllerTests
         AppDbContext db,
         IWorkflowService? workflowService = null)
     {
-        var controller = new ProjectListController(projectListService, db, workflowService ?? new WorkflowService(db));
+        var controller = new ProjectListController(projectListService, db, workflowService ?? new StubWorkflowService());
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext
@@ -413,4 +415,30 @@ public class ProjectListControllerTests
     private static ClaimsPrincipal User() => new(new ClaimsIdentity(
         [new Claim("name", "Shannon Taylor"), new Claim("preferred_username", "shannon@example.edu")],
         "test"));
+
+    private sealed class StubWorkflowService : IWorkflowService
+    {
+        public Task<WorkflowRun> GetOrCreateCurrentRunAsync(
+            ClaimsPrincipal user,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<WorkflowSnapshotResponse> GetSnapshotAsync(
+            ClaimsPrincipal user,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<WorkflowSnapshotResponse?> SetStageStatusAsync(
+            string stageId,
+            string status,
+            ClaimsPrincipal user,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task ResetFromStageAsync(
+            string stageId,
+            ClaimsPrincipal user,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+    }
 }

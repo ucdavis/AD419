@@ -52,14 +52,17 @@ public class ImportRunsControllerTests
     }
 
     private static ImportRunsController CreateController(
-        AppDbContext db, RecordingRunStarter starter, string? blockingIssue = null)
+        AppDbContext db,
+        DataDbContext dataDb,
+        RecordingRunStarter starter,
+        string? blockingIssue = null)
     {
         var controller = new ImportRunsController(
             db,
             new FakeStageProvider(),
             starter,
             new FakeReadinessCheck(blockingIssue),
-            new WorkflowService(db));
+            new WorkflowService(db, dataDb));
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext
@@ -76,9 +79,10 @@ public class ImportRunsControllerTests
     public async Task Start_creates_run_with_all_pending_stages_and_starts_it()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
         await SeedWorkflowRunAsync(db);
         var starter = new RecordingRunStarter();
-        var controller = CreateController(db, starter);
+        var controller = CreateController(db, dataDb, starter);
 
         var result = await controller.Start(CancellationToken.None);
 
@@ -97,6 +101,7 @@ public class ImportRunsControllerTests
     public async Task Start_returns_409_when_a_run_is_already_running()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
         db.ImportRuns.Add(new ImportRun
         {
             CycleStart = new DateOnly(2024, 10, 1),
@@ -107,7 +112,7 @@ public class ImportRunsControllerTests
         await db.SaveChangesAsync();
         await SeedWorkflowRunAsync(db);
         var starter = new RecordingRunStarter();
-        var controller = CreateController(db, starter);
+        var controller = CreateController(db, dataDb, starter);
 
         var result = await controller.Start(CancellationToken.None);
 
@@ -119,10 +124,14 @@ public class ImportRunsControllerTests
     public async Task Start_returns_409_when_project_identification_is_not_ready()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
         var starter = new RecordingRunStarter();
         await SeedWorkflowRunAsync(db);
         var controller = CreateController(
-            db, starter, "Unresolved project issues exist; resolve them in Project Identification first.");
+            db,
+            dataDb,
+            starter,
+            "Unresolved project issues exist; resolve them in Project Identification first.");
 
         var result = await controller.Start(CancellationToken.None);
 
@@ -136,8 +145,9 @@ public class ImportRunsControllerTests
     public async Task Start_returns_409_when_no_fiscal_period_is_confirmed()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
         var starter = new RecordingRunStarter();
-        var controller = CreateController(db, starter);
+        var controller = CreateController(db, dataDb, starter);
 
         var result = await controller.Start(CancellationToken.None);
 
@@ -149,8 +159,9 @@ public class ImportRunsControllerTests
     public async Task Start_resets_workflow_from_data_import()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
         await SeedWorkflowRunAsync(db);
-        var workflowService = new WorkflowService(db);
+        var workflowService = new WorkflowService(db, dataDb);
         await workflowService.SetStageStatusAsync(
             WorkflowStageIds.ProjectIdentification,
             WorkflowStageStatus.Complete,
@@ -166,7 +177,7 @@ public class ImportRunsControllerTests
             WorkflowStageStatus.Complete,
             User(),
             CancellationToken.None);
-        var controller = CreateController(db, new RecordingRunStarter());
+        var controller = CreateController(db, dataDb, new RecordingRunStarter());
 
         await controller.Start(CancellationToken.None);
 
@@ -184,7 +195,8 @@ public class ImportRunsControllerTests
     public async Task Current_returns_latest_run_or_204()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var controller = CreateController(db, new RecordingRunStarter());
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var controller = CreateController(db, dataDb, new RecordingRunStarter());
 
         (await controller.Current(CancellationToken.None)).Result.Should().BeOfType<NoContentResult>();
 
@@ -203,12 +215,13 @@ public class ImportRunsControllerTests
     public async Task Current_returns_latest_run_for_current_workflow_cycle()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
         await SeedWorkflowRunAsync(db);
         db.ImportRuns.AddRange(
             new ImportRun { CycleStart = new(2024, 10, 1), CycleEnd = new(2025, 9, 30), Status = ImportRunStatus.Succeeded, StartedAt = DateTimeOffset.UtcNow.AddDays(-2) },
             new ImportRun { CycleStart = new(2023, 10, 1), CycleEnd = new(2024, 9, 30), Status = ImportRunStatus.Failed, StartedAt = DateTimeOffset.UtcNow });
         await db.SaveChangesAsync();
-        var controller = CreateController(db, new RecordingRunStarter());
+        var controller = CreateController(db, dataDb, new RecordingRunStarter());
 
         var dto = (await controller.Current(CancellationToken.None)).Value!;
 
