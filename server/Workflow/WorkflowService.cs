@@ -9,7 +9,9 @@ using Server.Models.Workflow;
 
 namespace Server.Workflow;
 
-public sealed class WorkflowService(AppDbContext dbContext) : IWorkflowService
+public sealed class WorkflowService(
+    AppDbContext dbContext,
+    DataDbContext? dataDbContext = null) : IWorkflowService
 {
     public async Task<WorkflowRun> GetOrCreateCurrentRunAsync(
         ClaimsPrincipal user,
@@ -97,6 +99,11 @@ public sealed class WorkflowService(AppDbContext dbContext) : IWorkflowService
         if (status == WorkflowStageStatus.Complete)
         {
             if (!previousComplete)
+            {
+                return null;
+            }
+
+            if (!await CanCompleteStageAsync(definition.Id, cancellationToken))
             {
                 return null;
             }
@@ -254,6 +261,19 @@ public sealed class WorkflowService(AppDbContext dbContext) : IWorkflowService
 
     private static bool IsValidTransitionStatus(string status) =>
         status is WorkflowStageStatus.InProgress or WorkflowStageStatus.Complete;
+
+    private async Task<bool> CanCompleteStageAsync(
+        string stageId,
+        CancellationToken cancellationToken)
+    {
+        if (stageId != WorkflowStageIds.DataClassification || dataDbContext is null)
+        {
+            return true;
+        }
+
+        return !await dataDbContext.SegmentClassifications
+            .AnyAsync(segment => segment.IncludeInReport == null, cancellationToken);
+    }
 
     private static void StartStageIfNeeded(
         WorkflowStageState state,

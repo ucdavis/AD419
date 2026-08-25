@@ -163,6 +163,42 @@ public class WorkflowServiceTests
     }
 
     [Fact]
+    public async Task Completing_data_classification_is_blocked_while_segments_remain_unclassified()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        dataDb.SegmentClassifications.Add(new SegmentClassification
+        {
+            Code = "70575",
+            IncludeInReport = null,
+            SegmentType = SegmentType.Fund,
+        });
+        await dataDb.SaveChangesAsync();
+        var service = new WorkflowService(db, dataDb);
+
+        await service.SetStageStatusAsync(
+            WorkflowStageIds.ProjectIdentification,
+            WorkflowStageStatus.Complete,
+            User,
+            CancellationToken.None);
+        await service.SetStageStatusAsync(
+            WorkflowStageIds.DataImport,
+            WorkflowStageStatus.Complete,
+            User,
+            CancellationToken.None);
+
+        var blocked = await service.SetStageStatusAsync(
+            WorkflowStageIds.DataClassification,
+            WorkflowStageStatus.Complete,
+            User,
+            CancellationToken.None);
+
+        blocked.Should().BeNull();
+        db.WorkflowStageStates.Single(state => state.StageId == WorkflowStageIds.DataClassification)
+            .Status.Should().Be(WorkflowStageStatus.InProgress);
+    }
+
+    [Fact]
     public async Task Repeating_in_progress_preserves_started_audit_and_clears_completion_and_downstream()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
