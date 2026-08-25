@@ -16,6 +16,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ImportRunStage } from '@/queries/importRuns.ts';
 import { useNavigate } from '@tanstack/react-router';
+import type { WorkflowStageStatus } from '@/types.ts';
 
 const STATUS_BADGES: Record<ImportRunStage['status'], string> = {
   Failed: 'badge badge-error badge-outline',
@@ -24,7 +25,11 @@ const STATUS_BADGES: Record<ImportRunStage['status'], string> = {
   Succeeded: 'badge badge-success badge-outline',
 };
 
-export function DataImportStage() {
+export function DataImportStage({
+  status,
+}: {
+  status: WorkflowStageStatus;
+}) {
   const setupQuery = useQuery(projectIdentificationSetupQueryOptions());
 
   if (setupQuery.isLoading) {
@@ -52,13 +57,15 @@ export function DataImportStage() {
     );
   }
 
-  return <DataImportStageContent setup={setupQuery.data} />;
+  return <DataImportStageContent setup={setupQuery.data} status={status} />;
 }
 
 function DataImportStageContent({
   setup,
+  status,
 }: {
   setup: ProjectIdentificationSetupResponse;
+  status: WorkflowStageStatus;
 }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -117,7 +124,7 @@ function DataImportStageContent({
   );
 
   const isRunning = run?.status === 'Running' || start.isPending;
-  const canContinue = run?.status === 'Succeeded';
+  const canContinue = status !== 'Complete' && run?.status === 'Succeeded';
   const failedStages =
     run?.stages.filter((stage) => stage.status === 'Failed') ?? [];
   const sortedStages = [...(run?.stages ?? [])].sort(

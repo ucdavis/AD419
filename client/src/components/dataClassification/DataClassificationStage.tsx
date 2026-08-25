@@ -9,6 +9,7 @@ import { buildSegmentExport } from './exportSegments.ts';
 import { SegmentGrid } from './SegmentGrid.tsx';
 import { ExportDataButton } from '@/shared/exportDataButton.tsx';
 import {
+  UPDATE_SEGMENT_CLASSIFICATION_MUTATION_KEY,
   segmentClassificationsQueryOptions,
   type SegmentClassification,
   useUpdateSegmentClassification,
@@ -18,13 +19,26 @@ import {
   updateWorkflowStageStatus,
 } from '@/queries.ts';
 import { useNavigate } from '@tanstack/react-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useIsMutating,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
+import type { WorkflowStageStatus } from '@/types.ts';
 
-export function DataClassificationStage() {
+export function DataClassificationStage({
+  status,
+}: {
+  status: WorkflowStageStatus;
+}) {
   const { data: segments = [], isLoading } = useQuery(
     segmentClassificationsQueryOptions()
   );
   const updateClassification = useUpdateSegmentClassification();
+  const pendingClassificationUpdates = useIsMutating({
+    mutationKey: UPDATE_SEGMENT_CLASSIFICATION_MUTATION_KEY,
+  });
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [activeType, setActiveType] = useState(SEGMENT_TABS[0].type);
@@ -58,6 +72,7 @@ export function DataClassificationStage() {
   };
 
   const gateOpen = allClassified(segments);
+  const isComplete = status === 'Complete';
   const activeTab =
     SEGMENT_TABS.find((tab) => tab.type === activeType) ?? SEGMENT_TABS[0];
   const tabSegments = segmentsForType(segments, activeType);
@@ -121,10 +136,12 @@ export function DataClassificationStage() {
             ? 'All segments classified.'
             : 'Unclassified rows must be set before the next step.'}
         </span>
-        {gateOpen ? (
+        {isComplete ? null : gateOpen ? (
           <button
             className="btn btn-primary"
-            disabled={continueMutation.isPending}
+            disabled={
+              continueMutation.isPending || pendingClassificationUpdates > 0
+            }
             onClick={() => continueMutation.mutate()}
             type="button"
           >

@@ -57,11 +57,11 @@ function WorkflowStageRoute() {
     <WorkflowShell snapshot={snapshot} stage={stage}>
       <div className="workflow-stack">
         {workflowStageId === 'project-identification' ? (
-          <ProjectIdentificationStage />
+          <ProjectIdentificationStage status={stage.status} />
         ) : workflowStageId === 'data-classification' ? (
-          <DataClassificationStage />
+          <DataClassificationStage status={stage.status} />
         ) : workflowStageId === 'data-import' ? (
-          <DataImportStage />
+          <DataImportStage status={stage.status} />
         ) : (
           <PlaceholderWorkflowStage
             snapshot={snapshot}

@@ -82,7 +82,7 @@ describe('Data Classification stage', () => {
       await waitFor(() => {
         expect(
           screen.getByRole('button', { name: /Continue to Expense Review/ })
-        ).toBeInTheDocument();
+        ).toBeEnabled();
       });
     } finally {
       cleanup();
