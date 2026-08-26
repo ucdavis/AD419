@@ -1,17 +1,18 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from 'react';
 import { DataTable } from '@/shared/dataTable.tsx';
-import { ConfirmationDialog } from '@/shared/ConfirmationDialog.tsx';
 import { HttpError } from '@/lib/api.ts';
 import {
   allProjectCandidatesQueryOptions,
   excludeProject,
+  includeProject,
   linkAllProject,
   linkPgmAward,
   pgmAwardCandidatesQueryOptions,
@@ -73,6 +74,14 @@ function rowsForTab(rows: ProjectListRow[], tab: ProjectListTab) {
   }
 
   return rows;
+}
+
+function tabCount(data: ProjectListResponse, tab: ProjectListTab) {
+  if (tab === 'all') {
+    return data.counts.all + data.counts.excluded;
+  }
+
+  return data.counts[tab];
 }
 
 function projectListHeading(counts: ProjectListResponse['counts']) {
@@ -293,6 +302,8 @@ function ProjectIdentificationStageContent({
   const visibleRows = data
     ? activeTab === 'excluded'
       ? data.excludedRows
+      : activeTab === 'all'
+        ? [...data.rows, ...data.excludedRows]
       : rowsForTab(data.rows, activeTab)
     : [];
 
@@ -329,7 +340,7 @@ function ProjectIdentificationStageContent({
             <>
               <div className="tabs tabs-bordered" role="tablist">
                 {tabs.map((tab) => {
-                  const count = data.counts[tab.id];
+                  const count = tabCount(data, tab.id);
 
                   return (
                     <button
@@ -368,8 +379,10 @@ function ProjectIdentificationStageContent({
 }
 
 type ResolutionMode = 'all-project' | 'pgm-award' | 'sfn';
+type ExclusionDialogAction = 'exclude' | 'include';
 type ResolutionAction =
-  | { kind: 'exclude' }
+  | { kind: 'exclude'; notes: string | null }
+  | { kind: 'include'; notes: string | null }
   | { allProjectId: number; kind: 'link-all-project' }
   | { awardKey: string; kind: 'link-pgm-award' }
   | { kind: 'set-sfn'; sfn: string };
@@ -385,7 +398,8 @@ function ProjectIssueResolutionControl({
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<ResolutionMode | null>(null);
   const [search, setSearch] = useState('');
-  const [confirmingExclude, setConfirmingExclude] = useState(false);
+  const [exclusionDialogAction, setExclusionDialogAction] =
+    useState<ExclusionDialogAction | null>(null);
   const controlRef = useRef<HTMLDivElement>(null);
   const closePicker = useCallback(() => {
     setMode(null);
@@ -403,7 +417,9 @@ function ProjectIssueResolutionControl({
 
       switch (action.kind) {
         case 'exclude':
-          return excludeProject(fiscalYear, projectAccession);
+          return excludeProject(fiscalYear, projectAccession, action.notes);
+        case 'include':
+          return includeProject(fiscalYear, projectAccession, action.notes);
         case 'link-all-project':
           return linkAllProject(
             fiscalYear,
@@ -418,13 +434,13 @@ function ProjectIssueResolutionControl({
     },
     onSuccess: () => {
       closePicker();
-      setConfirmingExclude(false);
+      setExclusionDialogAction(null);
       invalidateProjectState();
     },
   });
 
   useEffect(() => {
-    if (mode === null) {
+    if (mode === null || exclusionDialogAction !== null) {
       return;
     }
 
@@ -449,9 +465,9 @@ function ProjectIssueResolutionControl({
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('mousedown', handlePointerDown);
     };
-  }, [closePicker, mode]);
+  }, [closePicker, exclusionDialogAction, mode]);
 
-  if (row.status === 'Clean' || row.status === 'Excluded' || !accession) {
+  if (row.status === 'Clean' || !accession) {
     return <span className="text-sm text-slate-400">-</span>;
   }
 
@@ -502,6 +518,17 @@ function ProjectIssueResolutionControl({
   return (
     <div className="relative space-y-2" ref={controlRef}>
       <div className="flex flex-wrap justify-end gap-2">
+        {row.status === 'Excluded' ? (
+          <button
+            className="btn btn-xs btn-outline"
+            disabled={pending}
+            onClick={() => setExclusionDialogAction('include')}
+            type="button"
+          >
+            Re-include
+          </button>
+        ) : null}
+
         {row.status === 'No PGM match' ? (
           <button
             className="btn btn-xs btn-outline"
@@ -542,7 +569,7 @@ function ProjectIssueResolutionControl({
           <button
             className="btn btn-xs btn-ghost text-error"
             disabled={pending}
-            onClick={() => setConfirmingExclude(true)}
+            onClick={() => setExclusionDialogAction('exclude')}
             type="button"
           >
             Exclude
@@ -562,23 +589,125 @@ function ProjectIssueResolutionControl({
         </div>
       ) : null}
 
-      <ConfirmationDialog
-        confirmClassName="btn-error"
-        confirmLabel="Exclude project"
-        onCancel={() => setConfirmingExclude(false)}
-        onConfirm={() => {
-          setConfirmingExclude(false);
-          mutation.mutate({ kind: 'exclude' });
-        }}
-        open={confirmingExclude}
-        title="Exclude project?"
-      >
-        <p>
-          This project will be hidden from the project identification list for
-          the current review.
-        </p>
-      </ConfirmationDialog>
+      {exclusionDialogAction ? (
+        <ProjectExclusionDialog
+          action={exclusionDialogAction}
+          disabled={pending}
+          initialNotes={row.notes}
+          key={exclusionDialogAction}
+          onCancel={() => setExclusionDialogAction(null)}
+          onConfirm={(notes) => {
+            const action = exclusionDialogAction;
+            setExclusionDialogAction(null);
+            if (action === 'exclude') {
+              mutation.mutate({ kind: 'exclude', notes });
+              return;
+            }
+
+            mutation.mutate({ kind: 'include', notes });
+          }}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function ProjectExclusionDialog({
+  action,
+  disabled,
+  initialNotes,
+  onCancel,
+  onConfirm,
+}: {
+  action: ExclusionDialogAction;
+  disabled: boolean;
+  initialNotes: string | null;
+  onCancel: () => void;
+  onConfirm: (notes: string | null) => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const noteId = useId();
+  const [notes, setNotes] = useState(initialNotes ?? '');
+  const title =
+    action === 'include' ? 'Re-include project?' : 'Exclude project?';
+  const confirmLabel =
+    action === 'include' ? 'Re-include project' : 'Exclude project';
+  const confirmClassName = action === 'include' ? 'btn-primary' : 'btn-error';
+  const description =
+    action === 'include'
+      ? 'This project will return to the active project identification list for the current review.'
+      : 'This project will be hidden from the project identification list for the current review.';
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) {
+      return;
+    }
+
+    if (!dialog.open) {
+      if (typeof dialog.showModal === 'function') {
+        dialog.showModal();
+      } else {
+        dialog.setAttribute('open', '');
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) {
+      return;
+    }
+
+    const handleCancel = (event: Event) => {
+      event.preventDefault();
+      onCancel();
+    };
+
+    dialog.addEventListener('cancel', handleCancel);
+    return () => dialog.removeEventListener('cancel', handleCancel);
+  }, [onCancel]);
+
+  return (
+    <dialog aria-labelledby={titleId} className="modal" ref={dialogRef}>
+      <div className="modal-box max-w-lg">
+        <h2 className="text-lg font-bold text-base-content" id={titleId}>
+          {title}
+        </h2>
+        <div className="mt-3 space-y-4 text-sm text-base-content/70">
+          <p>{description}</p>
+          <label className="form-control w-full" htmlFor={noteId}>
+            <span className="label-text">Note</span>
+            <textarea
+              className="textarea textarea-bordered min-h-28 w-full"
+              disabled={disabled}
+              id={noteId}
+              onChange={(event) => setNotes(event.target.value)}
+              value={notes}
+            />
+          </label>
+        </div>
+        <div className="modal-action">
+          <button
+            className="btn btn-ghost"
+            disabled={disabled}
+            onClick={onCancel}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            className={`btn ${confirmClassName}`}
+            disabled={disabled}
+            onClick={() => onConfirm(notes)}
+            type="button"
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </dialog>
   );
 }
 

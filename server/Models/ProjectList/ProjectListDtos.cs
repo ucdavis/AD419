@@ -74,6 +74,8 @@ public sealed record LinkPgmAwardRequest(string? AwardKey);
 
 public sealed record SetSfnRequest(string? Sfn);
 
+public sealed record ProjectExclusionRequest(string? Notes);
+
 public sealed record ProjectFinalizeResponse(int RowsBuilt);
 
 public sealed record ProjectResolutionEditsResponse(bool HasResolutionEdits);

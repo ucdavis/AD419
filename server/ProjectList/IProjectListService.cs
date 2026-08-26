@@ -29,6 +29,13 @@ public interface IProjectListService
     Task<ProjectListUpdateResult> ExcludeAsync(
         FiscalYearCycle cycle,
         string accession,
+        string? notes,
+        CancellationToken cancellationToken);
+
+    Task<ProjectListUpdateResult> IncludeAsync(
+        FiscalYearCycle cycle,
+        string accession,
+        string? notes,
         CancellationToken cancellationToken);
 
     Task<ProjectListUpdateResult> LinkAllProjectAsync(

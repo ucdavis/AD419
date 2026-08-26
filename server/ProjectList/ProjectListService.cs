@@ -207,8 +207,11 @@ public sealed class ProjectListService(
     public async Task<ProjectListUpdateResult> ExcludeAsync(
         FiscalYearCycle cycle,
         string accession,
+        string? notes,
         CancellationToken cancellationToken)
     {
+        var normalizedNotes = NormalizeNotes(notes);
+
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
@@ -228,7 +231,8 @@ public sealed class ProjectListService(
         var rows = await connection.ExecuteAsync(new CommandDefinition(
             """
             UPDATE [data].[ActiveProjects]
-            SET [ExcludeFromUi] = 1
+            SET [ExcludeFromUi] = 1,
+                [Notes] = @notes
             WHERE [AccessionNumber] = @accession
               AND EXISTS
               (
@@ -237,7 +241,58 @@ public sealed class ProjectListService(
                   WHERE [Accession] = @accession
               );
             """,
-            ActionParameters(cycle, accession),
+            ActionParameters(cycle, accession, normalizedNotes),
+            transaction: transaction,
+            commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
+            cancellationToken: cancellationToken));
+
+        if (rows == 1)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return ProjectListUpdateResult.Updated;
+        }
+
+        return new ProjectListUpdateResult(ProjectListUpdateStatus.NotFound, "Project row was not found.");
+    }
+
+    public async Task<ProjectListUpdateResult> IncludeAsync(
+        FiscalYearCycle cycle,
+        string accession,
+        string? notes,
+        CancellationToken cancellationToken)
+    {
+        var normalizedNotes = NormalizeNotes(notes);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
+
+        var statusResult = await ValidateCurrentExcludedProjectAsync(
+            connection,
+            transaction,
+            cycle,
+            accession,
+            cancellationToken);
+        if (statusResult is not null)
+        {
+            return statusResult;
+        }
+
+        var rows = await connection.ExecuteAsync(new CommandDefinition(
+            """
+            UPDATE [data].[ActiveProjects]
+            SET [ExcludeFromUi] = 0,
+                [Notes] = @notes
+            WHERE [AccessionNumber] = @accession
+              AND EXISTS
+              (
+                  SELECT 1
+                  FROM [data].[NifaProjectsForCycle](@cycleStart, @cycleEnd) nv
+                  WHERE nv.[AccessionNumber] = @accession
+                    AND nv.[ExcludeFromUi] = 1
+              );
+            """,
+            ActionParameters(cycle, accession, normalizedNotes),
             transaction: transaction,
             commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
             cancellationToken: cancellationToken));
@@ -541,6 +596,16 @@ public sealed class ProjectListService(
     private static string NormalizeAwardKey(string awardKey) =>
         awardKey.Trim().Replace("-", "", StringComparison.Ordinal);
 
+    private static string? NormalizeNotes(string? notes)
+    {
+        if (string.IsNullOrWhiteSpace(notes))
+        {
+            return null;
+        }
+
+        return notes.Trim();
+    }
+
     private static CycleQueryParameters CycleParameters(FiscalYearCycle cycle) =>
         new(
             cycle.CycleStart.ToDateTime(TimeOnly.MinValue),
@@ -548,9 +613,11 @@ public sealed class ProjectListService(
 
     private static ResolutionActionParameters ActionParameters(
         FiscalYearCycle cycle,
-        string accession) =>
+        string accession,
+        string? notes = null) =>
         new(
             accession.Trim(),
+            notes,
             cycle.CycleStart.ToDateTime(TimeOnly.MinValue),
             cycle.CycleEnd.ToDateTime(TimeOnly.MinValue));
 
@@ -626,6 +693,49 @@ public sealed class ProjectListService(
             return new ProjectListUpdateResult(
                 ProjectListUpdateStatus.Conflict,
                 $"Project has status '{status}' and cannot use that resolution action.");
+        }
+
+        return null;
+    }
+
+    private static async Task<ProjectListUpdateResult?> ValidateCurrentExcludedProjectAsync(
+        SqlConnection connection,
+        SqlTransaction transaction,
+        FiscalYearCycle cycle,
+        string accession,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(accession))
+        {
+            return new ProjectListUpdateResult(ProjectListUpdateStatus.InvalidRequest, "Accession number is required.");
+        }
+
+        var excluded = await connection.QuerySingleOrDefaultAsync<bool?>(new CommandDefinition(
+            """
+            SELECT CAST(ISNULL(nv.[ExcludeFromUi], 0) AS BIT)
+            FROM [data].[NifaProjectsForCycle](@cycleStart, @cycleEnd) nv
+            WHERE nv.[AccessionNumber] = @accession;
+            """,
+            new
+            {
+                accession = accession.Trim(),
+                cycleStart = cycle.CycleStart.ToDateTime(TimeOnly.MinValue),
+                cycleEnd = cycle.CycleEnd.ToDateTime(TimeOnly.MinValue),
+            },
+            transaction: transaction,
+            commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
+            cancellationToken: cancellationToken));
+
+        if (excluded is null)
+        {
+            return new ProjectListUpdateResult(ProjectListUpdateStatus.NotFound, "Project row was not found.");
+        }
+
+        if (excluded is false)
+        {
+            return new ProjectListUpdateResult(
+                ProjectListUpdateStatus.Conflict,
+                "Project is not currently excluded and cannot use that resolution action.");
         }
 
         return null;
@@ -795,6 +905,7 @@ public sealed class ProjectListService(
 
     private sealed record ResolutionActionParameters(
         string Accession,
+        string? Notes,
         DateTime CycleStart,
         DateTime CycleEnd);
 

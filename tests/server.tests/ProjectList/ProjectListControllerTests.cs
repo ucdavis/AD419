@@ -83,13 +83,17 @@ public class ProjectListControllerTests
         };
         var controller = new ProjectListController(service, db);
 
-        var result = await controller.Exclude("1000002", CancellationToken.None);
+        var result = await controller.Exclude(
+            "1000002",
+            new ProjectExclusionRequest("  explained  "),
+            CancellationToken.None);
 
         result.Should().BeOfType<ConflictObjectResult>();
         service.ReceivedUpdateCycle.Should().Be(new FiscalYearCycle(
             "FY25",
             new DateOnly(2024, 10, 1),
             new DateOnly(2025, 9, 30)));
+        service.ReceivedNotes.Should().Be("  explained  ");
     }
 
     [Fact]
@@ -154,11 +158,48 @@ public class ProjectListControllerTests
         await using var db = TestDbContextFactory.CreateInMemory();
         var controller = new ProjectListController(new StubProjectListService(), db);
 
-        var exclude = await controller.Exclude("1000002", CancellationToken.None);
+        var exclude = await controller.Exclude("1000002", null, CancellationToken.None);
+        var include = await controller.Include("1000002", null, CancellationToken.None);
         var setSfn = await controller.SetSfn("1000002", new SetSfnRequest("204"), CancellationToken.None);
 
         exclude.Should().BeOfType<ConflictObjectResult>();
+        include.Should().BeOfType<ConflictObjectResult>();
         setSfn.Should().BeOfType<ConflictObjectResult>();
+    }
+
+    [Fact]
+    public async Task Include_passes_notes_and_confirmed_cycle_to_service()
+    {
+        await using var db = await CreateDbWithConfirmedRunAsync();
+        var service = new StubProjectListService();
+        var controller = new ProjectListController(service, db);
+
+        var result = await controller.Include(
+            "1000002",
+            new ProjectExclusionRequest("Back in scope"),
+            CancellationToken.None);
+
+        result.Should().BeOfType<NoContentResult>();
+        service.ReceivedUpdateCycle.Should().Be(new FiscalYearCycle(
+            "FY25",
+            new DateOnly(2024, 10, 1),
+            new DateOnly(2025, 9, 30)));
+        service.ReceivedNotes.Should().Be("Back in scope");
+    }
+
+    [Fact]
+    public async Task Include_maps_conflicts_from_service()
+    {
+        await using var db = await CreateDbWithConfirmedRunAsync();
+        var service = new StubProjectListService
+        {
+            NextUpdateResult = new ProjectListUpdateResult(ProjectListUpdateStatus.Conflict, "Project is not excluded."),
+        };
+        var controller = new ProjectListController(service, db);
+
+        var result = await controller.Include("1000002", null, CancellationToken.None);
+
+        result.Should().BeOfType<ConflictObjectResult>();
     }
 
     [Fact]
@@ -178,6 +219,7 @@ public class ProjectListControllerTests
         public FiscalYearCycle? ReceivedCycle { get; private set; }
         public List<FiscalYearCycle> ReceivedCandidateCycles { get; } = [];
         public FiscalYearCycle? ReceivedUpdateCycle { get; private set; }
+        public string? ReceivedNotes { get; private set; }
         public bool HasResolutionEdits { get; init; }
         public ProjectListUpdateResult NextUpdateResult { get; init; } = ProjectListUpdateResult.Updated;
 
@@ -284,9 +326,22 @@ public class ProjectListControllerTests
         public Task<ProjectListUpdateResult> ExcludeAsync(
             FiscalYearCycle cycle,
             string accession,
+            string? notes,
             CancellationToken cancellationToken)
         {
             ReceivedUpdateCycle = cycle;
+            ReceivedNotes = notes;
+            return Task.FromResult(NextUpdateResult);
+        }
+
+        public Task<ProjectListUpdateResult> IncludeAsync(
+            FiscalYearCycle cycle,
+            string accession,
+            string? notes,
+            CancellationToken cancellationToken)
+        {
+            ReceivedUpdateCycle = cycle;
+            ReceivedNotes = notes;
             return Task.FromResult(NextUpdateResult);
         }
 
