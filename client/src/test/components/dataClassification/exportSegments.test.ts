@@ -5,6 +5,7 @@ import type { SegmentClassification } from '@/queries/segmentClassifications.ts'
 
 const fundTab = SEGMENT_TABS.find((tab) => tab.type === 'Fund')!;
 const deptTab = SEGMENT_TABS.find((tab) => tab.type === 'FinancialDepartment')!;
+const purposeTab = SEGMENT_TABS.find((tab) => tab.type === 'Purpose')!;
 
 const fund: SegmentClassification = {
   code: '45530',
@@ -59,5 +60,29 @@ describe('buildSegmentExport', () => {
 
     expect(columns.map((c) => c.header)).toEqual(['Code', 'Name', 'Classification']);
     expect(rows[0].classification).toBe('Unset');
+  });
+
+  it('omits hierarchy columns for purpose rows', () => {
+    const purpose: SegmentClassification = {
+      code: '44',
+      description: 'Research',
+      hierarchy: [
+        { code: '1A', level: 'A', name: 'Purpose Categories' },
+        { code: '1D', level: 'B', name: 'Organized Research D' },
+      ],
+      includeInReport: true,
+      segmentType: 'Purpose',
+      sfn: null,
+    };
+
+    const { columns, filename, rows } = buildSegmentExport([purpose], purposeTab);
+
+    expect(filename).toBe('ad419-purpose-classification.csv');
+    expect(columns.map((c) => c.header)).toEqual(['Code', 'Name', 'Classification']);
+    expect(rows[0]).toEqual({
+      classification: 'Included',
+      code: '44',
+      name: 'Research',
+    });
   });
 });
