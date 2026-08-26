@@ -1045,7 +1045,7 @@ describe('AD419 workflow routes', () => {
         screen.getAllByTitle(
           'Locked until all previous steps are complete.'
         )
-      ).toHaveLength(7);
+      ).toHaveLength(8);
     } finally {
       cleanup();
     }
@@ -1126,6 +1126,84 @@ describe('AD419 workflow routes', () => {
         await screen.findByRole('heading', {
           level: 1,
           name: 'Post-Association Review',
+        })
+      ).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('allows the Station/Specialist Import placeholder to complete and advance', async () => {
+    const user = userEvent.setup();
+    let updateRequests = 0;
+
+    server.use(
+      http.get('/api/user/me', () => {
+        return HttpResponse.json(mockUser);
+      }),
+      http.get('/api/workflow/snapshot', () => {
+        return HttpResponse.json(
+          createWorkflowSnapshot({
+            'auto-associations': 'Complete',
+            'data-classification': 'Complete',
+            'data-import': 'Complete',
+            'expense-review': 'Complete',
+            'manual-associations': 'Complete',
+            'post-association-review': 'Complete',
+            'project-identification': 'Complete',
+            'station-specialist-import': 'InProgress',
+          })
+        );
+      }),
+      http.put('/api/workflow/stages/:stageId', async ({ params, request }) => {
+        expect(params.stageId).toBe('station-specialist-import');
+        expect(await request.json()).toEqual({ status: 'Complete' });
+        updateRequests += 1;
+
+        return HttpResponse.json(
+          createWorkflowSnapshot({
+            'auto-associations': 'Complete',
+            'data-classification': 'Complete',
+            'data-import': 'Complete',
+            'expense-review': 'Complete',
+            'final-reports': 'InProgress',
+            'manual-associations': 'Complete',
+            'post-association-review': 'Complete',
+            'project-identification': 'Complete',
+            'station-specialist-import': 'Complete',
+          })
+        );
+      })
+    );
+
+    const { cleanup, router } = renderRoute({
+      initialPath: '/workflow/station-specialist-import',
+    });
+
+    try {
+      expect(
+        await screen.findByRole('heading', {
+          level: 1,
+          name: 'Station/Specialist Import',
+        })
+      ).toBeInTheDocument();
+
+      await user.click(
+        screen.getByRole('button', {
+          name: /continue to final reports/i,
+        })
+      );
+
+      await waitFor(() => {
+        expect(updateRequests).toBe(1);
+        expect(router.state.location.pathname).toBe(
+          '/workflow/final-reports'
+        );
+      });
+      expect(
+        await screen.findByRole('heading', {
+          level: 1,
+          name: 'Final Reports',
         })
       ).toBeInTheDocument();
     } finally {

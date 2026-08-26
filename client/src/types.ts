@@ -6,6 +6,7 @@ export type WorkflowStageId =
   | 'auto-associations'
   | 'manual-associations'
   | 'post-association-review'
+  | 'station-specialist-import'
   | 'final-reports';
 
 export interface WorkflowStage {
