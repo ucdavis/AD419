@@ -185,7 +185,7 @@ public class ProjectListControllerTests
     {
         await using var db = await CreateDbWithConfirmedRunAsync();
         var service = new StubProjectListService();
-        var controller = new ProjectListController(service, db);
+        var controller = CreateController(service, db);
 
         var result = await controller.Include(
             "1000002",
@@ -208,7 +208,7 @@ public class ProjectListControllerTests
         {
             NextUpdateResult = new ProjectListUpdateResult(ProjectListUpdateStatus.Conflict, "Project is not excluded."),
         };
-        var controller = new ProjectListController(service, db);
+        var controller = CreateController(service, db);
 
         var result = await controller.Include("1000002", null, CancellationToken.None);
 
