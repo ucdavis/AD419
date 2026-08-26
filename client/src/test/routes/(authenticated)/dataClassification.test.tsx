@@ -111,6 +111,30 @@ describe('Data Classification stage', () => {
           }))
         )
       ),
+      http.get('/api/expensereview/filters', () =>
+        HttpResponse.json({
+          accountingPeriods: [],
+          accounts: [],
+          aeProjects: [],
+          financialDepts: [],
+          funds: [],
+          sfns: [],
+          sources: [],
+        })
+      ),
+      http.get('/api/expensereview/transactions', () =>
+        HttpResponse.json({
+          counts: { all: 0, excluded: 0, included: 0 },
+          cycleEnd: '2026-09-30',
+          cycleStart: '2025-10-01',
+          fiscalYear: 'FY26',
+          page: 1,
+          pageCount: 0,
+          pageSize: 25,
+          rows: [],
+          totalCount: 0,
+        })
+      ),
       http.put('/api/workflow/stages/:stageId', async ({ params, request }) => {
         expect(params.stageId).toBe('data-classification');
         expect(await request.json()).toEqual({ status: 'Complete' });

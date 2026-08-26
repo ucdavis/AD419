@@ -110,8 +110,7 @@ public sealed class ExpenseReviewService(
             _ => "1 = 1",
         };
 
-        var sortExpression = SortExpressions[request.SortBy];
-        var sortDirection = request.SortDescending ? "DESC" : "ASC";
+        var orderByClause = BuildOrderByClause(request);
 
         return $$"""
             {{UnifiedTransactionsCte}},
@@ -157,12 +156,30 @@ public sealed class ExpenseReviewService(
             FROM #Filtered
             WHERE {{includeClause}}
             ORDER BY
-                CASE WHEN {{sortExpression}} IS NULL THEN 1 ELSE 0 END,
-                {{sortExpression}} {{sortDirection}},
-                [Source],
-                [SourceId]
+                {{orderByClause}}
             OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY;
             """;
+    }
+
+    private static string BuildOrderByClause(ExpenseReviewTransactionsRequest request)
+    {
+        var sortExpression = SortExpressions[request.SortBy];
+        var sortDirection = request.SortDescending ? "DESC" : "ASC";
+        var orderByExpressions = new List<string>
+        {
+            $"CASE WHEN {sortExpression} IS NULL THEN 1 ELSE 0 END",
+            $"{sortExpression} {sortDirection}",
+        };
+
+        foreach (var tieBreaker in new[] { "[Source]", "[SourceId]" })
+        {
+            if (!string.Equals(sortExpression, tieBreaker, StringComparison.OrdinalIgnoreCase))
+            {
+                orderByExpressions.Add(tieBreaker);
+            }
+        }
+
+        return string.Join(",\n            ", orderByExpressions);
     }
 
     public static string FilterOptionsSql => $$"""
