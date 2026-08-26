@@ -33,7 +33,13 @@ import {
   projectIdentificationSetupQueryOptions,
   type ProjectIdentificationSetupResponse,
 } from '@/queries/projectIdentification.ts';
+import {
+  WORKFLOW_SNAPSHOT_KEY,
+  updateWorkflowStageStatus,
+} from '@/queries.ts';
 import { ProjectIdentificationSetupChecklist } from '@/components/ProjectIdentificationSetupChecklist.tsx';
+import { useNavigate } from '@tanstack/react-router';
+import type { WorkflowStageStatus } from '@/types.ts';
 
 type ProjectListTab = 'issues' | 'clean' | 'all' | 'excluded';
 
@@ -102,7 +108,11 @@ function sfnDistributionText(summary: ProjectListSummary): string {
     .join(' / ');
 }
 
-export function ProjectIdentificationStage() {
+export function ProjectIdentificationStage({
+  status,
+}: {
+  status: WorkflowStageStatus;
+}) {
   const setupQuery = useQuery(projectIdentificationSetupQueryOptions());
 
   if (setupQuery.isLoading) {
@@ -128,16 +138,28 @@ export function ProjectIdentificationStage() {
     );
   }
 
-  return <ProjectIdentificationStageContent setup={setupQuery.data} />;
+  return (
+    <ProjectIdentificationStageContent
+      setup={setupQuery.data}
+      status={status}
+    />
+  );
 }
 
 function ProjectIdentificationStageContent({
   setup,
+  status,
 }: {
   setup: ProjectIdentificationSetupResponse;
+  status: WorkflowStageStatus;
 }) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const pgmItem = setup.checklistItems.find(
     (item) => item.id === 'pgm-master-data'
+  );
+  const finalizeItem = setup.checklistItems.find(
+    (item) => item.id === 'finalize-projects'
   );
   const projectListReady = pgmItem?.completed ?? false;
   const { data, error, isError, isFetching, isLoading, refetch } = useQuery({
@@ -145,6 +167,17 @@ function ProjectIdentificationStageContent({
     enabled: projectListReady,
   });
   const [activeTab, setActiveTab] = useState<ProjectListTab>('issues');
+  const continueMutation = useMutation({
+    mutationFn: () =>
+      updateWorkflowStageStatus('project-identification', 'Complete'),
+    onSuccess: (snapshot) => {
+      queryClient.setQueryData(WORKFLOW_SNAPSHOT_KEY, snapshot);
+      void navigate({
+        params: { stageId: 'data-import' },
+        to: '/workflow/$stageId',
+      });
+    },
+  });
 
   const columns = useMemo<ColumnDef<ProjectListRow>[]>(
     () => [
@@ -316,6 +349,30 @@ function ProjectIdentificationStageContent({
         setup={setup}
       />
 
+      {status !== 'Complete' && finalizeItem?.completed ? (
+        <div className="flex flex-col items-end gap-2">
+          <button
+            className="btn btn-primary"
+            disabled={continueMutation.isPending}
+            onClick={() => continueMutation.mutate()}
+            type="button"
+          >
+            {continueMutation.isPending
+              ? 'Continuing...'
+              : 'Continue to Data Import'}
+          </button>
+          {continueMutation.isError ? (
+            <div className="alert alert-error max-w-xl" role="alert">
+              <span>
+                {continueMutation.error instanceof Error
+                  ? continueMutation.error.message
+                  : 'Could not update the workflow stage.'}
+              </span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="rounded border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -410,6 +467,7 @@ function ProjectIssueResolutionControl({
     void queryClient.invalidateQueries({
       queryKey: ['projectIdentification', 'setup'],
     });
+    void queryClient.invalidateQueries({ queryKey: WORKFLOW_SNAPSHOT_KEY });
   };
   const mutation = useMutation({
     mutationFn: (action: ResolutionAction) => {

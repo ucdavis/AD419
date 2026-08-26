@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using System.Text.Json;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Server.Authorization;
 using Server.Core.Data;
@@ -11,13 +10,15 @@ using Server.Models;
 using Server.Models.Imports;
 using Server.Models.ProjectIdentification;
 using Server.ProjectList;
+using Server.Workflow;
 
 namespace Server.ProjectIdentification;
 
 public sealed class ProjectIdentificationService(
     AppDbContext dbContext,
     IFlatFileImportRegistry importRegistry,
-    IProjectListService projectListService) : IProjectIdentificationService
+    IProjectListService projectListService,
+    IWorkflowService workflowService) : IProjectIdentificationService
 {
     private const string FiscalPeriodItemId = "fiscal-period";
     private const string PgmItemId = "pgm-master-data";
@@ -47,7 +48,7 @@ public sealed class ProjectIdentificationService(
         ClaimsPrincipal user,
         CancellationToken cancellationToken)
     {
-        var run = await GetOrCreateCurrentRunAsync(user, cancellationToken);
+        var run = await workflowService.GetOrCreateCurrentRunAsync(user, cancellationToken);
         var latestImports = await GetLatestImportsAsync(cancellationToken);
 
         return CreateSetupResponse(run, latestImports);
@@ -63,7 +64,7 @@ public sealed class ProjectIdentificationService(
             return null;
         }
 
-        var run = await GetOrCreateCurrentRunAsync(user, cancellationToken);
+        var run = await workflowService.GetOrCreateCurrentRunAsync(user, cancellationToken);
         var now = DateTimeOffset.UtcNow;
         var changed = !string.Equals(run.FiscalYear, cycle.FiscalYear, StringComparison.OrdinalIgnoreCase);
 
@@ -79,7 +80,14 @@ public sealed class ProjectIdentificationService(
         var fiscalState = GetOrCreateState(run, FiscalPeriodItemId);
         CompleteState(fiscalState, user, now);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        if (changed)
+        {
+            await SaveChangesAndResetProjectIdentificationAsync(user, cancellationToken);
+        }
+        else
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
 
         var latestImports = await GetLatestImportsAsync(cancellationToken);
         return CreateSetupResponse(run, latestImports);
@@ -97,7 +105,7 @@ public sealed class ProjectIdentificationService(
             return null;
         }
 
-        var run = await GetOrCreateCurrentRunAsync(user, cancellationToken);
+        var run = await workflowService.GetOrCreateCurrentRunAsync(user, cancellationToken);
         var latestImports = await GetLatestImportsAsync(cancellationToken);
         var items = CreateChecklistItems(run, latestImports);
         var requestedItem = items.Single(item => item.Id == definition.Id);
@@ -106,7 +114,7 @@ public sealed class ProjectIdentificationService(
         {
             ClearFrom(run, definition.Number);
             Touch(run, user, DateTimeOffset.UtcNow);
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await SaveChangesAndResetProjectIdentificationAsync(user, cancellationToken);
 
             return CreateSetupResponse(run, latestImports);
         }
@@ -160,7 +168,7 @@ public sealed class ProjectIdentificationService(
 
         ClearAfter(run, definition.Number);
         Touch(run, user, now);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveChangesAndResetProjectIdentificationAsync(user, cancellationToken);
 
         latestImports = await GetLatestImportsAsync(cancellationToken);
         return CreateSetupResponse(run, latestImports);
@@ -174,7 +182,7 @@ public sealed class ProjectIdentificationService(
 
         try
         {
-            var run = await GetOrCreateCurrentRunAsync(user, cancellationToken);
+            var run = await workflowService.GetOrCreateCurrentRunAsync(user, cancellationToken);
             var latestImports = await GetLatestImportsAsync(cancellationToken);
             var items = CreateChecklistItems(run, latestImports);
             var finalizeItem = items.Single(item => item.Id == FinalizeProjectsItemId);
@@ -242,7 +250,7 @@ public sealed class ProjectIdentificationService(
         ClaimsPrincipal user,
         CancellationToken cancellationToken)
     {
-        var run = await GetOrCreateCurrentRunAsync(user, cancellationToken);
+        var run = await workflowService.GetOrCreateCurrentRunAsync(user, cancellationToken);
         var now = DateTimeOffset.UtcNow;
         var state = GetOrCreateState(run, PgmItemId);
 
@@ -257,54 +265,21 @@ public sealed class ProjectIdentificationService(
 
         ClearAfter(run, ChecklistItems.Single(item => item.Id == PgmItemId).Number);
         Touch(run, user, now);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveChangesAndResetProjectIdentificationAsync(user, cancellationToken);
     }
 
-    private async Task<WorkflowRun> GetOrCreateCurrentRunAsync(
+    private async Task SaveChangesAndResetProjectIdentificationAsync(
         ClaimsPrincipal user,
         CancellationToken cancellationToken)
     {
-        var run = await GetCurrentRunAsync(cancellationToken);
-
-        if (run is not null)
-        {
-            return run;
-        }
-
-        var cycle = CurrentFiscalYearCycle();
-        var now = DateTimeOffset.UtcNow;
-        run = new WorkflowRun
-        {
-            FiscalYear = cycle.FiscalYear,
-            CycleStart = cycle.CycleStart,
-            CycleEnd = cycle.CycleEnd,
-            CreatedAt = now,
-            IsCurrent = true,
-            UpdatedAt = now,
-        };
-
-        SetCreatedBy(run, user);
-        SetUpdatedBy(run, user);
-        dbContext.WorkflowRuns.Add(run);
-        try
-        {
-            await dbContext.SaveChangesAsync(cancellationToken);
-            return run;
-        }
-        catch (DbUpdateException ex) when (IsCurrentRunUniquenessViolation(ex))
-        {
-            dbContext.Entry(run).State = EntityState.Detached;
-            return await GetCurrentRunAsync(cancellationToken)
-                ?? throw new InvalidOperationException("A current workflow run already exists but could not be loaded.", ex);
-        }
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await workflowService.ResetFromStageAsync(
+            WorkflowStageIds.ProjectIdentification,
+            user,
+            cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
-
-    private Task<WorkflowRun?> GetCurrentRunAsync(CancellationToken cancellationToken) =>
-        dbContext.WorkflowRuns
-            .Include(item => item.ChecklistItemStates)
-            .Where(item => item.IsCurrent)
-            .OrderByDescending(item => item.CreatedAt)
-            .FirstOrDefaultAsync(cancellationToken);
 
     private ProjectIdentificationSetupResponse CreateSetupResponse(
         WorkflowRun run,
@@ -326,7 +301,7 @@ public sealed class ProjectIdentificationService(
 
     private static IReadOnlyList<FiscalPeriodOptionDto> CreateFiscalPeriodOptions(string selectedFiscalYear)
     {
-        var current = CurrentFiscalYearCycle();
+        var current = FiscalYearCycle.Current();
         var currentYear = ParseFiscalYearNumber(current.FiscalYear)
             ?? throw new InvalidOperationException($"Current fiscal year '{current.FiscalYear}' could not be parsed.");
         var selectedYear = ParseFiscalYearNumber(selectedFiscalYear) ?? currentYear;
@@ -639,24 +614,6 @@ public sealed class ProjectIdentificationService(
 
     private static bool IsSucceeded(RecentImportResponse import) =>
         string.Equals(import.Status, "Succeeded", StringComparison.OrdinalIgnoreCase);
-
-    private static FiscalYearCycle CurrentFiscalYearCycle()
-    {
-        var now = DateTimeOffset.Now;
-        var calendarYear = now.Year;
-        var fiscalYear = now.Month >= 10 ? calendarYear + 1 : calendarYear;
-        var fiscalYearText = $"FY{fiscalYear % 100:00}";
-        if (!FiscalYearCycle.TryParse(fiscalYearText, out var cycle))
-        {
-            throw new InvalidOperationException($"Current fiscal year '{fiscalYearText}' could not be parsed.");
-        }
-
-        return cycle;
-    }
-
-    private static bool IsCurrentRunUniquenessViolation(DbUpdateException exception) =>
-        exception.GetBaseException() is SqlException sqlException
-        && sqlException.Errors.Cast<SqlError>().Any(error => error.Number is 2601 or 2627);
 
     private static int? ParseFiscalYearNumber(string fiscalYear)
     {

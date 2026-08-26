@@ -9,8 +9,14 @@ import {
   projectIdentificationSetupQueryOptions,
   type ProjectIdentificationSetupResponse,
 } from '@/queries/projectIdentification.ts';
+import {
+  WORKFLOW_SNAPSHOT_KEY,
+  updateWorkflowStageStatus,
+} from '@/queries.ts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ImportRunStage } from '@/queries/importRuns.ts';
+import { useNavigate } from '@tanstack/react-router';
+import type { WorkflowStageStatus } from '@/types.ts';
 
 const STATUS_BADGES: Record<ImportRunStage['status'], string> = {
   Failed: 'badge badge-error badge-outline',
@@ -19,7 +25,11 @@ const STATUS_BADGES: Record<ImportRunStage['status'], string> = {
   Succeeded: 'badge badge-success badge-outline',
 };
 
-export function DataImportStage() {
+export function DataImportStage({
+  status,
+}: {
+  status: WorkflowStageStatus;
+}) {
   const setupQuery = useQuery(projectIdentificationSetupQueryOptions());
 
   if (setupQuery.isLoading) {
@@ -47,15 +57,18 @@ export function DataImportStage() {
     );
   }
 
-  return <DataImportStageContent setup={setupQuery.data} />;
+  return <DataImportStageContent setup={setupQuery.data} status={status} />;
 }
 
 function DataImportStageContent({
   setup,
+  status,
 }: {
   setup: ProjectIdentificationSetupResponse;
+  status: WorkflowStageStatus;
 }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const runQuery = useQuery(importRunQueryOptions());
   const run = runQuery.data;
 
@@ -63,6 +76,18 @@ function DataImportStageContent({
     mutationFn: startImportRun,
     onSuccess: (created) => {
       queryClient.setQueryData(importRunQueryOptions().queryKey, created);
+      void queryClient.invalidateQueries({ queryKey: WORKFLOW_SNAPSHOT_KEY });
+    },
+  });
+
+  const continueMutation = useMutation({
+    mutationFn: () => updateWorkflowStageStatus('data-import', 'Complete'),
+    onSuccess: (snapshot) => {
+      queryClient.setQueryData(WORKFLOW_SNAPSHOT_KEY, snapshot);
+      void navigate({
+        params: { stageId: 'data-classification' },
+        to: '/workflow/$stageId',
+      });
     },
   });
 
@@ -99,6 +124,7 @@ function DataImportStageContent({
   );
 
   const isRunning = run?.status === 'Running' || start.isPending;
+  const canContinue = status !== 'Complete' && run?.status === 'Succeeded';
   const failedStages =
     run?.stages.filter((stage) => stage.status === 'Failed') ?? [];
   const sortedStages = [...(run?.stages ?? [])].sort(
@@ -220,6 +246,30 @@ function DataImportStageContent({
             No import has run yet for this cycle.
           </div>
         )}
+
+        {canContinue ? (
+          <div className="flex flex-col items-end gap-2 border-t pt-4">
+            <button
+              className="btn btn-primary"
+              disabled={continueMutation.isPending}
+              onClick={() => continueMutation.mutate()}
+              type="button"
+            >
+              {continueMutation.isPending
+                ? 'Continuing...'
+                : 'Continue to Data Classification'}
+            </button>
+            {continueMutation.isError ? (
+              <div className="alert alert-error max-w-xl" role="alert">
+                <span>
+                  {continueMutation.error instanceof Error
+                    ? continueMutation.error.message
+                    : 'Could not update the workflow stage.'}
+                </span>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </SectionPanel>
   );

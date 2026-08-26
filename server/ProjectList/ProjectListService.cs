@@ -565,8 +565,9 @@ public sealed class ProjectListService(
             cancellationToken: cancellationToken));
 
         await transaction.CommitAsync(cancellationToken);
-        activity?.SetTag("ad419.rows_built", result.ProjectRowsBuilt);
-        return result.ProjectRowsBuilt;
+        activity?.SetTag("ad419.rows_built", result.AeProjects);
+        activity?.SetTag("ad419.nifa_projects_built", result.NifaProjects);
+        return result.AeProjects;
     }
 
     private SqlConnection CreateConnection()
@@ -943,5 +944,5 @@ public sealed class ProjectListService(
 
     private sealed record SfnCandidateRow(string? NifaSfn, string? PgmSfnBucket);
 
-    private sealed record ProjectRowsBuiltResult(int ProjectRowsBuilt);
+    private sealed record ProjectRowsBuiltResult(int AeProjects, int NifaProjects);
 }

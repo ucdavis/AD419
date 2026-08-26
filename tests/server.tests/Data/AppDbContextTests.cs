@@ -81,6 +81,18 @@ public class AppDbContextTests
     }
 
     [Fact]
+    public void WorkflowStageState_maps_to_app_schema()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+
+        var entityType = db.Model.FindEntityType(typeof(WorkflowStageState));
+
+        entityType.Should().NotBeNull();
+        entityType!.GetSchema().Should().Be(AppDbContext.AppSchema);
+        entityType.GetTableName().Should().Be("WorkflowStageState");
+    }
+
+    [Fact]
     public void ImportLog_has_index_for_latest_log_by_dataset()
     {
         using var db = TestDbContextFactory.CreateInMemory();
@@ -109,6 +121,23 @@ public class AppDbContextTests
                 .SequenceEqual([
                     nameof(WorkflowChecklistItemState.WorkflowRunId),
                     nameof(WorkflowChecklistItemState.ItemId),
+                ]));
+
+        index.Should().NotBeNull();
+        index!.IsUnique.Should().BeTrue();
+    }
+
+    [Fact]
+    public void WorkflowStageState_has_unique_index_per_run_and_stage()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+
+        var entityType = db.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(WorkflowStageState));
+        var index = entityType?.GetIndexes()
+            .SingleOrDefault(item => item.Properties.Select(property => property.Name)
+                .SequenceEqual([
+                    nameof(WorkflowStageState.WorkflowRunId),
+                    nameof(WorkflowStageState.StageId),
                 ]));
 
         index.Should().NotBeNull();
@@ -145,6 +174,23 @@ public class AppDbContextTests
             property.Name == nameof(WorkflowChecklistItemState.SourceImportLogId));
         foreignKey.DeleteBehavior.Should().Be(DeleteBehavior.SetNull);
         foreignKey.IsRequired.Should().BeFalse();
+    }
+
+    [Fact]
+    public void WorkflowStageState_cascades_from_workflow_run()
+    {
+        using var db = TestDbContextFactory.CreateInMemory();
+
+        var entityType = db.Model.FindEntityType(typeof(WorkflowStageState));
+        var foreignKey = entityType?.FindNavigation(nameof(WorkflowStageState.WorkflowRun))
+            ?.ForeignKey;
+
+        foreignKey.Should().NotBeNull();
+        foreignKey!.PrincipalEntityType.ClrType.Should().Be(typeof(WorkflowRun));
+        foreignKey.Properties.Should().ContainSingle(property =>
+            property.Name == nameof(WorkflowStageState.WorkflowRunId));
+        foreignKey.DeleteBehavior.Should().Be(DeleteBehavior.Cascade);
+        foreignKey.IsRequired.Should().BeTrue();
     }
 
     [Fact]

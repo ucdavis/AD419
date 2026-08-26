@@ -28,7 +28,7 @@
   }
 
   .workflow-stepper {
-    @apply grid border-b border-slate-200 bg-white px-4 shadow-sm lg:grid-cols-7 lg:px-8;
+    @apply grid border-b border-slate-200 bg-white px-4 shadow-sm lg:grid-cols-8 lg:px-8;
   }
 
   .workflow-step {
@@ -57,6 +57,18 @@
 
   .workflow-step--active .workflow-step__number {
     @apply border-sky-700 bg-sky-700 text-white;
+  }
+
+  .workflow-step--complete .workflow-step__number {
+    @apply border-emerald-700 bg-emerald-700 text-white;
+  }
+
+  .workflow-step--locked .workflow-step__link {
+    @apply w-full cursor-not-allowed text-slate-400 opacity-70 hover:bg-transparent;
+  }
+
+  .workflow-step--locked .workflow-step__number {
+    @apply border-slate-200 bg-slate-100 text-slate-400;
   }
 
   .workflow-step__text {

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using FluentAssertions;
+using Server.Core.Data;
 using Server.Core.Domain;
 using Server.Core.Import;
 using Server.Import;
@@ -7,6 +8,7 @@ using Server.Models;
 using Server.Models.ProjectList;
 using Server.ProjectIdentification;
 using Server.ProjectList;
+using Server.Workflow;
 
 namespace Server.Tests.ProjectIdentification;
 
@@ -24,7 +26,8 @@ public class ProjectIdentificationServiceTests
     public async Task Setup_creates_a_current_workflow_run_with_fiscal_period_active()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = CreateService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
 
         var setup = await service.GetSetupAsync(User, CancellationToken.None);
 
@@ -41,7 +44,8 @@ public class ProjectIdentificationServiceTests
     public async Task ConfirmFiscalPeriod_completes_the_first_item()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = CreateService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
 
         var setup = await service.ConfirmFiscalPeriodAsync("FY26", User, CancellationToken.None);
 
@@ -58,7 +62,8 @@ public class ProjectIdentificationServiceTests
     public async Task Import_items_require_previous_completion_and_successful_latest_import()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = CreateService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
         AddImport(db, "all-projects", 1, "Succeeded", 100, DateTimeOffset.Parse("2026-06-01T12:00:00Z"));
         await db.SaveChangesAsync();
 
@@ -79,7 +84,8 @@ public class ProjectIdentificationServiceTests
     public async Task Newer_import_attempt_makes_prior_completion_stale()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = CreateService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
         AddImport(db, "all-projects", 1, "Succeeded", 100, DateTimeOffset.Parse("2026-06-01T12:00:00Z"));
         await db.SaveChangesAsync();
         await service.ConfirmFiscalPeriodAsync("FY26", User, CancellationToken.None);
@@ -101,7 +107,8 @@ public class ProjectIdentificationServiceTests
     public async Task Pgm_import_result_makes_pgm_item_ready_but_not_complete()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
-        var service = CreateService(db);
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
 
         AddImport(db, "all-projects", 1, "Succeeded", 100, DateTimeOffset.Parse("2026-06-01T12:00:00Z"));
         AddImport(db, "active-projects", 2, "Succeeded", 50, DateTimeOffset.Parse("2026-06-01T12:01:00Z"));
@@ -130,8 +137,9 @@ public class ProjectIdentificationServiceTests
     public async Task Resolve_issues_requires_current_project_list_to_have_no_issues()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
         var projectListService = new StubProjectListService { IssuesToResolve = 2 };
-        var service = CreateService(db, projectListService);
+        var service = CreateService(db, dataDb, projectListService);
 
         AddImport(db, "all-projects", 1, "Succeeded", 100, DateTimeOffset.Parse("2026-06-01T12:00:00Z"));
         AddImport(db, "active-projects", 2, "Succeeded", 50, DateTimeOffset.Parse("2026-06-01T12:01:00Z"));
@@ -170,8 +178,9 @@ public class ProjectIdentificationServiceTests
     public async Task Finalize_requires_resolved_issues_and_builds_projects()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
         var projectListService = new StubProjectListService { IssuesToResolve = 0, RowsBuilt = 44 };
-        var service = CreateService(db, projectListService);
+        var service = CreateService(db, dataDb, projectListService);
 
         AddImport(db, "all-projects", 1, "Succeeded", 100, DateTimeOffset.Parse("2026-06-01T12:00:00Z"));
         AddImport(db, "active-projects", 2, "Succeeded", 50, DateTimeOffset.Parse("2026-06-01T12:01:00Z"));
@@ -218,8 +227,9 @@ public class ProjectIdentificationServiceTests
     public async Task Recompleted_import_clears_downstream_completion_states()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
         var projectListService = new StubProjectListService { IssuesToResolve = 0, RowsBuilt = 44 };
-        var service = CreateService(db, projectListService);
+        var service = CreateService(db, dataDb, projectListService);
 
         AddImport(db, "all-projects", 1, "Succeeded", 100, DateTimeOffset.Parse("2026-06-01T12:00:00Z"));
         AddImport(db, "active-projects", 2, "Succeeded", 50, DateTimeOffset.Parse("2026-06-01T12:01:00Z"));
@@ -258,13 +268,48 @@ public class ProjectIdentificationServiceTests
             .Completed.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task Fiscal_period_change_resets_top_level_workflow_to_project_identification()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
+        var workflowService = new WorkflowService(db, dataDb);
+
+        await service.ConfirmFiscalPeriodAsync("FY26", User, CancellationToken.None);
+        await workflowService.SetStageStatusAsync(
+            WorkflowStageIds.ProjectIdentification,
+            WorkflowStageStatus.Complete,
+            User,
+            CancellationToken.None);
+        await workflowService.SetStageStatusAsync(
+            WorkflowStageIds.DataImport,
+            WorkflowStageStatus.Complete,
+            User,
+            CancellationToken.None);
+
+        await service.ConfirmFiscalPeriodAsync("FY27", User, CancellationToken.None);
+
+        var snapshot = await workflowService.GetSnapshotAsync(User, CancellationToken.None);
+        snapshot.CurrentStageId.Should().Be(WorkflowStageIds.ProjectIdentification);
+        snapshot.Stages.Single(stage => stage.Id == WorkflowStageIds.ProjectIdentification)
+            .Status.Should().Be(WorkflowStageStatus.InProgress);
+        snapshot.Stages.Single(stage => stage.Id == WorkflowStageIds.DataImport)
+            .Status.Should().Be(WorkflowStageStatus.NotStarted);
+    }
+
     private static ProjectIdentificationService CreateService(
-        Server.Core.Data.AppDbContext db,
+        AppDbContext db,
+        DataDbContext dataDb,
         StubProjectListService? projectListService = null) =>
-        new(db, new FlatFileImportRegistry(), projectListService ?? new StubProjectListService());
+        new(
+            db,
+            new FlatFileImportRegistry(),
+            projectListService ?? new StubProjectListService(),
+            new WorkflowService(db, dataDb));
 
     private static void AddImport(
-        Server.Core.Data.AppDbContext db,
+        AppDbContext db,
         string dataset,
         int id,
         string status,

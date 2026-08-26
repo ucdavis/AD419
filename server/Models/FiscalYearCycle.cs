@@ -8,6 +8,21 @@ public sealed record FiscalYearCycle(
     DateOnly CycleStart,
     DateOnly CycleEnd)
 {
+    public static FiscalYearCycle Current() => Current(DateTimeOffset.Now);
+
+    public static FiscalYearCycle Current(DateTimeOffset now)
+    {
+        var calendarYear = now.Year;
+        var fiscalYear = now.Month >= 10 ? calendarYear + 1 : calendarYear;
+        var fiscalYearText = $"FY{fiscalYear % 100:00}";
+        if (!TryParse(fiscalYearText, out var cycle))
+        {
+            throw new InvalidOperationException($"Current fiscal year '{fiscalYearText}' could not be parsed.");
+        }
+
+        return cycle;
+    }
+
     public static bool TryParse(string? fiscalYear, [NotNullWhen(true)] out FiscalYearCycle? cycle)
     {
         cycle = null;
