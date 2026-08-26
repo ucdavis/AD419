@@ -291,7 +291,7 @@ describe('AD419 workflow routes', () => {
       expect(
         screen.getByRole('tab', { name: /clean\s*1/i })
       ).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: /all\s*3/i })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /all\s*4/i })).toBeInTheDocument();
       expect(
         screen.getByRole('tab', { name: /excluded\s*1/i })
       ).toBeInTheDocument();
@@ -385,9 +385,12 @@ describe('AD419 workflow routes', () => {
       expect(screen.queryByText('Okonkwo, Y.')).not.toBeInTheDocument();
       expect(screen.queryByText('Singh, R.')).not.toBeInTheDocument();
 
-      await user.click(screen.getByRole('tab', { name: /all\s*3/i }));
+      await user.click(screen.getByRole('tab', { name: /all\s*4/i }));
       expect(await screen.findByText('Naidoo, T.')).toBeInTheDocument();
-      expect(screen.queryByText('Singh, R.')).not.toBeInTheDocument();
+      expect(screen.getByText('Singh, R.')).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Re-include' })
+      ).toBeInTheDocument();
       const searchInput = screen.getByPlaceholderText(
         'Search project, accession, person...'
       );

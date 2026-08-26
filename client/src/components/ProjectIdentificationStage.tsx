@@ -76,6 +76,14 @@ function rowsForTab(rows: ProjectListRow[], tab: ProjectListTab) {
   return rows;
 }
 
+function tabCount(data: ProjectListResponse, tab: ProjectListTab) {
+  if (tab === 'all') {
+    return data.counts.all + data.counts.excluded;
+  }
+
+  return data.counts[tab];
+}
+
 function projectListHeading(counts: ProjectListResponse['counts']) {
   if (counts.excluded > 0) {
     return `Project list · ${counts.all} active (${counts.excluded} excluded from associations)`;
@@ -294,6 +302,8 @@ function ProjectIdentificationStageContent({
   const visibleRows = data
     ? activeTab === 'excluded'
       ? data.excludedRows
+      : activeTab === 'all'
+        ? [...data.rows, ...data.excludedRows]
       : rowsForTab(data.rows, activeTab)
     : [];
 
@@ -330,7 +340,7 @@ function ProjectIdentificationStageContent({
             <>
               <div className="tabs tabs-bordered" role="tablist">
                 {tabs.map((tab) => {
-                  const count = data.counts[tab.id];
+                  const count = tabCount(data, tab.id);
 
                   return (
                     <button
