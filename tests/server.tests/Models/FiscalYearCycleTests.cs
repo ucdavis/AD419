@@ -6,6 +6,26 @@ namespace Server.Tests.Models;
 public class FiscalYearCycleTests
 {
     [Theory]
+    [InlineData("2026-09-30T23:59:59-07:00", "FY26", 2025, 10, 1, 2026, 9, 30)]
+    [InlineData("2026-10-01T00:00:00-07:00", "FY27", 2026, 10, 1, 2027, 9, 30)]
+    public void Current_maps_date_to_current_fiscal_year_cycle(
+        string timestamp,
+        string expectedFiscalYear,
+        int startYear,
+        int startMonth,
+        int startDay,
+        int endYear,
+        int endMonth,
+        int endDay)
+    {
+        var cycle = FiscalYearCycle.Current(DateTimeOffset.Parse(timestamp));
+
+        cycle.FiscalYear.Should().Be(expectedFiscalYear);
+        cycle.CycleStart.Should().Be(new DateOnly(startYear, startMonth, startDay));
+        cycle.CycleEnd.Should().Be(new DateOnly(endYear, endMonth, endDay));
+    }
+
+    [Theory]
     [InlineData("FY00", "FY00", 1999, 10, 1, 2000, 9, 30)]
     [InlineData("FY25", "FY25", 2024, 10, 1, 2025, 9, 30)]
     [InlineData("fy26", "FY26", 2025, 10, 1, 2026, 9, 30)]

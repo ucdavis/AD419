@@ -1,6 +1,8 @@
 import type { WorkflowSnapshot, WorkflowStage } from '../types.ts';
 import { Link } from '@tanstack/react-router';
 
+const LOCKED_STAGE_HINT = 'Locked until all previous steps are complete.';
+
 function stepClasses(stage: WorkflowStage, activeStageId: string) {
   const classes = ['workflow-step'];
 
@@ -41,7 +43,11 @@ export function WorkflowStepper({
   return (
     <ol aria-label="AD419 workflow stages" className="workflow-stepper">
       {snapshot.stages.map((stage) => (
-        <li className={stepClasses(stage, activeStageId)} key={stage.id}>
+        <li
+          className={stepClasses(stage, activeStageId)}
+          key={stage.id}
+          title={stage.canAccess ? undefined : LOCKED_STAGE_HINT}
+        >
           {stage.canAccess ? (
             <Link
               className="workflow-step__link"

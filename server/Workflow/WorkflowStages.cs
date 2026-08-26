@@ -7,6 +7,7 @@ public static class WorkflowStageIds
     public const string DataClassification = "data-classification";
     public const string ExpenseReview = "expense-review";
     public const string AutoAssociations = "auto-associations";
+    public const string ManualAssociations = "manual-associations";
     public const string PostAssociationReview = "post-association-review";
     public const string StationSpecialistImport = "station-specialist-import";
     public const string FinalReports = "final-reports";
@@ -48,18 +49,23 @@ public static class WorkflowStages
             "Auto-Associations",
             "Run the rules engine to associate as many expenses as possible before manual review."),
         new(
-            WorkflowStageIds.PostAssociationReview,
+            WorkflowStageIds.ManualAssociations,
             6,
+            "Manual Associations",
+            "Complete any associations that require manual review in AD419 Next."),
+        new(
+            WorkflowStageIds.PostAssociationReview,
+            7,
             "Post-Association Review",
             "Resolve flagged items after manual associations are complete."),
         new(
             WorkflowStageIds.StationSpecialistImport,
-            7,
+            8,
             "Station/Specialist Import",
             "Import Field Station and CE Specialists data before generating final reports."),
         new(
             WorkflowStageIds.FinalReports,
-            8,
+            9,
             "Final Reports",
             "Generate the final files for ANR submission and cycle signoff."),
     ];

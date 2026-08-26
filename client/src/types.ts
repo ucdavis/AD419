@@ -4,6 +4,7 @@ export type WorkflowStageId =
   | 'data-classification'
   | 'expense-review'
   | 'auto-associations'
+  | 'manual-associations'
   | 'post-association-review'
   | 'station-specialist-import'
   | 'final-reports';

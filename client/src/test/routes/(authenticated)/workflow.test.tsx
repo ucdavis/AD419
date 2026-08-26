@@ -1016,6 +1016,123 @@ describe('AD419 workflow routes', () => {
     }
   });
 
+  it('adds hover text to locked workflow stages', async () => {
+    server.use(
+      http.get('/api/user/me', () => {
+        return HttpResponse.json(mockUser);
+      }),
+      http.get('/api/imports/recent', () => {
+        return HttpResponse.json([]);
+      }),
+      http.get('/api/projectidentification/setup', () => {
+        return HttpResponse.json(setupResponse);
+      }),
+      http.get('/api/projectlist', () => {
+        return HttpResponse.json(projectListResponse);
+      })
+    );
+
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/project-identification',
+    });
+
+    try {
+      expect(
+        await screen.findByRole('heading', { name: 'Project Identification' })
+      ).toBeInTheDocument();
+
+      expect(
+        screen.getAllByTitle(
+          'Locked until all previous steps are complete.'
+        )
+      ).toHaveLength(8);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('links to AD419 Next from manual associations and advances to review', async () => {
+    const user = userEvent.setup();
+    let updateRequests = 0;
+
+    server.use(
+      http.get('/api/user/me', () => {
+        return HttpResponse.json(mockUser);
+      }),
+      http.get('/api/workflow/snapshot', () => {
+        return HttpResponse.json(
+          createWorkflowSnapshot({
+            'auto-associations': 'Complete',
+            'data-classification': 'Complete',
+            'data-import': 'Complete',
+            'expense-review': 'Complete',
+            'manual-associations': 'InProgress',
+            'project-identification': 'Complete',
+          })
+        );
+      }),
+      http.put('/api/workflow/stages/:stageId', async ({ params, request }) => {
+        expect(params.stageId).toBe('manual-associations');
+        expect(await request.json()).toEqual({ status: 'Complete' });
+        updateRequests += 1;
+
+        return HttpResponse.json(
+          createWorkflowSnapshot({
+            'auto-associations': 'Complete',
+            'data-classification': 'Complete',
+            'data-import': 'Complete',
+            'expense-review': 'Complete',
+            'manual-associations': 'Complete',
+            'post-association-review': 'InProgress',
+            'project-identification': 'Complete',
+          })
+        );
+      })
+    );
+
+    const { cleanup, router } = renderRoute({
+      initialPath: '/workflow/manual-associations',
+    });
+
+    try {
+      expect(
+        await screen.findByRole('heading', {
+          level: 1,
+          name: 'Manual Associations',
+        })
+      ).toBeInTheDocument();
+
+      const link = screen.getByRole('link', { name: 'Open AD419 Next' });
+      expect(link).toHaveAttribute(
+        'href',
+        'https://ad419-next.caes.ucdavis.edu/'
+      );
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link).toHaveAttribute('rel', 'noreferrer');
+
+      await user.click(
+        screen.getByRole('button', {
+          name: /continue to post-association review/i,
+        })
+      );
+
+      await waitFor(() => {
+        expect(updateRequests).toBe(1);
+        expect(router.state.location.pathname).toBe(
+          '/workflow/post-association-review'
+        );
+      });
+      expect(
+        await screen.findByRole('heading', {
+          level: 1,
+          name: 'Post-Association Review',
+        })
+      ).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
   it('allows the Station/Specialist Import placeholder to complete and advance', async () => {
     const user = userEvent.setup();
     let updateRequests = 0;
@@ -1031,6 +1148,7 @@ describe('AD419 workflow routes', () => {
             'data-classification': 'Complete',
             'data-import': 'Complete',
             'expense-review': 'Complete',
+            'manual-associations': 'Complete',
             'post-association-review': 'Complete',
             'project-identification': 'Complete',
             'station-specialist-import': 'InProgress',
@@ -1049,6 +1167,7 @@ describe('AD419 workflow routes', () => {
             'data-import': 'Complete',
             'expense-review': 'Complete',
             'final-reports': 'InProgress',
+            'manual-associations': 'Complete',
             'post-association-review': 'Complete',
             'project-identification': 'Complete',
             'station-specialist-import': 'Complete',

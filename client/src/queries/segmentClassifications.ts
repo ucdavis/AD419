@@ -52,6 +52,10 @@ export const FUND_SFNS = SFN_CATALOG.map((entry) => entry.code);
 export const SFN_MULTIPLE = 'Multiple';
 
 const SEGMENTS_KEY = ['segmentClassifications'] as const;
+export const UPDATE_SEGMENT_CLASSIFICATION_MUTATION_KEY = [
+  'segmentClassifications',
+  'update',
+] as const;
 
 export const segmentClassificationsQueryOptions = () =>
   queryOptions({
@@ -76,6 +80,7 @@ export const useUpdateSegmentClassification = () => {
         body: JSON.stringify(input),
         method: 'PATCH',
       }),
+    mutationKey: UPDATE_SEGMENT_CLASSIFICATION_MUTATION_KEY,
     onMutate: async (input) => {
       await queryClient.cancelQueries({ queryKey: SEGMENTS_KEY });
       const previous =

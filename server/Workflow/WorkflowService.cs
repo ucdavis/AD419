@@ -9,7 +9,9 @@ using Server.Models.Workflow;
 
 namespace Server.Workflow;
 
-public sealed class WorkflowService(AppDbContext dbContext) : IWorkflowService
+public sealed class WorkflowService(
+    AppDbContext dbContext,
+    DataDbContext dataDbContext) : IWorkflowService
 {
     public async Task<WorkflowRun> GetOrCreateCurrentRunAsync(
         ClaimsPrincipal user,
@@ -22,7 +24,7 @@ public sealed class WorkflowService(AppDbContext dbContext) : IWorkflowService
             return run;
         }
 
-        var cycle = CurrentFiscalYearCycle();
+        var cycle = FiscalYearCycle.Current();
         var now = DateTimeOffset.UtcNow;
         run = new WorkflowRun
         {
@@ -97,6 +99,11 @@ public sealed class WorkflowService(AppDbContext dbContext) : IWorkflowService
         if (status == WorkflowStageStatus.Complete)
         {
             if (!previousComplete)
+            {
+                return null;
+            }
+
+            if (!await CanCompleteStageAsync(definition.Id, cancellationToken))
             {
                 return null;
             }
@@ -255,6 +262,19 @@ public sealed class WorkflowService(AppDbContext dbContext) : IWorkflowService
     private static bool IsValidTransitionStatus(string status) =>
         status is WorkflowStageStatus.InProgress or WorkflowStageStatus.Complete;
 
+    private async Task<bool> CanCompleteStageAsync(
+        string stageId,
+        CancellationToken cancellationToken)
+    {
+        if (stageId != WorkflowStageIds.DataClassification)
+        {
+            return true;
+        }
+
+        return !await dataDbContext.SegmentClassifications
+            .AnyAsync(segment => segment.IncludeInReport == null, cancellationToken);
+    }
+
     private static void StartStageIfNeeded(
         WorkflowStageState state,
         ClaimsPrincipal user,
@@ -325,20 +345,6 @@ public sealed class WorkflowService(AppDbContext dbContext) : IWorkflowService
         state.CompletedByEntraId = null;
         state.CompletedByName = null;
         state.CompletedByEmail = null;
-    }
-
-    private static FiscalYearCycle CurrentFiscalYearCycle()
-    {
-        var now = DateTimeOffset.Now;
-        var calendarYear = now.Year;
-        var fiscalYear = now.Month >= 10 ? calendarYear + 1 : calendarYear;
-        var fiscalYearText = $"FY{fiscalYear % 100:00}";
-        if (!FiscalYearCycle.TryParse(fiscalYearText, out var cycle))
-        {
-            throw new InvalidOperationException($"Current fiscal year '{fiscalYearText}' could not be parsed.");
-        }
-
-        return cycle;
     }
 
     private static void Touch(WorkflowRun run, ClaimsPrincipal user, DateTimeOffset updatedAt)

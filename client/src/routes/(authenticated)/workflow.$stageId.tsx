@@ -18,6 +18,8 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 
+const MANUAL_ASSOCIATIONS_URL = 'https://ad419-next.caes.ucdavis.edu/';
+
 export const Route = createFileRoute('/(authenticated)/workflow/$stageId')({
   beforeLoad: async ({
     context,
@@ -55,11 +57,11 @@ function WorkflowStageRoute() {
     <WorkflowShell snapshot={snapshot} stage={stage}>
       <div className="workflow-stack">
         {workflowStageId === 'project-identification' ? (
-          <ProjectIdentificationStage />
+          <ProjectIdentificationStage status={stage.status} />
         ) : workflowStageId === 'data-classification' ? (
-          <DataClassificationStage />
+          <DataClassificationStage status={stage.status} />
         ) : workflowStageId === 'data-import' ? (
-          <DataImportStage />
+          <DataImportStage status={stage.status} />
         ) : (
           <PlaceholderWorkflowStage
             snapshot={snapshot}
@@ -84,6 +86,7 @@ function PlaceholderWorkflowStage({
   const nextStage = snapshot.stages.find(
     (candidate) => candidate.number === (stage?.number ?? 0) + 1
   );
+  const isManualAssociations = stageId === 'manual-associations';
   const continueMutation = useMutation({
     mutationFn: () => updateWorkflowStageStatus(stageId, 'Complete'),
     onSuccess: (updatedSnapshot) => {
@@ -113,9 +116,22 @@ function PlaceholderWorkflowStage({
           </button>
         )
       }
-      title="Coming soon"
+      title={isManualAssociations ? 'Manual Associations' : 'Coming soon'}
     >
-      <p>This step is coming soon.</p>
+      {isManualAssociations ? (
+        <p>
+          <a
+            className="link link-primary font-semibold"
+            href={MANUAL_ASSOCIATIONS_URL}
+            rel="noreferrer"
+            target="_blank"
+          >
+            Open AD419 Next
+          </a>
+        </p>
+      ) : (
+        <p>This step is coming soon.</p>
+      )}
       {continueMutation.isError ? (
         <div className="alert alert-error mt-4" role="alert">
           <span>

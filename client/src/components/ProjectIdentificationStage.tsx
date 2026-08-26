@@ -38,6 +38,7 @@ import {
 } from '@/queries.ts';
 import { ProjectIdentificationSetupChecklist } from '@/components/ProjectIdentificationSetupChecklist.tsx';
 import { useNavigate } from '@tanstack/react-router';
+import type { WorkflowStageStatus } from '@/types.ts';
 
 type ProjectListTab = 'issues' | 'clean' | 'all' | 'excluded';
 
@@ -98,7 +99,11 @@ function sfnDistributionText(summary: ProjectListSummary): string {
     .join(' / ');
 }
 
-export function ProjectIdentificationStage() {
+export function ProjectIdentificationStage({
+  status,
+}: {
+  status: WorkflowStageStatus;
+}) {
   const setupQuery = useQuery(projectIdentificationSetupQueryOptions());
 
   if (setupQuery.isLoading) {
@@ -124,13 +129,20 @@ export function ProjectIdentificationStage() {
     );
   }
 
-  return <ProjectIdentificationStageContent setup={setupQuery.data} />;
+  return (
+    <ProjectIdentificationStageContent
+      setup={setupQuery.data}
+      status={status}
+    />
+  );
 }
 
 function ProjectIdentificationStageContent({
   setup,
+  status,
 }: {
   setup: ProjectIdentificationSetupResponse;
+  status: WorkflowStageStatus;
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -326,7 +338,7 @@ function ProjectIdentificationStageContent({
         setup={setup}
       />
 
-      {finalizeItem?.completed ? (
+      {status !== 'Complete' && finalizeItem?.completed ? (
         <div className="flex flex-col items-end gap-2">
           <button
             className="btn btn-primary"
