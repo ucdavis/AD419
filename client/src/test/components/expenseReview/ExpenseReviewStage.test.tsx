@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { screen, waitFor, within } from '@testing-library/react';
 import { createWorkflowSnapshot, server } from '@/test/mswUtils.ts';
@@ -74,7 +74,7 @@ function transactionsResponse(page = 1) {
   };
 }
 
-function mockExpenseReviewApi(requests: URL[] = []) {
+function mockExpenseReviewApi(requests: URL[] = [], exportRequests: URL[] = []) {
   server.use(
     http.get('/api/user/me', () => HttpResponse.json(mockUser)),
     http.get('/api/workflow/snapshot', () =>
@@ -96,8 +96,65 @@ function mockExpenseReviewApi(requests: URL[] = []) {
       return HttpResponse.json(
         transactionsResponse(Number(url.searchParams.get('page') ?? '1'))
       );
+    }),
+    http.get('/api/expensereview/transactions.csv', ({ request }) => {
+      const url = new URL(request.url);
+      exportRequests.push(url);
+      return new HttpResponse('Financial Dept,Amount\r\nD0123,1200.50\r\n', {
+        headers: {
+          'Content-Disposition':
+            "attachment; filename*=UTF-8''expense-review-transactions-fy26.csv",
+          'Content-Type': 'text/csv',
+        },
+      });
     })
   );
+}
+
+function mockCsvDownload() {
+  const originalCreateObjectURL = URL.createObjectURL;
+  const originalRevokeObjectURL = URL.revokeObjectURL;
+  const createObjectURL = vi.fn(() => 'blob:expense-review');
+  const revokeObjectURL = vi.fn();
+  const click = vi
+    .spyOn(HTMLAnchorElement.prototype, 'click')
+    .mockImplementation(() => undefined);
+
+  Object.defineProperty(URL, 'createObjectURL', {
+    configurable: true,
+    value: createObjectURL,
+  });
+  Object.defineProperty(URL, 'revokeObjectURL', {
+    configurable: true,
+    value: revokeObjectURL,
+  });
+
+  return {
+    click,
+    createObjectURL,
+    restore: () => {
+      if (originalCreateObjectURL) {
+        Object.defineProperty(URL, 'createObjectURL', {
+          configurable: true,
+          value: originalCreateObjectURL,
+        });
+      } else {
+        Reflect.deleteProperty(URL, 'createObjectURL');
+      }
+
+      if (originalRevokeObjectURL) {
+        Object.defineProperty(URL, 'revokeObjectURL', {
+          configurable: true,
+          value: originalRevokeObjectURL,
+        });
+      } else {
+        Reflect.deleteProperty(URL, 'revokeObjectURL');
+      }
+
+      click.mockRestore();
+    },
+    revokeObjectURL,
+  };
 }
 
 describe('Expense Review stage', () => {
@@ -230,6 +287,83 @@ describe('Expense Review stage', () => {
       });
     } finally {
       cleanup();
+    }
+  });
+
+  it('exports CSV with current filters, sort, and visible columns', async () => {
+    const user = userEvent.setup();
+    const requests: URL[] = [];
+    const exportRequests: URL[] = [];
+    const download = mockCsvDownload();
+    mockExpenseReviewApi(requests, exportRequests);
+    const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });
+
+    try {
+      await screen.findByRole('tab', { name: /all transactions/i });
+
+      await user.click(screen.getByRole('button', { name: /Excluded/ }));
+      await user.selectOptions(screen.getByLabelText('Fund filter'), ['13U02']);
+      await user.click(
+        screen.getByRole('columnheader', { name: /Financial Dept/ })
+      );
+      await user.click(screen.getByText('Columns'));
+      const columnMenu = screen.getByText('Columns').closest('details')!;
+      await user.click(within(columnMenu).getByLabelText('Fund'));
+      await user.click(screen.getByRole('button', { name: 'Export CSV' }));
+
+      await waitFor(() => {
+        expect(exportRequests).toHaveLength(1);
+        expect(download.createObjectURL).toHaveBeenCalled();
+        expect(download.click).toHaveBeenCalled();
+      });
+
+      const exportUrl = exportRequests[0];
+      expect(exportUrl.searchParams.get('includeState')).toBe('excluded');
+      expect(exportUrl.searchParams.getAll('fund')).toEqual(['13U02']);
+      expect(exportUrl.searchParams.get('sortBy')).toBe('financialDept');
+      expect(exportUrl.searchParams.get('sortDirection')).toBe('asc');
+      expect(exportUrl.searchParams.get('page')).toBeNull();
+      expect(exportUrl.searchParams.get('pageSize')).toBeNull();
+      expect(exportUrl.searchParams.getAll('column')).toEqual([
+        'financialDept',
+        'account',
+        'aeProject',
+        'accountingPeriod',
+        'source',
+        'sfn',
+        'amount',
+        'fte',
+        'included',
+      ]);
+    } finally {
+      cleanup();
+      download.restore();
+    }
+  });
+
+  it('shows export failure text', async () => {
+    const user = userEvent.setup();
+    const download = mockCsvDownload();
+    mockExpenseReviewApi();
+    server.use(
+      http.get('/api/expensereview/transactions.csv', () =>
+        new HttpResponse(JSON.stringify({ detail: 'CSV export failed.' }), {
+          headers: { 'Content-Type': 'application/problem+json' },
+          status: 500,
+        })
+      )
+    );
+    const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });
+
+    try {
+      await screen.findByRole('tab', { name: /all transactions/i });
+      await user.click(screen.getByRole('button', { name: 'Export CSV' }));
+
+      expect(await screen.findByText('CSV export failed.')).toBeInTheDocument();
+      expect(download.click).not.toHaveBeenCalled();
+    } finally {
+      cleanup();
+      download.restore();
     }
   });
 

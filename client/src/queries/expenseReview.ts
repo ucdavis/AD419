@@ -16,6 +16,31 @@ export type ExpenseReviewSortBy =
 
 export type ExpenseReviewSortDirection = 'asc' | 'desc';
 
+export type ExpenseReviewCsvColumnId =
+  | 'account'
+  | 'accountingPeriod'
+  | 'aeProject'
+  | 'amount'
+  | 'financialDept'
+  | 'fte'
+  | 'fund'
+  | 'included'
+  | 'sfn'
+  | 'source';
+
+export const EXPENSE_REVIEW_CSV_COLUMN_IDS: ExpenseReviewCsvColumnId[] = [
+  'financialDept',
+  'fund',
+  'account',
+  'aeProject',
+  'accountingPeriod',
+  'source',
+  'sfn',
+  'amount',
+  'fte',
+  'included',
+];
+
 export interface ExpenseReviewCodeName {
   code: string | null;
   name: string | null;
@@ -90,6 +115,14 @@ export interface ExpenseReviewTransactionsParams {
   sortDirection?: ExpenseReviewSortDirection;
 }
 
+export interface ExpenseReviewTransactionsCsvParams {
+  columns: ExpenseReviewCsvColumnId[];
+  filters: ExpenseReviewFilters;
+  includeState: ExpenseReviewIncludeState;
+  sortBy?: ExpenseReviewSortBy;
+  sortDirection?: ExpenseReviewSortDirection;
+}
+
 export const EMPTY_EXPENSE_REVIEW_FILTERS: ExpenseReviewFilters = {
   account: [],
   accountingPeriod: [],
@@ -110,12 +143,19 @@ const filterQueryParams: Array<keyof ExpenseReviewFilters> = [
   'sfn',
 ];
 
-function appendParams(params: ExpenseReviewTransactionsParams) {
+function appendParams(
+  params: Omit<ExpenseReviewTransactionsParams, 'page' | 'pageSize'> &
+    Partial<Pick<ExpenseReviewTransactionsParams, 'page' | 'pageSize'>>,
+  includePagination: boolean
+) {
   const search = new URLSearchParams({
     includeState: params.includeState,
-    page: String(params.page),
-    pageSize: String(params.pageSize),
   });
+
+  if (includePagination) {
+    search.set('page', String(params.page));
+    search.set('pageSize', String(params.pageSize));
+  }
 
   if (params.sortBy) {
     search.set('sortBy', params.sortBy);
@@ -139,12 +179,24 @@ export const expenseReviewTransactionsQueryOptions = (
   queryOptions({
     queryFn: ({ signal }) =>
       fetchJson<ExpenseReviewTransactionsResponse>(
-        `/api/expensereview/transactions?${appendParams(params)}`,
+        `/api/expensereview/transactions?${appendParams(params, true)}`,
         {},
         signal
       ),
     queryKey: ['expenseReview', 'transactions', params],
   });
+
+export function buildExpenseReviewTransactionsCsvUrl(
+  params: ExpenseReviewTransactionsCsvParams
+) {
+  const search = appendParams(params, false);
+
+  for (const column of params.columns) {
+    search.append('column', column);
+  }
+
+  return `/api/expensereview/transactions.csv?${search}`;
+}
 
 export const expenseReviewFilterOptionsQueryOptions = () =>
   queryOptions({

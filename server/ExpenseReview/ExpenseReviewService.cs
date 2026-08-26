@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -100,26 +101,41 @@ public sealed class ExpenseReviewService(
             Options("sfn"));
     }
 
+    public async Task WriteTransactionsCsvAsync(
+        FiscalYearCycle cycle,
+        ExpenseReviewTransactionsRequest request,
+        IReadOnlyList<string> columnIds,
+        Stream output,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var parameters = CreateParameters(cycle, request);
+        var rows = QueryTransactionRowsAsync(
+            connection,
+            BuildTransactionsExportSql(request),
+            parameters,
+            cancellationToken);
+
+        await ExpenseReviewCsvWriter.WriteAsync(
+            output,
+            ToDtos(rows, cancellationToken),
+            columnIds,
+            cancellationToken);
+    }
+
     public static string BuildTransactionsSql(ExpenseReviewTransactionsRequest request)
     {
-        var filterClause = BuildFilterClause(request.Filters);
-        var includeClause = request.IncludeState switch
-        {
-            ExpenseReviewIncludeState.Included => "[Included] = 1",
-            ExpenseReviewIncludeState.Excluded => "[Included] = 0",
-            _ => "1 = 1",
-        };
-
-        var orderByClause = BuildOrderByClause(request);
+        var includeClause = BuildIncludeClause(request.IncludeState);
+        var transactionsSql = BuildTransactionRowsSql(
+            "#Filtered",
+            includeClause,
+            BuildOrderByClause(request),
+            "OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY");
 
         return $$"""
-            {{UnifiedTransactionsCte}},
-            Filtered AS
-            (
-                SELECT *
-                FROM Unified
-                WHERE {{filterClause}}
-            )
+            {{BuildFilteredTransactionsCte(request.Filters)}}
             SELECT *
             INTO #Filtered
             FROM Filtered;
@@ -134,32 +150,64 @@ public sealed class ExpenseReviewService(
             FROM #Filtered
             WHERE {{includeClause}};
 
-            SELECT
-                [Id],
-                [SourceId],
-                [Source],
-                [FinancialDeptCode],
-                [FinancialDeptName],
-                [FundCode],
-                [FundName],
-                [AccountCode],
-                [AccountName],
-                [AeProjectCode],
-                [AeProjectName],
-                [AccountingPeriod],
-                [Sfn],
-                [SfnLabel],
-                [Amount],
-                [Fte],
-                [FteIncluded],
-                [Included]
-            FROM #Filtered
-            WHERE {{includeClause}}
-            ORDER BY
-                {{orderByClause}}
-            OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY;
+            {{transactionsSql}}
             """;
     }
+
+    public static string BuildTransactionsExportSql(ExpenseReviewTransactionsRequest request)
+    {
+        return $$"""
+            {{BuildFilteredTransactionsCte(request.Filters)}}
+            {{BuildTransactionRowsSql(
+                "Filtered",
+                BuildIncludeClause(request.IncludeState),
+                BuildOrderByClause(request),
+                null)}}
+            """;
+    }
+
+    private static string BuildFilteredTransactionsCte(ExpenseReviewFilters filters)
+    {
+        var filterClause = BuildFilterClause(filters);
+
+        return $$"""
+            {{UnifiedTransactionsCte}},
+            Filtered AS
+            (
+                SELECT *
+                FROM Unified
+                WHERE {{filterClause}}
+            )
+            """;
+    }
+
+    private static string BuildTransactionRowsSql(
+        string source,
+        string includeClause,
+        string orderByClause,
+        string? paginationClause)
+    {
+        var paginationSql = string.IsNullOrWhiteSpace(paginationClause)
+            ? string.Empty
+            : $"\n{paginationClause}";
+
+        return $$"""
+            SELECT
+                {{TransactionSelectColumns}}
+            FROM {{source}}
+            WHERE {{includeClause}}
+            ORDER BY
+                {{orderByClause}}{{paginationSql}};
+            """;
+    }
+
+    private static string BuildIncludeClause(ExpenseReviewIncludeState includeState) =>
+        includeState switch
+        {
+            ExpenseReviewIncludeState.Included => "[Included] = 1",
+            ExpenseReviewIncludeState.Excluded => "[Included] = 0",
+            _ => "1 = 1",
+        };
 
     private static string BuildOrderByClause(ExpenseReviewTransactionsRequest request)
     {
@@ -391,6 +439,27 @@ public sealed class ExpenseReviewService(
         )
         """;
 
+    private const string TransactionSelectColumns = """
+        [Id],
+        [SourceId],
+        [Source],
+        [FinancialDeptCode],
+        [FinancialDeptName],
+        [FundCode],
+        [FundName],
+        [AccountCode],
+        [AccountName],
+        [AeProjectCode],
+        [AeProjectName],
+        [AccountingPeriod],
+        [Sfn],
+        [SfnLabel],
+        [Amount],
+        [Fte],
+        [FteIncluded],
+        [Included]
+        """;
+
     private SqlConnection CreateConnection()
     {
         var connectionString = DataDbConnection.Resolve(
@@ -398,6 +467,52 @@ public sealed class ExpenseReviewService(
             dataDbContext.Database.GetConnectionString());
 
         return new SqlConnection(connectionString);
+    }
+
+    private static ExpenseReviewTransactionDto ToDto(ExpenseReviewTransactionRow row) =>
+        new(
+            row.Id,
+            row.SourceId,
+            row.Source,
+            new ExpenseReviewCodeNameDto(row.FinancialDeptCode, row.FinancialDeptName),
+            new ExpenseReviewCodeNameDto(row.FundCode, row.FundName),
+            new ExpenseReviewCodeNameDto(row.AccountCode, row.AccountName),
+            new ExpenseReviewCodeNameDto(row.AeProjectCode, row.AeProjectName),
+            row.AccountingPeriod,
+            row.Sfn,
+            row.SfnLabel,
+            row.Amount,
+            row.Fte,
+            row.FteIncluded,
+            row.Included);
+
+    private static async IAsyncEnumerable<ExpenseReviewTransactionRow> QueryTransactionRowsAsync(
+        SqlConnection connection,
+        string sql,
+        DynamicParameters parameters,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await using var reader = await connection.ExecuteReaderAsync(new CommandDefinition(
+            sql,
+            parameters,
+            commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
+            cancellationToken: cancellationToken));
+        var parser = reader.GetRowParser<ExpenseReviewTransactionRow>();
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            yield return parser(reader);
+        }
+    }
+
+    private static async IAsyncEnumerable<ExpenseReviewTransactionDto> ToDtos(
+        IAsyncEnumerable<ExpenseReviewTransactionRow> rows,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await foreach (var row in rows.WithCancellation(cancellationToken))
+        {
+            yield return ToDto(row);
+        }
     }
 
     private static DynamicParameters CreateParameters(FiscalYearCycle cycle, ExpenseReviewTransactionsRequest request)

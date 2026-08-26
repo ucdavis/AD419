@@ -28,6 +28,9 @@ public sealed class ExpenseReviewTransactionsQuery
     public string[] Source { get; init; } = [];
 
     public string[] Sfn { get; init; } = [];
+
+    [FromQuery(Name = "column")]
+    public string[] Column { get; init; } = [];
 }
 
 public sealed record ExpenseReviewTransactionsRequest(
@@ -108,6 +111,20 @@ public static class ExpenseReviewRequestParser
     public const int MaxPageSize = 500;
     public const string DefaultSortBy = "source";
 
+    public static readonly IReadOnlyList<string> DefaultCsvColumnIds =
+    [
+        "financialDept",
+        "fund",
+        "account",
+        "aeProject",
+        "accountingPeriod",
+        "source",
+        "sfn",
+        "amount",
+        "fte",
+        "included",
+    ];
+
     private static readonly HashSet<string> SortFields = new(StringComparer.OrdinalIgnoreCase)
     {
         "financialDept",
@@ -120,6 +137,8 @@ public static class ExpenseReviewRequestParser
         "amount",
         "fte",
     };
+
+    private static readonly HashSet<string> CsvColumns = new(DefaultCsvColumnIds, StringComparer.OrdinalIgnoreCase);
 
     public static bool TryParse(
         ExpenseReviewTransactionsQuery query,
@@ -180,6 +199,37 @@ public static class ExpenseReviewRequestParser
     }
 
     public static bool IsAllowedSortField(string value) => SortFields.Contains(value);
+
+    public static bool TryParseCsvColumns(
+        IEnumerable<string>? values,
+        out IReadOnlyList<string> columns,
+        out string? error)
+    {
+        columns = DefaultCsvColumnIds;
+        error = null;
+
+        var cleaned = Clean(values);
+        if (cleaned.Length == 0)
+        {
+            return true;
+        }
+
+        var invalidColumns = cleaned
+            .Where(column => !CsvColumns.Contains(column))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        if (invalidColumns.Length > 0)
+        {
+            error = $"column must be one of: {string.Join(", ", DefaultCsvColumnIds)}.";
+            return false;
+        }
+
+        columns = cleaned
+            .Select(column => DefaultCsvColumnIds.First(defaultColumn =>
+                defaultColumn.Equals(column, StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
+        return true;
+    }
 
     private static bool TryParseIncludeState(string? value, out ExpenseReviewIncludeState includeState)
     {
