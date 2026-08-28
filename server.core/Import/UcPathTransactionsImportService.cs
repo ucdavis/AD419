@@ -18,50 +18,72 @@ public sealed class UcPathTransactionsImportService
     // purpose: the destination defaults apply to unmapped columns. FinanceDocTypeCd and
     // RateTypeCd are also unmapped: neither column exists on the labor views
     // (verified against the warehouse 2026-07-30), so they stay NULL.
-    private static readonly (string Source, string Destination)[] ColumnMappings =
+    private static readonly ImportColumnMapping[] ColumnMappings =
     [
-        ("labor_transaction_id", "LaborTransactionId"),
-        ("entity", "Entity"),
-        ("fund", "Fund"),
-        ("financial_department", "FinancialDepartment"),
-        ("parent_department", "ParentDepartment"),
-        ("account", "Account"),
-        ("purpose", "Purpose"),
-        ("program", "Program"),
-        ("project", "Project"),
-        ("activity", "Activity"),
-        ("erncd", "ErnCode"),
-        ("ern_description", "ErnDescription"),
-        ("employee_id", "EmployeeId"),
-        ("position_number", "PositionNumber"),
-        ("eff_dt", "EffDt"),
-        ("job_code", "JobCode"),
-        ("hours", "Hours"),
-        ("amount", "Amount"),
-        ("pay_rate", "PayRate"),
-        ("calculated_fte", "CalculatedFte"),
-        ("pay_period_end_date", "PayPeriodEndDate"),
-        ("fringe_benefit_salary_cd", "FringeBenefitSalaryCd"),
-        ("paid_percent", "PaidPercent"),
-        ("ern_derived_percent", "ErnDerivedPercent"),
-        ("fiscal_year", "FiscalYear"),
-        ("period", "Period"),
-        ("emp_rcd", "EmpRcd"),
-        ("eff_seq", "EffSeq"),
+        new("labor_transaction_id", "LaborTransactionId"),
+        new("entity", "Entity"),
+        new("fund", "Fund"),
+        new("financial_department", "FinancialDepartment"),
+        new("parent_department", "ParentDepartment"),
+        new("account", "Account"),
+        new("purpose", "Purpose"),
+        new("program", "Program"),
+        new("project", "Project"),
+        new("activity", "Activity"),
+        new("erncd", "ErnCode"),
+        new("ern_description", "ErnDescription"),
+        new("employee_id", "EmployeeId"),
+        new("position_number", "PositionNumber"),
+        new("eff_dt", "EffDt"),
+        new("job_code", "JobCode"),
+        new("hours", "Hours"),
+        new("amount", "Amount"),
+        new("pay_rate", "PayRate"),
+        new("calculated_fte", "CalculatedFte"),
+        new("pay_period_end_date", "PayPeriodEndDate"),
+        new("fringe_benefit_salary_cd", "FringeBenefitSalaryCd"),
+        new("paid_percent", "PaidPercent"),
+        new("ern_derived_percent", "ErnDerivedPercent"),
+        new("fiscal_year", "FiscalYear"),
+        new("period", "Period"),
+        new("emp_rcd", "EmpRcd"),
+        new("eff_seq", "EffSeq"),
+    ];
+
+    private static readonly ImportColumnMapping[] EmployeeNameMappings =
+    [
+        new("employee_id", "EmployeeId"),
+        new("employee_name", "EmployeeName"),
+    ];
+
+    private static readonly ImportColumnMapping[] JobCodeMappings =
+    [
+        new("employee_id", "EmployeeId"),
+        new("emp_rcd", "EmpRcd"),
+        new("eff_dt", "EffDt"),
+        new("eff_seq", "EffSeq"),
+        new("position_number", "PositionNumber"),
+        new("title_code", "TitleCode"),
     ];
 
     private readonly DataDbContext _dataDbContext;
     private readonly IConfiguration _configuration;
     private readonly ILogger<UcPathTransactionsImportService> _logger;
+    private readonly ILinkedServerQueryExecutor _linkedServer;
+    private readonly ISqlBulkCopyWriter _bulkCopy;
 
     public UcPathTransactionsImportService(
         DataDbContext dataDbContext,
         IConfiguration configuration,
-        ILogger<UcPathTransactionsImportService> logger)
+        ILogger<UcPathTransactionsImportService> logger,
+        ILinkedServerQueryExecutor linkedServer,
+        ISqlBulkCopyWriter bulkCopy)
     {
         _dataDbContext = dataDbContext;
         _configuration = configuration;
         _logger = logger;
+        _linkedServer = linkedServer;
+        _bulkCopy = bulkCopy;
     }
 
     public async Task<int> ImportAsync(DateOnly cycleStart, DateOnly cycleEnd, CancellationToken cancellationToken = default)
@@ -81,27 +103,6 @@ public sealed class UcPathTransactionsImportService
         var salarySql = BuildSalaryQuery(projects204, fteDenominatorHours);
         var fringSql = BuildFringeQuery(projects204);
 
-        await using var source = new SqlConnection(sourceConnectionString);
-        await source.OpenAsync(cancellationToken);
-
-        await using var salaryQuery = new SqlCommand(
-            $"EXEC (@remoteQuery, @windowStart, @windowEnd) AT [{HcmLinkedServer}];", source)
-        {
-            CommandTimeout = CommandTimeoutSeconds,
-        };
-        salaryQuery.Parameters.Add(new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = salarySql });
-        salaryQuery.Parameters.Add(new SqlParameter("@windowStart", SqlDbType.Date) { Value = windowStart });
-        salaryQuery.Parameters.Add(new SqlParameter("@windowEnd", SqlDbType.Date) { Value = windowEnd });
-
-        await using var fringeQuery = new SqlCommand(
-            $"EXEC (@remoteQuery, @windowStart, @windowEnd) AT [{HcmLinkedServer}];", source)
-        {
-            CommandTimeout = CommandTimeoutSeconds,
-        };
-        fringeQuery.Parameters.Add(new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = fringSql });
-        fringeQuery.Parameters.Add(new SqlParameter("@windowStart", SqlDbType.Date) { Value = windowStart });
-        fringeQuery.Parameters.Add(new SqlParameter("@windowEnd", SqlDbType.Date) { Value = windowEnd });
-
         await using var transaction = (SqlTransaction)await destination.BeginTransactionAsync(cancellationToken);
 
         await using (var delete = new SqlCommand(
@@ -111,46 +112,63 @@ public sealed class UcPathTransactionsImportService
             await delete.ExecuteNonQueryAsync(cancellationToken);
         }
 
+        var commandText = $"EXEC (@remoteQuery, @windowStart, @windowEnd) AT [{HcmLinkedServer}];";
         var totalRowsCopied =
-            await BulkCopyAsync(salaryQuery, destination, transaction, cancellationToken)
-            + await BulkCopyAsync(fringeQuery, destination, transaction, cancellationToken);
+            await BulkCopyLinkedQueryAsync(
+                sourceConnectionString,
+                commandText,
+                [
+                    new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = salarySql },
+                    new SqlParameter("@windowStart", SqlDbType.Date) { Value = windowStart },
+                    new SqlParameter("@windowEnd", SqlDbType.Date) { Value = windowEnd },
+                ],
+                destination,
+                transaction,
+                cancellationToken)
+            + await BulkCopyLinkedQueryAsync(
+                sourceConnectionString,
+                commandText,
+                [
+                    new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = fringSql },
+                    new SqlParameter("@windowStart", SqlDbType.Date) { Value = windowStart },
+                    new SqlParameter("@windowEnd", SqlDbType.Date) { Value = windowEnd },
+                ],
+                destination,
+                transaction,
+                cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
 
         var rowsImported = (int)totalRowsCopied;
         _logger.LogInformation("Imported {RowCount} UCPath transactions", rowsImported);
 
-        await EnrichEmployeeNamesAsync(source, destination, cancellationToken);
-        await EnrichJobCodesAsync(source, destination, windowEnd, cancellationToken);
+        await EnrichEmployeeNamesAsync(sourceConnectionString, destination, cancellationToken);
+        await EnrichJobCodesAsync(sourceConnectionString, destination, windowEnd, cancellationToken);
 
         return rowsImported;
     }
 
-    private static async Task<long> BulkCopyAsync(
-        SqlCommand query,
+    private Task<long> BulkCopyLinkedQueryAsync(
+        string sourceConnectionString,
+        string commandText,
+        IReadOnlyList<SqlParameter> parameters,
         SqlConnection destination,
         SqlTransaction transaction,
-        CancellationToken cancellationToken)
-    {
-        using var bulkCopy = new SqlBulkCopy(destination, SqlBulkCopyOptions.Default, transaction)
-        {
-            DestinationTableName = DestinationTable,
-            BulkCopyTimeout = CommandTimeoutSeconds,
-        };
-        foreach (var (sourceColumn, destinationColumn) in ColumnMappings)
-        {
-            bulkCopy.ColumnMappings.Add(sourceColumn, destinationColumn);
-        }
+        CancellationToken cancellationToken) =>
+        _linkedServer.ExecuteReaderAsync(
+            sourceConnectionString,
+            commandText,
+            parameters,
+            (reader, ct) => _bulkCopy.WriteToServerAsync(
+                destination,
+                transaction,
+                DestinationTable,
+                ColumnMappings,
+                reader,
+                ct),
+            cancellationToken);
 
-        await using (var reader = await query.ExecuteReaderAsync(cancellationToken))
-        {
-            await bulkCopy.WriteToServerAsync(reader, cancellationToken);
-        }
-
-        return bulkCopy.RowsCopied64;
-    }
-
-    private async Task EnrichEmployeeNamesAsync(SqlConnection source, SqlConnection destination, CancellationToken ct)
+    private async Task EnrichEmployeeNamesAsync(string sourceConnectionString, SqlConnection destination, CancellationToken ct)
     {
         await using (var create = new SqlCommand(
             "CREATE TABLE #EmployeeNames ([EmployeeId] NVARCHAR(10) NOT NULL, [EmployeeName] NVARCHAR(100) NULL);",
@@ -159,18 +177,18 @@ public sealed class UcPathTransactionsImportService
             await create.ExecuteNonQueryAsync(ct);
         }
 
-        await using (var query = new SqlCommand($"EXEC (@remoteQuery) AT [{HcmLinkedServer}];", source)
-        {
-            CommandTimeout = CommandTimeoutSeconds,
-        })
-        {
-            query.Parameters.Add(new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = BuildNamesQuery() });
-            using var bulkCopy = new SqlBulkCopy(destination) { DestinationTableName = "#EmployeeNames", BulkCopyTimeout = CommandTimeoutSeconds };
-            bulkCopy.ColumnMappings.Add("employee_id", "EmployeeId");
-            bulkCopy.ColumnMappings.Add("employee_name", "EmployeeName");
-            await using var reader = await query.ExecuteReaderAsync(ct);
-            await bulkCopy.WriteToServerAsync(reader, ct);
-        }
+        await _linkedServer.ExecuteReaderAsync(
+            sourceConnectionString,
+            $"EXEC (@remoteQuery) AT [{HcmLinkedServer}];",
+            [new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = BuildNamesQuery() }],
+            (reader, cancellationToken) => _bulkCopy.WriteToServerAsync(
+                destination,
+                null,
+                "#EmployeeNames",
+                EmployeeNameMappings,
+                reader,
+                cancellationToken),
+            ct);
 
         await using (var update = new SqlCommand(
             """
@@ -190,7 +208,11 @@ public sealed class UcPathTransactionsImportService
         }
     }
 
-    private async Task EnrichJobCodesAsync(SqlConnection source, SqlConnection destination, DateOnly effDtCeiling, CancellationToken ct)
+    private async Task EnrichJobCodesAsync(
+        string sourceConnectionString,
+        SqlConnection destination,
+        DateOnly effDtCeiling,
+        CancellationToken ct)
     {
         await using (var create = new SqlCommand(
             "CREATE TABLE #PeopleSoftJobs ([EmployeeId] NVARCHAR(10), [EmpRcd] SMALLINT, [EffDt] DATETIME2(7), [EffSeq] SMALLINT, [PositionNumber] NVARCHAR(8), [TitleCode] NVARCHAR(4));",
@@ -199,23 +221,21 @@ public sealed class UcPathTransactionsImportService
             await create.ExecuteNonQueryAsync(ct);
         }
 
-        await using (var query = new SqlCommand($"EXEC (@remoteQuery, @effDtCeiling) AT [{HcmLinkedServer}];", source)
-        {
-            CommandTimeout = CommandTimeoutSeconds,
-        })
-        {
-            query.Parameters.Add(new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = BuildJobCodeQuery() });
-            query.Parameters.Add(new SqlParameter("@effDtCeiling", SqlDbType.Date) { Value = effDtCeiling });
-            using var bulkCopy = new SqlBulkCopy(destination) { DestinationTableName = "#PeopleSoftJobs", BulkCopyTimeout = CommandTimeoutSeconds };
-            bulkCopy.ColumnMappings.Add("employee_id", "EmployeeId");
-            bulkCopy.ColumnMappings.Add("emp_rcd", "EmpRcd");
-            bulkCopy.ColumnMappings.Add("eff_dt", "EffDt");
-            bulkCopy.ColumnMappings.Add("eff_seq", "EffSeq");
-            bulkCopy.ColumnMappings.Add("position_number", "PositionNumber");
-            bulkCopy.ColumnMappings.Add("title_code", "TitleCode");
-            await using var reader = await query.ExecuteReaderAsync(ct);
-            await bulkCopy.WriteToServerAsync(reader, ct);
-        }
+        await _linkedServer.ExecuteReaderAsync(
+            sourceConnectionString,
+            $"EXEC (@remoteQuery, @effDtCeiling) AT [{HcmLinkedServer}];",
+            [
+                new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = BuildJobCodeQuery() },
+                new SqlParameter("@effDtCeiling", SqlDbType.Date) { Value = effDtCeiling },
+            ],
+            (reader, cancellationToken) => _bulkCopy.WriteToServerAsync(
+                destination,
+                null,
+                "#PeopleSoftJobs",
+                JobCodeMappings,
+                reader,
+                cancellationToken),
+            ct);
 
         await using (var update = new SqlCommand(
             """

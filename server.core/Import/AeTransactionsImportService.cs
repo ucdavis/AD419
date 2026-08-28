@@ -18,41 +18,41 @@ public sealed class AeTransactionsImportService
     // purpose: the destination defaults apply to unmapped columns.
     // Source names verified against the warehouse 2026-07-30; the table's two other
     // columns (actual_flag, encumbrance_type_code) are filter-only and not pulled.
-    private static readonly (string Source, string Destination)[] ColumnMappings =
+    private static readonly ImportColumnMapping[] ColumnMappings =
     [
-        ("entity", "Entity"),
-        ("fund", "Fund"),
-        ("financial_department", "FinancialDepartment"),
-        ("account", "Account"),
-        ("purpose", "Purpose"),
-        ("program", "Program"),
-        ("project", "Project"),
-        ("activity", "Activity"),
-        ("entity_description", "EntityDescription"),
-        ("fund_description", "FundDescription"),
-        ("financial_department_description", "FinancialDepartmentDescription"),
-        ("account_description", "AccountDescription"),
-        ("purpose_description", "PurposeDescription"),
-        ("program_description", "ProgramDescription"),
-        ("project_description", "ProjectDescription"),
-        ("activity_description", "ActivityDescription"),
-        ("document_type", "DocumentType"),
-        ("accounting_sequence_number", "AccountingSequenceNumber"),
-        ("tracking_no", "TrackingNo"),
-        ("reference", "Reference"),
-        ("journal_line_description", "JournalLineDescription"),
-        ("journal_acct_date", "JournalAcctDate"),
-        ("journal_name", "JournalName"),
-        ("journal_reference", "JournalReference"),
-        ("period_name", "PeriodName"),
-        ("journal_batch_name", "JournalBatchName"),
-        ("journal_source", "JournalSource"),
-        ("journal_category", "JournalCategory"),
-        ("batch_status", "BatchStatus"),
-        ("actual_amount", "Amount"),
-        ("commitment_amount", "CommitmentAmount"),
-        ("obligation_amount", "ObligationAmount"),
-        ("etl_load_dt", "EtlLoadDt"),
+        new("entity", "Entity"),
+        new("fund", "Fund"),
+        new("financial_department", "FinancialDepartment"),
+        new("account", "Account"),
+        new("purpose", "Purpose"),
+        new("program", "Program"),
+        new("project", "Project"),
+        new("activity", "Activity"),
+        new("entity_description", "EntityDescription"),
+        new("fund_description", "FundDescription"),
+        new("financial_department_description", "FinancialDepartmentDescription"),
+        new("account_description", "AccountDescription"),
+        new("purpose_description", "PurposeDescription"),
+        new("program_description", "ProgramDescription"),
+        new("project_description", "ProjectDescription"),
+        new("activity_description", "ActivityDescription"),
+        new("document_type", "DocumentType"),
+        new("accounting_sequence_number", "AccountingSequenceNumber"),
+        new("tracking_no", "TrackingNo"),
+        new("reference", "Reference"),
+        new("journal_line_description", "JournalLineDescription"),
+        new("journal_acct_date", "JournalAcctDate"),
+        new("journal_name", "JournalName"),
+        new("journal_reference", "JournalReference"),
+        new("period_name", "PeriodName"),
+        new("journal_batch_name", "JournalBatchName"),
+        new("journal_source", "JournalSource"),
+        new("journal_category", "JournalCategory"),
+        new("batch_status", "BatchStatus"),
+        new("actual_amount", "Amount"),
+        new("commitment_amount", "CommitmentAmount"),
+        new("obligation_amount", "ObligationAmount"),
+        new("etl_load_dt", "EtlLoadDt"),
     ];
 
     // The department lists are DACPAC views so the display views built in the
@@ -63,15 +63,21 @@ public sealed class AeTransactionsImportService
     private readonly DataDbContext _dataDbContext;
     private readonly IConfiguration _configuration;
     private readonly ILogger<AeTransactionsImportService> _logger;
+    private readonly ILinkedServerQueryExecutor _linkedServer;
+    private readonly ISqlBulkCopyWriter _bulkCopy;
 
     public AeTransactionsImportService(
         DataDbContext dataDbContext,
         IConfiguration configuration,
-        ILogger<AeTransactionsImportService> logger)
+        ILogger<AeTransactionsImportService> logger,
+        ILinkedServerQueryExecutor linkedServer,
+        ISqlBulkCopyWriter bulkCopy)
     {
         _dataDbContext = dataDbContext;
         _configuration = configuration;
         _logger = logger;
+        _linkedServer = linkedServer;
+        _bulkCopy = bulkCopy;
     }
 
     public async Task<int> ImportAsync(DateOnly cycleStart, DateOnly cycleEnd, CancellationToken cancellationToken = default)
@@ -93,18 +99,6 @@ public sealed class AeTransactionsImportService
 
         var remoteQuery = BuildRemoteQuery(periods, caesAnrDepartments, bcbsDepartments, projects204);
 
-        await using var source = new SqlConnection(sourceConnectionString);
-        await source.OpenAsync(cancellationToken);
-
-        await using var query = new SqlCommand($"EXEC (@remoteQuery) AT [{RemoteLinkedServer}];", source)
-        {
-            CommandTimeout = CommandTimeoutSeconds,
-        };
-        query.Parameters.Add(new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1)
-        {
-            Value = remoteQuery,
-        });
-
         await using var transaction = (SqlTransaction)await destination.BeginTransactionAsync(cancellationToken);
 
         await using (var delete = new SqlCommand(
@@ -114,22 +108,20 @@ public sealed class AeTransactionsImportService
             await delete.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        using var bulkCopy = new SqlBulkCopy(destination, SqlBulkCopyOptions.Default, transaction)
-        {
-            DestinationTableName = DestinationTable,
-            BulkCopyTimeout = CommandTimeoutSeconds,
-        };
-        foreach (var (sourceColumn, destinationColumn) in ColumnMappings)
-        {
-            bulkCopy.ColumnMappings.Add(sourceColumn, destinationColumn);
-        }
+        var rowsCopied = await _linkedServer.ExecuteReaderAsync(
+            sourceConnectionString,
+            $"EXEC (@remoteQuery) AT [{RemoteLinkedServer}];",
+            [new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = remoteQuery }],
+            (reader, ct) => _bulkCopy.WriteToServerAsync(
+                destination,
+                transaction,
+                DestinationTable,
+                ColumnMappings,
+                reader,
+                ct),
+            cancellationToken);
 
-        await using (var reader = await query.ExecuteReaderAsync(cancellationToken))
-        {
-            await bulkCopy.WriteToServerAsync(reader, cancellationToken);
-        }
-
-        var rowsImported = (int)bulkCopy.RowsCopied64;
+        var rowsImported = (int)rowsCopied;
         await transaction.CommitAsync(cancellationToken);
 
         _logger.LogInformation("Imported {RowCount} AE transactions", rowsImported);

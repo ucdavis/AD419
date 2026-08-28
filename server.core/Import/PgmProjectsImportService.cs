@@ -34,59 +34,65 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
     // source reader column -> destination table column.
     // LoadedAt is intentionally absent: the destination column defaults to
     // SYSUTCDATETIME(), and SqlBulkCopy applies that default to unmapped columns.
-    private static readonly (string Source, string Destination)[] ColumnMappings =
+    private static readonly ImportColumnMapping[] ColumnMappings =
     [
-        ("project_id", "ProjectId"),
-        ("project_number", "ProjectNumber"),
-        ("project_name", "ProjectName"),
-        ("project_start_date", "ProjectStartDate"),
-        ("project_end_date", "ProjectEndDate"),
-        ("project_legal_entity", "ProjectLegalEntity"),
-        ("project_burden_schedule_base", "ProjectBurdenScheduleBase"),
-        ("project_burden_cost_rate", "ProjectBurdenCostRate"),
-        ("award_number", "AwardNumber"),
-        ("award_name", "AwardName"),
-        ("award_status", "AwardStatus"),
-        ("award_type", "AwardType"),
-        ("award_purpose", "AwardPurpose"),
-        ("award_start_date", "AwardStartDate"),
-        ("award_end_date", "AwardEndDate"),
-        ("cfda", "Cfda"),
-        ("sponsor_award_number", "SponsorAwardNumber"),
-        ("sponsor_award_key", "SponsorAwardKey"),
-        ("cfda_program_number", "CfdaProgramNumber"),
-        ("primary_sponsor", "PrimarySponsor"),
-        ("primary_sponsor_name", "PrimarySponsorName"),
-        ("funding_source_name", "FundingSourceName"),
-        ("funding_source_number", "FundingSourceNumber"),
-        ("awardfundcode", "AwardFundCode"),
-        ("fund", "Fund"),
-        ("owning_org_name", "OwningOrgName"),
-        ("financial_dept_code", "FinancialDeptCode"),
-        ("financial_dept_name", "FinancialDeptName"),
-        ("budget_period", "BudgetPeriod"),
-        ("budget_start_date", "BudgetStartDate"),
-        ("budget_end_date", "BudgetEndDate"),
-        ("principal_investigator_names", "PrincipalInvestigatorNames"),
-        ("pi_persons", "PiPersons"),
-        ("award_copi_names", "AwardCopiNames"),
-        ("project_manager_names", "ProjectManagerNames"),
-        ("grant_administrators", "GrantAdministrators"),
-        ("contract_admins", "ContractAdmins"),
+        new("project_id", "ProjectId"),
+        new("project_number", "ProjectNumber"),
+        new("project_name", "ProjectName"),
+        new("project_start_date", "ProjectStartDate"),
+        new("project_end_date", "ProjectEndDate"),
+        new("project_legal_entity", "ProjectLegalEntity"),
+        new("project_burden_schedule_base", "ProjectBurdenScheduleBase"),
+        new("project_burden_cost_rate", "ProjectBurdenCostRate"),
+        new("award_number", "AwardNumber"),
+        new("award_name", "AwardName"),
+        new("award_status", "AwardStatus"),
+        new("award_type", "AwardType"),
+        new("award_purpose", "AwardPurpose"),
+        new("award_start_date", "AwardStartDate"),
+        new("award_end_date", "AwardEndDate"),
+        new("cfda", "Cfda"),
+        new("sponsor_award_number", "SponsorAwardNumber"),
+        new("sponsor_award_key", "SponsorAwardKey"),
+        new("cfda_program_number", "CfdaProgramNumber"),
+        new("primary_sponsor", "PrimarySponsor"),
+        new("primary_sponsor_name", "PrimarySponsorName"),
+        new("funding_source_name", "FundingSourceName"),
+        new("funding_source_number", "FundingSourceNumber"),
+        new("awardfundcode", "AwardFundCode"),
+        new("fund", "Fund"),
+        new("owning_org_name", "OwningOrgName"),
+        new("financial_dept_code", "FinancialDeptCode"),
+        new("financial_dept_name", "FinancialDeptName"),
+        new("budget_period", "BudgetPeriod"),
+        new("budget_start_date", "BudgetStartDate"),
+        new("budget_end_date", "BudgetEndDate"),
+        new("principal_investigator_names", "PrincipalInvestigatorNames"),
+        new("pi_persons", "PiPersons"),
+        new("award_copi_names", "AwardCopiNames"),
+        new("project_manager_names", "ProjectManagerNames"),
+        new("grant_administrators", "GrantAdministrators"),
+        new("contract_admins", "ContractAdmins"),
     ];
 
     private readonly DataDbContext _dataDbContext;
     private readonly IConfiguration _configuration;
     private readonly ILogger<PgmProjectsImportService> _logger;
+    private readonly ILinkedServerQueryExecutor _linkedServer;
+    private readonly ISqlBulkCopyWriter _bulkCopy;
 
     public PgmProjectsImportService(
         DataDbContext dataDbContext,
         IConfiguration configuration,
-        ILogger<PgmProjectsImportService> logger)
+        ILogger<PgmProjectsImportService> logger,
+        ILinkedServerQueryExecutor linkedServer,
+        ISqlBulkCopyWriter bulkCopy)
     {
         _dataDbContext = dataDbContext;
         _configuration = configuration;
         _logger = logger;
+        _linkedServer = linkedServer;
+        _bulkCopy = bulkCopy;
     }
 
     public async Task<PgmProjectsImportResult> ImportAsync(DateOnly reportDate, CancellationToken cancellationToken = default)
@@ -98,20 +104,6 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
 
         _logger.LogInformation("Importing PGM projects for report date {ReportDate}", reportDate);
 
-        await using var source = new SqlConnection(sourceConnectionString);
-        await source.OpenAsync(cancellationToken);
-
-        await using var query = new SqlCommand(BuildSourceCommandText(), source)
-        {
-            CommandTimeout = CommandTimeoutSeconds,
-        };
-        // The report date is a bound parameter, never concatenated into SQL: it is passed to
-        // Redshift as the EXEC ... AT pass-through parameter, so the warehouse reuses one plan
-        // across report dates. @remoteQuery carries the Redshift SQL; @reportDate binds to its
-        // single ? placeholder.
-        query.Parameters.Add(new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = BuildRemoteQuery() });
-        query.Parameters.Add(new SqlParameter("@reportDate", SqlDbType.Date) { Value = reportDate });
-
         await using var destination = new SqlConnection(destinationConnectionString);
         await destination.OpenAsync(cancellationToken);
         await using var transaction = (SqlTransaction)await destination.BeginTransactionAsync(cancellationToken);
@@ -122,27 +114,31 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
             await delete.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        using var bulkCopy = new SqlBulkCopy(destination, SqlBulkCopyOptions.Default, transaction)
-        {
-            DestinationTableName = DestinationTable,
-            BulkCopyTimeout = CommandTimeoutSeconds,
-        };
+        // The report date is a bound parameter, never concatenated into SQL: it is passed to
+        // Redshift as the EXEC ... AT pass-through parameter, so the warehouse reuses one plan
+        // across report dates. @remoteQuery carries the Redshift SQL; @reportDate binds to its
+        // single ? placeholder.
+        var rowsCopied = await _linkedServer.ExecuteReaderAsync(
+            sourceConnectionString,
+            BuildSourceCommandText(),
+            [
+                new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = BuildRemoteQuery() },
+                new SqlParameter("@reportDate", SqlDbType.Date) { Value = reportDate },
+            ],
+            (reader, ct) => _bulkCopy.WriteToServerAsync(
+                destination,
+                transaction,
+                DestinationTable,
+                ColumnMappings,
+                reader,
+                ct),
+            cancellationToken);
 
-        foreach (var (sourceColumn, destinationColumn) in ColumnMappings)
-        {
-            bulkCopy.ColumnMappings.Add(sourceColumn, destinationColumn);
-        }
-
-        await using (var reader = await query.ExecuteReaderAsync(cancellationToken))
-        {
-            await bulkCopy.WriteToServerAsync(reader, cancellationToken);
-        }
-
-        var rowsImported = (int)bulkCopy.RowsCopied64;
+        var rowsImported = (int)rowsCopied;
 
         await transaction.CommitAsync(cancellationToken);
 
-        await LogPeopleAggregateTruncationWarningsAsync(source, destination, cancellationToken);
+        await LogPeopleAggregateTruncationWarningsAsync(sourceConnectionString, destination, cancellationToken);
 
         _logger.LogInformation(
             "Imported {RowCount} PGM projects for report date {ReportDate}",
@@ -153,13 +149,13 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
     }
 
     private async Task LogPeopleAggregateTruncationWarningsAsync(
-        SqlConnection source,
+        string sourceConnectionString,
         SqlConnection destination,
         CancellationToken cancellationToken)
     {
         try
         {
-            var sourceLengths = await ReadOversizedSourceAggregateLengthsAsync(source, cancellationToken);
+            var sourceLengths = await ReadOversizedSourceAggregateLengthsAsync(sourceConnectionString, cancellationToken);
             if (sourceLengths.Count == 0)
             {
                 return;
@@ -186,25 +182,25 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
         }
     }
 
-    private static async Task<List<PeopleAggregateLengths>> ReadOversizedSourceAggregateLengthsAsync(
-        SqlConnection source,
+    private async Task<List<PeopleAggregateLengths>> ReadOversizedSourceAggregateLengthsAsync(
+        string sourceConnectionString,
         CancellationToken cancellationToken)
     {
-        await using var command = new SqlCommand(BuildAggregateLengthCheckCommandText(), source)
-        {
-            CommandTimeout = CommandTimeoutSeconds,
-        };
-        command.Parameters.Add(
-            new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = BuildAggregateLengthCheckQuery() });
+        return await _linkedServer.ExecuteReaderAsync(
+            sourceConnectionString,
+            BuildAggregateLengthCheckCommandText(),
+            [new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = BuildAggregateLengthCheckQuery() }],
+            async (reader, ct) =>
+            {
+                var sourceLengths = new List<PeopleAggregateLengths>();
+                while (await reader.ReadAsync(ct))
+                {
+                    sourceLengths.Add(ReadAggregateLengths(reader, "project_id", field => $"{field.RemoteAlias}_length"));
+                }
 
-        var sourceLengths = new List<PeopleAggregateLengths>();
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            sourceLengths.Add(ReadAggregateLengths(reader, "project_id", field => $"{field.RemoteAlias}_length"));
-        }
-
-        return sourceLengths;
+                return sourceLengths;
+            },
+            cancellationToken);
     }
 
     private static async Task<Dictionary<long, PeopleAggregateLengths>> ReadStoredAggregateLengthsAsync(
