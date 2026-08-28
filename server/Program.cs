@@ -57,6 +57,8 @@ builder.Services.AddResponseCaching();
 // add scoped services here
 builder.Services.AddScoped<IDbInitializer, DbInitializer>();
 builder.Services.AddScoped<IAuthorizationHandler, AuthorizedUserHandler>();
+builder.Services.AddSingleton<ILinkedServerQueryExecutor, LinkedServerQueryExecutor>();
+builder.Services.AddSingleton<ISqlBulkCopyWriter, SqlBulkCopyWriter>();
 builder.Services.AddScoped<IPgmProjectsImportService, PgmProjectsImportService>();
 builder.Services.AddSingleton<IFlatFileImportRegistry, FlatFileImportRegistry>();
 builder.Services.AddScoped<IFlatFileImportService, FlatFileImportService>();

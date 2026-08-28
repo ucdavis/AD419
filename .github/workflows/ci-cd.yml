@@ -70,6 +70,21 @@ jobs:
       - name: Build .NET solution
         run: dotnet build app.sln -c "$BUILD_CONFIGURATION" --no-restore /m:1
 
+      - name: Install SQLPackage
+        run: |
+          set -euo pipefail
+
+          if [[ -x /usr/local/sqlpackage/sqlpackage ]]; then
+            /usr/local/sqlpackage/sqlpackage /Version
+            exit 0
+          fi
+
+          wget --quiet https://aka.ms/sqlpackage-linux --output-document sqlpackage.zip
+          sudo mkdir -p /usr/local/sqlpackage
+          sudo unzip -q sqlpackage.zip -d /usr/local/sqlpackage
+          sudo chmod +x /usr/local/sqlpackage/sqlpackage
+          /usr/local/sqlpackage/sqlpackage /Version
+
       - name: Test .NET solution
         run: dotnet test app.sln -c "$BUILD_CONFIGURATION" --no-build
 

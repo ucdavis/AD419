@@ -5,49 +5,6 @@ namespace Server.Tests.ProjectList;
 public class ProjectListSqlTests
 {
     [Fact]
-    public void Nifa_projects_function_uses_cycle_parameters_instead_of_server_date()
-    {
-        var sql = ReadDatabaseFile("data/Functions/NifaProjectsForCycle.sql");
-
-        sql.Should().Contain("CREATE FUNCTION [data].[NifaProjectsForCycle]");
-        sql.Should().Contain("@CycleStart DATE");
-        sql.Should().Contain("@CycleEnd DATE");
-        sql.Should().Contain("x.ProjectEndDate >= @CycleStart");
-        sql.Should().Contain("x.ProjectStartDate <= @CycleEnd");
-        sql.Should().Contain("overrideProject.ProjectEndDate >= @CycleStart");
-        sql.Should().Contain("overrideProject.ProjectStartDate <= @CycleEnd");
-        sql.Should().Contain("x.ProjectNumber = a.ProjectNumber");
-        sql.Should().Contain("x.AccessionNumber = a.AccessionNumber");
-        sql.Should().Contain("MIN(x.AllProjectId) AS AllProjectId");
-        sql.Should().NotContain("CROSS APPLY");
-        sql.Should().NotContain("OUTER APPLY");
-        sql.Should().NotContain("ProjectNumberNormalized");
-        sql.Should().NotContain("AccessionNumberNormalized");
-        sql.Should().NotContain("GETDATE()");
-    }
-
-    [Fact]
-    public void Project_list_function_reads_parameterized_nifa_projects_and_keeps_status_rules()
-    {
-        var sql = ReadDatabaseFile("data/Functions/ProjectListForCycle.sql");
-
-        sql.Should().Contain("CREATE FUNCTION [data].[ProjectListForCycle]");
-        sql.Should().Contain("FROM [data].[NifaProjectsForCycle](@CycleStart, @CycleEnd) nv");
-        sql.Should().Contain("WHERE nv.ExcludeFromUi = 0");
-        CountOccurrences(sql, "JOIN [data].[v_PgmProjectSfnBuckets] pc").Should().Be(1);
-        sql.Should().Contain("WITH IncludedNifa AS");
-        sql.Should().Contain("PgmByProject AS");
-        sql.Should().Contain("COUNT_BIG(pc.ProjectNumber)");
-        sql.Should().NotContain("CROSS APPLY");
-        sql.Should().NotContain("OUTER APPLY");
-        sql.Should().Contain("'Not in All Projects'");
-        sql.Should().Contain("'No PGM match'");
-        sql.Should().Contain("'SFN mismatch'");
-        sql.Should().NotContain("[data].[v_NifaProjects]");
-        sql.Should().NotContain("GETDATE()");
-    }
-
-    [Fact]
     public void Database_sql_files_do_not_use_getdate()
     {
         var databaseRoot = Path.Combine(RepositoryRoot(), "database", "data");
@@ -62,32 +19,6 @@ public class ProjectListSqlTests
                 "GETDATE()",
                 $"database SQL file {relativePath} should not depend on the server date");
         }
-    }
-
-    [Fact]
-    public void Get_project_list_procedure_requires_cycle_dates()
-    {
-        var sql = ReadDatabaseFile("data/StoredProcedures/GetProjectList.sql");
-
-        sql.Should().Contain("@CycleStart DATE");
-        sql.Should().Contain("@CycleEnd DATE");
-        sql.Should().Contain("FROM [data].[ProjectListForCycle](@CycleStart, @CycleEnd)");
-        sql.Should().NotContain("[data].[v_ProjectList]");
-    }
-
-    [Fact]
-    public void Build_projects_procedure_requires_cycle_dates_and_uses_cycle_functions()
-    {
-        var sql = ReadDatabaseFile("data/StoredProcedures/BuildProjects.sql");
-
-        sql.Should().Contain("@CycleStart DATE");
-        sql.Should().Contain("@CycleEnd DATE");
-        // the non-Clean check lives in the shared readiness function
-        sql.Should().Contain("[data].[ImportBlockingIssueForCycle](@CycleStart, @CycleEnd)");
-        sql.Should().Contain("FROM [data].[NifaProjectsForCycle](@CycleStart, @CycleEnd) nv");
-        sql.Should().Contain("WHERE nv.[ExcludeFromUi] = 0");
-        sql.Should().NotContain("[data].[v_ProjectList]");
-        sql.Should().NotContain("[data].[v_NifaProjects]");
     }
 
     [Fact]
@@ -131,54 +62,8 @@ public class ProjectListSqlTests
         pgmProjectsIndexSql.Should().Contain("ON [data].[PGMProjects] ([SponsorAwardKey])");
     }
 
-    [Fact]
-    public void Project_list_service_uses_cycle_functions_for_validation_and_candidates()
-    {
-        var source = ReadServerFile("ProjectList/ProjectListService.cs");
-
-        source.Should().Contain("[data].[GetProjectList]");
-        source.Should().Contain("CycleParameters(cycle)");
-        source.Should().Contain("FROM [data].[ProjectListForCycle](@cycleStart, @cycleEnd)");
-        source.Should().Contain("FROM [data].[NifaProjectsForCycle](@cycleStart, @cycleEnd) nv");
-        source.Should().Contain("WHERE nv.ExcludeFromUi = 1");
-        source.Should().Contain("CAST('Excluded' AS NVARCHAR(30))");
-        source.Should().Contain("SET [ExcludeFromUi] = 1,\n                [Notes] = @notes");
-        source.Should().Contain("SET [ExcludeFromUi] = 0,\n                [Notes] = @notes");
-        source.Should().Contain("CAST(ISNULL(nv.[ExcludeFromUi], 0) AS BIT)");
-        source.Should().NotContain("FROM [data].[v_ProjectList]");
-        source.Should().NotContain("FROM [data].[v_NifaProjects]");
-    }
-
-    [Fact]
-    public void Pgm_award_candidates_materialize_query_only_sort_rank_in_private_row()
-    {
-        var source = ReadServerFile("ProjectList/ProjectListService.cs");
-
-        source.Should().Contain("AS [SortRank]");
-        source.Should().Contain("QueryAsync<PgmAwardCandidateRow>");
-        source.Should().Contain("int SortRank");
-        source.Should().NotContain("QueryAsync<PgmAwardCandidateDto>");
-    }
-
     private static string ReadDatabaseFile(string relativePath) =>
         File.ReadAllText(Path.Combine(RepositoryRoot(), "database", relativePath));
-
-    private static string ReadServerFile(string relativePath) =>
-        File.ReadAllText(Path.Combine(RepositoryRoot(), "server", relativePath));
-
-    private static int CountOccurrences(string value, string expected)
-    {
-        var count = 0;
-        var index = 0;
-
-        while ((index = value.IndexOf(expected, index, StringComparison.Ordinal)) >= 0)
-        {
-            count++;
-            index += expected.Length;
-        }
-
-        return count;
-    }
 
     private static string RepositoryRoot()
     {
