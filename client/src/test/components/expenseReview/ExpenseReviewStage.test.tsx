@@ -13,50 +13,68 @@ const mockUser = {
 };
 
 const filtersResponse = {
-  accountingPeriods: [{ label: 'Oct-25', value: 'Oct-25' }],
+  accountingPeriods: [{ label: 'Oct-24', value: 'Oct-24' }],
   accounts: [{ label: '500000 - Salaries', value: '500000' }],
+  activities: [{ label: 'A100 - Research Activity', value: 'A100' }],
   aeProjects: [{ label: 'K1234 - Tomato Project', value: 'K1234' }],
+  entities: [{ label: '3310 - UC Davis', value: '3310' }],
+  exclusionReasons: [
+    { label: 'Fund F2 excluded', value: 'fund:F2:excluded' },
+  ],
   financialDepts: [{ label: 'D0123 - Plant Sciences', value: 'D0123' }],
   funds: [{ label: '13U02 - Experiment Station', value: '13U02' }],
+  programs: [{ label: 'PG01 - Extension Program', value: 'PG01' }],
+  purposes: [{ label: '44 - Research', value: '44' }],
   sfns: [{ label: '220 - AES', value: '220' }],
   sources: [
-    { label: 'AE', value: 'AE' },
-    { label: 'UCP', value: 'UCP' },
+    { label: 'Aggie Enterprise', value: 'AE' },
+    { label: 'UCPath', value: 'UCP' },
   ],
 };
 
 const transactionRows = [
   {
     account: { code: '500000', name: 'Salaries' },
-    accountingPeriod: 'Oct-25',
+    accountingPeriod: null,
+    activity: { code: 'A100', name: 'Research Activity' },
     aeProject: { code: 'K1234', name: 'Tomato Project' },
-    amount: 1200.5,
+    amount: 3600.5,
+    entity: { code: '3310', name: 'UC Davis' },
+    exclusionReasons: [],
     financialDept: { code: 'D0123', name: 'Plant Sciences' },
-    fte: null,
-    fteIncluded: false,
     fund: { code: '13U02', name: 'Experiment Station' },
-    id: 'AE:100',
+    id: 'group-1',
     included: true,
+    program: { code: 'PG01', name: 'Extension Program' },
+    purpose: { code: '44', name: 'Research' },
     sfn: '220',
     sfnLabel: 'AES',
     source: 'AE',
-    sourceId: '100',
   },
   {
     account: { code: '500000', name: 'Salaries' },
-    accountingPeriod: 'Oct-25',
+    accountingPeriod: null,
+    activity: { code: 'A100', name: 'Research Activity' },
     aeProject: { code: 'K1234', name: 'Tomato Project' },
     amount: 2400,
+    entity: { code: '3310', name: 'UC Davis' },
+    exclusionReasons: [
+      {
+        amount: 2400,
+        code: 'fund:F2:excluded',
+        label: 'Fund F2 excluded',
+        rowCount: 2,
+      },
+    ],
     financialDept: { code: 'D0123', name: 'Plant Sciences' },
-    fte: 0.456,
-    fteIncluded: true,
-    fund: { code: '13U02', name: 'Experiment Station' },
-    id: 'UCP:200',
+    fund: { code: 'F2', name: 'Excluded Fund' },
+    id: 'group-2',
     included: false,
+    program: { code: 'PG01', name: 'Extension Program' },
+    purpose: { code: '44', name: 'Research' },
     sfn: '220',
     sfnLabel: 'AES',
     source: 'UCP',
-    sourceId: '200',
   },
 ];
 
@@ -100,13 +118,16 @@ function mockExpenseReviewApi(requests: URL[] = [], exportRequests: URL[] = []) 
     http.get('/api/expensereview/transactions.csv', ({ request }) => {
       const url = new URL(request.url);
       exportRequests.push(url);
-      return new HttpResponse('Financial Dept,Amount\r\nD0123,1200.50\r\n', {
-        headers: {
-          'Content-Disposition':
-            "attachment; filename*=UTF-8''expense-review-transactions-fy26.csv",
-          'Content-Type': 'text/csv',
-        },
-      });
+      return new HttpResponse(
+        'Source,Entity,Fund,Financial Dept,Account,Purpose,Program,Project,Activity,SFN,Amount,Include State,Exclusion Reasons\r\n',
+        {
+          headers: {
+            'Content-Disposition':
+              "attachment; filename*=UTF-8''expense-review-transactions-fy26.csv",
+            'Content-Type': 'text/csv',
+          },
+        }
+      );
     })
   );
 }
@@ -158,32 +179,57 @@ function mockCsvDownload() {
 }
 
 describe('Expense Review stage', () => {
-  it('renders All Transactions instead of the placeholder with AE and UCPath rows', async () => {
+  it('renders grouped expense rows with full chart string columns and exclusion chips', async () => {
     mockExpenseReviewApi();
     const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });
 
     try {
       expect(
-        await screen.findByRole('tab', { name: /all transactions/i })
+        await screen.findByRole('tab', { name: /grouped expenses/i })
       ).toBeInTheDocument();
-      expect(
-        screen.queryByRole('heading', { name: 'Coming soon' })
-      ).not.toBeInTheDocument();
-      expect(
-        screen
-          .getAllByText('AE')
-          .find((element) => element.classList.contains('badge'))
-      ).toHaveClass('badge-neutral');
-      expect(
-        screen
-          .getAllByText('UCP')
-          .find((element) => element.classList.contains('badge'))
-      ).toHaveClass('badge-info');
-      expect(screen.getByText('$1,200.50')).toBeInTheDocument();
-      expect(screen.getByText('0.46')).toBeInTheDocument();
 
-      const deptCode = screen.getAllByText('D0123')[0];
-      expect(deptCode).toHaveAttribute('data-tip', 'Plant Sciences');
+      const table = screen.getByRole('table');
+      for (const header of [
+        'Source',
+        'Entity',
+        'Fund',
+        'Financial Dept',
+        'Account',
+        'Purpose',
+        'Program',
+        'Project',
+        'Activity',
+        'SFN',
+        'Amount',
+        'Include State',
+        'Exclusion Reasons',
+      ]) {
+        expect(
+          within(table).getByRole('columnheader', {
+            name: new RegExp(`^${header}`),
+          })
+        ).toBeInTheDocument();
+      }
+
+      expect(screen.queryByText('Columns')).not.toBeInTheDocument();
+      expect(screen.queryByText(/shown/i)).not.toBeInTheDocument();
+      expect(
+        within(table).queryByRole('columnheader', {
+          name: /^Accounting Period/,
+        })
+      ).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Display by period')).not.toBeChecked();
+      expect(screen.getByText('AE')).toBeInTheDocument();
+      expect(screen.getByText('UCP')).toBeInTheDocument();
+      expect(screen.getByText('$3,600.50')).toBeInTheDocument();
+      expect(
+        screen.getByText('Fund F2 excluded · $2,400.00 · 2 rows')
+      ).toBeInTheDocument();
+
+      expect(screen.getAllByText('3310')[0]).toHaveAttribute(
+        'data-tip',
+        'UC Davis'
+      );
       expect(screen.getAllByText('220')[0]).toHaveAttribute('data-tip', 'AES');
     } finally {
       cleanup();
@@ -197,9 +243,14 @@ describe('Expense Review stage', () => {
     const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });
 
     try {
-      await screen.findByRole('tab', { name: /all transactions/i });
+      await screen.findByRole('tab', { name: /grouped expenses/i });
+      expect(requests.at(-1)?.searchParams.get('displayByPeriod')).toBe(
+        'false'
+      );
 
-      await user.click(screen.getByRole('button', { name: /Excluded/ }));
+      await user.selectOptions(screen.getByLabelText('Include State filter'), [
+        'excluded',
+      ]);
       await waitFor(() => {
         expect(requests.at(-1)?.searchParams.get('includeState')).toBe(
           'excluded'
@@ -213,9 +264,40 @@ describe('Expense Review stage', () => {
         ]);
       });
 
+      await user.selectOptions(screen.getByLabelText('Source filter'), ['AE']);
+      await waitFor(() => {
+        expect(requests.at(-1)?.searchParams.getAll('source')).toEqual(['AE']);
+      });
+
+      await user.selectOptions(screen.getByLabelText('Accounting Period filter'), [
+        'Oct-24',
+      ]);
+      await waitFor(() => {
+        expect(requests.at(-1)?.searchParams.getAll('accountingPeriod')).toEqual(
+          ['Oct-24']
+        );
+      });
+
+      await user.selectOptions(screen.getByLabelText('Exclusion Reason filter'), [
+        'fund:F2:excluded',
+      ]);
+      await waitFor(() => {
+        expect(
+          requests.at(-1)?.searchParams.getAll('exclusionReason')
+        ).toEqual(['fund:F2:excluded']);
+      });
+
       await user.click(screen.getByRole('button', { name: 'Clear all' }));
       await waitFor(() => {
+        expect(requests.at(-1)?.searchParams.get('includeState')).toBe('all');
         expect(requests.at(-1)?.searchParams.getAll('fund')).toEqual([]);
+        expect(requests.at(-1)?.searchParams.getAll('source')).toEqual([]);
+        expect(requests.at(-1)?.searchParams.getAll('accountingPeriod')).toEqual(
+          []
+        );
+        expect(requests.at(-1)?.searchParams.getAll('exclusionReason')).toEqual(
+          []
+        );
       });
 
       await user.click(
@@ -257,58 +339,76 @@ describe('Expense Review stage', () => {
     }
   });
 
-  it('hides and restores controlled table columns', async () => {
+  it('toggles period display and resets period sorting when turned off', async () => {
     const user = userEvent.setup();
-    mockExpenseReviewApi();
+    const requests: URL[] = [];
+    mockExpenseReviewApi(requests);
     const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });
 
     try {
-      await screen.findByRole('tab', { name: /all transactions/i });
-      const table = screen.getByRole('table');
+      await screen.findByRole('tab', { name: /grouped expenses/i });
       expect(
-        within(table).getByRole('columnheader', { name: 'Fund' })
-      ).toBeInTheDocument();
-
-      await user.click(screen.getByText('Columns'));
-      const columnMenu = screen.getByText('Columns').closest('details')!;
-      await user.click(within(columnMenu).getByLabelText('Fund'));
-
-      expect(screen.getByText('6 of 7 shown')).toBeInTheDocument();
-      expect(
-        within(table).queryByRole('columnheader', { name: 'Fund' })
+        within(screen.getByRole('table')).queryByRole('columnheader', {
+          name: /^Accounting Period/,
+        })
       ).not.toBeInTheDocument();
 
-      await user.click(screen.getByRole('button', { name: 'Show all' }));
+      await user.click(screen.getByLabelText('Display by period'));
       await waitFor(() => {
-        expect(screen.getByText('7 of 7 shown')).toBeInTheDocument();
-        expect(
-          within(table).getByRole('columnheader', { name: 'Fund' })
-        ).toBeInTheDocument();
+        expect(requests.at(-1)?.searchParams.get('displayByPeriod')).toBe(
+          'true'
+        );
       });
+      expect(
+        within(screen.getByRole('table')).getByRole('columnheader', {
+          name: /^Accounting Period/,
+        })
+      ).toBeInTheDocument();
+
+      await user.click(
+        screen.getByRole('columnheader', { name: /Accounting Period/ })
+      );
+      await waitFor(() => {
+        expect(requests.at(-1)?.searchParams.get('sortBy')).toBe(
+          'accountingPeriod'
+        );
+      });
+
+      await user.click(screen.getByLabelText('Display by period'));
+      await waitFor(() => {
+        expect(requests.at(-1)?.searchParams.get('displayByPeriod')).toBe(
+          'false'
+        );
+        expect(requests.at(-1)?.searchParams.get('sortBy')).toBe('source');
+      });
+      expect(
+        within(screen.getByRole('table')).queryByRole('columnheader', {
+          name: /^Accounting Period/,
+        })
+      ).not.toBeInTheDocument();
     } finally {
       cleanup();
     }
   });
 
-  it('exports CSV with current filters, sort, and visible columns', async () => {
+  it('exports CSV with current filters and sort without column parameters', async () => {
     const user = userEvent.setup();
-    const requests: URL[] = [];
     const exportRequests: URL[] = [];
     const download = mockCsvDownload();
-    mockExpenseReviewApi(requests, exportRequests);
+    mockExpenseReviewApi([], exportRequests);
     const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });
 
     try {
-      await screen.findByRole('tab', { name: /all transactions/i });
+      await screen.findByRole('tab', { name: /grouped expenses/i });
 
-      await user.click(screen.getByRole('button', { name: /Excluded/ }));
+      await user.selectOptions(screen.getByLabelText('Include State filter'), [
+        'excluded',
+      ]);
       await user.selectOptions(screen.getByLabelText('Fund filter'), ['13U02']);
+      await user.click(screen.getByLabelText('Display by period'));
       await user.click(
         screen.getByRole('columnheader', { name: /Financial Dept/ })
       );
-      await user.click(screen.getByText('Columns'));
-      const columnMenu = screen.getByText('Columns').closest('details')!;
-      await user.click(within(columnMenu).getByLabelText('Fund'));
       await user.click(screen.getByRole('button', { name: 'Export CSV' }));
 
       await waitFor(() => {
@@ -319,22 +419,13 @@ describe('Expense Review stage', () => {
 
       const exportUrl = exportRequests[0];
       expect(exportUrl.searchParams.get('includeState')).toBe('excluded');
+      expect(exportUrl.searchParams.get('displayByPeriod')).toBe('true');
       expect(exportUrl.searchParams.getAll('fund')).toEqual(['13U02']);
       expect(exportUrl.searchParams.get('sortBy')).toBe('financialDept');
       expect(exportUrl.searchParams.get('sortDirection')).toBe('asc');
       expect(exportUrl.searchParams.get('page')).toBeNull();
       expect(exportUrl.searchParams.get('pageSize')).toBeNull();
-      expect(exportUrl.searchParams.getAll('column')).toEqual([
-        'financialDept',
-        'account',
-        'aeProject',
-        'accountingPeriod',
-        'source',
-        'sfn',
-        'amount',
-        'fte',
-        'included',
-      ]);
+      expect(exportUrl.searchParams.getAll('column')).toEqual([]);
     } finally {
       cleanup();
       download.restore();
@@ -356,7 +447,7 @@ describe('Expense Review stage', () => {
     const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });
 
     try {
-      await screen.findByRole('tab', { name: /all transactions/i });
+      await screen.findByRole('tab', { name: /grouped expenses/i });
       await user.click(screen.getByRole('button', { name: 'Export CSV' }));
 
       expect(await screen.findByText('CSV export failed.')).toBeInTheDocument();
@@ -392,7 +483,7 @@ describe('Expense Review stage', () => {
     });
 
     try {
-      await screen.findByRole('tab', { name: /all transactions/i });
+      await screen.findByRole('tab', { name: /grouped expenses/i });
       await user.click(
         screen.getByRole('button', { name: /continue to auto-associations/i })
       );

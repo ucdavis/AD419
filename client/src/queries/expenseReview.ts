@@ -6,61 +6,49 @@ export type ExpenseReviewIncludeState = 'all' | 'included' | 'excluded';
 export type ExpenseReviewSortBy =
   | 'account'
   | 'accountingPeriod'
+  | 'activity'
   | 'aeProject'
   | 'amount'
+  | 'entity'
   | 'financialDept'
-  | 'fte'
   | 'fund'
+  | 'included'
+  | 'program'
+  | 'purpose'
   | 'sfn'
   | 'source';
 
 export type ExpenseReviewSortDirection = 'asc' | 'desc';
-
-export type ExpenseReviewCsvColumnId =
-  | 'account'
-  | 'accountingPeriod'
-  | 'aeProject'
-  | 'amount'
-  | 'financialDept'
-  | 'fte'
-  | 'fund'
-  | 'included'
-  | 'sfn'
-  | 'source';
-
-export const EXPENSE_REVIEW_CSV_COLUMN_IDS: ExpenseReviewCsvColumnId[] = [
-  'financialDept',
-  'fund',
-  'account',
-  'aeProject',
-  'accountingPeriod',
-  'source',
-  'sfn',
-  'amount',
-  'fte',
-  'included',
-];
 
 export interface ExpenseReviewCodeName {
   code: string | null;
   name: string | null;
 }
 
+export interface ExpenseReviewExclusionReason {
+  amount: number;
+  code: string;
+  label: string;
+  rowCount: number;
+}
+
 export interface ExpenseReviewTransaction {
   account: ExpenseReviewCodeName;
   accountingPeriod: string | null;
+  activity: ExpenseReviewCodeName;
   aeProject: ExpenseReviewCodeName;
   amount: number | null;
+  entity: ExpenseReviewCodeName;
+  exclusionReasons: ExpenseReviewExclusionReason[];
   financialDept: ExpenseReviewCodeName;
-  fte: number | null;
-  fteIncluded: boolean;
   fund: ExpenseReviewCodeName;
   id: string;
   included: boolean;
+  program: ExpenseReviewCodeName;
+  purpose: ExpenseReviewCodeName;
   sfn: string | null;
   sfnLabel: string | null;
   source: 'AE' | 'UCP';
-  sourceId: string;
 }
 
 export interface ExpenseReviewCounts {
@@ -89,9 +77,14 @@ export interface ExpenseReviewFilterOption {
 export interface ExpenseReviewFilterOptionsResponse {
   accountingPeriods: ExpenseReviewFilterOption[];
   accounts: ExpenseReviewFilterOption[];
+  activities: ExpenseReviewFilterOption[];
   aeProjects: ExpenseReviewFilterOption[];
+  entities: ExpenseReviewFilterOption[];
+  exclusionReasons: ExpenseReviewFilterOption[];
   financialDepts: ExpenseReviewFilterOption[];
   funds: ExpenseReviewFilterOption[];
+  programs: ExpenseReviewFilterOption[];
+  purposes: ExpenseReviewFilterOption[];
   sfns: ExpenseReviewFilterOption[];
   sources: ExpenseReviewFilterOption[];
 }
@@ -99,14 +92,20 @@ export interface ExpenseReviewFilterOptionsResponse {
 export interface ExpenseReviewFilters {
   account: string[];
   accountingPeriod: string[];
+  activity: string[];
   aeProject: string[];
+  entity: string[];
+  exclusionReason: string[];
   financialDept: string[];
   fund: string[];
+  program: string[];
+  purpose: string[];
   sfn: string[];
   source: string[];
 }
 
 export interface ExpenseReviewTransactionsParams {
+  displayByPeriod: boolean;
   filters: ExpenseReviewFilters;
   includeState: ExpenseReviewIncludeState;
   page: number;
@@ -116,7 +115,7 @@ export interface ExpenseReviewTransactionsParams {
 }
 
 export interface ExpenseReviewTransactionsCsvParams {
-  columns: ExpenseReviewCsvColumnId[];
+  displayByPeriod: boolean;
   filters: ExpenseReviewFilters;
   includeState: ExpenseReviewIncludeState;
   sortBy?: ExpenseReviewSortBy;
@@ -126,21 +125,31 @@ export interface ExpenseReviewTransactionsCsvParams {
 export const EMPTY_EXPENSE_REVIEW_FILTERS: ExpenseReviewFilters = {
   account: [],
   accountingPeriod: [],
+  activity: [],
   aeProject: [],
+  entity: [],
+  exclusionReason: [],
   financialDept: [],
   fund: [],
+  program: [],
+  purpose: [],
   sfn: [],
   source: [],
 };
 
 const filterQueryParams: Array<keyof ExpenseReviewFilters> = [
+  'entity',
   'financialDept',
   'fund',
   'account',
   'aeProject',
   'accountingPeriod',
-  'source',
+  'purpose',
+  'program',
+  'activity',
   'sfn',
+  'source',
+  'exclusionReason',
 ];
 
 function appendParams(
@@ -149,6 +158,7 @@ function appendParams(
   includePagination: boolean
 ) {
   const search = new URLSearchParams({
+    displayByPeriod: params.displayByPeriod ? 'true' : 'false',
     includeState: params.includeState,
   });
 
@@ -190,10 +200,6 @@ export function buildExpenseReviewTransactionsCsvUrl(
   params: ExpenseReviewTransactionsCsvParams
 ) {
   const search = appendParams(params, false);
-
-  for (const column of params.columns) {
-    search.append('column', column);
-  }
 
   return `/api/expensereview/transactions.csv?${search}`;
 }

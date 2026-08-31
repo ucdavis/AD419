@@ -44,11 +44,6 @@ public sealed class ExpenseReviewController(
             return BadRequest(error);
         }
 
-        if (!ExpenseReviewRequestParser.TryParseCsvColumns(query.Column, out var columns, out error))
-        {
-            return BadRequest(error);
-        }
-
         var (cycle, cycleError) = await GetConfirmedCycleAsync(cancellationToken);
         if (cycle is null)
         {
@@ -65,7 +60,6 @@ public sealed class ExpenseReviewController(
         await expenseReviewService.WriteTransactionsCsvAsync(
             cycle,
             request,
-            columns,
             Response.Body,
             cancellationToken);
         return new EmptyResult();

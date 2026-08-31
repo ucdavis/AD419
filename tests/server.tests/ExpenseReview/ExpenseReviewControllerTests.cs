@@ -51,15 +51,18 @@ public class ExpenseReviewControllerTests
                 IncludeState = "included",
                 SortBy = "amount",
                 SortDirection = "desc",
+                DisplayByPeriod = true,
                 Page = 2,
                 PageSize = 25,
+                AccountingPeriod = ["Oct-24"],
                 FinancialDept = ["D0123"],
+                Source = ["ucp"],
             },
             CancellationToken.None);
 
         var ok = result.Should().BeOfType<OkObjectResult>().Subject;
         var response = ok.Value.Should().BeOfType<ExpenseReviewTransactionsResponse>().Subject;
-        response.Rows.Should().ContainSingle().Which.FteIncluded.Should().BeTrue();
+        response.Rows.Should().ContainSingle().Which.Included.Should().BeTrue();
         service.ReceivedTransactionsCycle.Should().Be(new FiscalYearCycle(
             "FY25",
             new DateOnly(2024, 10, 1),
@@ -68,13 +71,16 @@ public class ExpenseReviewControllerTests
         service.ReceivedRequest!.IncludeState.Should().Be(ExpenseReviewIncludeState.Included);
         service.ReceivedRequest.SortBy.Should().Be("amount");
         service.ReceivedRequest.SortDescending.Should().BeTrue();
+        service.ReceivedRequest.DisplayByPeriod.Should().BeTrue();
         service.ReceivedRequest.Page.Should().Be(2);
         service.ReceivedRequest.PageSize.Should().Be(25);
+        service.ReceivedRequest.Filters.AccountingPeriod.Should().Equal("Oct-24");
         service.ReceivedRequest.Filters.FinancialDept.Should().Equal("D0123");
+        service.ReceivedRequest.Filters.Source.Should().Equal("UCP");
     }
 
     [Fact]
-    public async Task Transactions_csv_sources_cycle_query_and_columns_and_streams_csv()
+    public async Task Transactions_csv_sources_cycle_query_and_streams_fixed_csv()
     {
         await using var db = await CreateDbWithConfirmedRunAsync();
         var service = new StubExpenseReviewService();
@@ -94,9 +100,10 @@ public class ExpenseReviewControllerTests
                 IncludeState = "excluded",
                 SortBy = "amount",
                 SortDirection = "desc",
+                DisplayByPeriod = true,
+                AccountingPeriod = ["Oct-24"],
                 FinancialDept = ["D0123"],
-                Source = ["ucp"],
-                Column = ["financialDept", "amount", "included"],
+                Source = ["AE"],
             },
             CancellationToken.None);
 
@@ -110,9 +117,10 @@ public class ExpenseReviewControllerTests
         service.ReceivedCsvRequest!.IncludeState.Should().Be(ExpenseReviewIncludeState.Excluded);
         service.ReceivedCsvRequest.SortBy.Should().Be("amount");
         service.ReceivedCsvRequest.SortDescending.Should().BeTrue();
+        service.ReceivedCsvRequest.DisplayByPeriod.Should().BeTrue();
+        service.ReceivedCsvRequest.Filters.AccountingPeriod.Should().Equal("Oct-24");
         service.ReceivedCsvRequest.Filters.FinancialDept.Should().Equal("D0123");
-        service.ReceivedCsvRequest.Filters.Source.Should().Equal("UCP");
-        service.ReceivedCsvColumns.Should().Equal("financialDept", "amount", "included");
+        service.ReceivedCsvRequest.Filters.Source.Should().Equal("AE");
         controller.Response.ContentType.Should().Be("text/csv; charset=utf-8");
         controller.Response.Headers.ContentDisposition.ToString()
             .Should().Contain("expense-review-transactions-fy25.csv");
@@ -120,8 +128,8 @@ public class ExpenseReviewControllerTests
         body.Position = 0;
         using var reader = new StreamReader(body);
         var csv = await reader.ReadToEndAsync();
-        csv.Should().Contain("Financial Dept,Amount,Include State");
-        csv.Should().Contain("D0123 - Department,12.34,Included");
+        csv.Should().Contain("Source,Accounting Period,Entity,Fund,Financial Dept,Account,Purpose,Program,Project,Activity,SFN,Amount,Include State,Exclusion Reasons");
+        csv.Should().Contain("AE,Oct-24,3310 - Entity,13U02 - Fund,D0123 - Department,500000 - Account,44 - Purpose,PG1 - Program,K1234 - Project,A1 - Activity,220 - Agricultural Experiment Station,12.34,Included,");
     }
 
     [Fact]
@@ -134,21 +142,6 @@ public class ExpenseReviewControllerTests
         var result = await controller.TransactionsCsv(new ExpenseReviewTransactionsQuery(), CancellationToken.None);
 
         result.Should().BeOfType<ConflictObjectResult>();
-        service.CsvCalled.Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task Transactions_csv_validates_invalid_columns()
-    {
-        await using var db = await CreateDbWithConfirmedRunAsync();
-        var service = new StubExpenseReviewService();
-        var controller = new ExpenseReviewController(service, db);
-
-        var result = await controller.TransactionsCsv(
-            new ExpenseReviewTransactionsQuery { Column = ["sourceId"] },
-            CancellationToken.None);
-
-        result.Should().BeOfType<BadRequestObjectResult>();
         service.CsvCalled.Should().BeFalse();
     }
 
@@ -218,7 +211,6 @@ public class ExpenseReviewControllerTests
         public FiscalYearCycle? ReceivedCsvCycle { get; private set; }
         public ExpenseReviewTransactionsRequest? ReceivedRequest { get; private set; }
         public ExpenseReviewTransactionsRequest? ReceivedCsvRequest { get; private set; }
-        public IReadOnlyList<string> ReceivedCsvColumns { get; private set; } = [];
 
         public Task<ExpenseReviewTransactionsResponse> GetTransactionsAsync(
             FiscalYearCycle cycle,
@@ -240,20 +232,22 @@ public class ExpenseReviewControllerTests
                 0,
                 [
                     new ExpenseReviewTransactionDto(
-                        "UCP:1",
-                        "1",
-                        "UCP",
+                        "group-1",
+                        "AE",
+                        new ExpenseReviewCodeNameDto("3310", "Entity"),
                         new ExpenseReviewCodeNameDto("D0123", "Department"),
                         new ExpenseReviewCodeNameDto("13U02", "Fund"),
                         new ExpenseReviewCodeNameDto("500000", "Account"),
                         new ExpenseReviewCodeNameDto("K1234", "Project"),
                         "Oct-24",
+                        new ExpenseReviewCodeNameDto("44", "Purpose"),
+                        new ExpenseReviewCodeNameDto("PG1", "Program"),
+                        new ExpenseReviewCodeNameDto("A1", "Activity"),
                         "220",
                         "Agricultural Experiment Station",
                         12.34m,
-                        0.5m,
                         true,
-                        true),
+                        []),
                 ]));
         }
 
@@ -264,41 +258,41 @@ public class ExpenseReviewControllerTests
             FiltersCalled = true;
             ReceivedFiltersCycle = cycle;
 
-            return Task.FromResult(new ExpenseReviewFilterOptionsResponse([], [], [], [], [], [], []));
+            return Task.FromResult(new ExpenseReviewFilterOptionsResponse([], [], [], [], [], [], [], [], [], [], [], []));
         }
 
         public async Task WriteTransactionsCsvAsync(
             FiscalYearCycle cycle,
             ExpenseReviewTransactionsRequest request,
-            IReadOnlyList<string> columnIds,
             Stream output,
             CancellationToken cancellationToken)
         {
             CsvCalled = true;
             ReceivedCsvCycle = cycle;
             ReceivedCsvRequest = request;
-            ReceivedCsvColumns = columnIds;
 
             await ExpenseReviewCsvWriter.WriteAsync(
                 output,
                 ToAsyncEnumerable(
                     new ExpenseReviewTransactionDto(
-                        "UCP:1",
-                        "1",
-                        "UCP",
+                        "group-1",
+                        "AE",
+                        new ExpenseReviewCodeNameDto("3310", "Entity"),
                         new ExpenseReviewCodeNameDto("D0123", "Department"),
                         new ExpenseReviewCodeNameDto("13U02", "Fund"),
                         new ExpenseReviewCodeNameDto("500000", "Account"),
                         new ExpenseReviewCodeNameDto("K1234", "Project"),
                         "Oct-24",
+                        new ExpenseReviewCodeNameDto("44", "Purpose"),
+                        new ExpenseReviewCodeNameDto("PG1", "Program"),
+                        new ExpenseReviewCodeNameDto("A1", "Activity"),
                         "220",
                         "Agricultural Experiment Station",
                         12.34m,
-                        0.5m,
                         true,
-                        true)
+                        [])
                 ),
-                columnIds,
+                request.DisplayByPeriod,
                 cancellationToken);
         }
 
