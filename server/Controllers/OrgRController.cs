@@ -156,6 +156,7 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder) 
         [FromBody] SetOrgRRequest request,
         CancellationToken cancellationToken)
     {
+        // Mapping keys are data-derived codes the client echoes back from the GET payload, so no normalization is applied.
         var mapping = await db.OrgRFinancialDepartments.FindAsync([code], cancellationToken);
         if (mapping is null)
         {
@@ -206,7 +207,8 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder) 
         [FromBody] SetOrgRRequest request,
         CancellationToken cancellationToken)
     {
-        var mapping = await db.OrgRNifaDepartments.FindAsync([code.ToUpperInvariant()], cancellationToken);
+        // Mapping keys are data-derived codes the client echoes back from the GET payload, so no normalization is applied.
+        var mapping = await db.OrgRNifaDepartments.FindAsync([code], cancellationToken);
         if (mapping is null)
         {
             return NotFound();
