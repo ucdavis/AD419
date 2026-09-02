@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Server.Core.Data;
 using Server.Core.Domain;
 
-namespace Server.Tests.OrgR;
+namespace Server.Tests.OrgRReview;
 
 using OrgR = Server.Core.Domain.OrgR;
 

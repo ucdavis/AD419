@@ -1,6 +1,6 @@
-using Server.OrgR;
+using Server.OrgRReview;
 
-namespace Server.Tests.OrgR;
+namespace Server.Tests.OrgRReview;
 
 internal sealed class FakeOrgRReviewSeeder : IOrgRReviewSeeder
 {

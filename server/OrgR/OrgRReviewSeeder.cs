@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Server.Core.Data;
 
-namespace Server.OrgR;
+namespace Server.OrgRReview;
 
 public sealed class OrgRReviewSeeder(DataDbContext db) : IOrgRReviewSeeder
 {

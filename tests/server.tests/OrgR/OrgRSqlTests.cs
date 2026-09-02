@@ -1,6 +1,6 @@
 using FluentAssertions;
 
-namespace Server.Tests.OrgR;
+namespace Server.Tests.OrgRReview;
 
 public class OrgRSqlTests
 {

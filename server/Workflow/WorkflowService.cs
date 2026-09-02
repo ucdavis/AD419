@@ -6,7 +6,7 @@ using Server.Core.Data;
 using Server.Core.Domain;
 using Server.Models;
 using Server.Models.Workflow;
-using Server.OrgR;
+using Server.OrgRReview;
 
 namespace Server.Workflow;
 

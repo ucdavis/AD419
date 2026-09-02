@@ -2,7 +2,7 @@ using System.Security.Claims;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Server.Core.Domain;
-using Server.Tests.OrgR;
+using Server.Tests.OrgRReview;
 using Server.Workflow;
 
 namespace Server.Tests.Workflow;
@@ -350,7 +350,7 @@ public class WorkflowServiceTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
-        dataDb.OrgRs.Add(new Server.Core.Domain.OrgR { Code = "AARE" });
+        dataDb.OrgRs.Add(new OrgR { Code = "AARE" });
         dataDb.OrgRFinancialDepartments.Add(new OrgRFinancialDepartment { FinancialDepartment = "AARE001", OrgR = "AARE" });
         dataDb.OrgRNifaDepartments.Add(new OrgRNifaDepartment { NifaDepartment = "ARE", OrgR = "AARE" });
         await dataDb.SaveChangesAsync();
