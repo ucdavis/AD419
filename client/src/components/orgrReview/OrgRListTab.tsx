@@ -50,7 +50,8 @@ export function OrgRListTab() {
 
   const columns: ColumnDef<OrgR>[] = [
     { accessorKey: 'code', header: 'OrgR' },
-    { accessorKey: 'referenceCount', header: 'Mappings' },
+    { accessorKey: 'nifaProjectCount', header: 'NIFA Projects' },
+    { accessorKey: 'financialDepartmentCount', header: 'Financial Departments' },
     {
       cell: ({ row }) => (
         <button
@@ -116,7 +117,8 @@ export function OrgRListTab() {
           <ExportDataButton
             columns={[
               { header: 'OrgR', key: 'code' },
-              { header: 'Mappings', key: 'referenceCount' },
+              { header: 'NIFA Projects', key: 'nifaProjectCount' },
+              { header: 'Financial Departments', key: 'financialDepartmentCount' },
             ]}
             data={orgRs}
             filename="ad419-orgr-list.csv"

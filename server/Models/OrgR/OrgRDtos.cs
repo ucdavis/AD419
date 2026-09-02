@@ -2,14 +2,18 @@ using Server.Models.SegmentClassifications;
 
 namespace Server.Models.OrgR;
 
-public sealed record OrgRDto(string Code, int ReferenceCount);
+/// <summary>
+/// FinancialDepartmentCount and NifaProjectCount are what the user sees;
+/// ReferenceCount is every mapping row pointing at the OrgR (departments,
+/// NIFA departments, manual project additions) and gates deletion.
+/// </summary>
+public sealed record OrgRDto(string Code, int FinancialDepartmentCount, int NifaProjectCount, int ReferenceCount);
 
 public sealed record OrgRFinancialDepartmentDto(
     string FinancialDepartment,
     string? Description,
     IReadOnlyList<HierarchyLevelDto> Hierarchy,
-    string? OrgR,
-    bool InCycle);
+    string? OrgR);
 
 public sealed record SetOrgRRequest(string? OrgR);
 

@@ -8,6 +8,9 @@ import type { HierarchyLevel } from '@/queries/segmentClassifications.ts';
 
 export interface OrgR {
   code: string;
+  financialDepartmentCount: number;
+  nifaProjectCount: number;
+  // Every mapping row pointing at the OrgR; gates deletion.
   referenceCount: number;
 }
 
@@ -15,7 +18,6 @@ export interface OrgRFinancialDepartment {
   description: string | null;
   financialDepartment: string;
   hierarchy: HierarchyLevel[];
-  inCycle: boolean;
   orgR: string | null;
 }
 

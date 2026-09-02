@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Server.Controllers;
 using Server.Core.Domain;
 using Server.Models.OrgR;
+using Server.Models.SegmentClassifications;
 
 namespace Server.Tests.OrgRReview;
 
@@ -12,13 +13,22 @@ public class OrgRControllerTests
         new(db, seeder ?? new FakeOrgRReviewSeeder());
 
     [Fact]
-    public async Task GetOrgRs_returns_codes_with_reference_counts()
+    public async Task GetOrgRs_returns_department_project_and_reference_counts()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
-        db.OrgRs.AddRange(new OrgR { Code = "AARE" }, new OrgR { Code = "ADNO" });
-        db.OrgRFinancialDepartments.Add(new OrgRFinancialDepartment { FinancialDepartment = "AARE001", OrgR = "AARE" });
+        db.OrgRs.AddRange(new OrgR { Code = "AARE" }, new OrgR { Code = "ADNO" }, new OrgR { Code = "APLS" });
+        db.OrgRFinancialDepartments.AddRange(
+            new OrgRFinancialDepartment { FinancialDepartment = "AARE001", OrgR = "AARE" },
+            new OrgRFinancialDepartment { FinancialDepartment = "AARE002", OrgR = "AARE" });
         db.OrgRNifaDepartments.Add(new OrgRNifaDepartment { NifaDepartment = "ARE", OrgR = "AARE" });
-        db.OrgRProjectAdditions.Add(new OrgRProjectAddition { AccessionNumber = "1000001", OrgR = "AARE" });
+        db.Projects.AddRange(
+            new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-ARE-2868-H" },
+            new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-ARE-2868-H" },
+            new Project { AccessionNumber = "1000002", NifaProjectNumber = "CA-D-ARE-2778-CG" },
+            new Project { AccessionNumber = "1000003", NifaProjectNumber = "CA-D-ESP-2880-H" });
+        db.OrgRProjectAdditions.AddRange(
+            new OrgRProjectAddition { AccessionNumber = "1000001", OrgR = "AARE" },
+            new OrgRProjectAddition { AccessionNumber = "1000003", OrgR = "APLS" });
         await db.SaveChangesAsync();
         var controller = CreateController(db);
 
@@ -26,8 +36,15 @@ public class OrgRControllerTests
 
         var dtos = result.Result.Should().BeOfType<OkObjectResult>().Subject.Value
             .Should().BeAssignableTo<IEnumerable<OrgRDto>>().Subject.ToList();
-        dtos.Should().HaveCount(2);
-        dtos.Single(d => d.Code == "AARE").ReferenceCount.Should().Be(3);
+        dtos.Should().HaveCount(3);
+        var aare = dtos.Single(d => d.Code == "AARE");
+        aare.FinancialDepartmentCount.Should().Be(2);
+        aare.NifaProjectCount.Should().Be(2, "1000001 and 1000002 map through ARE; the manual addition of 1000001 does not double count");
+        aare.ReferenceCount.Should().Be(4, "two departments, one NIFA department, one addition");
+        var apls = dtos.Single(d => d.Code == "APLS");
+        apls.FinancialDepartmentCount.Should().Be(0);
+        apls.NifaProjectCount.Should().Be(1);
+        apls.ReferenceCount.Should().Be(1);
         dtos.Single(d => d.Code == "ADNO").ReferenceCount.Should().Be(0);
     }
 
@@ -118,18 +135,19 @@ public class OrgRControllerTests
     }
 
     [Fact]
-    public async Task GetFinancialDepartments_seeds_then_returns_rows_with_hierarchy_and_cycle_flag()
+    public async Task GetFinancialDepartments_seeds_then_returns_in_cycle_rows_with_chart_segment_hierarchy()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
         db.OrgRFinancialDepartments.AddRange(
             new OrgRFinancialDepartment { FinancialDepartment = "AARE001", OrgR = "AARE" },
             new OrgRFinancialDepartment { FinancialDepartment = "OLD0001", OrgR = null });
         db.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.FinancialDepartment, Code = "AARE001", IncludeInReport = true });
-        db.DepartmentHierarchies.Add(new DepartmentHierarchy
-        {
-            Code = "AARE001", Description = "ARE Dept",
-            ParentLevelACode = "UCD", ParentLevelAName = "UC Davis",
-        });
+        db.ChartSegments.AddRange(
+            new ChartSegment { SegmentName = "FinancialDepartment", Code = "AARE001", Description = "AARE Ag and Resource Economics", ParentLevel0Code = "100000A", ParentLevel1Code = "100000B", ParentLevel2Code = "AAES00C" },
+            new ChartSegment { SegmentName = "FinancialDepartment", Code = "100000A", Description = "UC Davis" },
+            new ChartSegment { SegmentName = "FinancialDepartment", Code = "100000B", Description = "UC Davis Campus" },
+            new ChartSegment { SegmentName = "FinancialDepartment", Code = "AAES00C", Description = "College of Agricultural and Environmental Sciences" },
+            new ChartSegment { SegmentName = "Fund", Code = "AARE001", Description = "not a department" });
         await db.SaveChangesAsync();
         var seeder = new FakeOrgRReviewSeeder();
         var controller = CreateController(db, seeder);
@@ -139,14 +157,14 @@ public class OrgRControllerTests
         seeder.Calls.Should().Be(1);
         var dtos = result.Result.Should().BeOfType<OkObjectResult>().Subject.Value
             .Should().BeAssignableTo<IEnumerable<OrgRFinancialDepartmentDto>>().Subject.ToList();
-        var aare = dtos.Single(d => d.FinancialDepartment == "AARE001");
+        var aare = dtos.Should().ContainSingle().Subject;
+        aare.FinancialDepartment.Should().Be("AARE001");
         aare.OrgR.Should().Be("AARE");
-        aare.Description.Should().Be("ARE Dept");
-        aare.InCycle.Should().BeTrue();
-        aare.Hierarchy.Should().ContainSingle(level => level.Code == "UCD");
-        var old = dtos.Single(d => d.FinancialDepartment == "OLD0001");
-        old.InCycle.Should().BeFalse();
-        old.Hierarchy.Should().BeEmpty();
+        aare.Description.Should().Be("AARE Ag and Resource Economics");
+        aare.Hierarchy.Should().Equal(
+            new HierarchyLevelDto("A", "100000A", "UC Davis"),
+            new HierarchyLevelDto("B", "100000B", "UC Davis Campus"),
+            new HierarchyLevelDto("C", "AAES00C", "College of Agricultural and Environmental Sciences"));
     }
 
     [Fact]

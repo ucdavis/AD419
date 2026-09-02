@@ -22,8 +22,8 @@ const completedUpstream = {
 
 function mockApi(options: { unmappedDepartment: boolean }) {
   let departments = [
-    { description: 'ARE', financialDepartment: 'AARE001', hierarchy: [], inCycle: true, orgR: 'AARE' },
-    { description: 'New', financialDepartment: 'ANEW001', hierarchy: [], inCycle: true, orgR: options.unmappedDepartment ? null : 'AARE' },
+    { description: 'ARE', financialDepartment: 'AARE001', hierarchy: [], orgR: 'AARE' },
+    { description: 'New', financialDepartment: 'ANEW001', hierarchy: [], orgR: options.unmappedDepartment ? null : 'AARE' },
   ];
   server.use(
     http.get('/api/user/me', () => HttpResponse.json(mockUser)),
@@ -31,7 +31,7 @@ function mockApi(options: { unmappedDepartment: boolean }) {
       HttpResponse.json(createWorkflowSnapshot(completedUpstream))
     ),
     http.get('/api/orgr/orgrs', () =>
-      HttpResponse.json([{ code: 'AARE', referenceCount: 1 }])
+      HttpResponse.json([{ code: 'AARE', financialDepartmentCount: 0, nifaProjectCount: 0, referenceCount: 1 }])
     ),
     http.get('/api/orgr/financial-departments', () => HttpResponse.json(departments)),
     http.get('/api/orgr/nifa-departments', () =>

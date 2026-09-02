@@ -14,6 +14,7 @@ public class DataDbContext(DbContextOptions<DataDbContext> options) : DbContext(
     public DbSet<OrgRNifaDepartment> OrgRNifaDepartments => Set<OrgRNifaDepartment>();
     public DbSet<OrgRProjectAddition> OrgRProjectAdditions => Set<OrgRProjectAddition>();
     public DbSet<Project> Projects => Set<Project>();
+    public DbSet<ChartSegment> ChartSegments => Set<ChartSegment>();
 
     public DbSet<DepartmentHierarchy> DepartmentHierarchies => Set<DepartmentHierarchy>();
     public DbSet<AccountHierarchy> AccountHierarchies => Set<AccountHierarchy>();
@@ -66,6 +67,24 @@ public class DataDbContext(DbContextOptions<DataDbContext> options) : DbContext(
             entity.HasKey(a => new { a.AccessionNumber, a.OrgR });
             entity.Property(a => a.AccessionNumber).HasMaxLength(7);
             entity.Property(a => a.OrgR).HasMaxLength(10);
+        });
+
+        modelBuilder.Entity<ChartSegment>(entity =>
+        {
+            entity.ToTable("ChartSegments", DataSchema, table => table.ExcludeFromMigrations());
+            entity.HasKey(s => new { s.SegmentName, s.Code });
+            entity.Property(s => s.SegmentName).HasMaxLength(30);
+            entity.Property(s => s.Code).HasMaxLength(300);
+            entity.Property(s => s.Description).HasMaxLength(500);
+            foreach (var level in new[]
+                     {
+                         nameof(ChartSegment.ParentLevel0Code), nameof(ChartSegment.ParentLevel1Code),
+                         nameof(ChartSegment.ParentLevel2Code), nameof(ChartSegment.ParentLevel3Code),
+                         nameof(ChartSegment.ParentLevel4Code), nameof(ChartSegment.ParentLevel5Code),
+                     })
+            {
+                entity.Property(level).HasMaxLength(200);
+            }
         });
 
         modelBuilder.Entity<Project>(entity =>

@@ -335,6 +335,7 @@ public class WorkflowServiceTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        dataDb.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.FinancialDepartment, Code = "AARE001", IncludeInReport = true });
         dataDb.OrgRFinancialDepartments.Add(new OrgRFinancialDepartment { FinancialDepartment = "AARE001", OrgR = null });
         await dataDb.SaveChangesAsync();
         var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder());
@@ -343,6 +344,22 @@ public class WorkflowServiceTests
         var result = await service.SetStageStatusAsync(WorkflowStageIds.OrgRReview, WorkflowStageStatus.Complete, User, CancellationToken.None);
 
         result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task OrgR_review_ignores_unmapped_departments_not_in_this_cycle()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        // No SegmentClassifications row, so this department is not in the cycle.
+        dataDb.OrgRFinancialDepartments.Add(new OrgRFinancialDepartment { FinancialDepartment = "9OLD001", OrgR = null });
+        await dataDb.SaveChangesAsync();
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder());
+        await CompleteThrough(service, WorkflowStageIds.ExpenseReview);
+
+        var result = await service.SetStageStatusAsync(WorkflowStageIds.OrgRReview, WorkflowStageStatus.Complete, User, CancellationToken.None);
+
+        result.Should().NotBeNull();
     }
 
     [Fact]

@@ -5,7 +5,7 @@ import { userEvent } from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { server } from '@/test/mswUtils.ts';
 import { FinancialDepartmentsTab } from '@/components/orgrReview/FinancialDepartmentsTab.tsx';
-import type { OrgRFinancialDepartment } from '@/queries/orgr.ts';
+import type { OrgR, OrgRFinancialDepartment } from '@/queries/orgr.ts';
 
 function renderTab() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -16,37 +16,52 @@ function renderTab() {
   );
 }
 
-const rows: OrgRFinancialDepartment[] = [
-  { description: 'ARE', financialDepartment: 'AARE001', hierarchy: [{ code: 'AAES00C', level: 'C', name: 'CAES' }], inCycle: true, orgR: 'AARE' },
-  { description: 'New', financialDepartment: 'ANEW001', hierarchy: [], inCycle: true, orgR: null },
-  { description: 'Old', financialDepartment: '9OLD001', hierarchy: [], inCycle: false, orgR: 'AARE' },
-  { description: 'Unmapped Old', financialDepartment: '8OLD002', hierarchy: [], inCycle: false, orgR: null },
+const orgRs: OrgR[] = [
+  { code: 'AARE', financialDepartmentCount: 1, nifaProjectCount: 0, referenceCount: 1 },
 ];
 
+const rows: OrgRFinancialDepartment[] = [
+  {
+    description: 'AARE Ag and Resource Economics',
+    financialDepartment: 'AARE001',
+    hierarchy: [
+      { code: '100000A', level: 'A', name: 'UC Davis' },
+      { code: '100000B', level: 'B', name: 'UC Davis Campus' },
+      { code: 'AAES00C', level: 'C', name: 'College of Agricultural and Environmental Sciences' },
+      { code: 'ACL500D', level: 'D', name: 'AAES ACL5 Cluster 5 D' },
+    ],
+    orgR: 'AARE',
+  },
+  { description: 'New', financialDepartment: 'ANEW001', hierarchy: [], orgR: null },
+];
+
+function mockGets() {
+  server.use(
+    http.get('/api/orgr/orgrs', () => HttpResponse.json(orgRs)),
+    http.get('/api/orgr/financial-departments', () => HttpResponse.json(rows))
+  );
+}
+
 describe('FinancialDepartmentsTab', () => {
-  it('shows in-cycle rows by default with unmapped first, and toggles to all', async () => {
-    server.use(
-      http.get('/api/orgr/orgrs', () => HttpResponse.json([{ code: 'AARE', referenceCount: 2 }])),
-      http.get('/api/orgr/financial-departments', () => HttpResponse.json(rows))
-    );
-    const user = userEvent.setup();
+  it('shows unmapped rows first with the name and college-level hierarchy', async () => {
+    mockGets();
     renderTab();
 
     const cells = await screen.findAllByRole('cell', { name: /A(ARE|NEW)001/ });
     expect(cells[0]).toHaveTextContent('ANEW001');
-    expect(screen.queryByText('9OLD001')).not.toBeInTheDocument();
-    // Unmapped rows are shown even when out of cycle and the toggle is on.
-    expect(await screen.findByText('8OLD002')).toBeInTheDocument();
-
-    await user.click(screen.getByLabelText('Only departments in this cycle (unmapped always shown)'));
-    expect(await screen.findByText('9OLD001')).toBeInTheDocument();
+    expect(screen.getByText('AARE Ag and Resource Economics')).toBeInTheDocument();
+    const breadcrumb = screen.getByText(
+      'College of Agricultural and Environmental Sciences / AAES ACL5 Cluster 5 D'
+    );
+    expect(breadcrumb).toHaveAttribute('data-tip', 'AAES00C / ACL500D');
+    expect(screen.queryByText(/UC Davis Campus/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
   });
 
   it('patches the OrgR when the select changes', async () => {
     const patches: { code: string; orgR: string | null }[] = [];
+    mockGets();
     server.use(
-      http.get('/api/orgr/orgrs', () => HttpResponse.json([{ code: 'AARE', referenceCount: 2 }])),
-      http.get('/api/orgr/financial-departments', () => HttpResponse.json(rows)),
       http.patch('/api/orgr/financial-departments/:code', async ({ params, request }) => {
         const body = (await request.json()) as { orgR: string | null };
         patches.push({ code: String(params.code), orgR: body.orgR });
@@ -64,9 +79,8 @@ describe('FinancialDepartmentsTab', () => {
 
   it('keeps the newly mapped row in place instead of resorting it away', async () => {
     const patches: { code: string; orgR: string | null }[] = [];
+    mockGets();
     server.use(
-      http.get('/api/orgr/orgrs', () => HttpResponse.json([{ code: 'AARE', referenceCount: 2 }])),
-      http.get('/api/orgr/financial-departments', () => HttpResponse.json(rows)),
       http.patch('/api/orgr/financial-departments/:code', async ({ params, request }) => {
         const body = (await request.json()) as { orgR: string | null };
         patches.push({ code: String(params.code), orgR: body.orgR });
@@ -87,9 +101,8 @@ describe('FinancialDepartmentsTab', () => {
   });
 
   it('shows the error and reverts the select when the patch fails', async () => {
+    mockGets();
     server.use(
-      http.get('/api/orgr/orgrs', () => HttpResponse.json([{ code: 'AARE', referenceCount: 2 }])),
-      http.get('/api/orgr/financial-departments', () => HttpResponse.json(rows)),
       http.patch('/api/orgr/financial-departments/:code', () => HttpResponse.text('nope', { status: 500 }))
     );
     const user = userEvent.setup();

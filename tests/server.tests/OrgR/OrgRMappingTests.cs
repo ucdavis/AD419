@@ -34,7 +34,7 @@ public class OrgRMappingTests
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
         var designTimeModel = db.GetService<IDesignTimeModel>();
-        foreach (var name in new[] { "OrgRs", "OrgRFinancialDepartments", "OrgRNifaDepartments", "OrgRProjectAdditions", "Projects" })
+        foreach (var name in new[] { "OrgRs", "OrgRFinancialDepartments", "OrgRNifaDepartments", "OrgRProjectAdditions", "Projects", "ChartSegments" })
         {
             var entity = designTimeModel.Model.GetEntityTypes().Single(e => e.GetTableName() == name);
             entity.GetSchema().Should().Be("data");

@@ -29,20 +29,57 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder) 
             .GroupBy(m => m.OrgR!)
             .Select(g => new { OrgR = g.Key, Count = g.Count() })
             .ToDictionaryAsync(g => g.OrgR, g => g.Count, cancellationToken);
-        var additionRefs = await db.OrgRProjectAdditions
+        var additions = await db.OrgRProjectAdditions.ToListAsync(cancellationToken);
+        var additionRefs = additions
             .GroupBy(a => a.OrgR)
-            .Select(g => new { OrgR = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(g => g.OrgR, g => g.Count, cancellationToken);
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        // NIFA projects per OrgR: distinct accessions that land on the OrgR
+        // either through the NIFA department mapping or a manual addition,
+        // the same union [data].[v_ProjXOrgR] exposes.
+        var nifaMap = await db.OrgRNifaDepartments
+            .Where(m => m.OrgR != null)
+            .ToDictionaryAsync(m => m.NifaDepartment, m => m.OrgR!, cancellationToken);
+        var projectPairs = await db.Projects
+            .Select(p => new { p.AccessionNumber, p.NifaProjectNumber })
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        var projectsByOrgR = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in projectPairs)
+        {
+            if (NifaDepartmentOf(pair.NifaProjectNumber) is { } dept && nifaMap.TryGetValue(dept, out var orgR))
+            {
+                ProjectsFor(orgR).Add(pair.AccessionNumber);
+            }
+        }
+
+        foreach (var addition in additions)
+        {
+            ProjectsFor(addition.OrgR).Add(addition.AccessionNumber);
+        }
 
         var dtos = orgRs
             .Select(o => new OrgRDto(
                 o.Code,
+                departmentRefs.GetValueOrDefault(o.Code),
+                projectsByOrgR.TryGetValue(o.Code, out var projects) ? projects.Count : 0,
                 departmentRefs.GetValueOrDefault(o.Code)
                     + nifaRefs.GetValueOrDefault(o.Code)
                     + additionRefs.GetValueOrDefault(o.Code)))
             .ToList();
 
         return Ok(dtos);
+
+        HashSet<string> ProjectsFor(string orgR)
+        {
+            if (!projectsByOrgR.TryGetValue(orgR, out var set))
+            {
+                set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                projectsByOrgR[orgR] = set;
+            }
+
+            return set;
+        }
     }
 
     // PUT api/orgr/orgrs/{code}
@@ -103,41 +140,66 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder) 
     }
 
     // GET api/orgr/financial-departments
+    // Only departments present in this cycle's imported transactions are
+    // returned; SeedSegmentClassifications inserts every such department into
+    // SegmentClassifications, so presence there is the cycle test. The
+    // completion gate in WorkflowService applies the same filter.
     [HttpGet("financial-departments")]
     public async Task<ActionResult<IReadOnlyList<OrgRFinancialDepartmentDto>>> GetFinancialDepartments(
         CancellationToken cancellationToken)
     {
         await seeder.SeedReviewRowsAsync(cancellationToken);
 
-        var mappings = await db.OrgRFinancialDepartments
-            .OrderBy(m => m.FinancialDepartment)
-            .ToListAsync(cancellationToken);
-        var hierarchy = await db.DepartmentHierarchies.ToDictionaryAsync(h => h.Code, cancellationToken);
-
-        // SeedSegmentClassifications inserts every department present in the
-        // imported transactions, so presence there means "in this cycle".
         var inCycle = await db.SegmentClassifications
             .Where(s => s.SegmentType == SegmentType.FinancialDepartment)
             .Select(s => s.Code)
             .ToHashSetAsync(cancellationToken);
+        var mappings = await db.OrgRFinancialDepartments
+            .OrderBy(m => m.FinancialDepartment)
+            .ToListAsync(cancellationToken);
+
+        // Name and hierarchy come from the AE chart segment reference data;
+        // parent codes are segment rows too, so their names resolve from the
+        // same dictionary.
+        var segments = await db.ChartSegments
+            .Where(s => s.SegmentName == FinancialDepartmentSegment)
+            .ToDictionaryAsync(s => s.Code, cancellationToken);
 
         var dtos = mappings
+            .Where(m => inCycle.Contains(m.FinancialDepartment))
             .Select(m =>
             {
-                var source = hierarchy.GetValueOrDefault(m.FinancialDepartment);
-                IReadOnlyList<HierarchyLevelDto> levels = source is null
-                    ? []
-                    : source.Levels().Select(l => new HierarchyLevelDto(l.Level, l.Code, l.Name)).ToList();
+                var segment = segments.GetValueOrDefault(m.FinancialDepartment);
                 return new OrgRFinancialDepartmentDto(
                     m.FinancialDepartment,
-                    source?.Description,
-                    levels,
-                    m.OrgR,
-                    inCycle.Contains(m.FinancialDepartment));
+                    segment?.Description,
+                    HierarchyFor(segment, segments),
+                    m.OrgR);
             })
             .ToList();
 
         return Ok(dtos);
+    }
+
+    private const string FinancialDepartmentSegment = "FinancialDepartment";
+
+    // Levels are lettered A (root) downward to match the hierarchy display
+    // used by Data Classification.
+    private static IReadOnlyList<HierarchyLevelDto> HierarchyFor(
+        ChartSegment? segment,
+        IReadOnlyDictionary<string, ChartSegment> segments)
+    {
+        if (segment is null)
+        {
+            return [];
+        }
+
+        return segment.ParentCodes()
+            .Select((code, index) => new HierarchyLevelDto(
+                ((char)('A' + index)).ToString(),
+                code,
+                segments.GetValueOrDefault(code)?.Description))
+            .ToList();
     }
 
     // PATCH api/orgr/financial-departments/{code}

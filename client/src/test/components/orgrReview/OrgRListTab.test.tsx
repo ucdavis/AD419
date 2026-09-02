@@ -18,13 +18,18 @@ function renderTab() {
 
 describe('OrgRListTab', () => {
   it('lists OrgRs with mapping counts and adds a new one', async () => {
-    let orgRs: OrgR[] = [{ code: 'AARE', referenceCount: 3 }];
+    let orgRs: OrgR[] = [
+      { code: 'AARE', financialDepartmentCount: 2, nifaProjectCount: 5, referenceCount: 3 },
+    ];
     const puts: string[] = [];
     server.use(
       http.get('/api/orgr/orgrs', () => HttpResponse.json(orgRs)),
       http.put('/api/orgr/orgrs/:code', ({ params }) => {
         puts.push(String(params.code));
-        orgRs = [...orgRs, { code: String(params.code), referenceCount: 0 }];
+        orgRs = [
+          ...orgRs,
+          { code: String(params.code), financialDepartmentCount: 0, nifaProjectCount: 0, referenceCount: 0 },
+        ];
         return new HttpResponse(null, { status: 204 });
       })
     );
@@ -32,8 +37,10 @@ describe('OrgRListTab', () => {
     renderTab();
 
     expect(await screen.findByText('AARE')).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Mappings' })).toBeInTheDocument();
-    expect(screen.getByRole('cell', { name: '3' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'NIFA Projects' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Financial Departments' })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: '5' })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: '2' })).toBeInTheDocument();
     expect(screen.queryByLabelText('New OrgR description')).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText('New OrgR code'), 'aplb');
@@ -48,7 +55,7 @@ describe('OrgRListTab', () => {
       http.get('/api/orgr/orgrs', () =>
         // referenceCount 0 so the Delete button is enabled; the server still
         // refuses because a mapping was added elsewhere in the meantime.
-        HttpResponse.json([{ code: 'AARE', referenceCount: 0 }])
+        HttpResponse.json([{ code: 'AARE', financialDepartmentCount: 0, nifaProjectCount: 0, referenceCount: 0 }])
       ),
       http.delete('/api/orgr/orgrs/AARE', () =>
         HttpResponse.text('AARE is used by 2 mappings. Reassign them before deleting it.', { status: 409 })
