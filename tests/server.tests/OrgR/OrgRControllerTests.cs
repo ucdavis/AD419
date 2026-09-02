@@ -102,4 +102,107 @@ public class OrgRControllerTests
 
         result.Should().BeOfType<NotFoundResult>();
     }
+
+    [Fact]
+    public async Task GetFinancialDepartments_seeds_then_returns_rows_with_hierarchy_and_cycle_flag()
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        db.OrgRFinancialDepartments.AddRange(
+            new OrgRFinancialDepartment { FinancialDepartment = "AARE001", OrgR = "AARE" },
+            new OrgRFinancialDepartment { FinancialDepartment = "OLD0001", OrgR = null });
+        db.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.FinancialDepartment, Code = "AARE001", IncludeInReport = true });
+        db.DepartmentHierarchies.Add(new DepartmentHierarchy
+        {
+            Code = "AARE001", Description = "ARE Dept",
+            ParentLevelACode = "UCD", ParentLevelAName = "UC Davis",
+        });
+        await db.SaveChangesAsync();
+        var seeder = new FakeOrgRReviewSeeder();
+        var controller = CreateController(db, seeder);
+
+        var result = await controller.GetFinancialDepartments(CancellationToken.None);
+
+        seeder.Calls.Should().Be(1);
+        var dtos = result.Result.Should().BeOfType<OkObjectResult>().Subject.Value
+            .Should().BeAssignableTo<IEnumerable<OrgRFinancialDepartmentDto>>().Subject.ToList();
+        var aare = dtos.Single(d => d.FinancialDepartment == "AARE001");
+        aare.OrgR.Should().Be("AARE");
+        aare.Description.Should().Be("ARE Dept");
+        aare.InCycle.Should().BeTrue();
+        aare.Hierarchy.Should().ContainSingle(level => level.Code == "UCD");
+        var old = dtos.Single(d => d.FinancialDepartment == "OLD0001");
+        old.InCycle.Should().BeFalse();
+        old.Hierarchy.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SetFinancialDepartmentOrgR_updates_and_clears()
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        db.OrgRs.Add(new OrgR { Code = "AARE" });
+        db.OrgRFinancialDepartments.Add(new OrgRFinancialDepartment { FinancialDepartment = "AARE001" });
+        await db.SaveChangesAsync();
+        var controller = CreateController(db);
+
+        var set = await controller.SetFinancialDepartmentOrgR("AARE001", new SetOrgRRequest("aare"), CancellationToken.None);
+        set.Should().BeOfType<NoContentResult>();
+        db.OrgRFinancialDepartments.Single().OrgR.Should().Be("AARE");
+
+        var cleared = await controller.SetFinancialDepartmentOrgR("AARE001", new SetOrgRRequest(null), CancellationToken.None);
+        cleared.Should().BeOfType<NoContentResult>();
+        db.OrgRFinancialDepartments.Single().OrgR.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task SetFinancialDepartmentOrgR_rejects_unknown_orgr_and_department()
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        db.OrgRFinancialDepartments.Add(new OrgRFinancialDepartment { FinancialDepartment = "AARE001" });
+        await db.SaveChangesAsync();
+        var controller = CreateController(db);
+
+        (await controller.SetFinancialDepartmentOrgR("AARE001", new SetOrgRRequest("ZZZZ"), CancellationToken.None))
+            .Should().BeOfType<BadRequestObjectResult>();
+        (await controller.SetFinancialDepartmentOrgR("NOPE", new SetOrgRRequest(null), CancellationToken.None))
+            .Should().BeOfType<NotFoundResult>();
+    }
+
+    [Fact]
+    public async Task GetNifaDepartments_returns_project_counts()
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        db.OrgRNifaDepartments.AddRange(
+            new OrgRNifaDepartment { NifaDepartment = "ARE", OrgR = "AARE" },
+            new OrgRNifaDepartment { NifaDepartment = "ESP", OrgR = null });
+        db.Projects.AddRange(
+            new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-ARE-2868-H" },
+            new Project { AccessionNumber = "1000002", NifaProjectNumber = "CA-D-ARE-2778-CG" },
+            new Project { AccessionNumber = "1000003", NifaProjectNumber = "CA-D-ESP-2880-H" });
+        await db.SaveChangesAsync();
+        var seeder = new FakeOrgRReviewSeeder();
+        var controller = CreateController(db, seeder);
+
+        var result = await controller.GetNifaDepartments(CancellationToken.None);
+
+        seeder.Calls.Should().Be(1);
+        var dtos = result.Result.Should().BeOfType<OkObjectResult>().Subject.Value
+            .Should().BeAssignableTo<IEnumerable<OrgRNifaDepartmentDto>>().Subject.ToList();
+        dtos.Single(d => d.NifaDepartment == "ARE").ProjectCount.Should().Be(2);
+        dtos.Single(d => d.NifaDepartment == "ESP").ProjectCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task SetNifaDepartmentOrgR_updates_mapping()
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        db.OrgRs.Add(new OrgR { Code = "AARE" });
+        db.OrgRNifaDepartments.Add(new OrgRNifaDepartment { NifaDepartment = "ARE" });
+        await db.SaveChangesAsync();
+        var controller = CreateController(db);
+
+        var result = await controller.SetNifaDepartmentOrgR("ARE", new SetOrgRRequest("AARE"), CancellationToken.None);
+
+        result.Should().BeOfType<NoContentResult>();
+        db.OrgRNifaDepartments.Single().OrgR.Should().Be("AARE");
+    }
 }

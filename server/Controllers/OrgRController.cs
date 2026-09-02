@@ -111,6 +111,139 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder) 
         return NoContent();
     }
 
+    // GET api/orgr/financial-departments
+    [HttpGet("financial-departments")]
+    public async Task<ActionResult<IReadOnlyList<OrgRFinancialDepartmentDto>>> GetFinancialDepartments(
+        CancellationToken cancellationToken)
+    {
+        await seeder.SeedReviewRowsAsync(cancellationToken);
+
+        var mappings = await db.OrgRFinancialDepartments
+            .OrderBy(m => m.FinancialDepartment)
+            .ToListAsync(cancellationToken);
+        var hierarchy = await db.DepartmentHierarchies.ToDictionaryAsync(h => h.Code, cancellationToken);
+
+        // SeedSegmentClassifications inserts every department present in the
+        // imported transactions, so presence there means "in this cycle".
+        var inCycle = await db.SegmentClassifications
+            .Where(s => s.SegmentType == SegmentType.FinancialDepartment)
+            .Select(s => s.Code)
+            .ToHashSetAsync(cancellationToken);
+
+        var dtos = mappings
+            .Select(m =>
+            {
+                var source = hierarchy.GetValueOrDefault(m.FinancialDepartment);
+                IReadOnlyList<HierarchyLevelDto> levels = source is null
+                    ? []
+                    : source.Levels().Select(l => new HierarchyLevelDto(l.Level, l.Code, l.Name)).ToList();
+                return new OrgRFinancialDepartmentDto(
+                    m.FinancialDepartment,
+                    source?.Description,
+                    levels,
+                    m.OrgR,
+                    inCycle.Contains(m.FinancialDepartment));
+            })
+            .ToList();
+
+        return Ok(dtos);
+    }
+
+    // PATCH api/orgr/financial-departments/{code}
+    [HttpPatch("financial-departments/{code}")]
+    public async Task<IActionResult> SetFinancialDepartmentOrgR(
+        string code,
+        [FromBody] SetOrgRRequest request,
+        CancellationToken cancellationToken)
+    {
+        var mapping = await db.OrgRFinancialDepartments.FindAsync([code], cancellationToken);
+        if (mapping is null)
+        {
+            return NotFound();
+        }
+
+        var (orgR, error) = await ResolveOrgRAsync(request.OrgR, cancellationToken);
+        if (error is not null)
+        {
+            return BadRequest(error);
+        }
+
+        mapping.OrgR = orgR;
+        await db.SaveChangesAsync(cancellationToken);
+        return NoContent();
+    }
+
+    // GET api/orgr/nifa-departments
+    [HttpGet("nifa-departments")]
+    public async Task<ActionResult<IReadOnlyList<OrgRNifaDepartmentDto>>> GetNifaDepartments(
+        CancellationToken cancellationToken)
+    {
+        await seeder.SeedReviewRowsAsync(cancellationToken);
+
+        var mappings = await db.OrgRNifaDepartments
+            .OrderBy(m => m.NifaDepartment)
+            .ToListAsync(cancellationToken);
+        var projectNumbers = await db.Projects
+            .Select(p => p.NifaProjectNumber)
+            .ToListAsync(cancellationToken);
+        var counts = projectNumbers
+            .Select(NifaDepartmentOf)
+            .Where(d => d is not null)
+            .GroupBy(d => d!)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var dtos = mappings
+            .Select(m => new OrgRNifaDepartmentDto(m.NifaDepartment, m.OrgR, counts.GetValueOrDefault(m.NifaDepartment)))
+            .ToList();
+
+        return Ok(dtos);
+    }
+
+    // PATCH api/orgr/nifa-departments/{code}
+    [HttpPatch("nifa-departments/{code}")]
+    public async Task<IActionResult> SetNifaDepartmentOrgR(
+        string code,
+        [FromBody] SetOrgRRequest request,
+        CancellationToken cancellationToken)
+    {
+        var mapping = await db.OrgRNifaDepartments.FindAsync([code.ToUpperInvariant()], cancellationToken);
+        if (mapping is null)
+        {
+            return NotFound();
+        }
+
+        var (orgR, error) = await ResolveOrgRAsync(request.OrgR, cancellationToken);
+        if (error is not null)
+        {
+            return BadRequest(error);
+        }
+
+        mapping.OrgR = orgR;
+        await db.SaveChangesAsync(cancellationToken);
+        return NoContent();
+    }
+
+    /// <summary>Characters 6 to 8 of a NIFA project number, e.g. CA-D-ARE-2868-H gives ARE.</summary>
+    internal static string? NifaDepartmentOf(string? nifaProjectNumber) =>
+        nifaProjectNumber is { Length: >= 8 } ? nifaProjectNumber.Substring(5, 3) : null;
+
+    // Null request clears the mapping. A non-null value must be an existing OrgR.
+    private async Task<(string? OrgR, string? Error)> ResolveOrgRAsync(string? requested, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(requested))
+        {
+            return (null, null);
+        }
+
+        var normalized = NormalizeCode(requested);
+        if (normalized is null || !await OrgRExistsAsync(normalized, cancellationToken))
+        {
+            return (null, $"Unknown OrgR '{requested}'.");
+        }
+
+        return (normalized, null);
+    }
+
     private static string? NormalizeCode(string? code)
     {
         var trimmed = code?.Trim().ToUpperInvariant();
