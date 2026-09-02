@@ -38,6 +38,44 @@ public class OrgRSqlTests
         sql.Should().Contain("(N'ADNO', N'Associate Deans Office')");
     }
 
+    [Fact]
+    public void ProjXOrgR_view_unions_default_and_manual_rows()
+    {
+        var sql = ReadDatabaseFile("data/Views/v_ProjXOrgR.sql");
+        sql.Should().Contain("CREATE VIEW [data].[v_ProjXOrgR]");
+        sql.Should().Contain("SUBSTRING(p.[NifaProjectNumber], 6, 3)");
+        sql.Should().Contain("'Default' AS [Source]");
+        sql.Should().Contain("'Manual' AS [Source]");
+        sql.Should().Contain("[data].[OrgRProjectAdditions]");
+        sql.Should().Contain("UNION ALL");
+        sql.Should().NotContain("GETDATE()");
+    }
+
+    [Fact]
+    public void TransactionOrgR_view_forces_title_code_1010_to_ADNO()
+    {
+        var sql = ReadDatabaseFile("data/Views/v_TransactionOrgR.sql");
+        sql.Should().Contain("CREATE VIEW [data].[v_TransactionOrgR]");
+        sql.Should().Contain("'UCPath' AS [Source]");
+        sql.Should().Contain("'AE' AS [Source]");
+        sql.Should().Contain("WHEN u.[JobCode] = '1010' THEN 'ADNO'");
+        sql.Should().Contain("[data].[OrgRFinancialDepartments]");
+        sql.Should().Contain("UNION ALL");
+    }
+
+    [Fact]
+    public void Seed_sproc_inserts_missing_rows_only()
+    {
+        var sql = ReadDatabaseFile("data/StoredProcedures/SeedOrgRReviewRows.sql");
+        sql.Should().Contain("CREATE PROCEDURE [data].[SeedOrgRReviewRows]");
+        sql.Should().Contain("[SegmentType] = 'FinancialDepartment'");
+        sql.Should().Contain("[IncludeInReport] = 1");
+        sql.Should().Contain("SUBSTRING([NifaProjectNumber], 6, 3)");
+        sql.Should().Contain("NOT EXISTS");
+        sql.Should().NotContain("UPDATE ");
+        sql.Should().NotContain("DELETE ");
+    }
+
     internal static string ReadDatabaseFile(string relativePath) =>
         File.ReadAllText(Path.Combine(RepositoryRoot(), "database", relativePath));
 
