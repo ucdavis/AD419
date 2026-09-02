@@ -3,6 +3,7 @@ using Dapper;
 using FluentAssertions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
+using Server.Core.Data;
 using Server.ExpenseReview;
 using Server.Models;
 using Server.Models.ExpenseReview;
@@ -21,7 +22,7 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         await SeedExpenseReviewScenarioAsync();
 
         await using var db = fixture.CreateDataDbContext();
-        var service = new ExpenseReviewService(db, Configuration());
+        var service = CreateService(db);
         var cycle = Cycle();
 
         var all = await service.GetTransactionsAsync(cycle, Request(), CancellationToken.None);
@@ -122,6 +123,35 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
     }
 
     [Fact]
+    public async Task Missing_cache_is_lazily_rebuilt_before_expense_review_reads()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+
+        await using var db = fixture.CreateDataDbContext();
+        var service = CreateService(db);
+
+        var all = await service.GetTransactionsAsync(Cycle(), Request(), CancellationToken.None);
+
+        all.TotalCount.Should().Be(3);
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        var status = await connection.QuerySingleAsync<(int FactRowCount, int ReasonRowCount)>(
+            """
+            SELECT [FactRowCount], [ReasonRowCount]
+            FROM [data].[ExpenseReviewCacheStatus]
+            WHERE [CycleStart] = @cycleStart
+              AND [CycleEnd] = @cycleEnd;
+            """,
+            new
+            {
+                cycleStart = Cycle().CycleStart.ToDateTime(TimeOnly.MinValue),
+                cycleEnd = Cycle().CycleEnd.ToDateTime(TimeOnly.MinValue),
+            });
+        status.FactRowCount.Should().Be(5);
+        status.ReasonRowCount.Should().Be(1);
+    }
+
+    [Fact]
     public async Task Transaction_queries_explain_persisted_exclusion_flags()
     {
         await fixture.ClearDataTablesAsync();
@@ -129,7 +159,7 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         await SeedPersistedExclusionFlagRowsAsync();
 
         await using var db = fixture.CreateDataDbContext();
-        var service = new ExpenseReviewService(db, Configuration());
+        var service = CreateService(db);
 
         var all = await service.GetTransactionsAsync(Cycle(), Request(), CancellationToken.None);
 
@@ -213,7 +243,7 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         await SeedMissingClassificationRowsAsync();
 
         await using var db = fixture.CreateDataDbContext();
-        var service = new ExpenseReviewService(db, Configuration());
+        var service = CreateService(db);
 
         var all = await service.GetTransactionsAsync(Cycle(), Request(), CancellationToken.None);
 
@@ -248,7 +278,7 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         await SeedExpenseReviewScenarioAsync();
 
         await using var db = fixture.CreateDataDbContext();
-        var service = new ExpenseReviewService(db, Configuration());
+        var service = CreateService(db);
         await using var output = new MemoryStream();
 
         await service.WriteTransactionsCsvAsync(
@@ -278,7 +308,7 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         await SeedPersistedExclusionFlagRowsAsync();
 
         await using var db = fixture.CreateDataDbContext();
-        var service = new ExpenseReviewService(db, Configuration());
+        var service = CreateService(db);
         await using var output = new MemoryStream();
 
         await service.WriteTransactionsCsvAsync(
@@ -484,4 +514,10 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
                 ["ConnectionStrings:DataConnection"] = fixture.ConnectionString,
             })
             .Build();
+
+    private ExpenseReviewService CreateService(DataDbContext db)
+    {
+        var configuration = Configuration();
+        return new ExpenseReviewService(db, configuration, new ExpenseReviewCacheService(db, configuration));
+    }
 }

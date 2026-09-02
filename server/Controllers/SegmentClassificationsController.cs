@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Server.Core.Data;
 using Server.Core.Domain;
+using Server.ExpenseReview;
 using Server.Models.SegmentClassifications;
 
 namespace Server.Controllers;
@@ -9,10 +10,14 @@ namespace Server.Controllers;
 public class SegmentClassificationsController : ApiControllerBase
 {
     private readonly DataDbContext _db;
+    private readonly IExpenseReviewCacheService _expenseReviewCacheService;
 
-    public SegmentClassificationsController(DataDbContext db)
+    public SegmentClassificationsController(
+        DataDbContext db,
+        IExpenseReviewCacheService expenseReviewCacheService)
     {
         _db = db;
+        _expenseReviewCacheService = expenseReviewCacheService;
     }
 
     // GET api/segmentclassifications
@@ -91,9 +96,18 @@ public class SegmentClassificationsController : ApiControllerBase
             return BadRequest($"Invalid SFN '{request.Sfn}' for an included fund.");
         }
 
+        var nextSfn = isFund && request.IncludeInReport == true ? request.Sfn : null;
+        var changed = segment.IncludeInReport != request.IncludeInReport
+            || !string.Equals(segment.Sfn, nextSfn, StringComparison.Ordinal);
+
         segment.IncludeInReport = request.IncludeInReport;
-        segment.Sfn = isFund && request.IncludeInReport == true ? request.Sfn : null;
+        segment.Sfn = nextSfn;
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (changed)
+        {
+            await _expenseReviewCacheService.InvalidateAsync(cancellationToken);
+        }
 
         return NoContent();
     }

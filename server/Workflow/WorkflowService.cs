@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Server.Authorization;
 using Server.Core.Data;
 using Server.Core.Domain;
+using Server.ExpenseReview;
 using Server.Models;
 using Server.Models.Workflow;
 
@@ -11,7 +12,8 @@ namespace Server.Workflow;
 
 public sealed class WorkflowService(
     AppDbContext dbContext,
-    DataDbContext dataDbContext) : IWorkflowService
+    DataDbContext dataDbContext,
+    IExpenseReviewCacheService expenseReviewCacheService) : IWorkflowService
 {
     public async Task<WorkflowRun> GetOrCreateCurrentRunAsync(
         ClaimsPrincipal user,
@@ -106,6 +108,13 @@ public sealed class WorkflowService(
             if (!await CanCompleteStageAsync(definition.Id, cancellationToken))
             {
                 return null;
+            }
+
+            if (definition.Id == WorkflowStageIds.DataClassification)
+            {
+                await expenseReviewCacheService.ForceRefreshAsync(
+                    new FiscalYearCycle(run.FiscalYear, run.CycleStart, run.CycleEnd),
+                    cancellationToken);
             }
 
             CompleteStage(state, user, now);

@@ -13,11 +13,23 @@ public class ExpenseReviewServiceSqlTests
 
         sql.Should().NotContain("OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY");
         sql.Should().Contain("INTO #Grouped");
-        sql.Should().Contain("INTO #AggregatedReasons");
+        sql.Should().Contain("[data].[ExpenseReviewTransactionFacts]");
+        sql.Should().Contain("[data].[ExpenseReviewTransactionReasons]");
         sql.Should().Contain("ORDER BY");
         sql.Should().Contain("t.[Source]");
         sql.Should().Contain("CAST(NULL AS NVARCHAR(20)) AS [AccountingPeriod]");
         sql.Should().NotContain("t.[AccountingPeriod],");
+    }
+
+    [Fact]
+    public void BuildTransactionsSql_aggregates_reasons_after_pagination()
+    {
+        var sql = ExpenseReviewService.BuildTransactionsSql(Request());
+
+        sql.Should().Contain("INNER JOIN #PagedGroupIds p ON p.[Id] = t.[GroupId]");
+        sql.Should().Contain("[data].[ExpenseReviewTransactionReasons]");
+        sql.Should().NotContain("INTO #CycleReasons");
+        sql.Should().NotContain("INTO #FilteredReasons");
     }
 
     [Fact]

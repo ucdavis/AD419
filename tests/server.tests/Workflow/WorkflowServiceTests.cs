@@ -2,6 +2,8 @@ using System.Security.Claims;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Server.Core.Domain;
+using Server.Models;
+using Server.Tests.ExpenseReview;
 using Server.Workflow;
 
 namespace Server.Tests.Workflow;
@@ -21,7 +23,7 @@ public class WorkflowServiceTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
-        var service = new WorkflowService(db, dataDb);
+        var service = new WorkflowService(db, dataDb, new StubExpenseReviewCacheService());
 
         var snapshot = await service.GetSnapshotAsync(User, CancellationToken.None);
 
@@ -70,7 +72,7 @@ public class WorkflowServiceTests
         db.WorkflowRuns.Add(run);
         await db.SaveChangesAsync();
         var projectIdentificationStateId = run.StageStates.Single().Id;
-        var service = new WorkflowService(db, dataDb);
+        var service = new WorkflowService(db, dataDb, new StubExpenseReviewCacheService());
 
         var snapshot = await service.GetSnapshotAsync(User, CancellationToken.None);
 
@@ -96,7 +98,7 @@ public class WorkflowServiceTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
-        var service = new WorkflowService(db, dataDb);
+        var service = new WorkflowService(db, dataDb, new StubExpenseReviewCacheService());
         await service.GetSnapshotAsync(User, CancellationToken.None);
 
         var blocked = await service.SetStageStatusAsync(
@@ -126,7 +128,7 @@ public class WorkflowServiceTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
-        var service = new WorkflowService(db, dataDb);
+        var service = new WorkflowService(db, dataDb, new StubExpenseReviewCacheService());
         await service.SetStageStatusAsync(
             WorkflowStageIds.ProjectIdentification,
             WorkflowStageStatus.Complete,
@@ -178,7 +180,7 @@ public class WorkflowServiceTests
             SegmentType = SegmentType.Fund,
         });
         await dataDb.SaveChangesAsync();
-        var service = new WorkflowService(db, dataDb);
+        var service = new WorkflowService(db, dataDb, new StubExpenseReviewCacheService());
 
         await service.SetStageStatusAsync(
             WorkflowStageIds.ProjectIdentification,
@@ -203,11 +205,43 @@ public class WorkflowServiceTests
     }
 
     [Fact]
+    public async Task Completing_data_classification_force_refreshes_expense_review_cache()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var cache = new StubExpenseReviewCacheService();
+        var service = new WorkflowService(db, dataDb, cache);
+
+        await service.SetStageStatusAsync(
+            WorkflowStageIds.ProjectIdentification,
+            WorkflowStageStatus.Complete,
+            User,
+            CancellationToken.None);
+        await service.SetStageStatusAsync(
+            WorkflowStageIds.DataImport,
+            WorkflowStageStatus.Complete,
+            User,
+            CancellationToken.None);
+
+        var snapshot = await service.SetStageStatusAsync(
+            WorkflowStageIds.DataClassification,
+            WorkflowStageStatus.Complete,
+            User,
+            CancellationToken.None);
+
+        snapshot.Should().NotBeNull();
+        cache.ForceRefreshCount.Should().Be(1);
+        cache.LastForcedCycle.Should().BeEquivalentTo(FiscalYearCycle.Current());
+        snapshot!.Stages.Single(stage => stage.Id == WorkflowStageIds.ExpenseReview)
+            .Status.Should().Be(WorkflowStageStatus.InProgress);
+    }
+
+    [Fact]
     public async Task Repeating_in_progress_preserves_started_audit_and_clears_completion_and_downstream()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
-        var service = new WorkflowService(db, dataDb);
+        var service = new WorkflowService(db, dataDb, new StubExpenseReviewCacheService());
         await service.GetSnapshotAsync(User, CancellationToken.None);
         var startedAt = DateTimeOffset.Parse("2026-06-01T12:00:00Z");
         var completedAt = DateTimeOffset.Parse("2026-06-02T12:00:00Z");
@@ -269,7 +303,7 @@ public class WorkflowServiceTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
-        var service = new WorkflowService(db, dataDb);
+        var service = new WorkflowService(db, dataDb, new StubExpenseReviewCacheService());
         await service.SetStageStatusAsync(
             WorkflowStageIds.ProjectIdentification,
             WorkflowStageStatus.Complete,
