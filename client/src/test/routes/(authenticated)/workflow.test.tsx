@@ -1094,10 +1094,10 @@ describe('AD419 workflow routes', () => {
 
         return HttpResponse.json(
           createWorkflowSnapshot({
-            'auto-associations': 'InProgress',
             'data-classification': 'Complete',
             'data-import': 'Complete',
             'expense-review': 'Complete',
+            'orgr-review': 'InProgress',
             'project-identification': 'Complete',
           })
         );
@@ -1115,20 +1115,20 @@ describe('AD419 workflow routes', () => {
 
       await user.click(
         screen.getByRole('button', {
-          name: /continue to auto-associations/i,
+          name: /continue to orgr review/i,
         })
       );
 
       await waitFor(() => {
         expect(updateRequests).toBe(1);
         expect(router.state.location.pathname).toBe(
-          '/workflow/auto-associations'
+          '/workflow/orgr-review'
         );
       });
       expect(
         await screen.findByRole('heading', {
           level: 1,
-          name: 'Auto-Associations',
+          name: 'OrgR Review',
         })
       ).toBeInTheDocument();
     } finally {
@@ -1165,7 +1165,7 @@ describe('AD419 workflow routes', () => {
         screen.getAllByTitle(
           'Locked until all previous steps are complete.'
         )
-      ).toHaveLength(7);
+      ).toHaveLength(8);
     } finally {
       cleanup();
     }
@@ -1187,6 +1187,7 @@ describe('AD419 workflow routes', () => {
             'data-import': 'Complete',
             'expense-review': 'Complete',
             'manual-associations': 'InProgress',
+            'orgr-review': 'Complete',
             'project-identification': 'Complete',
           })
         );
@@ -1203,6 +1204,7 @@ describe('AD419 workflow routes', () => {
             'data-import': 'Complete',
             'expense-review': 'Complete',
             'manual-associations': 'Complete',
+            'orgr-review': 'Complete',
             'post-association-review': 'InProgress',
             'project-identification': 'Complete',
           })

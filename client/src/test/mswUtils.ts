@@ -39,29 +39,36 @@ const workflowStageDefinitions = [
   },
   {
     description:
+      'Assign an OrgR to every financial department and NIFA department before associations run.',
+    id: 'orgr-review',
+    number: 5,
+    title: 'OrgR Review',
+  },
+  {
+    description:
       'Run the rules engine to associate as many expenses as possible before manual review.',
     id: 'auto-associations',
-    number: 5,
+    number: 6,
     title: 'Auto-Associations',
   },
   {
     description: 'Complete any associations that require manual review in AD419 Next.',
     id: 'manual-associations',
-    number: 6,
+    number: 7,
     title: 'Manual Associations',
   },
   {
     description:
       'Resolve flagged items after manual associations are complete.',
     id: 'post-association-review',
-    number: 7,
+    number: 8,
     title: 'Post-Association Review',
   },
   {
     description:
       'Generate the final files for ANR submission and cycle signoff.',
     id: 'final-reports',
-    number: 8,
+    number: 9,
     title: 'Final Reports',
   },
 ] satisfies Array<Pick<WorkflowStage, 'description' | 'id' | 'number' | 'title'>>;
