@@ -9,11 +9,11 @@ AS
 -- financial department mapping. AE has no title code and uses the mapping
 -- only. Unmapped departments yield NULL.
 SELECT
-    'UCPath' AS [Source],
-    u.[LaborTransactionId] AS [TransactionId],
+    N'UCPath' AS [Source],
+    CAST(u.[LaborTransactionId] AS NVARCHAR(125)) AS [TransactionId],
     u.[FinancialDepartment],
     u.[JobCode],
-    CASE WHEN u.[JobCode] = '1010' THEN 'ADNO' ELSE f.[OrgR] END AS [OrgR]
+    CASE WHEN u.[JobCode] = '1010' THEN N'ADNO' ELSE f.[OrgR] END AS [OrgR]
 FROM [data].[UcPathTransactions] u
 LEFT JOIN [data].[OrgRFinancialDepartments] f
     ON f.[FinancialDepartment] = u.[FinancialDepartment]
@@ -21,8 +21,8 @@ LEFT JOIN [data].[OrgRFinancialDepartments] f
 UNION ALL
 
 SELECT
-    'AE' AS [Source],
-    a.[Id] AS [TransactionId],
+    N'AE' AS [Source],
+    CAST(a.[Id] AS NVARCHAR(125)) AS [TransactionId],
     a.[FinancialDepartment],
     CAST(NULL AS NVARCHAR(4)) AS [JobCode],
     f.[OrgR]

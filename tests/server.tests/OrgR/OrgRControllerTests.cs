@@ -176,6 +176,9 @@ public class OrgRControllerTests
             new OrgRNifaDepartment { NifaDepartment = "ESP", OrgR = null });
         db.Projects.AddRange(
             new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-ARE-2868-H" },
+            // Projects is at NIFA x AE grain: a second row for the same
+            // accession (e.g. a second AE project) must not double-count.
+            new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-ARE-2868-H" },
             new Project { AccessionNumber = "1000002", NifaProjectNumber = "CA-D-ARE-2778-CG" },
             new Project { AccessionNumber = "1000003", NifaProjectNumber = "CA-D-ESP-2880-H" });
         await db.SaveChangesAsync();
@@ -228,6 +231,27 @@ public class OrgRControllerTests
         dtos.Should().HaveCount(2);
         dtos.Should().ContainSingle(d => d.AccessionNumber == "1000001" && d.OrgR == "AARE" && d.Source == "Default" && d.Title == "Water");
         dtos.Should().ContainSingle(d => d.AccessionNumber == "1000001" && d.OrgR == "APLS" && d.Source == "Manual");
+    }
+
+    [Fact]
+    public async Task GetProjects_dedupes_default_rows_for_projects_at_nifa_x_ae_grain()
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        db.OrgRNifaDepartments.Add(new OrgRNifaDepartment { NifaDepartment = "ARE", OrgR = "AARE" });
+        // Projects is at NIFA x AE grain: this accession has two rows for the
+        // same NifaProjectNumber (e.g. two AE projects). The Default rows
+        // must still yield exactly one row for this OrgR.
+        db.Projects.AddRange(
+            new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-ARE-2868-H", Title = "Water" },
+            new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-ARE-2868-H", Title = "Water AE" });
+        await db.SaveChangesAsync();
+        var controller = CreateController(db);
+
+        var result = await controller.GetProjects(CancellationToken.None);
+
+        var dtos = result.Result.Should().BeOfType<OkObjectResult>().Subject.Value
+            .Should().BeAssignableTo<IEnumerable<ProjectOrgRDto>>().Subject.ToList();
+        dtos.Should().ContainSingle(d => d.AccessionNumber == "1000001" && d.Source == "Default");
     }
 
     [Fact]

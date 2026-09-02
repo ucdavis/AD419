@@ -184,9 +184,15 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder) 
         var mappings = await db.OrgRNifaDepartments
             .OrderBy(m => m.NifaDepartment)
             .ToListAsync(cancellationToken);
-        var projectNumbers = await db.Projects
-            .Select(p => p.NifaProjectNumber)
-            .ToListAsync(cancellationToken);
+        // Projects is at NIFA x AE grain, so multiple rows can share an
+        // AccessionNumber; dedupe by accession before counting so a project
+        // with several AE rows is not counted more than once.
+        var projectNumbers = (await db.Projects
+                .Select(p => new { p.AccessionNumber, p.NifaProjectNumber })
+                .ToListAsync(cancellationToken))
+            .GroupBy(p => p.AccessionNumber)
+            .Select(g => g.First().NifaProjectNumber)
+            .ToList();
         var counts = projectNumbers
             .Select(NifaDepartmentOf)
             .Where(d => d is not null)
@@ -238,11 +244,15 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder) 
             .Where(m => m.OrgR != null)
             .ToDictionaryAsync(m => m.NifaDepartment, m => m.OrgR!, cancellationToken);
         var additions = await db.OrgRProjectAdditions.ToListAsync(cancellationToken);
+        // Projects is at NIFA x AE grain, so several rows can share the same
+        // (AccessionNumber, NifaProjectNumber) pair; dedupe to one row per
+        // project before building the Default rows so the grid shows each
+        // project once per OrgR.
         var projectsByAccession = projects
             .GroupBy(p => p.AccessionNumber)
             .ToDictionary(g => g.Key, g => g.First());
 
-        var defaults = projects
+        var defaults = projectsByAccession.Values
             .Select(p => (Project: p, OrgR: NifaDepartmentOf(p.NifaProjectNumber) is { } dept ? nifaMap.GetValueOrDefault(dept) : null))
             .Where(x => x.OrgR is not null)
             .Select(x => ToDto(x.Project, x.OrgR!, "Default"));

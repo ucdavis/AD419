@@ -44,6 +44,7 @@ public class OrgRSqlTests
         var sql = ReadDatabaseFile("data/Views/v_ProjXOrgR.sql");
         sql.Should().Contain("CREATE VIEW [data].[v_ProjXOrgR]");
         sql.Should().Contain("SUBSTRING(p.[NifaProjectNumber], 6, 3)");
+        sql.Should().Contain("SELECT DISTINCT");
         sql.Should().Contain("'Default' AS [Source]");
         sql.Should().Contain("'Manual' AS [Source]");
         sql.Should().Contain("[data].[OrgRProjectAdditions]");
@@ -56,11 +57,14 @@ public class OrgRSqlTests
     {
         var sql = ReadDatabaseFile("data/Views/v_TransactionOrgR.sql");
         sql.Should().Contain("CREATE VIEW [data].[v_TransactionOrgR]");
-        sql.Should().Contain("'UCPath' AS [Source]");
-        sql.Should().Contain("'AE' AS [Source]");
-        sql.Should().Contain("WHEN u.[JobCode] = '1010' THEN 'ADNO'");
+        sql.Should().Contain("N'UCPath' AS [Source]");
+        sql.Should().Contain("N'AE' AS [Source]");
+        sql.Should().Contain("WHEN u.[JobCode] = '1010' THEN N'ADNO'");
         sql.Should().Contain("[data].[OrgRFinancialDepartments]");
         sql.Should().Contain("UNION ALL");
+        sql.Should().ContainAll(
+            "CAST(u.[LaborTransactionId] AS NVARCHAR(125)) AS [TransactionId]",
+            "CAST(a.[Id] AS NVARCHAR(125)) AS [TransactionId]");
     }
 
     [Fact]
