@@ -19,13 +19,9 @@ public sealed class ExpenseReviewCacheService(
 
     public async Task InvalidateAsync(CancellationToken cancellationToken)
     {
-        await using var connection = CreateConnection();
-        await connection.OpenAsync(cancellationToken);
-
-        await connection.ExecuteAsync(new CommandDefinition(
+        await dataDbContext.Database.ExecuteSqlRawAsync(
             "DELETE FROM [data].[ExpenseReviewCacheStatus];",
-            commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
-            cancellationToken: cancellationToken));
+            cancellationToken);
     }
 
     private async Task RefreshAsync(

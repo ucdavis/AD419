@@ -123,6 +123,27 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
     }
 
     [Fact]
+    public async Task UcPath_accounting_period_labels_use_uc_fiscal_year_period_mapping()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        await SeedUcPathPeriodBoundaryRowsAsync();
+
+        await using var db = fixture.CreateDataDbContext();
+        var service = CreateService(db);
+
+        var periodSplit = await service.GetTransactionsAsync(
+            Cycle(),
+            Request(displayByPeriod: true, sortBy: "accountingPeriod", filters: Filters(source: ["UCP"])),
+            CancellationToken.None);
+
+        periodSplit.Rows.Should().Contain(row =>
+            row.AccountingPeriod == "Dec-24" && row.Amount == 601m);
+        periodSplit.Rows.Should().Contain(row =>
+            row.AccountingPeriod == "Jan-25" && row.Amount == 701m);
+    }
+
+    [Fact]
     public async Task Missing_cache_is_lazily_rebuilt_before_expense_review_reads()
     {
         await fixture.ClearDataTablesAsync();
@@ -389,11 +410,11 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
                  [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
             VALUES
                 ('UCP-INCLUDED', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01',
-                 '20000001', 'POS00001', 80.000000, 200.00, 0.500000, '2024-11-15', 'S', 2024, '5', 0, 0, 0, 0),
+                 '20000001', 'POS00001', 80.000000, 200.00, 0.500000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
                 ('UCP-ERN-MISSING', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E02',
-                 '20000002', 'POS00002', 40.000000, 300.00, 0.250000, '2024-11-30', 'S', 2024, '5', 0, 0, 0, 0),
+                 '20000002', 'POS00002', 40.000000, 300.00, 0.250000, '2024-11-30', 'S', 2025, '5', 0, 0, 0, 0),
                 ('UCP-OUTSIDE', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01',
-                 '20000003', 'POS00003', 40.000000, 999.00, 0.250000, '2023-11-30', 'S', 2024, '5', 0, 0, 0, 0);
+                 '20000003', 'POS00003', 40.000000, 999.00, 0.250000, '2023-11-30', 'S', 2025, '5', 0, 0, 0, 0);
             """);
     }
 
@@ -424,9 +445,29 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
                  [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
             VALUES
                 ('UCP-FLAG-EXCLUDED', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01',
-                 '20000004', 'POS00004', 10.000000, 403.00, 0.050000, '2024-11-30', 'S', 2024, '5', 0, 0, 1, 0),
+                 '20000004', 'POS00004', 10.000000, 403.00, 0.050000, '2024-11-30', 'S', 2025, '5', 0, 0, 1, 0),
                 ('UCP-ACCOUNT-NOT-AE', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01',
-                 '20000005', 'POS00005', 10.000000, 404.00, 0.050000, '2024-11-30', 'S', 2024, '5', 0, 0, 0, 1);
+                 '20000005', 'POS00005', 10.000000, 404.00, 0.050000, '2024-11-30', 'S', 2025, '5', 0, 0, 0, 1);
+            """);
+    }
+
+    private async Task SeedUcPathPeriodBoundaryRowsAsync()
+    {
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [PositionNumber],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
+            VALUES
+                ('UCP-PERIOD-6', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01',
+                 '20000006', 'POS00006', 10.000000, 601.00, 0.050000, '2024-12-31', 'S', 2025, '6', 0, 0, 0, 0),
+                ('UCP-PERIOD-7', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01',
+                 '20000007', 'POS00007', 10.000000, 701.00, 0.050000, '2025-01-31', 'S', 2025, '7', 0, 0, 0, 0);
             """);
     }
 

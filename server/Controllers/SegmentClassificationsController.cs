@@ -100,14 +100,17 @@ public class SegmentClassificationsController : ApiControllerBase
         var changed = segment.IncludeInReport != request.IncludeInReport
             || !string.Equals(segment.Sfn, nextSfn, StringComparison.Ordinal);
 
+        if (!changed)
+        {
+            return NoContent();
+        }
+
         segment.IncludeInReport = request.IncludeInReport;
         segment.Sfn = nextSfn;
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
-
-        if (changed)
-        {
-            await _expenseReviewCacheService.InvalidateAsync(cancellationToken);
-        }
+        await _expenseReviewCacheService.InvalidateAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return NoContent();
     }

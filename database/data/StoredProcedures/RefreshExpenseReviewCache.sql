@@ -257,8 +257,8 @@ BEGIN
             WHEN periodValue.[PeriodNumber] BETWEEN 1 AND 12
             THEN DATEFROMPARTS(
                 CASE
-                    WHEN periodValue.[PeriodNumber] BETWEEN 1 AND 6 THEN u.[FiscalYear]
-                    ELSE u.[FiscalYear] - 1
+                    WHEN periodValue.[PeriodNumber] BETWEEN 1 AND 6 THEN u.[FiscalYear] - 1
+                    ELSE u.[FiscalYear]
                 END,
                 ((periodValue.[PeriodNumber] + 5) % 12) + 1,
                 1)

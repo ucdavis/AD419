@@ -231,7 +231,10 @@ public class WorkflowServiceTests
 
         snapshot.Should().NotBeNull();
         cache.ForceRefreshCount.Should().Be(1);
-        cache.LastForcedCycle.Should().BeEquivalentTo(FiscalYearCycle.Current());
+        cache.LastForcedCycle.Should().BeEquivalentTo(new FiscalYearCycle(
+            snapshot!.FiscalYear,
+            snapshot.CycleStart,
+            snapshot.CycleEnd));
         snapshot!.Stages.Single(stage => stage.Id == WorkflowStageIds.ExpenseReview)
             .Status.Should().Be(WorkflowStageStatus.InProgress);
     }
