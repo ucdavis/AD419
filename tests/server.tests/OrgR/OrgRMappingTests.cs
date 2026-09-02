@@ -15,7 +15,7 @@ public class OrgRMappingTests
     public async Task OrgR_entities_round_trip_through_data_context()
     {
         await using var db = TestDbContextFactory.CreateDataInMemory();
-        db.OrgRs.Add(new OrgR { Code = "AARE", Description = "Ag and Resource Economics" });
+        db.OrgRs.Add(new OrgR { Code = "AARE" });
         db.OrgRFinancialDepartments.Add(new OrgRFinancialDepartment { FinancialDepartment = "AARE001", OrgR = "AARE" });
         db.OrgRNifaDepartments.Add(new OrgRNifaDepartment { NifaDepartment = "ARE", OrgR = "AARE" });
         db.OrgRProjectAdditions.Add(new OrgRProjectAddition { AccessionNumber = "1000001", OrgR = "AARE" });

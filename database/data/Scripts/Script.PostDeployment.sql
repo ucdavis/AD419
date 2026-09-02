@@ -31,8 +31,8 @@ WHEN NOT MATCHED BY TARGET THEN
 -- rows to it. All other OrgRs are loaded once per environment outside source
 -- control and maintained in-app.
 MERGE [data].[OrgRs] AS target
-USING (VALUES (N'ADNO', N'Associate Deans Office')) AS source ([Code], [Description])
+USING (VALUES (N'ADNO')) AS source ([Code])
     ON target.[Code] = source.[Code]
 WHEN NOT MATCHED BY TARGET THEN
-    INSERT ([Code], [Description])
-    VALUES (source.[Code], source.[Description]);
+    INSERT ([Code])
+    VALUES (source.[Code]);

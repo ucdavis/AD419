@@ -26,7 +26,7 @@ const rows: OrgRFinancialDepartment[] = [
 describe('FinancialDepartmentsTab', () => {
   it('shows in-cycle rows by default with unmapped first, and toggles to all', async () => {
     server.use(
-      http.get('/api/orgr/orgrs', () => HttpResponse.json([{ code: 'AARE', description: null, referenceCount: 2 }])),
+      http.get('/api/orgr/orgrs', () => HttpResponse.json([{ code: 'AARE', referenceCount: 2 }])),
       http.get('/api/orgr/financial-departments', () => HttpResponse.json(rows))
     );
     const user = userEvent.setup();
@@ -45,7 +45,7 @@ describe('FinancialDepartmentsTab', () => {
   it('patches the OrgR when the select changes', async () => {
     const patches: { code: string; orgR: string | null }[] = [];
     server.use(
-      http.get('/api/orgr/orgrs', () => HttpResponse.json([{ code: 'AARE', description: null, referenceCount: 2 }])),
+      http.get('/api/orgr/orgrs', () => HttpResponse.json([{ code: 'AARE', referenceCount: 2 }])),
       http.get('/api/orgr/financial-departments', () => HttpResponse.json(rows)),
       http.patch('/api/orgr/financial-departments/:code', async ({ params, request }) => {
         const body = (await request.json()) as { orgR: string | null };
@@ -65,7 +65,7 @@ describe('FinancialDepartmentsTab', () => {
   it('keeps the newly mapped row in place instead of resorting it away', async () => {
     const patches: { code: string; orgR: string | null }[] = [];
     server.use(
-      http.get('/api/orgr/orgrs', () => HttpResponse.json([{ code: 'AARE', description: null, referenceCount: 2 }])),
+      http.get('/api/orgr/orgrs', () => HttpResponse.json([{ code: 'AARE', referenceCount: 2 }])),
       http.get('/api/orgr/financial-departments', () => HttpResponse.json(rows)),
       http.patch('/api/orgr/financial-departments/:code', async ({ params, request }) => {
         const body = (await request.json()) as { orgR: string | null };
@@ -88,7 +88,7 @@ describe('FinancialDepartmentsTab', () => {
 
   it('shows the error and reverts the select when the patch fails', async () => {
     server.use(
-      http.get('/api/orgr/orgrs', () => HttpResponse.json([{ code: 'AARE', description: null, referenceCount: 2 }])),
+      http.get('/api/orgr/orgrs', () => HttpResponse.json([{ code: 'AARE', referenceCount: 2 }])),
       http.get('/api/orgr/financial-departments', () => HttpResponse.json(rows)),
       http.patch('/api/orgr/financial-departments/:code', () => HttpResponse.text('nope', { status: 500 }))
     );

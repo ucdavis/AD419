@@ -2,9 +2,7 @@ using Server.Models.SegmentClassifications;
 
 namespace Server.Models.OrgR;
 
-public sealed record OrgRDto(string Code, string? Description, int ReferenceCount);
-
-public sealed record UpsertOrgRRequest(string? Description);
+public sealed record OrgRDto(string Code, int ReferenceCount);
 
 public sealed record OrgRFinancialDepartmentDto(
     string FinancialDepartment,

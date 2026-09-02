@@ -8,7 +8,6 @@ import type { HierarchyLevel } from '@/queries/segmentClassifications.ts';
 
 export interface OrgR {
   code: string;
-  description: string | null;
   referenceCount: number;
 }
 
@@ -78,12 +77,11 @@ export function apiErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
-export const useUpsertOrgR = () => {
+export const useCreateOrgR = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { code: string; description: string | null }) =>
-      fetchJson<void>(`/api/orgr/orgrs/${encodeURIComponent(input.code)}`, {
-        body: JSON.stringify({ description: input.description }),
+    mutationFn: (code: string) =>
+      fetchJson<void>(`/api/orgr/orgrs/${encodeURIComponent(code)}`, {
         method: 'PUT',
       }),
     mutationKey: ORGR_MUTATION_KEY,

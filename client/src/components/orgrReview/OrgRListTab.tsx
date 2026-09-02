@@ -3,8 +3,8 @@ import {
   apiErrorMessage,
   type OrgR,
   orgRsQueryOptions,
+  useCreateOrgR,
   useDeleteOrgR,
-  useUpsertOrgR,
 } from '@/queries/orgr.ts';
 import { ConfirmationDialog } from '@/shared/ConfirmationDialog.tsx';
 import { DataTable } from '@/shared/dataTable.tsx';
@@ -14,10 +14,9 @@ import type { ColumnDef } from '@tanstack/react-table';
 
 export function OrgRListTab() {
   const { data: orgRs = [], isLoading } = useQuery(orgRsQueryOptions());
-  const upsert = useUpsertOrgR();
+  const create = useCreateOrgR();
   const remove = useDeleteOrgR();
   const [newCode, setNewCode] = useState('');
-  const [newDescription, setNewDescription] = useState('');
   const [pendingDelete, setPendingDelete] = useState<OrgR | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,28 +30,10 @@ export function OrgRListTab() {
       return;
     }
     setError(null);
-    upsert.mutate(
-      { code, description: newDescription.trim() || null },
-      {
-        onError: (err) => setError(apiErrorMessage(err, 'Could not add the OrgR.')),
-        onSuccess: () => {
-          setNewCode('');
-          setNewDescription('');
-        },
-      }
-    );
-  };
-
-  const handleDescriptionBlur = (orgR: OrgR, description: string) => {
-    const trimmed = description.trim() || null;
-    if (trimmed === orgR.description) {
-      return;
-    }
-    setError(null);
-    upsert.mutate(
-      { code: orgR.code, description: trimmed },
-      { onError: (err) => setError(apiErrorMessage(err, 'Could not update the OrgR.')) }
-    );
+    create.mutate(code, {
+      onError: (err) => setError(apiErrorMessage(err, 'Could not add the OrgR.')),
+      onSuccess: () => setNewCode(''),
+    });
   };
 
   const confirmDelete = () => {
@@ -69,20 +50,7 @@ export function OrgRListTab() {
 
   const columns: ColumnDef<OrgR>[] = [
     { accessorKey: 'code', header: 'OrgR' },
-    {
-      accessorKey: 'description',
-      cell: ({ row }) => (
-        <input
-          aria-label={`Description for ${row.original.code}`}
-          className="input input-bordered input-sm w-full"
-          defaultValue={row.original.description ?? ''}
-          key={row.original.description ?? ''}
-          onBlur={(event) => handleDescriptionBlur(row.original, event.target.value)}
-        />
-      ),
-      header: 'Description',
-    },
-    { accessorKey: 'referenceCount', header: 'Used by' },
+    { accessorKey: 'referenceCount', header: 'Mappings' },
     {
       cell: ({ row }) => (
         <button
@@ -124,19 +92,9 @@ export function OrgRListTab() {
             value={newCode}
           />
         </label>
-        <label className="form-control grow">
-          <span className="label-text">Description</span>
-          <input
-            aria-label="New OrgR description"
-            className="input input-bordered input-sm w-full"
-            maxLength={200}
-            onChange={(event) => setNewDescription(event.target.value)}
-            value={newDescription}
-          />
-        </label>
         <button
           className="btn btn-primary btn-sm"
-          disabled={!newCode.trim() || upsert.isPending}
+          disabled={!newCode.trim() || create.isPending}
           type="submit"
         >
           Add OrgR
@@ -158,8 +116,7 @@ export function OrgRListTab() {
           <ExportDataButton
             columns={[
               { header: 'OrgR', key: 'code' },
-              { header: 'Description', key: 'description' },
-              { header: 'Used by', key: 'referenceCount' },
+              { header: 'Mappings', key: 'referenceCount' },
             ]}
             data={orgRs}
             filename="ad419-orgr-list.csv"

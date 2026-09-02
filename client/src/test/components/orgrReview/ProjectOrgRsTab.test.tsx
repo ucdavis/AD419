@@ -28,8 +28,8 @@ describe('ProjectOrgRsTab', () => {
     server.use(
       http.get('/api/orgr/orgrs', () =>
         HttpResponse.json([
-          { code: 'AARE', description: null, referenceCount: 1 },
-          { code: 'APLS', description: null, referenceCount: 1 },
+          { code: 'AARE', referenceCount: 1 },
+          { code: 'APLS', referenceCount: 1 },
         ])
       ),
       http.get('/api/orgr/projects', () => HttpResponse.json(rows)),

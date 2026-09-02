@@ -15,7 +15,7 @@ public class OrgRControllerTests
     public async Task GetOrgRs_returns_codes_with_reference_counts()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
-        db.OrgRs.AddRange(new OrgR { Code = "AARE", Description = "ARE" }, new OrgR { Code = "ADNO" });
+        db.OrgRs.AddRange(new OrgR { Code = "AARE" }, new OrgR { Code = "ADNO" });
         db.OrgRFinancialDepartments.Add(new OrgRFinancialDepartment { FinancialDepartment = "AARE001", OrgR = "AARE" });
         db.OrgRNifaDepartments.Add(new OrgRNifaDepartment { NifaDepartment = "ARE", OrgR = "AARE" });
         db.OrgRProjectAdditions.Add(new OrgRProjectAddition { AccessionNumber = "1000001", OrgR = "AARE" });
@@ -32,19 +32,17 @@ public class OrgRControllerTests
     }
 
     [Fact]
-    public async Task UpsertOrgR_creates_then_updates_and_normalizes_code()
+    public async Task CreateOrgR_normalizes_code_and_is_idempotent()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
         var controller = CreateController(db);
 
-        var created = await controller.UpsertOrgR(" aare ", new UpsertOrgRRequest("Ag Econ"), CancellationToken.None);
-        var updated = await controller.UpsertOrgR("AARE", new UpsertOrgRRequest("Ag and Resource Economics"), CancellationToken.None);
+        var created = await controller.CreateOrgR(" aare ", CancellationToken.None);
+        var again = await controller.CreateOrgR("AARE", CancellationToken.None);
 
         created.Should().BeOfType<NoContentResult>();
-        updated.Should().BeOfType<NoContentResult>();
-        var row = db.OrgRs.Single();
-        row.Code.Should().Be("AARE");
-        row.Description.Should().Be("Ag and Resource Economics");
+        again.Should().BeOfType<NoContentResult>();
+        db.OrgRs.Single().Code.Should().Be("AARE");
     }
 
     [Theory]
@@ -52,12 +50,12 @@ public class OrgRControllerTests
     [InlineData("   ")]
     [InlineData("ELEVENCHARS")]
     [InlineData("BAD CODE")]
-    public async Task UpsertOrgR_rejects_invalid_codes(string code)
+    public async Task CreateOrgR_rejects_invalid_codes(string code)
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
         var controller = CreateController(db);
 
-        var result = await controller.UpsertOrgR(code, new UpsertOrgRRequest(null), CancellationToken.None);
+        var result = await controller.CreateOrgR(code, CancellationToken.None);
 
         result.Should().BeOfType<BadRequestObjectResult>();
     }

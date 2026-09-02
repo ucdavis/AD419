@@ -17,15 +17,14 @@ function renderTab() {
 }
 
 describe('OrgRListTab', () => {
-  it('lists OrgRs and adds a new one', async () => {
-    let orgRs: OrgR[] = [{ code: 'AARE', description: 'Ag Econ', referenceCount: 3 }];
+  it('lists OrgRs with mapping counts and adds a new one', async () => {
+    let orgRs: OrgR[] = [{ code: 'AARE', referenceCount: 3 }];
     const puts: string[] = [];
     server.use(
       http.get('/api/orgr/orgrs', () => HttpResponse.json(orgRs)),
-      http.put('/api/orgr/orgrs/:code', async ({ params, request }) => {
-        const body = (await request.json()) as { description: string | null };
+      http.put('/api/orgr/orgrs/:code', ({ params }) => {
         puts.push(String(params.code));
-        orgRs = [...orgRs, { code: String(params.code), description: body.description, referenceCount: 0 }];
+        orgRs = [...orgRs, { code: String(params.code), referenceCount: 0 }];
         return new HttpResponse(null, { status: 204 });
       })
     );
@@ -33,8 +32,11 @@ describe('OrgRListTab', () => {
     renderTab();
 
     expect(await screen.findByText('AARE')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Mappings' })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: '3' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('New OrgR description')).not.toBeInTheDocument();
+
     await user.type(screen.getByLabelText('New OrgR code'), 'aplb');
-    await user.type(screen.getByLabelText('New OrgR description'), 'Plant Biology');
     await user.click(screen.getByRole('button', { name: 'Add OrgR' }));
 
     await waitFor(() => expect(puts).toEqual(['APLB']));
@@ -46,7 +48,7 @@ describe('OrgRListTab', () => {
       http.get('/api/orgr/orgrs', () =>
         // referenceCount 0 so the Delete button is enabled; the server still
         // refuses because a mapping was added elsewhere in the meantime.
-        HttpResponse.json([{ code: 'AARE', description: null, referenceCount: 0 }])
+        HttpResponse.json([{ code: 'AARE', referenceCount: 0 }])
       ),
       http.delete('/api/orgr/orgrs/AARE', () =>
         HttpResponse.text('AARE is used by 2 mappings. Reassign them before deleting it.', { status: 409 })

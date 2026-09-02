@@ -35,7 +35,7 @@ public class OrgRSqlTests
     {
         var sql = ReadDatabaseFile("data/Scripts/Script.PostDeployment.sql");
         sql.Should().Contain("MERGE [data].[OrgRs] AS target");
-        sql.Should().Contain("(N'ADNO', N'Associate Deans Office')");
+        sql.Should().Contain("USING (VALUES (N'ADNO')) AS source ([Code])");
     }
 
     [Fact]

@@ -19,7 +19,7 @@ describe('NifaDepartmentsTab', () => {
   it('lists departments with project counts and patches on change', async () => {
     const patches: { code: string; orgR: string | null }[] = [];
     server.use(
-      http.get('/api/orgr/orgrs', () => HttpResponse.json([{ code: 'AARE', description: null, referenceCount: 0 }])),
+      http.get('/api/orgr/orgrs', () => HttpResponse.json([{ code: 'AARE', referenceCount: 0 }])),
       http.get('/api/orgr/nifa-departments', () =>
         HttpResponse.json([
           { nifaDepartment: 'ARE', orgR: 'AARE', projectCount: 2 },

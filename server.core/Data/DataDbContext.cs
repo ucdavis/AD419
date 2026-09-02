@@ -42,7 +42,6 @@ public class DataDbContext(DbContextOptions<DataDbContext> options) : DbContext(
             entity.ToTable("OrgRs", DataSchema, table => table.ExcludeFromMigrations());
             entity.HasKey(o => o.Code);
             entity.Property(o => o.Code).HasMaxLength(10);
-            entity.Property(o => o.Description).HasMaxLength(200);
         });
 
         modelBuilder.Entity<OrgRFinancialDepartment>(entity =>

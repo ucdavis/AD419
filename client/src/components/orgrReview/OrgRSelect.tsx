@@ -24,7 +24,7 @@ export function OrgRSelect({
       <option value="">Select OrgR</option>
       {orgRs.map((orgR) => (
         <option key={orgR.code} value={orgR.code}>
-          {orgR.description ? `${orgR.code} - ${orgR.description}` : orgR.code}
+          {orgR.code}
         </option>
       ))}
     </select>

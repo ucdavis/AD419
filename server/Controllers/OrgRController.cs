@@ -37,7 +37,6 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder) 
         var dtos = orgRs
             .Select(o => new OrgRDto(
                 o.Code,
-                o.Description,
                 departmentRefs.GetValueOrDefault(o.Code)
                     + nifaRefs.GetValueOrDefault(o.Code)
                     + additionRefs.GetValueOrDefault(o.Code)))
@@ -47,11 +46,9 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder) 
     }
 
     // PUT api/orgr/orgrs/{code}
+    // Idempotent create: an OrgR is only its code, so a second PUT is a no-op.
     [HttpPut("orgrs/{code}")]
-    public async Task<IActionResult> UpsertOrgR(
-        string code,
-        [FromBody] UpsertOrgRRequest request,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> CreateOrgR(string code, CancellationToken cancellationToken)
     {
         var normalized = NormalizeCode(code);
         if (normalized is null)
@@ -59,23 +56,12 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder) 
             return BadRequest("OrgR codes are 1 to 10 letters or digits.");
         }
 
-        var description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
-        if (description is { Length: > 200 })
+        if (!await OrgRExistsAsync(normalized, cancellationToken))
         {
-            return BadRequest("Description must be 200 characters or fewer.");
+            db.OrgRs.Add(new OrgR { Code = normalized });
+            await db.SaveChangesAsync(cancellationToken);
         }
 
-        var existing = await db.OrgRs.FindAsync([normalized], cancellationToken);
-        if (existing is null)
-        {
-            db.OrgRs.Add(new OrgR { Code = normalized, Description = description });
-        }
-        else
-        {
-            existing.Description = description;
-        }
-
-        await db.SaveChangesAsync(cancellationToken);
         return NoContent();
     }
 
