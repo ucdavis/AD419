@@ -19,7 +19,7 @@ export const ORGR_TABS: OrgRTab[] = [
   {
     id: 'financial-departments',
     label: 'Financial Departments',
-    note: 'Every included financial department needs an OrgR. UCPath transactions with title code 1010 are always assigned ADNO.',
+    note: 'Every financial department with an included expense needs an OrgR. UCPath transactions with title code 1010 are always assigned ADNO.',
   },
   {
     id: 'nifa-departments',

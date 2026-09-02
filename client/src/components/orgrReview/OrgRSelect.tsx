@@ -16,7 +16,7 @@ export function OrgRSelect({
   return (
     <select
       aria-label={ariaLabel}
-      className={`select select-bordered select-sm ${value === null ? 'select-warning' : ''}`}
+      className={`select select-bordered select-sm min-w-36 ${value === null ? 'select-warning' : ''}`}
       disabled={disabled}
       onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
       value={value ?? ''}
