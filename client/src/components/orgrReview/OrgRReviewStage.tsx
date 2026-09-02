@@ -49,7 +49,7 @@ export function OrgRReviewStage({ status }: { status: WorkflowStageStatus }) {
   });
 
   if (departmentsLoading || nifaLoading) {
-    return <p>Loading OrgR mappings...</p>;
+    return <p role="status">Loading OrgR mappings...</p>;
   }
 
   const hasLoadError = departmentsIsError || nifaIsError;

@@ -43,7 +43,7 @@ export function NifaDepartmentsTab() {
   }
 
   if (isLoading) {
-    return <p>Loading NIFA departments...</p>;
+    return <p role="status">Loading NIFA departments...</p>;
   }
 
   const orderIndex = new Map(order.codes.map((code, index) => [code, index]));

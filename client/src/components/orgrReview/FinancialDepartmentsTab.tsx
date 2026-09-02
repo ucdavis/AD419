@@ -21,7 +21,9 @@ export function FinancialDepartmentsTab() {
   const [error, setError] = useState<string | null>(null);
 
   const scope = inCycleOnly ? 'cycle' : 'all';
-  const scopedRows = inCycleOnly ? rows.filter((row) => row.inCycle) : rows;
+  const scopedRows = inCycleOnly
+    ? rows.filter((row) => row.inCycle || row.orgR === null)
+    : rows;
 
   // Freeze the default row order per scope: unmapped rows on top, otherwise by
   // code. Recomputed only when the in-cycle toggle changes or a code appears
@@ -46,7 +48,7 @@ export function FinancialDepartmentsTab() {
   }
 
   if (isLoading) {
-    return <p>Loading financial departments...</p>;
+    return <p role="status">Loading financial departments...</p>;
   }
 
   const orderIndex = new Map(order.codes.map((code, index) => [code, index]));
@@ -106,7 +108,7 @@ export function FinancialDepartmentsTab() {
           onChange={(event) => setInCycleOnly(event.target.checked)}
           type="checkbox"
         />
-        <span className="label-text">Only departments in this cycle</span>
+        <span className="label-text">Only departments in this cycle (unmapped always shown)</span>
       </label>
 
       {error ? (

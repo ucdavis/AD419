@@ -23,7 +23,7 @@ export function ProjectOrgRsTab() {
   const [error, setError] = useState<string | null>(null);
 
   if (isLoading) {
-    return <p>Loading project OrgRs...</p>;
+    return <p role="status">Loading project OrgRs...</p>;
   }
 
   const handleAdd = () => {
@@ -65,6 +65,7 @@ export function ProjectOrgRsTab() {
           <button
             aria-label={`Remove ${row.original.accessionNumber} from ${row.original.orgR}`}
             className="btn btn-ghost btn-xs text-error"
+            disabled={remove.isPending}
             onClick={() => {
               setError(null);
               remove.mutate(

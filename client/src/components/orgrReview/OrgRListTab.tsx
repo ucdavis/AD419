@@ -22,7 +22,7 @@ export function OrgRListTab() {
   const [error, setError] = useState<string | null>(null);
 
   if (isLoading) {
-    return <p>Loading OrgRs...</p>;
+    return <p role="status">Loading OrgRs...</p>;
   }
 
   const handleAdd = () => {

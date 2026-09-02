@@ -20,6 +20,7 @@ const rows: OrgRFinancialDepartment[] = [
   { description: 'ARE', financialDepartment: 'AARE001', hierarchy: [{ code: 'AAES00C', level: 'C', name: 'CAES' }], inCycle: true, orgR: 'AARE' },
   { description: 'New', financialDepartment: 'ANEW001', hierarchy: [], inCycle: true, orgR: null },
   { description: 'Old', financialDepartment: '9OLD001', hierarchy: [], inCycle: false, orgR: 'AARE' },
+  { description: 'Unmapped Old', financialDepartment: '8OLD002', hierarchy: [], inCycle: false, orgR: null },
 ];
 
 describe('FinancialDepartmentsTab', () => {
@@ -34,8 +35,10 @@ describe('FinancialDepartmentsTab', () => {
     const cells = await screen.findAllByRole('cell', { name: /A(ARE|NEW)001/ });
     expect(cells[0]).toHaveTextContent('ANEW001');
     expect(screen.queryByText('9OLD001')).not.toBeInTheDocument();
+    // Unmapped rows are shown even when out of cycle and the toggle is on.
+    expect(await screen.findByText('8OLD002')).toBeInTheDocument();
 
-    await user.click(screen.getByLabelText('Only departments in this cycle'));
+    await user.click(screen.getByLabelText('Only departments in this cycle (unmapped always shown)'));
     expect(await screen.findByText('9OLD001')).toBeInTheDocument();
   });
 
@@ -81,5 +84,21 @@ describe('FinancialDepartmentsTab', () => {
     const cells = await screen.findAllByRole('cell', { name: /A(ARE|NEW)001/ });
     const codes = cells.map((cell) => cell.textContent);
     expect(codes.indexOf('ANEW001')).toBeLessThan(codes.indexOf('AARE001'));
+  });
+
+  it('shows the error and reverts the select when the patch fails', async () => {
+    server.use(
+      http.get('/api/orgr/orgrs', () => HttpResponse.json([{ code: 'AARE', description: null, referenceCount: 2 }])),
+      http.get('/api/orgr/financial-departments', () => HttpResponse.json(rows)),
+      http.patch('/api/orgr/financial-departments/:code', () => HttpResponse.text('nope', { status: 500 }))
+    );
+    const user = userEvent.setup();
+    renderTab();
+
+    const select = await screen.findByLabelText<HTMLSelectElement>('OrgR for ANEW001');
+    await user.selectOptions(select, 'AARE');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('nope');
+    await waitFor(() => expect(select.value).toBe(''));
   });
 });
