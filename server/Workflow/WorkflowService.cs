@@ -6,12 +6,14 @@ using Server.Core.Data;
 using Server.Core.Domain;
 using Server.Models;
 using Server.Models.Workflow;
+using Server.OrgR;
 
 namespace Server.Workflow;
 
 public sealed class WorkflowService(
     AppDbContext dbContext,
-    DataDbContext dataDbContext) : IWorkflowService
+    DataDbContext dataDbContext,
+    IOrgRReviewSeeder orgRReviewSeeder) : IWorkflowService
 {
     public async Task<WorkflowRun> GetOrCreateCurrentRunAsync(
         ClaimsPrincipal user,
@@ -113,6 +115,13 @@ public sealed class WorkflowService(
             if (next is not null && states[next.Id].Status == WorkflowStageStatus.NotStarted)
             {
                 StartStage(states[next.Id], user, now);
+            }
+
+            if (definition.Id == WorkflowStageIds.ExpenseReview)
+            {
+                // The OrgR Review stage opens with every included financial
+                // department and NIFA department that still needs an OrgR.
+                await orgRReviewSeeder.SeedReviewRowsAsync(cancellationToken);
             }
         }
         else
@@ -266,13 +275,20 @@ public sealed class WorkflowService(
         string stageId,
         CancellationToken cancellationToken)
     {
-        if (stageId != WorkflowStageIds.DataClassification)
+        switch (stageId)
         {
-            return true;
+            case WorkflowStageIds.DataClassification:
+                return !await dataDbContext.SegmentClassifications
+                    .AnyAsync(segment => segment.IncludeInReport == null, cancellationToken);
+            case WorkflowStageIds.OrgRReview:
+                var unmappedDepartment = await dataDbContext.OrgRFinancialDepartments
+                    .AnyAsync(mapping => mapping.OrgR == null, cancellationToken);
+                var unmappedNifa = await dataDbContext.OrgRNifaDepartments
+                    .AnyAsync(mapping => mapping.OrgR == null, cancellationToken);
+                return !unmappedDepartment && !unmappedNifa;
+            default:
+                return true;
         }
-
-        return !await dataDbContext.SegmentClassifications
-            .AnyAsync(segment => segment.IncludeInReport == null, cancellationToken);
     }
 
     private static void StartStageIfNeeded(

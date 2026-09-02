@@ -8,6 +8,7 @@ using Server.Core.Domain;
 using Server.Core.Import;
 using Server.Models.ImportRuns;
 using System.Security.Claims;
+using Server.Tests.OrgR;
 using Server.Workflow;
 
 namespace Server.Tests.Import;
@@ -62,7 +63,7 @@ public class ImportRunsControllerTests
             new FakeStageProvider(),
             starter,
             new FakeReadinessCheck(blockingIssue),
-            new WorkflowService(db, dataDb));
+            new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder()));
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext
@@ -161,7 +162,7 @@ public class ImportRunsControllerTests
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
         await SeedWorkflowRunAsync(db);
-        var workflowService = new WorkflowService(db, dataDb);
+        var workflowService = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder());
         await workflowService.SetStageStatusAsync(
             WorkflowStageIds.ProjectIdentification,
             WorkflowStageStatus.Complete,
