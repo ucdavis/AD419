@@ -225,6 +225,89 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder) 
         return NoContent();
     }
 
+    // GET api/orgr/projects
+    // Mirrors [data].[v_ProjXOrgR] in LINQ so the grid can be served and
+    // tested through DataDbContext. Keep the two in step.
+    [HttpGet("projects")]
+    public async Task<ActionResult<IReadOnlyList<ProjectOrgRDto>>> GetProjects(CancellationToken cancellationToken)
+    {
+        var projects = await db.Projects
+            .OrderBy(p => p.AccessionNumber)
+            .ToListAsync(cancellationToken);
+        var nifaMap = await db.OrgRNifaDepartments
+            .Where(m => m.OrgR != null)
+            .ToDictionaryAsync(m => m.NifaDepartment, m => m.OrgR!, cancellationToken);
+        var additions = await db.OrgRProjectAdditions.ToListAsync(cancellationToken);
+        var projectsByAccession = projects
+            .GroupBy(p => p.AccessionNumber)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var defaults = projects
+            .Select(p => (Project: p, OrgR: NifaDepartmentOf(p.NifaProjectNumber) is { } dept ? nifaMap.GetValueOrDefault(dept) : null))
+            .Where(x => x.OrgR is not null)
+            .Select(x => ToDto(x.Project, x.OrgR!, "Default"));
+
+        var manual = additions
+            .Where(a => projectsByAccession.ContainsKey(a.AccessionNumber))
+            .Select(a => ToDto(projectsByAccession[a.AccessionNumber], a.OrgR, "Manual"));
+
+        return Ok(defaults.Concat(manual)
+            .OrderBy(d => d.AccessionNumber)
+            .ThenBy(d => d.Source)
+            .ThenBy(d => d.OrgR)
+            .ToList());
+
+        static ProjectOrgRDto ToDto(Project p, string orgR, string source) =>
+            new(p.AccessionNumber, p.NifaProjectNumber, p.Title, p.ProjectDirector, orgR, source);
+    }
+
+    // POST api/orgr/projects
+    [HttpPost("projects")]
+    public async Task<IActionResult> AddProject(
+        [FromBody] AddProjectOrgRRequest request,
+        CancellationToken cancellationToken)
+    {
+        var accession = request.AccessionNumber?.Trim();
+        if (string.IsNullOrEmpty(accession)
+            || !await db.Projects.AnyAsync(p => p.AccessionNumber == accession, cancellationToken))
+        {
+            return BadRequest($"Unknown accession number '{request.AccessionNumber}'.");
+        }
+
+        var (orgR, error) = await ResolveOrgRAsync(request.OrgR, cancellationToken);
+        if (orgR is null)
+        {
+            return BadRequest(error ?? "An OrgR is required.");
+        }
+
+        if (await db.OrgRProjectAdditions.AnyAsync(a => a.AccessionNumber == accession && a.OrgR == orgR, cancellationToken))
+        {
+            return Conflict($"{accession} is already added to {orgR}.");
+        }
+
+        db.OrgRProjectAdditions.Add(new OrgRProjectAddition { AccessionNumber = accession, OrgR = orgR });
+        await db.SaveChangesAsync(cancellationToken);
+        return NoContent();
+    }
+
+    // DELETE api/orgr/projects/{accessionNumber}/{orgR}
+    [HttpDelete("projects/{accessionNumber}/{orgR}")]
+    public async Task<IActionResult> RemoveProject(string accessionNumber, string orgR, CancellationToken cancellationToken)
+    {
+        var normalized = NormalizeCode(orgR);
+        var addition = normalized is null
+            ? null
+            : await db.OrgRProjectAdditions.FindAsync([accessionNumber, normalized], cancellationToken);
+        if (addition is null)
+        {
+            return NotFound();
+        }
+
+        db.OrgRProjectAdditions.Remove(addition);
+        await db.SaveChangesAsync(cancellationToken);
+        return NoContent();
+    }
+
     /// <summary>Characters 6 to 8 of a NIFA project number, e.g. CA-D-ARE-2868-H gives ARE.</summary>
     internal static string? NifaDepartmentOf(string? nifaProjectNumber) =>
         nifaProjectNumber is { Length: >= 8 } ? nifaProjectNumber.Substring(5, 3) : null;

@@ -205,4 +205,62 @@ public class OrgRControllerTests
         result.Should().BeOfType<NoContentResult>();
         db.OrgRNifaDepartments.Single().OrgR.Should().Be("AARE");
     }
+
+    [Fact]
+    public async Task GetProjects_returns_default_rows_from_nifa_mapping_plus_manual_rows()
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        db.OrgRs.AddRange(new OrgR { Code = "AARE" }, new OrgR { Code = "APLS" });
+        db.OrgRNifaDepartments.AddRange(
+            new OrgRNifaDepartment { NifaDepartment = "ARE", OrgR = "AARE" },
+            new OrgRNifaDepartment { NifaDepartment = "ESP", OrgR = null });
+        db.Projects.AddRange(
+            new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-ARE-2868-H", Title = "Water", ProjectDirector = "Doe" },
+            new Project { AccessionNumber = "1000003", NifaProjectNumber = "CA-D-ESP-2880-H", Title = "Soil" });
+        db.OrgRProjectAdditions.Add(new OrgRProjectAddition { AccessionNumber = "1000001", OrgR = "APLS" });
+        await db.SaveChangesAsync();
+        var controller = CreateController(db);
+
+        var result = await controller.GetProjects(CancellationToken.None);
+
+        var dtos = result.Result.Should().BeOfType<OkObjectResult>().Subject.Value
+            .Should().BeAssignableTo<IEnumerable<ProjectOrgRDto>>().Subject.ToList();
+        dtos.Should().HaveCount(2);
+        dtos.Should().ContainSingle(d => d.AccessionNumber == "1000001" && d.OrgR == "AARE" && d.Source == "Default" && d.Title == "Water");
+        dtos.Should().ContainSingle(d => d.AccessionNumber == "1000001" && d.OrgR == "APLS" && d.Source == "Manual");
+    }
+
+    [Fact]
+    public async Task AddProject_validates_and_rejects_duplicates()
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        db.OrgRs.Add(new OrgR { Code = "APLS" });
+        db.Projects.Add(new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-ARE-2868-H" });
+        await db.SaveChangesAsync();
+        var controller = CreateController(db);
+
+        (await controller.AddProject(new AddProjectOrgRRequest("1000001", "apls"), CancellationToken.None))
+            .Should().BeOfType<NoContentResult>();
+        db.OrgRProjectAdditions.Single().OrgR.Should().Be("APLS");
+
+        (await controller.AddProject(new AddProjectOrgRRequest("1000001", "APLS"), CancellationToken.None))
+            .Should().BeOfType<ConflictObjectResult>();
+        (await controller.AddProject(new AddProjectOrgRRequest("9999999", "APLS"), CancellationToken.None))
+            .Should().BeOfType<BadRequestObjectResult>();
+        (await controller.AddProject(new AddProjectOrgRRequest("1000001", "ZZZZ"), CancellationToken.None))
+            .Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task RemoveProject_deletes_manual_row_only()
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        db.OrgRProjectAdditions.Add(new OrgRProjectAddition { AccessionNumber = "1000001", OrgR = "APLS" });
+        await db.SaveChangesAsync();
+        var controller = CreateController(db);
+
+        (await controller.RemoveProject("1000001", "APLS", CancellationToken.None)).Should().BeOfType<NoContentResult>();
+        db.OrgRProjectAdditions.Should().BeEmpty();
+        (await controller.RemoveProject("1000001", "APLS", CancellationToken.None)).Should().BeOfType<NotFoundResult>();
+    }
 }
