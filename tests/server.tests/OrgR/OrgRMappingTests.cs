@@ -1,5 +1,8 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
+using Server.Core.Data;
 using Server.Core.Domain;
 
 namespace Server.Tests.OrgR;
@@ -30,10 +33,12 @@ public class OrgRMappingTests
     public void Data_tables_are_excluded_from_migrations()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
+        var designTimeModel = db.GetService<IDesignTimeModel>();
         foreach (var name in new[] { "OrgRs", "OrgRFinancialDepartments", "OrgRNifaDepartments", "OrgRProjectAdditions", "Projects" })
         {
-            var entity = db.Model.GetEntityTypes().Single(e => e.GetTableName() == name);
+            var entity = designTimeModel.Model.GetEntityTypes().Single(e => e.GetTableName() == name);
             entity.GetSchema().Should().Be("data");
+            entity.IsTableExcludedFromMigrations().Should().BeTrue();
         }
     }
 }
