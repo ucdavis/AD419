@@ -95,6 +95,11 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder) 
             return NotFound();
         }
 
+        if (normalized == "ADNO")
+        {
+            return Conflict("ADNO is required by the title code 1010 rule and cannot be deleted.");
+        }
+
         var references =
             await db.OrgRFinancialDepartments.CountAsync(m => m.OrgR == normalized, cancellationToken)
             + await db.OrgRNifaDepartments.CountAsync(m => m.OrgR == normalized, cancellationToken)

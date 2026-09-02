@@ -79,6 +79,22 @@ public class OrgRControllerTests
     }
 
     [Fact]
+    public async Task DeleteOrgR_refuses_to_delete_ADNO()
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        db.OrgRs.Add(new OrgR { Code = "ADNO" });
+        await db.SaveChangesAsync();
+        var controller = CreateController(db);
+
+        var result = await controller.DeleteOrgR("ADNO", CancellationToken.None);
+
+        var conflict = result.Should().BeOfType<ConflictObjectResult>().Subject;
+        conflict.Value.Should().BeOfType<string>().Which.Should()
+            .Be("ADNO is required by the title code 1010 rule and cannot be deleted.");
+        db.OrgRs.Should().HaveCount(1);
+    }
+
+    [Fact]
     public async Task DeleteOrgR_removes_unreferenced_code()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();

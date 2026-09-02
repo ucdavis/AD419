@@ -14,7 +14,7 @@ export const ORGR_TABS: OrgRTab[] = [
   {
     id: 'orgrs',
     label: 'OrgR List',
-    note: 'OrgRs group expenses and projects onto department screens. Add or rename them here.',
+    note: 'OrgRs group expenses and projects onto department screens. Add OrgRs and edit their descriptions here. To change a code, add the new one, reassign its mappings, and delete the old one.',
   },
   {
     id: 'financial-departments',

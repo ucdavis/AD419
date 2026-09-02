@@ -134,8 +134,10 @@ export const useSetFinancialDepartmentOrgR = () => {
         queryClient.setQueryData(ORGR_KEYS.financialDepartments, context.previous);
       }
     },
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: ORGR_KEYS.financialDepartments }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ORGR_KEYS.financialDepartments });
+      void queryClient.invalidateQueries({ queryKey: ORGR_KEYS.orgRs });
+    },
   });
 };
 
@@ -173,6 +175,7 @@ export const useSetNifaDepartmentOrgR = () => {
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ORGR_KEYS.nifaDepartments });
       void queryClient.invalidateQueries({ queryKey: ORGR_KEYS.projects });
+      void queryClient.invalidateQueries({ queryKey: ORGR_KEYS.orgRs });
     },
   });
 };
@@ -186,7 +189,10 @@ export const useAddProjectOrgR = () => {
         method: 'POST',
       }),
     mutationKey: ORGR_MUTATION_KEY,
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ORGR_KEYS.projects }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ORGR_KEYS.projects });
+      void queryClient.invalidateQueries({ queryKey: ORGR_KEYS.orgRs });
+    },
   });
 };
 
@@ -199,6 +205,9 @@ export const useRemoveProjectOrgR = () => {
         { method: 'DELETE' }
       ),
     mutationKey: ORGR_MUTATION_KEY,
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ORGR_KEYS.projects }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ORGR_KEYS.projects });
+      void queryClient.invalidateQueries({ queryKey: ORGR_KEYS.orgRs });
+    },
   });
 };
