@@ -43,3 +43,15 @@ export function allMapped(
 ): boolean {
   return unmappedCount(departments) === 0 && unmappedCount(nifaDepartments) === 0;
 }
+
+// Rows ordered with unmapped (null orgR) rows first, otherwise by code.
+export function unmappedFirst<T extends { orgR: string | null }>(
+  rows: T[],
+  codeOf: (row: T) => string
+): T[] {
+  return [...rows].sort(
+    (a, b) =>
+      (a.orgR === null ? 0 : 1) - (b.orgR === null ? 0 : 1) ||
+      codeOf(a).localeCompare(codeOf(b))
+  );
+}

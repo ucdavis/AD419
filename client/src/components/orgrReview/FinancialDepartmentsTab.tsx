@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { OrgRSelect } from './OrgRSelect.tsx';
+import { unmappedFirst } from './orgrTabs.ts';
 import {
   apiErrorMessage,
   type OrgRFinancialDepartment,
@@ -12,15 +13,6 @@ import { ExportDataButton } from '@/shared/exportDataButton.tsx';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 
-// Unmapped rows first, otherwise stable by code.
-function unmappedFirst(rows: OrgRFinancialDepartment[]): OrgRFinancialDepartment[] {
-  return [...rows].sort(
-    (a, b) =>
-      (a.orgR === null ? 0 : 1) - (b.orgR === null ? 0 : 1) ||
-      a.financialDepartment.localeCompare(b.financialDepartment)
-  );
-}
-
 export function FinancialDepartmentsTab() {
   const { data: rows = [], isLoading } = useQuery(orgRFinancialDepartmentsQueryOptions());
   const { data: orgRs = [] } = useQuery(orgRsQueryOptions());
@@ -28,11 +20,41 @@ export function FinancialDepartmentsTab() {
   const [inCycleOnly, setInCycleOnly] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const scope = inCycleOnly ? 'cycle' : 'all';
+  const scopedRows = inCycleOnly ? rows.filter((row) => row.inCycle) : rows;
+
+  // Freeze the default row order per scope: unmapped rows on top, otherwise by
+  // code. Recomputed only when the in-cycle toggle changes or a code appears
+  // that the frozen order does not know about yet (a newly seeded row), so
+  // mapping a row in place does not immediately move it.
+  const [order, setOrder] = useState<{ codes: string[]; scope: string }>(() => ({
+    codes: unmappedFirst(scopedRows, (row) => row.financialDepartment).map(
+      (row) => row.financialDepartment
+    ),
+    scope,
+  }));
+  const hasNewCode = scopedRows.some(
+    (row) => !order.codes.includes(row.financialDepartment)
+  );
+  if (order.scope !== scope || hasNewCode) {
+    setOrder({
+      codes: unmappedFirst(scopedRows, (row) => row.financialDepartment).map(
+        (row) => row.financialDepartment
+      ),
+      scope,
+    });
+  }
+
   if (isLoading) {
     return <p>Loading financial departments...</p>;
   }
 
-  const visible = unmappedFirst(inCycleOnly ? rows.filter((row) => row.inCycle) : rows);
+  const orderIndex = new Map(order.codes.map((code, index) => [code, index]));
+  const visible = [...scopedRows].sort(
+    (a, b) =>
+      (orderIndex.get(a.financialDepartment) ?? Number.MAX_SAFE_INTEGER) -
+      (orderIndex.get(b.financialDepartment) ?? Number.MAX_SAFE_INTEGER)
+  );
 
   const columns: ColumnDef<OrgRFinancialDepartment>[] = [
     { accessorKey: 'financialDepartment', header: 'Department' },
@@ -98,7 +120,6 @@ export function FinancialDepartmentsTab() {
         data={visible}
         globalFilter="right"
         initialState={{ pagination: { pageSize: 25 } }}
-        key={inCycleOnly ? 'cycle' : 'all'}
         tableActions={
           <ExportDataButton
             columns={[

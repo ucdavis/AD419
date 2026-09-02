@@ -58,4 +58,28 @@ describe('FinancialDepartmentsTab', () => {
 
     await waitFor(() => expect(patches).toEqual([{ code: 'ANEW001', orgR: 'AARE' }]));
   });
+
+  it('keeps the newly mapped row in place instead of resorting it away', async () => {
+    const patches: { code: string; orgR: string | null }[] = [];
+    server.use(
+      http.get('/api/orgr/orgrs', () => HttpResponse.json([{ code: 'AARE', description: null, referenceCount: 2 }])),
+      http.get('/api/orgr/financial-departments', () => HttpResponse.json(rows)),
+      http.patch('/api/orgr/financial-departments/:code', async ({ params, request }) => {
+        const body = (await request.json()) as { orgR: string | null };
+        patches.push({ code: String(params.code), orgR: body.orgR });
+        return new HttpResponse(null, { status: 204 });
+      })
+    );
+    const user = userEvent.setup();
+    renderTab();
+
+    const select = await screen.findByLabelText('OrgR for ANEW001');
+    await user.selectOptions(select, 'AARE');
+
+    await waitFor(() => expect(patches).toEqual([{ code: 'ANEW001', orgR: 'AARE' }]));
+
+    const cells = await screen.findAllByRole('cell', { name: /A(ARE|NEW)001/ });
+    const codes = cells.map((cell) => cell.textContent);
+    expect(codes.indexOf('ANEW001')).toBeLessThan(codes.indexOf('AARE001'));
+  });
 });

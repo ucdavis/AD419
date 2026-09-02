@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { OrgRSelect } from './OrgRSelect.tsx';
+import { unmappedFirst } from './orgrTabs.ts';
 import {
   apiErrorMessage,
   type OrgRNifaDepartment,
@@ -12,20 +13,44 @@ import { ExportDataButton } from '@/shared/exportDataButton.tsx';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 
+// The NIFA tab has no scope toggle, so the frozen order only resets when a
+// new code shows up in the data.
+const SCOPE = 'all';
+
 export function NifaDepartmentsTab() {
   const { data: rows = [], isLoading } = useQuery(orgRNifaDepartmentsQueryOptions());
   const { data: orgRs = [] } = useQuery(orgRsQueryOptions());
   const setOrgR = useSetNifaDepartmentOrgR();
   const [error, setError] = useState<string | null>(null);
 
+  // Freeze the default row order: unmapped rows on top, otherwise by code.
+  // Recomputed only when a code appears that the frozen order does not know
+  // about yet, so mapping a row in place does not immediately move it.
+  const [order, setOrder] = useState<{ codes: string[]; scope: string }>(() => ({
+    codes: unmappedFirst(rows, (row) => row.nifaDepartment).map(
+      (row) => row.nifaDepartment
+    ),
+    scope: SCOPE,
+  }));
+  const hasNewCode = rows.some((row) => !order.codes.includes(row.nifaDepartment));
+  if (order.scope !== SCOPE || hasNewCode) {
+    setOrder({
+      codes: unmappedFirst(rows, (row) => row.nifaDepartment).map(
+        (row) => row.nifaDepartment
+      ),
+      scope: SCOPE,
+    });
+  }
+
   if (isLoading) {
     return <p>Loading NIFA departments...</p>;
   }
 
+  const orderIndex = new Map(order.codes.map((code, index) => [code, index]));
   const ordered = [...rows].sort(
     (a, b) =>
-      (a.orgR === null ? 0 : 1) - (b.orgR === null ? 0 : 1) ||
-      a.nifaDepartment.localeCompare(b.nifaDepartment)
+      (orderIndex.get(a.nifaDepartment) ?? Number.MAX_SAFE_INTEGER) -
+      (orderIndex.get(b.nifaDepartment) ?? Number.MAX_SAFE_INTEGER)
   );
 
   const columns: ColumnDef<OrgRNifaDepartment>[] = [

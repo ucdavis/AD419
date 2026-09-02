@@ -3,6 +3,7 @@ import {
   allMapped,
   ORGR_TABS,
   unmappedCount,
+  unmappedFirst,
 } from '@/components/orgrReview/orgrTabs.ts';
 
 describe('orgrTabs', () => {
@@ -23,5 +24,18 @@ describe('orgrTabs', () => {
     expect(allMapped([{ orgR: 'AARE' }], [{ orgR: null }])).toBe(false);
     expect(allMapped([{ orgR: 'AARE' }], [{ orgR: 'AARE' }])).toBe(true);
     expect(allMapped([], [])).toBe(true);
+  });
+
+  it('sorts unmapped rows first, then by code', () => {
+    const rows = [
+      { code: 'BBB', orgR: 'AARE' },
+      { code: 'AAA', orgR: null },
+      { code: 'CCC', orgR: null },
+    ];
+    expect(unmappedFirst(rows, (row) => row.code).map((row) => row.code)).toEqual([
+      'AAA',
+      'CCC',
+      'BBB',
+    ]);
   });
 });
