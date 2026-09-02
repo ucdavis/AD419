@@ -17,7 +17,6 @@ public interface IExpenseReviewService
     Task WriteTransactionsCsvAsync(
         FiscalYearCycle cycle,
         ExpenseReviewTransactionsRequest request,
-        IReadOnlyList<string> columnIds,
         Stream output,
         CancellationToken cancellationToken);
 }

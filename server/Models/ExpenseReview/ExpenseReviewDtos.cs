@@ -14,6 +14,8 @@ public sealed class ExpenseReviewTransactionsQuery
 
     public string? SortDirection { get; init; }
 
+    public bool DisplayByPeriod { get; init; }
+
     [FromQuery(Name = "financialDept")]
     public string[] FinancialDept { get; init; } = [];
 
@@ -25,12 +27,19 @@ public sealed class ExpenseReviewTransactionsQuery
 
     public string[] AccountingPeriod { get; init; } = [];
 
-    public string[] Source { get; init; } = [];
+    public string[] Entity { get; init; } = [];
+
+    public string[] Purpose { get; init; } = [];
+
+    public string[] Program { get; init; } = [];
+
+    public string[] Activity { get; init; } = [];
 
     public string[] Sfn { get; init; } = [];
 
-    [FromQuery(Name = "column")]
-    public string[] Column { get; init; } = [];
+    public string[] Source { get; init; } = [];
+
+    public string[] ExclusionReason { get; init; } = [];
 }
 
 public sealed record ExpenseReviewTransactionsRequest(
@@ -39,6 +48,7 @@ public sealed record ExpenseReviewTransactionsRequest(
     int PageSize,
     string SortBy,
     bool SortDescending,
+    bool DisplayByPeriod,
     ExpenseReviewFilters Filters);
 
 public enum ExpenseReviewIncludeState
@@ -49,13 +59,18 @@ public enum ExpenseReviewIncludeState
 }
 
 public sealed record ExpenseReviewFilters(
+    IReadOnlyList<string> Entity,
     IReadOnlyList<string> FinancialDept,
     IReadOnlyList<string> Fund,
     IReadOnlyList<string> Account,
     IReadOnlyList<string> AeProject,
     IReadOnlyList<string> AccountingPeriod,
+    IReadOnlyList<string> Purpose,
+    IReadOnlyList<string> Program,
+    IReadOnlyList<string> Activity,
+    IReadOnlyList<string> Sfn,
     IReadOnlyList<string> Source,
-    IReadOnlyList<string> Sfn);
+    IReadOnlyList<string> ExclusionReason);
 
 public sealed record ExpenseReviewTransactionsResponse(
     string FiscalYear,
@@ -75,32 +90,45 @@ public sealed record ExpenseReviewCountsDto(
 
 public sealed record ExpenseReviewTransactionDto(
     string Id,
-    string SourceId,
     string Source,
+    ExpenseReviewCodeNameDto Entity,
     ExpenseReviewCodeNameDto FinancialDept,
     ExpenseReviewCodeNameDto Fund,
     ExpenseReviewCodeNameDto Account,
     ExpenseReviewCodeNameDto AeProject,
     string? AccountingPeriod,
+    ExpenseReviewCodeNameDto Purpose,
+    ExpenseReviewCodeNameDto Program,
+    ExpenseReviewCodeNameDto Activity,
     string? Sfn,
     string? SfnLabel,
     decimal? Amount,
-    decimal? Fte,
-    bool FteIncluded,
-    bool Included);
+    bool Included,
+    IReadOnlyList<ExpenseReviewExclusionReasonDto> ExclusionReasons);
+
+public sealed record ExpenseReviewExclusionReasonDto(
+    string Code,
+    string Label,
+    int RowCount,
+    decimal Amount);
 
 public sealed record ExpenseReviewCodeNameDto(
     string? Code,
     string? Name);
 
 public sealed record ExpenseReviewFilterOptionsResponse(
+    IReadOnlyList<ExpenseReviewFilterOptionDto> Entities,
     IReadOnlyList<ExpenseReviewFilterOptionDto> FinancialDepts,
     IReadOnlyList<ExpenseReviewFilterOptionDto> Funds,
     IReadOnlyList<ExpenseReviewFilterOptionDto> Accounts,
     IReadOnlyList<ExpenseReviewFilterOptionDto> AeProjects,
     IReadOnlyList<ExpenseReviewFilterOptionDto> AccountingPeriods,
+    IReadOnlyList<ExpenseReviewFilterOptionDto> Purposes,
+    IReadOnlyList<ExpenseReviewFilterOptionDto> Programs,
+    IReadOnlyList<ExpenseReviewFilterOptionDto> Activities,
+    IReadOnlyList<ExpenseReviewFilterOptionDto> Sfns,
     IReadOnlyList<ExpenseReviewFilterOptionDto> Sources,
-    IReadOnlyList<ExpenseReviewFilterOptionDto> Sfns);
+    IReadOnlyList<ExpenseReviewFilterOptionDto> ExclusionReasons);
 
 public sealed record ExpenseReviewFilterOptionDto(
     string Value,
@@ -111,34 +139,22 @@ public static class ExpenseReviewRequestParser
     public const int MaxPageSize = 500;
     public const string DefaultSortBy = "source";
 
-    public static readonly IReadOnlyList<string> DefaultCsvColumnIds =
-    [
-        "financialDept",
-        "fund",
-        "account",
-        "aeProject",
-        "accountingPeriod",
-        "source",
-        "sfn",
-        "amount",
-        "fte",
-        "included",
-    ];
-
     private static readonly HashSet<string> SortFields = new(StringComparer.OrdinalIgnoreCase)
     {
+        "accountingPeriod",
+        "entity",
         "financialDept",
         "fund",
         "account",
         "aeProject",
-        "accountingPeriod",
-        "source",
+        "purpose",
+        "program",
+        "activity",
         "sfn",
+        "source",
         "amount",
-        "fte",
+        "included",
     };
-
-    private static readonly HashSet<string> CsvColumns = new(DefaultCsvColumnIds, StringComparer.OrdinalIgnoreCase);
 
     public static bool TryParse(
         ExpenseReviewTransactionsQuery query,
@@ -187,49 +203,24 @@ public static class ExpenseReviewRequestParser
             query.PageSize,
             sortBy,
             sortDescending,
+            query.DisplayByPeriod,
             new ExpenseReviewFilters(
+                Clean(query.Entity),
                 Clean(query.FinancialDept),
                 Clean(query.Fund),
                 Clean(query.Account),
                 Clean(query.AeProject),
                 Clean(query.AccountingPeriod),
+                Clean(query.Purpose),
+                Clean(query.Program),
+                Clean(query.Activity),
+                Clean(query.Sfn),
                 Clean(query.Source).Select(source => source.ToUpperInvariant()).ToArray(),
-                Clean(query.Sfn)));
+                Clean(query.ExclusionReason)));
         return true;
     }
 
     public static bool IsAllowedSortField(string value) => SortFields.Contains(value);
-
-    public static bool TryParseCsvColumns(
-        IEnumerable<string>? values,
-        out IReadOnlyList<string> columns,
-        out string? error)
-    {
-        columns = DefaultCsvColumnIds;
-        error = null;
-
-        var cleaned = Clean(values);
-        if (cleaned.Length == 0)
-        {
-            return true;
-        }
-
-        var invalidColumns = cleaned
-            .Where(column => !CsvColumns.Contains(column))
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-        if (invalidColumns.Length > 0)
-        {
-            error = $"column must be one of: {string.Join(", ", DefaultCsvColumnIds)}.";
-            return false;
-        }
-
-        columns = cleaned
-            .Select(column => DefaultCsvColumnIds.First(defaultColumn =>
-                defaultColumn.Equals(column, StringComparison.OrdinalIgnoreCase)))
-            .ToArray();
-        return true;
-    }
 
     private static bool TryParseIncludeState(string? value, out ExpenseReviewIncludeState includeState)
     {

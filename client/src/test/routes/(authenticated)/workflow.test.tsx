@@ -1089,13 +1089,16 @@ describe('AD419 workflow routes', () => {
       }),
       http.get('/api/expensereview/filters', () => {
         return HttpResponse.json({
-          accountingPeriods: [],
           accounts: [],
+          activities: [],
           aeProjects: [],
+          entities: [],
+          exclusionReasons: [],
           financialDepts: [],
           funds: [],
+          programs: [],
+          purposes: [],
           sfns: [],
-          sources: [],
         });
       }),
       http.get('/api/expensereview/transactions', () => {

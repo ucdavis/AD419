@@ -67,6 +67,9 @@ public sealed class SqlServerDataDbFixture : IAsyncLifetime
 
         await connection.ExecuteAsync(
             """
+            DELETE FROM [data].[ExpenseReviewTransactionReasons];
+            DELETE FROM [data].[ExpenseReviewTransactionFacts];
+            DELETE FROM [data].[ExpenseReviewCacheStatus];
             DELETE FROM [data].[Projects];
             DELETE FROM [data].[AETransactions];
             DELETE FROM [data].[UcPathTransactions];

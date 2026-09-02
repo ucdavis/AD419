@@ -1,13 +1,20 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Server.Controllers;
+using Server.Core.Data;
 using Server.Core.Domain;
 using Server.Models.SegmentClassifications;
+using Server.Tests.ExpenseReview;
 
 namespace Server.Tests.SegmentClassifications;
 
 public class SegmentClassificationsControllerTests
 {
+    private static SegmentClassificationsController CreateController(
+        DataDbContext db,
+        StubExpenseReviewCacheService? cache = null) =>
+        new(db, cache ?? new StubExpenseReviewCacheService());
+
     [Fact]
     public async Task Get_returns_all_segments()
     {
@@ -16,7 +23,7 @@ public class SegmentClassificationsControllerTests
             new SegmentClassification { SegmentType = SegmentType.Fund, Code = "45530", Description = "AES", IncludeInReport = true, Sfn = "220" },
             new SegmentClassification { SegmentType = SegmentType.Account, Code = "500000", Description = "S and E", IncludeInReport = null });
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.Get(CancellationToken.None);
 
@@ -37,7 +44,7 @@ public class SegmentClassificationsControllerTests
             ParentLevel1Code = "APPROP", ParentLevel1Name = "Appropriations",
         });
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.Get(CancellationToken.None);
 
@@ -96,7 +103,7 @@ public class SegmentClassificationsControllerTests
         }
 
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.Get(CancellationToken.None);
 
@@ -111,7 +118,7 @@ public class SegmentClassificationsControllerTests
         using var db = TestDbContextFactory.CreateDataInMemory();
         db.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.Account, Code = "500000", IncludeInReport = null });
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.Get(CancellationToken.None);
 
@@ -126,7 +133,8 @@ public class SegmentClassificationsControllerTests
         using var db = TestDbContextFactory.CreateDataInMemory();
         db.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.Fund, Code = "70575", IncludeInReport = null, Sfn = "219" });
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var cache = new StubExpenseReviewCacheService();
+        var controller = CreateController(db, cache);
 
         var result = await controller.UpdateClassification(
             new UpdateClassificationRequest("Fund", "70575", true, "201"), CancellationToken.None);
@@ -135,13 +143,30 @@ public class SegmentClassificationsControllerTests
         var updated = await db.SegmentClassifications.FindAsync(SegmentType.Fund, "70575");
         updated!.IncludeInReport.Should().BeTrue();
         updated.Sfn.Should().Be("201");
+        cache.InvalidateCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Patch_does_not_invalidate_cache_when_values_are_unchanged()
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        db.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.Fund, Code = "70575", IncludeInReport = true, Sfn = "201" });
+        await db.SaveChangesAsync();
+        var cache = new StubExpenseReviewCacheService();
+        var controller = CreateController(db, cache);
+
+        var result = await controller.UpdateClassification(
+            new UpdateClassificationRequest("Fund", "70575", true, "201"), CancellationToken.None);
+
+        result.Should().BeOfType<NoContentResult>();
+        cache.InvalidateCount.Should().Be(0);
     }
 
     [Fact]
     public async Task Patch_returns_not_found_for_missing_segment()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.UpdateClassification(
             new UpdateClassificationRequest("Fund", "00000", false, null), CancellationToken.None);
@@ -153,7 +178,7 @@ public class SegmentClassificationsControllerTests
     public async Task Patch_returns_bad_request_for_unknown_segment_type()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.UpdateClassification(
             new UpdateClassificationRequest("Nonsense", "00000", false, null), CancellationToken.None);
@@ -167,7 +192,7 @@ public class SegmentClassificationsControllerTests
         using var db = TestDbContextFactory.CreateDataInMemory();
         db.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.Fund, Code = "70575", IncludeInReport = null });
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.UpdateClassification(
             new UpdateClassificationRequest("Fund", "70575", true, "220"), CancellationToken.None);
@@ -184,7 +209,7 @@ public class SegmentClassificationsControllerTests
         using var db = TestDbContextFactory.CreateDataInMemory();
         db.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.Fund, Code = "45530", IncludeInReport = true, Sfn = "220" });
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.UpdateClassification(
             new UpdateClassificationRequest("Fund", "45530", false, null), CancellationToken.None);
@@ -201,7 +226,7 @@ public class SegmentClassificationsControllerTests
         using var db = TestDbContextFactory.CreateDataInMemory();
         db.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.Fund, Code = "70575", IncludeInReport = null });
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.UpdateClassification(
             new UpdateClassificationRequest("Fund", "70575", true, "999"), CancellationToken.None);
@@ -215,7 +240,7 @@ public class SegmentClassificationsControllerTests
         using var db = TestDbContextFactory.CreateDataInMemory();
         db.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.Account, Code = "500000", IncludeInReport = null });
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.UpdateClassification(
             new UpdateClassificationRequest("Account", "500000", true, "201"), CancellationToken.None);
@@ -229,7 +254,7 @@ public class SegmentClassificationsControllerTests
         using var db = TestDbContextFactory.CreateDataInMemory();
         db.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.Fund, Code = "70575", IncludeInReport = null });
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.UpdateClassification(
             new UpdateClassificationRequest("Fund", "70575", true, "Multiple"), CancellationToken.None);
