@@ -69,6 +69,26 @@ describe('OrgR Review stage', () => {
     }
   });
 
+  it('closes the gate and shows an alert when a department fetch fails', async () => {
+    mockApi({ unmappedDepartment: false });
+    server.use(
+      http.get('/api/orgr/financial-departments', () =>
+        HttpResponse.text('boom', { status: 500 })
+      )
+    );
+    const { cleanup } = renderRoute({ initialPath: '/workflow/orgr-review' });
+
+    try {
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent('boom');
+      expect(
+        screen.getByRole('button', { name: /Continue to Auto-Associations/ })
+      ).toBeDisabled();
+    } finally {
+      cleanup();
+    }
+  });
+
   it('enables Continue when everything is mapped and advances the workflow', async () => {
     mockApi({ unmappedDepartment: false });
     const user = userEvent.setup();

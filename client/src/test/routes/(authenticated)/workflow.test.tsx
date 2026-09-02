@@ -1082,22 +1082,25 @@ describe('AD419 workflow routes', () => {
           createWorkflowSnapshot({
             'data-classification': 'Complete',
             'data-import': 'Complete',
-            'expense-review': 'InProgress',
+            'expense-review': 'Complete',
+            'orgr-review': 'Complete',
             'project-identification': 'Complete',
           })
         );
       }),
       http.put('/api/workflow/stages/:stageId', async ({ params, request }) => {
-        expect(params.stageId).toBe('expense-review');
+        expect(params.stageId).toBe('auto-associations');
         expect(await request.json()).toEqual({ status: 'Complete' });
         updateRequests += 1;
 
         return HttpResponse.json(
           createWorkflowSnapshot({
+            'auto-associations': 'Complete',
             'data-classification': 'Complete',
             'data-import': 'Complete',
             'expense-review': 'Complete',
-            'orgr-review': 'InProgress',
+            'manual-associations': 'InProgress',
+            'orgr-review': 'Complete',
             'project-identification': 'Complete',
           })
         );
@@ -1105,30 +1108,30 @@ describe('AD419 workflow routes', () => {
     );
 
     const { cleanup, router } = renderRoute({
-      initialPath: '/workflow/expense-review',
+      initialPath: '/workflow/auto-associations',
     });
 
     try {
       expect(
-        await screen.findByRole('heading', { level: 1, name: 'Expense Review' })
+        await screen.findByRole('heading', { level: 1, name: 'Auto-Associations' })
       ).toBeInTheDocument();
 
       await user.click(
         screen.getByRole('button', {
-          name: /continue to orgr review/i,
+          name: /continue to manual associations/i,
         })
       );
 
       await waitFor(() => {
         expect(updateRequests).toBe(1);
         expect(router.state.location.pathname).toBe(
-          '/workflow/orgr-review'
+          '/workflow/manual-associations'
         );
       });
       expect(
         await screen.findByRole('heading', {
           level: 1,
-          name: 'OrgR Review',
+          name: 'Manual Associations',
         })
       ).toBeInTheDocument();
     } finally {
