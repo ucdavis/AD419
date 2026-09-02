@@ -26,3 +26,13 @@ WHEN MATCHED AND target.[Label] <> source.[Label] THEN
 WHEN NOT MATCHED BY TARGET THEN
     INSERT ([Sfn], [Label])
     VALUES (source.[Sfn], source.[Label]);
+
+-- ADNO must exist because [data].[v_TransactionOrgR] forces title code 1010
+-- rows to it. All other OrgRs are loaded once per environment outside source
+-- control and maintained in-app.
+MERGE [data].[OrgRs] AS target
+USING (VALUES (N'ADNO')) AS source ([Code])
+    ON target.[Code] = source.[Code]
+WHEN NOT MATCHED BY TARGET THEN
+    INSERT ([Code])
+    VALUES (source.[Code]);
