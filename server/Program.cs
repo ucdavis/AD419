@@ -12,6 +12,7 @@ using Server.Core.Import;
 using Server.Core.Notification;
 using Server.ExpenseReview;
 using Server.Helpers;
+using Server.OrgRReview;
 using Server.ProjectIdentification;
 using Server.ProjectList;
 using Server.Workflow;
@@ -66,6 +67,7 @@ builder.Services.AddScoped<IProjectIdentificationService, ProjectIdentificationS
 builder.Services.AddScoped<IProjectListService, ProjectListService>();
 builder.Services.AddScoped<IExpenseReviewService, ExpenseReviewService>();
 builder.Services.AddScoped<IWorkflowService, WorkflowService>();
+builder.Services.AddScoped<IOrgRReviewSeeder, OrgRReviewSeeder>();
 builder.Services.AddScoped<ImportRunOrchestrator>();
 builder.Services.AddSingleton<IImportRunStarter, ImportRunStarter>();
 builder.Services.AddScoped<ChartSegmentsImportService>();
