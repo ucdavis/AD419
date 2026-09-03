@@ -29,7 +29,7 @@ WHEN NOT MATCHED BY TARGET THEN
 
 -- ADNO must exist because [data].[v_TransactionOrgR] forces title code 1010
 -- rows to it. All other OrgRs are loaded once per environment outside source
--- control and maintained in-app.
+-- control and maintained through the application.
 MERGE [data].[OrgRs] AS target
 USING (VALUES (N'ADNO')) AS source ([Code])
     ON target.[Code] = source.[Code]
