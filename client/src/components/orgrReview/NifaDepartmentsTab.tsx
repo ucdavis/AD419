@@ -13,10 +13,6 @@ import { ExportDataButton } from '@/shared/exportDataButton.tsx';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 
-// The NIFA tab has no scope toggle, so the frozen order only resets when a
-// new code shows up in the data.
-const SCOPE = 'all';
-
 export function NifaDepartmentsTab() {
   const { data: rows = [], isLoading } = useQuery(orgRNifaDepartmentsQueryOptions());
   const { data: orgRs = [] } = useQuery(orgRsQueryOptions());
@@ -26,27 +22,25 @@ export function NifaDepartmentsTab() {
   // Freeze the default row order: unmapped rows on top, otherwise by code.
   // Recomputed only when a code appears that the frozen order does not know
   // about yet, so mapping a row in place does not immediately move it.
-  const [order, setOrder] = useState<{ codes: string[]; scope: string }>(() => ({
-    codes: unmappedFirst(rows, (row) => row.nifaDepartment).map(
+  const [order, setOrder] = useState<string[]>(() =>
+    unmappedFirst(rows, (row) => row.nifaDepartment).map(
       (row) => row.nifaDepartment
-    ),
-    scope: SCOPE,
-  }));
-  const hasNewCode = rows.some((row) => !order.codes.includes(row.nifaDepartment));
-  if (order.scope !== SCOPE || hasNewCode) {
-    setOrder({
-      codes: unmappedFirst(rows, (row) => row.nifaDepartment).map(
+    )
+  );
+  const hasNewCode = rows.some((row) => !order.includes(row.nifaDepartment));
+  if (hasNewCode) {
+    setOrder(
+      unmappedFirst(rows, (row) => row.nifaDepartment).map(
         (row) => row.nifaDepartment
-      ),
-      scope: SCOPE,
-    });
+      )
+    );
   }
 
   if (isLoading) {
     return <p role="status">Loading NIFA departments...</p>;
   }
 
-  const orderIndex = new Map(order.codes.map((code, index) => [code, index]));
+  const orderIndex = new Map(order.map((code, index) => [code, index]));
   const ordered = [...rows].sort(
     (a, b) =>
       (orderIndex.get(a.nifaDepartment) ?? Number.MAX_SAFE_INTEGER) -
