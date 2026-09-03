@@ -9,6 +9,13 @@ public class DataDbContext(DbContextOptions<DataDbContext> options) : DbContext(
 
     public DbSet<SegmentClassification> SegmentClassifications => Set<SegmentClassification>();
 
+    public DbSet<OrgR> OrgRs => Set<OrgR>();
+    public DbSet<OrgRFinancialDepartment> OrgRFinancialDepartments => Set<OrgRFinancialDepartment>();
+    public DbSet<OrgRNifaDepartment> OrgRNifaDepartments => Set<OrgRNifaDepartment>();
+    public DbSet<OrgRProjectAddition> OrgRProjectAdditions => Set<OrgRProjectAddition>();
+    public DbSet<Project> Projects => Set<Project>();
+    public DbSet<ChartSegment> ChartSegments => Set<ChartSegment>();
+
     public DbSet<DepartmentHierarchy> DepartmentHierarchies => Set<DepartmentHierarchy>();
     public DbSet<AccountHierarchy> AccountHierarchies => Set<AccountHierarchy>();
     public DbSet<FundHierarchy> FundHierarchies => Set<FundHierarchy>();
@@ -29,6 +36,64 @@ public class DataDbContext(DbContextOptions<DataDbContext> options) : DbContext(
             entity.Property(segment => segment.Code).HasMaxLength(50);
             entity.Property(segment => segment.Description).HasMaxLength(300);
             entity.Property(segment => segment.Sfn).HasMaxLength(10);
+        });
+
+        modelBuilder.Entity<OrgR>(entity =>
+        {
+            entity.ToTable("OrgRs", DataSchema, table => table.ExcludeFromMigrations());
+            entity.HasKey(o => o.Code);
+            entity.Property(o => o.Code).HasMaxLength(10);
+        });
+
+        modelBuilder.Entity<OrgRFinancialDepartment>(entity =>
+        {
+            entity.ToTable("OrgRFinancialDepartments", DataSchema, table => table.ExcludeFromMigrations());
+            entity.HasKey(m => m.FinancialDepartment);
+            entity.Property(m => m.FinancialDepartment).HasMaxLength(50);
+            entity.Property(m => m.OrgR).HasMaxLength(10);
+        });
+
+        modelBuilder.Entity<OrgRNifaDepartment>(entity =>
+        {
+            entity.ToTable("OrgRNifaDepartments", DataSchema, table => table.ExcludeFromMigrations());
+            entity.HasKey(m => m.NifaDepartment);
+            entity.Property(m => m.NifaDepartment).HasMaxLength(3);
+            entity.Property(m => m.OrgR).HasMaxLength(10);
+        });
+
+        modelBuilder.Entity<OrgRProjectAddition>(entity =>
+        {
+            entity.ToTable("OrgRProjectAdditions", DataSchema, table => table.ExcludeFromMigrations());
+            entity.HasKey(a => new { a.AccessionNumber, a.OrgR });
+            entity.Property(a => a.AccessionNumber).HasMaxLength(7);
+            entity.Property(a => a.OrgR).HasMaxLength(10);
+        });
+
+        modelBuilder.Entity<ChartSegment>(entity =>
+        {
+            entity.ToTable("ChartSegments", DataSchema, table => table.ExcludeFromMigrations());
+            entity.HasKey(s => new { s.SegmentName, s.Code });
+            entity.Property(s => s.SegmentName).HasMaxLength(30);
+            entity.Property(s => s.Code).HasMaxLength(300);
+            entity.Property(s => s.Description).HasMaxLength(500);
+            foreach (var level in new[]
+                     {
+                         nameof(ChartSegment.ParentLevel0Code), nameof(ChartSegment.ParentLevel1Code),
+                         nameof(ChartSegment.ParentLevel2Code), nameof(ChartSegment.ParentLevel3Code),
+                         nameof(ChartSegment.ParentLevel4Code), nameof(ChartSegment.ParentLevel5Code),
+                     })
+            {
+                entity.Property(level).HasMaxLength(200);
+            }
+        });
+
+        modelBuilder.Entity<Project>(entity =>
+        {
+            entity.ToTable("Projects", DataSchema, table => table.ExcludeFromMigrations());
+            entity.HasKey(p => p.Id);
+            entity.Property(p => p.AccessionNumber).HasMaxLength(7);
+            entity.Property(p => p.NifaProjectNumber).HasMaxLength(20);
+            entity.Property(p => p.ProjectDirector).HasMaxLength(200);
         });
 
         ConfigureHierarchy<DepartmentHierarchy>(modelBuilder, "DepartmentHierarchy");
