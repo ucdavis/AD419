@@ -6,6 +6,7 @@ import {
 } from '@/queries.ts';
 import { DataClassificationStage } from '@/components/dataClassification/DataClassificationStage.tsx';
 import { DataImportStage } from '@/components/dataImport/DataImportStage.tsx';
+import { OrgRReviewStage } from '@/components/orgrReview/OrgRReviewStage.tsx';
 import { ProjectIdentificationStage } from '@/components/ProjectIdentificationStage.tsx';
 import { SectionPanel } from '@/components/SectionPanel.tsx';
 import { WorkflowShell } from '@/components/WorkflowShell.tsx';
@@ -62,6 +63,8 @@ function WorkflowStageRoute() {
           <DataClassificationStage status={stage.status} />
         ) : workflowStageId === 'data-import' ? (
           <DataImportStage status={stage.status} />
+        ) : workflowStageId === 'orgr-review' ? (
+          <OrgRReviewStage status={stage.status} />
         ) : (
           <PlaceholderWorkflowStage
             snapshot={snapshot}

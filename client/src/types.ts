@@ -3,6 +3,7 @@ export type WorkflowStageId =
   | 'data-import'
   | 'data-classification'
   | 'expense-review'
+  | 'orgr-review'
   | 'auto-associations'
   | 'manual-associations'
   | 'post-association-review'
