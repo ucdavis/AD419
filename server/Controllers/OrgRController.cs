@@ -140,10 +140,11 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder) 
     }
 
     // GET api/orgr/financial-departments
-    // Only departments present in this cycle's imported transactions are
-    // returned; SeedSegmentClassifications inserts every such department into
-    // SegmentClassifications, so presence there is the cycle test. The
-    // completion gate in WorkflowService applies the same filter.
+    // Only departments classified as included in this cycle's report are
+    // returned, matching what SeedOrgRReviewRows seeds. Mapping rows for
+    // departments excluded this cycle (or carried forward from an earlier one)
+    // stay in the table but are hidden. The completion gate in WorkflowService
+    // applies the same filter.
     [HttpGet("financial-departments")]
     public async Task<ActionResult<IReadOnlyList<OrgRFinancialDepartmentDto>>> GetFinancialDepartments(
         CancellationToken cancellationToken)
@@ -151,7 +152,7 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder) 
         await seeder.SeedReviewRowsAsync(cancellationToken);
 
         var inCycle = await db.SegmentClassifications
-            .Where(s => s.SegmentType == SegmentType.FinancialDepartment)
+            .Where(s => s.SegmentType == SegmentType.FinancialDepartment && s.IncludeInReport == true)
             .Select(s => s.Code)
             .ToHashSetAsync(cancellationToken);
         var mappings = await db.OrgRFinancialDepartments

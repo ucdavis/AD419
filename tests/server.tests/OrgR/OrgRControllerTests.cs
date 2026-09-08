@@ -168,6 +168,26 @@ public class OrgRControllerTests
     }
 
     [Fact]
+    public async Task GetFinancialDepartments_hides_departments_excluded_from_the_report()
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        db.OrgRFinancialDepartments.AddRange(
+            new OrgRFinancialDepartment { FinancialDepartment = "AARE001", OrgR = null },
+            new OrgRFinancialDepartment { FinancialDepartment = "EXCL001", OrgR = null });
+        db.SegmentClassifications.AddRange(
+            new SegmentClassification { SegmentType = SegmentType.FinancialDepartment, Code = "AARE001", IncludeInReport = true },
+            new SegmentClassification { SegmentType = SegmentType.FinancialDepartment, Code = "EXCL001", IncludeInReport = false });
+        await db.SaveChangesAsync();
+        var controller = CreateController(db, new FakeOrgRReviewSeeder());
+
+        var result = await controller.GetFinancialDepartments(CancellationToken.None);
+
+        var dtos = result.Result.Should().BeOfType<OkObjectResult>().Subject.Value
+            .Should().BeAssignableTo<IEnumerable<OrgRFinancialDepartmentDto>>().Subject.ToList();
+        dtos.Should().ContainSingle().Which.FinancialDepartment.Should().Be("AARE001");
+    }
+
+    [Fact]
     public async Task SetFinancialDepartmentOrgR_updates_and_clears()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();

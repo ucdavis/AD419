@@ -363,6 +363,23 @@ public class WorkflowServiceTests
     }
 
     [Fact]
+    public async Task OrgR_review_ignores_unmapped_departments_excluded_from_the_report()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        // Seeded when included, then reclassified as excluded: no OrgR is needed.
+        dataDb.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.FinancialDepartment, Code = "EXCL001", IncludeInReport = false });
+        dataDb.OrgRFinancialDepartments.Add(new OrgRFinancialDepartment { FinancialDepartment = "EXCL001", OrgR = null });
+        await dataDb.SaveChangesAsync();
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder());
+        await CompleteThrough(service, WorkflowStageIds.ExpenseReview);
+
+        var result = await service.SetStageStatusAsync(WorkflowStageIds.OrgRReview, WorkflowStageStatus.Complete, User, CancellationToken.None);
+
+        result.Should().NotBeNull();
+    }
+
+    [Fact]
     public async Task OrgR_review_completes_when_every_mapping_is_set()
     {
         await using var db = TestDbContextFactory.CreateInMemory();

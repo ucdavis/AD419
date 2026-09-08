@@ -281,13 +281,14 @@ public sealed class WorkflowService(
                 return !await dataDbContext.SegmentClassifications
                     .AnyAsync(segment => segment.IncludeInReport == null, cancellationToken);
             case WorkflowStageIds.OrgRReview:
-                // Only departments present in this cycle's transactions count,
-                // matching what the OrgR Review grid shows.
+                // Only departments classified as included in this cycle's
+                // report count, matching the seed and the OrgR Review grid.
                 var unmappedDepartment = await dataDbContext.OrgRFinancialDepartments
                     .Where(mapping => mapping.OrgR == null)
                     .Join(
                         dataDbContext.SegmentClassifications
-                            .Where(segment => segment.SegmentType == SegmentType.FinancialDepartment),
+                            .Where(segment => segment.SegmentType == SegmentType.FinancialDepartment
+                                && segment.IncludeInReport == true),
                         mapping => mapping.FinancialDepartment,
                         segment => segment.Code,
                         (mapping, segment) => mapping)
