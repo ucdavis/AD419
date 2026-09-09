@@ -8,7 +8,6 @@ using Server.Models;
 using Server.Models.ProjectList;
 using Server.Models.Workflow;
 using Server.ProjectList;
-using Server.Tests.ExpenseReview;
 using Server.Workflow;
 using System.Security.Claims;
 
@@ -144,7 +143,7 @@ public class ProjectListControllerTests
         await using var db = await CreateDbWithConfirmedRunAsync();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
         var service = new StubProjectListService();
-        var workflowService = new WorkflowService(db, dataDb, new StubExpenseReviewCacheService());
+        var workflowService = new WorkflowService(db, dataDb);
         await workflowService.SetStageStatusAsync(
             WorkflowStageIds.ProjectIdentification,
             WorkflowStageStatus.Complete,

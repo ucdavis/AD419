@@ -6,6 +6,7 @@ import {
   type ExpenseReviewCodeName,
   type ExpenseReviewExclusionReason,
   type ExpenseReviewFilterOption,
+  type ExpenseReviewFilterOptionsResponse,
   type ExpenseReviewFilters,
   type ExpenseReviewIncludeState,
   type ExpenseReviewSortBy,
@@ -402,6 +403,30 @@ function DisplayByPeriodToggle({
   );
 }
 
+function IncludeZeroAmountsToggle({
+  checked,
+  disabled,
+  onChange,
+}: {
+  checked: boolean;
+  disabled: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="label w-full cursor-pointer justify-start gap-3 self-end rounded border border-base-300 px-3 py-2">
+      <input
+        aria-label="Include $0 groups"
+        checked={checked}
+        className="toggle toggle-sm"
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+        type="checkbox"
+      />
+      <span className="label-text">Include $0 groups</span>
+    </label>
+  );
+}
+
 function FilterSelect({
   disabled,
   label,
@@ -446,12 +471,14 @@ function FilterSelect({
 }
 
 function SelectedFilters({
+  filterOptions,
   filters,
   includeState,
   onClearAll,
   onIncludeStateChange,
   onRemove,
 }: {
+  filterOptions: ExpenseReviewFilterOptionsResponse;
   filters: ExpenseReviewFilters;
   includeState: ExpenseReviewIncludeState;
   onClearAll: () => void;
@@ -479,17 +506,24 @@ function SelectedFilters({
         </button>
       )}
       {filterControls.flatMap((control) =>
-        filters[control.id].map((value) => (
-          <button
-            className="badge badge-outline gap-1"
-            key={`${control.id}:${value}`}
-            onClick={() => onRemove(control.id, value)}
-            type="button"
-          >
-            {control.label}: {value}
-            <span aria-hidden="true">x</span>
-          </button>
-        ))
+        filters[control.id].map((value) => {
+          const label =
+            filterOptions[control.optionsKey].find(
+              (option) => option.value === value
+            )?.label ?? value;
+
+          return (
+            <button
+              className="badge badge-outline gap-1"
+              key={`${control.id}:${value}`}
+              onClick={() => onRemove(control.id, value)}
+              type="button"
+            >
+              {control.label}: {label}
+              <span aria-hidden="true">x</span>
+            </button>
+          );
+        })
       )}
       <button className="btn btn-ghost btn-xs" onClick={onClearAll} type="button">
         Clear all
@@ -508,6 +542,7 @@ export function ExpenseReviewStage() {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sorting, setSorting] = useState<SortingState>(() => defaultSorting());
   const [displayByPeriod, setDisplayByPeriod] = useState(false);
+  const [includeZeroAmounts, setIncludeZeroAmounts] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -518,6 +553,7 @@ export function ExpenseReviewStage() {
       displayByPeriod,
       filters,
       includeState,
+      includeZeroAmounts,
       page: pageIndex + 1,
       pageSize,
       sortBy: (sort?.id as ExpenseReviewSortBy | undefined) ?? 'source',
@@ -539,6 +575,7 @@ export function ExpenseReviewStage() {
     displayByPeriod,
     filters,
     includeState,
+    includeZeroAmounts,
     sortBy: (sort?.id as ExpenseReviewSortBy | undefined) ?? 'source',
     sortDirection: sort?.desc ? 'desc' : 'asc',
   });
@@ -585,6 +622,11 @@ export function ExpenseReviewStage() {
     resetToFirstPage();
     resetExportError();
   };
+  const handleIncludeZeroAmountsChange = (checked: boolean) => {
+    setIncludeZeroAmounts(checked);
+    resetToFirstPage();
+    resetExportError();
+  };
 
   if (filterOptionsQuery.isLoading || transactionsQuery.isLoading) {
     return <p>Loading expense review transactions...</p>;
@@ -622,7 +664,7 @@ export function ExpenseReviewStage() {
   }
 
   const transactions = transactionsQuery.data;
-  if (!transactions) {
+  if (!transactions || !filterOptions) {
     return <p>Loading expense review transactions...</p>;
   }
 
@@ -675,6 +717,11 @@ export function ExpenseReviewStage() {
             disabled={transactionsQuery.isFetching}
             onChange={handleDisplayByPeriodChange}
           />
+          <IncludeZeroAmountsToggle
+            checked={includeZeroAmounts}
+            disabled={transactionsQuery.isFetching}
+            onChange={handleIncludeZeroAmountsChange}
+          />
           {filterControls.map((control) => (
             <FilterSelect
               disabled={filterOptionsQuery.isFetching}
@@ -687,6 +734,7 @@ export function ExpenseReviewStage() {
           ))}
         </div>
         <SelectedFilters
+          filterOptions={filterOptions}
           filters={filters}
           includeState={includeState}
           onClearAll={clearFilters}

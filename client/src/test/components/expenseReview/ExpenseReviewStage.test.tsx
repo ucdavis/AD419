@@ -19,7 +19,7 @@ const filtersResponse = {
   aeProjects: [{ label: 'K1234 - Tomato Project', value: 'K1234' }],
   entities: [{ label: '3310 - UC Davis', value: '3310' }],
   exclusionReasons: [
-    { label: 'Fund F2 excluded', value: 'fund:F2:excluded' },
+    { label: 'Excluded by fund', value: 'fund:excluded' },
   ],
   financialDepts: [{ label: 'D0123 - Plant Sciences', value: 'D0123' }],
   funds: [{ label: '13U02 - Experiment Station', value: '13U02' }],
@@ -61,8 +61,8 @@ const transactionRows = [
     exclusionReasons: [
       {
         amount: 2400,
-        code: 'fund:F2:excluded',
-        label: 'Fund F2 excluded',
+        code: 'fund:excluded',
+        label: 'Excluded by fund',
         rowCount: 2,
       },
     ],
@@ -219,11 +219,12 @@ describe('Expense Review stage', () => {
         })
       ).not.toBeInTheDocument();
       expect(screen.getByLabelText('Display by period')).not.toBeChecked();
+      expect(screen.getByLabelText('Include $0 groups')).not.toBeChecked();
       expect(screen.getByText('AE')).toBeInTheDocument();
       expect(screen.getByText('UCP')).toBeInTheDocument();
       expect(screen.getByText('$3,600.50')).toBeInTheDocument();
       expect(
-        screen.getByText('Fund F2 excluded · $2,400.00 · 2 rows')
+        screen.getByText('Excluded by fund · $2,400.00 · 2 rows')
       ).toBeInTheDocument();
 
       expect(screen.getAllByText('3310')[0]).toHaveAttribute(
@@ -247,6 +248,9 @@ describe('Expense Review stage', () => {
       expect(requests.at(-1)?.searchParams.get('displayByPeriod')).toBe(
         'false'
       );
+      expect(requests.at(-1)?.searchParams.get('includeZeroAmounts')).toBe(
+        'false'
+      );
 
       await user.selectOptions(screen.getByLabelText('Include State filter'), [
         'excluded',
@@ -263,6 +267,11 @@ describe('Expense Review stage', () => {
           '13U02',
         ]);
       });
+      expect(
+        screen.getByRole('button', {
+          name: 'Fund: 13U02 - Experiment Station',
+        })
+      ).toBeInTheDocument();
 
       await user.selectOptions(screen.getByLabelText('Source filter'), ['AE']);
       await waitFor(() => {
@@ -279,13 +288,18 @@ describe('Expense Review stage', () => {
       });
 
       await user.selectOptions(screen.getByLabelText('Exclusion Reason filter'), [
-        'fund:F2:excluded',
+        'fund:excluded',
       ]);
       await waitFor(() => {
         expect(
           requests.at(-1)?.searchParams.getAll('exclusionReason')
-        ).toEqual(['fund:F2:excluded']);
+        ).toEqual(['fund:excluded']);
       });
+      expect(
+        screen.getByRole('button', {
+          name: 'Exclusion Reason: Excluded by fund',
+        })
+      ).toBeInTheDocument();
 
       await user.click(screen.getByRole('button', { name: 'Clear all' }));
       await waitFor(() => {
@@ -333,6 +347,27 @@ describe('Expense Review stage', () => {
       await user.click(screen.getByRole('button', { name: 'Next' }));
       await waitFor(() => {
         expect(requests.at(-1)?.searchParams.get('page')).toBe('2');
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('requests zero-amount groups only when enabled', async () => {
+    const user = userEvent.setup();
+    const requests: URL[] = [];
+    mockExpenseReviewApi(requests);
+    const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });
+
+    try {
+      await screen.findByRole('tab', { name: /grouped expenses/i });
+      await user.click(screen.getByLabelText('Include $0 groups'));
+
+      await waitFor(() => {
+        expect(requests.at(-1)?.searchParams.get('includeZeroAmounts')).toBe(
+          'true'
+        );
+        expect(requests.at(-1)?.searchParams.get('page')).toBe('1');
       });
     } finally {
       cleanup();
@@ -406,6 +441,7 @@ describe('Expense Review stage', () => {
       ]);
       await user.selectOptions(screen.getByLabelText('Fund filter'), ['13U02']);
       await user.click(screen.getByLabelText('Display by period'));
+      await user.click(screen.getByLabelText('Include $0 groups'));
       await user.click(
         screen.getByRole('columnheader', { name: /Financial Dept/ })
       );
@@ -420,6 +456,7 @@ describe('Expense Review stage', () => {
       const exportUrl = exportRequests[0];
       expect(exportUrl.searchParams.get('includeState')).toBe('excluded');
       expect(exportUrl.searchParams.get('displayByPeriod')).toBe('true');
+      expect(exportUrl.searchParams.get('includeZeroAmounts')).toBe('true');
       expect(exportUrl.searchParams.getAll('fund')).toEqual(['13U02']);
       expect(exportUrl.searchParams.get('sortBy')).toBe('financialDept');
       expect(exportUrl.searchParams.get('sortDirection')).toBe('asc');

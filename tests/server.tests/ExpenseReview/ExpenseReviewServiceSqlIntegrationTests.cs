@@ -3,7 +3,6 @@ using Dapper;
 using FluentAssertions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
-using Server.Core.Data;
 using Server.ExpenseReview;
 using Server.Models;
 using Server.Models.ExpenseReview;
@@ -22,7 +21,7 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         await SeedExpenseReviewScenarioAsync();
 
         await using var db = fixture.CreateDataDbContext();
-        var service = CreateService(db);
+        var service = new ExpenseReviewService(db, Configuration());
         var cycle = Cycle();
 
         var all = await service.GetTransactionsAsync(cycle, Request(), CancellationToken.None);
@@ -56,8 +55,8 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         excludedGroup.Amount.Should().Be(50m);
         excludedGroup.Included.Should().BeFalse();
         excludedGroup.ExclusionReasons.Should().ContainSingle(reason =>
-            reason.Code == "fund:F2:excluded" &&
-            reason.Label == "Fund F2 excluded" &&
+            reason.Code == "fund:excluded" &&
+            reason.Label == "Excluded by fund" &&
             reason.RowCount == 1 &&
             reason.Amount == 50m);
 
@@ -77,7 +76,7 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
 
         var reasonFiltered = await service.GetTransactionsAsync(
             cycle,
-            Request(filters: Filters(exclusionReason: ["fund:F2:excluded"])),
+            Request(filters: Filters(exclusionReason: ["fund:excluded"])),
             CancellationToken.None);
         reasonFiltered.TotalCount.Should().Be(1);
         reasonFiltered.Rows.Should().ContainSingle(row => row.Fund.Code == "F2");
@@ -119,57 +118,7 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         filters.Sources.Select(option => (option.Value, option.Label))
             .Should().Equal(("AE", "Aggie Enterprise"), ("UCP", "UCPath"));
         filters.ExclusionReasons.Should().ContainSingle(option =>
-            option.Value == "fund:F2:excluded" && option.Label == "Fund F2 excluded");
-    }
-
-    [Fact]
-    public async Task UcPath_accounting_period_labels_use_uc_fiscal_year_period_mapping()
-    {
-        await fixture.ClearDataTablesAsync();
-        await SeedExpenseReviewScenarioAsync();
-        await SeedUcPathPeriodBoundaryRowsAsync();
-
-        await using var db = fixture.CreateDataDbContext();
-        var service = CreateService(db);
-
-        var periodSplit = await service.GetTransactionsAsync(
-            Cycle(),
-            Request(displayByPeriod: true, sortBy: "accountingPeriod", filters: Filters(source: ["UCP"])),
-            CancellationToken.None);
-
-        periodSplit.Rows.Should().Contain(row =>
-            row.AccountingPeriod == "Dec-24" && row.Amount == 601m);
-        periodSplit.Rows.Should().Contain(row =>
-            row.AccountingPeriod == "Jan-25" && row.Amount == 701m);
-    }
-
-    [Fact]
-    public async Task Missing_cache_is_lazily_rebuilt_before_expense_review_reads()
-    {
-        await fixture.ClearDataTablesAsync();
-        await SeedExpenseReviewScenarioAsync();
-
-        await using var db = fixture.CreateDataDbContext();
-        var service = CreateService(db);
-
-        var all = await service.GetTransactionsAsync(Cycle(), Request(), CancellationToken.None);
-
-        all.TotalCount.Should().Be(3);
-        await using var connection = new SqlConnection(fixture.ConnectionString);
-        var status = await connection.QuerySingleAsync<(int FactRowCount, int ReasonRowCount)>(
-            """
-            SELECT [FactRowCount], [ReasonRowCount]
-            FROM [data].[ExpenseReviewCacheStatus]
-            WHERE [CycleStart] = @cycleStart
-              AND [CycleEnd] = @cycleEnd;
-            """,
-            new
-            {
-                cycleStart = Cycle().CycleStart.ToDateTime(TimeOnly.MinValue),
-                cycleEnd = Cycle().CycleEnd.ToDateTime(TimeOnly.MinValue),
-            });
-        status.FactRowCount.Should().Be(5);
-        status.ReasonRowCount.Should().Be(1);
+            option.Value == "fund:excluded" && option.Label == "Excluded by fund");
     }
 
     [Fact]
@@ -180,7 +129,7 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         await SeedPersistedExclusionFlagRowsAsync();
 
         await using var db = fixture.CreateDataDbContext();
-        var service = CreateService(db);
+        var service = new ExpenseReviewService(db, Configuration());
 
         var all = await service.GetTransactionsAsync(Cycle(), Request(), CancellationToken.None);
 
@@ -201,12 +150,12 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         aeExcludedGroup.Amount.Should().Be(803m);
         aeExcludedGroup.ExclusionReasons.Should().Contain(reason =>
             reason.Code == "excludedByDate" &&
-            reason.Label == "Date excluded" &&
+            reason.Label == "Excluded by date" &&
             reason.RowCount == 1 &&
             reason.Amount == 401m);
         aeExcludedGroup.ExclusionReasons.Should().Contain(reason =>
-            reason.Code == "aeAccountInUcPath:A1" &&
-            reason.Label == "AE account A1 also in UCPath" &&
+            reason.Code == "aeAccountInUcPath" &&
+            reason.Label == "AE account also in UCPath" &&
             reason.RowCount == 1 &&
             reason.Amount == 402m);
 
@@ -224,12 +173,12 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         ucPathExcludedGroup.Amount.Should().Be(807m);
         ucPathExcludedGroup.ExclusionReasons.Should().Contain(reason =>
             reason.Code == "excludedByDate" &&
-            reason.Label == "Date excluded" &&
+            reason.Label == "Excluded by date" &&
             reason.RowCount == 1 &&
             reason.Amount == 403m);
         ucPathExcludedGroup.ExclusionReasons.Should().Contain(reason =>
-            reason.Code == "ucPathAccountNotInAE:A1" &&
-            reason.Label == "UCPath account A1 missing from AE chart" &&
+            reason.Code == "ucPathAccountNotInAE" &&
+            reason.Label == "UCPath account missing from AE chart" &&
             reason.RowCount == 1 &&
             reason.Amount == 404m);
 
@@ -257,6 +206,52 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
     }
 
     [Fact]
+    public async Task Transaction_queries_and_csv_exclude_zero_amount_groups_by_default()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        await SeedZeroAmountGroupAsync();
+
+        await using var db = fixture.CreateDataDbContext();
+        var service = new ExpenseReviewService(db, Configuration());
+
+        var withoutZeroAmounts = await service.GetTransactionsAsync(
+            Cycle(),
+            Request(),
+            CancellationToken.None);
+
+        withoutZeroAmounts.Counts.Should().BeEquivalentTo(new ExpenseReviewCountsDto(3, 2, 1));
+        withoutZeroAmounts.TotalCount.Should().Be(3);
+        withoutZeroAmounts.Rows.Should().NotContain(row => row.Fund.Code == "F0");
+
+        var withZeroAmounts = await service.GetTransactionsAsync(
+            Cycle(),
+            Request(includeZeroAmounts: true),
+            CancellationToken.None);
+
+        withZeroAmounts.Counts.Should().BeEquivalentTo(new ExpenseReviewCountsDto(4, 3, 1));
+        withZeroAmounts.TotalCount.Should().Be(4);
+        withZeroAmounts.Rows.Should().ContainSingle(row => row.Fund.Code == "F0")
+            .Which.Amount.Should().Be(0m);
+
+        await using var defaultCsv = new MemoryStream();
+        await service.WriteTransactionsCsvAsync(
+            Cycle(),
+            Request(),
+            defaultCsv,
+            CancellationToken.None);
+        Encoding.UTF8.GetString(defaultCsv.ToArray()).Should().NotContain("F0 - Zero Fund");
+
+        await using var csvWithZeroAmounts = new MemoryStream();
+        await service.WriteTransactionsCsvAsync(
+            Cycle(),
+            Request(includeZeroAmounts: true),
+            csvWithZeroAmounts,
+            CancellationToken.None);
+        Encoding.UTF8.GetString(csvWithZeroAmounts.ToArray()).Should().Contain("F0 - Zero Fund");
+    }
+
+    [Fact]
     public async Task Transaction_queries_explain_missing_classifications_except_13u02_purpose()
     {
         await fixture.ClearDataTablesAsync();
@@ -264,27 +259,27 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         await SeedMissingClassificationRowsAsync();
 
         await using var db = fixture.CreateDataDbContext();
-        var service = CreateService(db);
+        var service = new ExpenseReviewService(db, Configuration());
 
         var all = await service.GetTransactionsAsync(Cycle(), Request(), CancellationToken.None);
 
         all.Rows.Should().Contain(row =>
             row.FinancialDept.Code == "D-MISSING" &&
             !row.Included &&
-            row.ExclusionReasons.Any(reason => reason.Label == "Financial Dept D-MISSING unclassified"));
+            row.ExclusionReasons.Any(reason => reason.Label == "Unclassified financial department"));
         all.Rows.Should().Contain(row =>
             row.Account.Code == "A-MISSING" &&
             !row.Included &&
-            row.ExclusionReasons.Any(reason => reason.Label == "Account A-MISSING unclassified"));
+            row.ExclusionReasons.Any(reason => reason.Label == "Unclassified account"));
         all.Rows.Should().Contain(row =>
             row.Activity.Code == "AC-MISSING" &&
             !row.Included &&
-            row.ExclusionReasons.Any(reason => reason.Label == "Activity AC-MISSING unclassified"));
+            row.ExclusionReasons.Any(reason => reason.Label == "Unclassified activity"));
         all.Rows.Should().Contain(row =>
             row.Purpose.Code == "P-MISSING" &&
             row.Fund.Code == "F1" &&
             !row.Included &&
-            row.ExclusionReasons.Any(reason => reason.Label == "Purpose P-MISSING unclassified"));
+            row.ExclusionReasons.Any(reason => reason.Label == "Unclassified purpose"));
         all.Rows.Should().Contain(row =>
             row.Purpose.Code == "P-MISSING" &&
             row.Fund.Code == "13U02" &&
@@ -299,7 +294,7 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         await SeedExpenseReviewScenarioAsync();
 
         await using var db = fixture.CreateDataDbContext();
-        var service = CreateService(db);
+        var service = new ExpenseReviewService(db, Configuration());
         await using var output = new MemoryStream();
 
         await service.WriteTransactionsCsvAsync(
@@ -329,7 +324,7 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         await SeedPersistedExclusionFlagRowsAsync();
 
         await using var db = fixture.CreateDataDbContext();
-        var service = CreateService(db);
+        var service = new ExpenseReviewService(db, Configuration());
         await using var output = new MemoryStream();
 
         await service.WriteTransactionsCsvAsync(
@@ -348,8 +343,8 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
             "AE,3310 - Entity One,F1 - Fund One,D1 - Dept One,A1 - Account One,P1 - Purpose One,PG1 - Program One,PR1 - AE Project One,AC1 - Activity One,201 - Hatch,125.00,Included,");
         lines.Should().Contain(line =>
             line.Contains("803.00,Excluded,", StringComparison.Ordinal) &&
-            line.Contains("AE account A1 also in UCPath · $402.00 · 1 row", StringComparison.Ordinal) &&
-            line.Contains("Date excluded · $401.00 · 1 row", StringComparison.Ordinal));
+            line.Contains("AE account also in UCPath · $402.00 · 1 row", StringComparison.Ordinal) &&
+            line.Contains("Excluded by date · $401.00 · 1 row", StringComparison.Ordinal));
     }
 
     private async Task SeedExpenseReviewScenarioAsync()
@@ -414,7 +409,35 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
                 ('UCP-ERN-MISSING', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E02',
                  '20000002', 'POS00002', 40.000000, 300.00, 0.250000, '2024-11-30', 'S', 2025, '5', 0, 0, 0, 0),
                 ('UCP-OUTSIDE', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01',
-                 '20000003', 'POS00003', 40.000000, 999.00, 0.250000, '2023-11-30', 'S', 2025, '5', 0, 0, 0, 0);
+                 '20000003', 'POS00003', 40.000000, 999.00, 0.250000, '2023-11-30', 'S', 2024, '5', 0, 0, 0, 0);
+            """);
+    }
+
+    private async Task SeedZeroAmountGroupAsync()
+    {
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description], [IncludeInReport], [Sfn])
+            VALUES ('Fund', 'F0', 'Zero Fund', 1, '201');
+
+            INSERT INTO [data].[ChartSegments] ([SegmentName], [Code], [Description], [ValueDesc])
+            VALUES ('Fund', 'F0', 'Zero Fund', 'Zero Fund');
+
+            INSERT INTO [data].[AETransactions]
+                ([Entity], [Fund], [FinancialDepartment], [Account], [Purpose], [Program], [Project], [Activity],
+                 [EntityDescription], [FundDescription], [FinancialDepartmentDescription], [AccountDescription],
+                 [PurposeDescription], [ProgramDescription], [ProjectDescription], [ActivityDescription],
+                 [PeriodName], [Amount], [ExcludedByDate], [AccountInUcPath])
+            VALUES
+                ('3310', 'F0', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1',
+                 'Entity One', 'Zero Fund', 'Dept One', 'Account One', 'Purpose One', 'Program One', 'Zero Group', 'Activity One',
+                 'Dec-24', 10.00, 0, 0),
+                ('3310', 'F0', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1',
+                 'Entity One', 'Zero Fund', 'Dept One', 'Account One', 'Purpose One', 'Program One', 'Zero Group', 'Activity One',
+                 'Dec-24', -10.00, 0, 0);
             """);
     }
 
@@ -448,26 +471,6 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
                  '20000004', 'POS00004', 10.000000, 403.00, 0.050000, '2024-11-30', 'S', 2025, '5', 0, 0, 1, 0),
                 ('UCP-ACCOUNT-NOT-AE', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01',
                  '20000005', 'POS00005', 10.000000, 404.00, 0.050000, '2024-11-30', 'S', 2025, '5', 0, 0, 0, 1);
-            """);
-    }
-
-    private async Task SeedUcPathPeriodBoundaryRowsAsync()
-    {
-        await using var connection = new SqlConnection(fixture.ConnectionString);
-        await connection.OpenAsync();
-
-        await connection.ExecuteAsync(
-            """
-            INSERT INTO [data].[UcPathTransactions]
-                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
-                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [PositionNumber],
-                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
-                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
-            VALUES
-                ('UCP-PERIOD-6', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01',
-                 '20000006', 'POS00006', 10.000000, 601.00, 0.050000, '2024-12-31', 'S', 2025, '6', 0, 0, 0, 0),
-                ('UCP-PERIOD-7', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01',
-                 '20000007', 'POS00007', 10.000000, 701.00, 0.050000, '2025-01-31', 'S', 2025, '7', 0, 0, 0, 0);
             """);
     }
 
@@ -512,8 +515,9 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         string sortBy = ExpenseReviewRequestParser.DefaultSortBy,
         bool sortDescending = false,
         bool displayByPeriod = false,
+        bool includeZeroAmounts = false,
         ExpenseReviewFilters? filters = null) =>
-        new(includeState, page, pageSize, sortBy, sortDescending, displayByPeriod, filters ?? Filters());
+        new(includeState, page, pageSize, sortBy, sortDescending, displayByPeriod, includeZeroAmounts, filters ?? Filters());
 
     private static ExpenseReviewFilters Filters(
         IReadOnlyList<string>? entity = null,
@@ -555,10 +559,4 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
                 ["ConnectionStrings:DataConnection"] = fixture.ConnectionString,
             })
             .Build();
-
-    private ExpenseReviewService CreateService(DataDbContext db)
-    {
-        var configuration = Configuration();
-        return new ExpenseReviewService(db, configuration, new ExpenseReviewCacheService(db, configuration));
-    }
 }

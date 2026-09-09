@@ -33,8 +33,8 @@ public class ExpenseReviewCsvWriterTests
                     false,
                     [
                         new ExpenseReviewExclusionReasonDto(
-                            "fund:F2:excluded",
-                            "Fund F2 excluded",
+                            "fund:excluded",
+                            "Excluded by fund",
                             2,
                             1234.5m),
                     ])
@@ -46,7 +46,7 @@ public class ExpenseReviewCsvWriterTests
 
         csv.Should().StartWith('\ufeff' + "Source,Entity,Fund,Financial Dept,Account,Purpose,Program,Project,Activity,SFN,Amount,Include State,Exclusion Reasons\r\n");
         csv.Should().Contain("\"D0123 - Plant, \"\"Sciences\"\"\"");
-        csv.Should().Contain("AE,3310 - Entity,,\"D0123 - Plant, \"\"Sciences\"\"\",500000,44 - Research,,K1234 - Tomato Project,A1 - Activity One,\"220 - AES, Federal\",1234.50,Excluded,\"Fund F2 excluded · $1,234.50 · 2 rows\"");
+        csv.Should().Contain("AE,3310 - Entity,,\"D0123 - Plant, \"\"Sciences\"\"\",500000,44 - Research,,K1234 - Tomato Project,A1 - Activity One,\"220 - AES, Federal\",1234.50,Excluded,\"Excluded by fund · $1,234.50 · 2 rows\"");
     }
 
     [Fact]

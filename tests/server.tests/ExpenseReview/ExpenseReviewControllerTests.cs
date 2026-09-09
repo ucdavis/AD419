@@ -52,6 +52,7 @@ public class ExpenseReviewControllerTests
                 SortBy = "amount",
                 SortDirection = "desc",
                 DisplayByPeriod = true,
+                IncludeZeroAmounts = true,
                 Page = 2,
                 PageSize = 25,
                 AccountingPeriod = ["Oct-24"],
@@ -72,6 +73,7 @@ public class ExpenseReviewControllerTests
         service.ReceivedRequest.SortBy.Should().Be("amount");
         service.ReceivedRequest.SortDescending.Should().BeTrue();
         service.ReceivedRequest.DisplayByPeriod.Should().BeTrue();
+        service.ReceivedRequest.IncludeZeroAmounts.Should().BeTrue();
         service.ReceivedRequest.Page.Should().Be(2);
         service.ReceivedRequest.PageSize.Should().Be(25);
         service.ReceivedRequest.Filters.AccountingPeriod.Should().Equal("Oct-24");
@@ -101,6 +103,7 @@ public class ExpenseReviewControllerTests
                 SortBy = "amount",
                 SortDirection = "desc",
                 DisplayByPeriod = true,
+                IncludeZeroAmounts = true,
                 AccountingPeriod = ["Oct-24"],
                 FinancialDept = ["D0123"],
                 Source = ["AE"],
@@ -118,6 +121,7 @@ public class ExpenseReviewControllerTests
         service.ReceivedCsvRequest.SortBy.Should().Be("amount");
         service.ReceivedCsvRequest.SortDescending.Should().BeTrue();
         service.ReceivedCsvRequest.DisplayByPeriod.Should().BeTrue();
+        service.ReceivedCsvRequest.IncludeZeroAmounts.Should().BeTrue();
         service.ReceivedCsvRequest.Filters.AccountingPeriod.Should().Equal("Oct-24");
         service.ReceivedCsvRequest.Filters.FinancialDept.Should().Equal("D0123");
         service.ReceivedCsvRequest.Filters.Source.Should().Equal("AE");

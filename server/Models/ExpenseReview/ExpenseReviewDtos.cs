@@ -16,6 +16,8 @@ public sealed class ExpenseReviewTransactionsQuery
 
     public bool DisplayByPeriod { get; init; }
 
+    public bool IncludeZeroAmounts { get; init; }
+
     [FromQuery(Name = "financialDept")]
     public string[] FinancialDept { get; init; } = [];
 
@@ -49,6 +51,7 @@ public sealed record ExpenseReviewTransactionsRequest(
     string SortBy,
     bool SortDescending,
     bool DisplayByPeriod,
+    bool IncludeZeroAmounts,
     ExpenseReviewFilters Filters);
 
 public enum ExpenseReviewIncludeState
@@ -204,6 +207,7 @@ public static class ExpenseReviewRequestParser
             sortBy,
             sortDescending,
             query.DisplayByPeriod,
+            query.IncludeZeroAmounts,
             new ExpenseReviewFilters(
                 Clean(query.Entity),
                 Clean(query.FinancialDept),

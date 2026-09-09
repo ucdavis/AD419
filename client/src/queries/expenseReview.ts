@@ -108,6 +108,7 @@ export interface ExpenseReviewTransactionsParams {
   displayByPeriod: boolean;
   filters: ExpenseReviewFilters;
   includeState: ExpenseReviewIncludeState;
+  includeZeroAmounts: boolean;
   page: number;
   pageSize: number;
   sortBy?: ExpenseReviewSortBy;
@@ -118,6 +119,7 @@ export interface ExpenseReviewTransactionsCsvParams {
   displayByPeriod: boolean;
   filters: ExpenseReviewFilters;
   includeState: ExpenseReviewIncludeState;
+  includeZeroAmounts: boolean;
   sortBy?: ExpenseReviewSortBy;
   sortDirection?: ExpenseReviewSortDirection;
 }
@@ -160,6 +162,7 @@ function appendParams(
   const search = new URLSearchParams({
     displayByPeriod: params.displayByPeriod ? 'true' : 'false',
     includeState: params.includeState,
+    includeZeroAmounts: params.includeZeroAmounts ? 'true' : 'false',
   });
 
   if (includePagination) {

@@ -9,8 +9,7 @@ namespace Server.ExpenseReview;
 
 public sealed class ExpenseReviewService(
     DataDbContext dataDbContext,
-    IConfiguration configuration,
-    IExpenseReviewCacheService expenseReviewCacheService) : IExpenseReviewService
+    IConfiguration configuration) : IExpenseReviewService
 {
     private static readonly IReadOnlyDictionary<string, string> SortExpressions =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -47,8 +46,6 @@ public sealed class ExpenseReviewService(
         ExpenseReviewTransactionsRequest request,
         CancellationToken cancellationToken)
     {
-        await expenseReviewCacheService.EnsureCachePreparedAsync(cycle, cancellationToken);
-
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
@@ -82,8 +79,6 @@ public sealed class ExpenseReviewService(
         FiscalYearCycle cycle,
         CancellationToken cancellationToken)
     {
-        await expenseReviewCacheService.EnsureCachePreparedAsync(cycle, cancellationToken);
-
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
@@ -119,8 +114,6 @@ public sealed class ExpenseReviewService(
         Stream output,
         CancellationToken cancellationToken)
     {
-        await expenseReviewCacheService.EnsureCachePreparedAsync(cycle, cancellationToken);
-
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
@@ -181,10 +174,8 @@ public sealed class ExpenseReviewService(
                 r.[Label],
                 r.[RowCount],
                 r.[Amount]
-            FROM
-            (
-                {{BuildAggregatedReasonsSql("INNER JOIN #PagedGroupIds p ON p.[Id] = t.[GroupId]", null)}}
-            ) r
+            FROM #AggregatedReasons r
+            INNER JOIN #PagedGroupIds p ON p.[Id] = r.[GroupId]
             ORDER BY r.[GroupId], r.[Label], r.[Code];
             """;
     }
@@ -210,10 +201,9 @@ public sealed class ExpenseReviewService(
                 r.[Label],
                 r.[RowCount],
                 r.[Amount]
-            FROM
-            (
-                {{BuildAggregatedReasonsSql("INNER JOIN #Grouped g ON g.[Id] = t.[GroupId]", includeClause)}}
-            ) r
+            FROM #AggregatedReasons r
+            INNER JOIN #Grouped g ON g.[Id] = r.[GroupId]
+            WHERE {{includeClause}}
             ORDER BY r.[GroupId], r.[Label], r.[Code];
             """;
     }
@@ -221,51 +211,36 @@ public sealed class ExpenseReviewService(
     private static string BuildGroupedTempTablesSql(ExpenseReviewTransactionsRequest request)
     {
         var filters = request.Filters;
-        var filterClause = BuildFilterClause(filters, "f");
-        var exclusionReasonClause = BuildExclusionReasonFilterClause(filters, "f");
+        var filterClause = BuildFilterClause(filters, "u");
+        var exclusionReasonClause = BuildExclusionReasonFilterClause(filters, "t");
         var periodSelectColumns = request.DisplayByPeriod
             ? "t.[AccountingPeriod],\n                t.[AccountingPeriodSort],"
             : "CAST(NULL AS NVARCHAR(20)) AS [AccountingPeriod],\n                CAST(NULL AS DATE) AS [AccountingPeriodSort],";
         var periodGroupByColumns = request.DisplayByPeriod
             ? ",\n                t.[AccountingPeriod],\n                t.[AccountingPeriodSort]"
             : string.Empty;
+        var zeroAmountHavingClause = request.IncludeZeroAmounts
+            ? string.Empty
+            : "\n            HAVING SUM(t.[Amount]) <> 0 OR SUM(t.[Amount]) IS NULL";
 
         return $$"""
-            SELECT
-                {{GroupIdExpression("f", request.DisplayByPeriod)}} AS [GroupId],
-                f.[TransactionId],
-                f.[Source],
-                f.[AccountingPeriod],
-                f.[AccountingPeriodSort],
-                f.[EntityCode],
-                f.[EntityName],
-                f.[FinancialDeptCode],
-                f.[FinancialDeptName],
-                f.[FundCode],
-                f.[FundName],
-                f.[AccountCode],
-                f.[AccountName],
-                f.[AeProjectCode],
-                f.[AeProjectName],
-                f.[PurposeCode],
-                f.[PurposeName],
-                f.[ProgramCode],
-                f.[ProgramName],
-                f.[ActivityCode],
-                f.[ActivityName],
-                f.[Sfn],
-                f.[SfnLabel],
-                f.[Amount],
-                f.[Included]
+            {{UnifiedTransactionsCte}}
+            SELECT *
+            INTO #CycleTransactions
+            FROM Unified u
+            WHERE {{filterClause}};
+
+            {{BuildReasonRowsSql("#CycleTransactions", "#CycleReasons", request.DisplayByPeriod)}}
+
+            SELECT t.*
             INTO #FilteredTransactions
-            FROM [data].[ExpenseReviewTransactionFacts] f
-            WHERE f.[CycleStart] = @cycleStart
-              AND f.[CycleEnd] = @cycleEnd
-              AND {{filterClause}}
-              AND {{exclusionReasonClause}};
+            FROM #CycleTransactions t
+            WHERE {{exclusionReasonClause}};
+
+            {{BuildReasonRowsSql("#FilteredTransactions", "#FilteredReasons", request.DisplayByPeriod)}}
 
             SELECT
-                t.[GroupId] AS [Id],
+                {{GroupIdExpression("t", request.DisplayByPeriod)}} AS [Id],
                 t.[Source],
                 {{periodSelectColumns}}
                 t.[EntityCode],
@@ -291,7 +266,6 @@ public sealed class ExpenseReviewService(
             INTO #Grouped
             FROM #FilteredTransactions t
             GROUP BY
-                t.[GroupId],
                 t.[Source],
                 t.[Included],
                 t.[EntityCode],
@@ -301,27 +275,36 @@ public sealed class ExpenseReviewService(
                 t.[AeProjectCode],
                 t.[PurposeCode],
                 t.[ProgramCode],
-                t.[ActivityCode]{{periodGroupByColumns}};
+                t.[ActivityCode]{{periodGroupByColumns}}{{zeroAmountHavingClause}};
 
-            """;
-    }
-
-    private static string BuildAggregatedReasonsSql(string joinSql, string? whereClause) =>
-        $$"""
             SELECT
-                t.[GroupId],
+                r.[GroupId],
                 r.[Code],
                 r.[Label],
                 COUNT(1) AS [RowCount],
                 SUM(COALESCE(r.[Amount], 0)) AS [Amount]
-            FROM #FilteredTransactions t
-            {{joinSql}}
-            INNER JOIN [data].[ExpenseReviewTransactionReasons] r
-                ON r.[CycleStart] = @cycleStart
-               AND r.[CycleEnd] = @cycleEnd
-               AND r.[TransactionId] = t.[TransactionId]
-            {{(whereClause is null ? string.Empty : $"WHERE {whereClause}")}}
-            GROUP BY t.[GroupId], r.[Code], r.[Label]
+            INTO #AggregatedReasons
+            FROM #FilteredReasons r
+            GROUP BY r.[GroupId], r.[Code], r.[Label];
+            """;
+    }
+
+    private static string BuildReasonRowsSql(string source, string destination, bool displayByPeriod) =>
+        $$"""
+            SELECT
+                t.[Id] AS [TransactionId],
+                {{GroupIdExpression("t", displayByPeriod)}} AS [GroupId],
+                reason.[Code],
+                reason.[Label],
+                t.[Amount]
+            INTO {{destination}}
+            FROM {{source}} t
+            CROSS APPLY
+            (
+                VALUES
+                    {{ReasonValuesSql("t")}}
+            ) reason([Code], [Label])
+            WHERE reason.[Code] IS NOT NULL;
             """;
 
     private static string BuildIncludeClause(ExpenseReviewIncludeState includeState, string alias)
@@ -377,6 +360,20 @@ public sealed class ExpenseReviewService(
     }
 
     public static string FilterOptionsSql => $$"""
+        {{UnifiedTransactionsCte}},
+        ReasonOptions AS
+        (
+            SELECT DISTINCT
+                reason.[Code],
+                reason.[Label]
+            FROM Unified u
+            CROSS APPLY
+            (
+                VALUES
+                    {{ReasonValuesSql("u")}}
+            ) reason([Code], [Label])
+            WHERE reason.[Code] IS NOT NULL
+        )
         SELECT [Filter], [Value], [Label]
         FROM
         (
@@ -385,10 +382,8 @@ public sealed class ExpenseReviewService(
             [EntityCode] AS [Value],
             {{CodeNameLabelExpression("[EntityCode]", "MAX(NULLIF([EntityName], N''))")}} AS [Label],
             CAST([EntityCode] AS NVARCHAR(500)) AS [SortKey]
-        FROM [data].[ExpenseReviewTransactionFacts]
-        WHERE [CycleStart] = @cycleStart
-          AND [CycleEnd] = @cycleEnd
-          AND [EntityCode] IS NOT NULL
+        FROM Unified
+        WHERE [EntityCode] IS NOT NULL
         GROUP BY [EntityCode]
         UNION ALL
         SELECT
@@ -396,10 +391,8 @@ public sealed class ExpenseReviewService(
             [FinancialDeptCode] AS [Value],
             {{CodeNameLabelExpression("[FinancialDeptCode]", "MAX(NULLIF([FinancialDeptName], N''))")}} AS [Label],
             CAST([FinancialDeptCode] AS NVARCHAR(500)) AS [SortKey]
-        FROM [data].[ExpenseReviewTransactionFacts]
-        WHERE [CycleStart] = @cycleStart
-          AND [CycleEnd] = @cycleEnd
-          AND [FinancialDeptCode] IS NOT NULL
+        FROM Unified
+        WHERE [FinancialDeptCode] IS NOT NULL
         GROUP BY [FinancialDeptCode]
         UNION ALL
         SELECT
@@ -407,10 +400,8 @@ public sealed class ExpenseReviewService(
             [FundCode] AS [Value],
             {{CodeNameLabelExpression("[FundCode]", "MAX(NULLIF([FundName], N''))")}} AS [Label],
             CAST([FundCode] AS NVARCHAR(500)) AS [SortKey]
-        FROM [data].[ExpenseReviewTransactionFacts]
-        WHERE [CycleStart] = @cycleStart
-          AND [CycleEnd] = @cycleEnd
-          AND [FundCode] IS NOT NULL
+        FROM Unified
+        WHERE [FundCode] IS NOT NULL
         GROUP BY [FundCode]
         UNION ALL
         SELECT
@@ -418,10 +409,8 @@ public sealed class ExpenseReviewService(
             [AccountCode] AS [Value],
             {{CodeNameLabelExpression("[AccountCode]", "MAX(NULLIF([AccountName], N''))")}} AS [Label],
             CAST([AccountCode] AS NVARCHAR(500)) AS [SortKey]
-        FROM [data].[ExpenseReviewTransactionFacts]
-        WHERE [CycleStart] = @cycleStart
-          AND [CycleEnd] = @cycleEnd
-          AND [AccountCode] IS NOT NULL
+        FROM Unified
+        WHERE [AccountCode] IS NOT NULL
         GROUP BY [AccountCode]
         UNION ALL
         SELECT
@@ -429,10 +418,8 @@ public sealed class ExpenseReviewService(
             [AeProjectCode] AS [Value],
             {{CodeNameLabelExpression("[AeProjectCode]", "MAX(NULLIF([AeProjectName], N''))")}} AS [Label],
             CAST([AeProjectCode] AS NVARCHAR(500)) AS [SortKey]
-        FROM [data].[ExpenseReviewTransactionFacts]
-        WHERE [CycleStart] = @cycleStart
-          AND [CycleEnd] = @cycleEnd
-          AND [AeProjectCode] IS NOT NULL
+        FROM Unified
+        WHERE [AeProjectCode] IS NOT NULL
         GROUP BY [AeProjectCode]
         UNION ALL
         SELECT
@@ -440,10 +427,8 @@ public sealed class ExpenseReviewService(
             [AccountingPeriod] AS [Value],
             [AccountingPeriod] AS [Label],
             CONVERT(NVARCHAR(30), MIN([AccountingPeriodSort]), 126) AS [SortKey]
-        FROM [data].[ExpenseReviewTransactionFacts]
-        WHERE [CycleStart] = @cycleStart
-          AND [CycleEnd] = @cycleEnd
-          AND [AccountingPeriod] IS NOT NULL
+        FROM Unified
+        WHERE [AccountingPeriod] IS NOT NULL
         GROUP BY [AccountingPeriod]
         UNION ALL
         SELECT
@@ -451,10 +436,8 @@ public sealed class ExpenseReviewService(
             [PurposeCode] AS [Value],
             {{CodeNameLabelExpression("[PurposeCode]", "MAX(NULLIF([PurposeName], N''))")}} AS [Label],
             CAST([PurposeCode] AS NVARCHAR(500)) AS [SortKey]
-        FROM [data].[ExpenseReviewTransactionFacts]
-        WHERE [CycleStart] = @cycleStart
-          AND [CycleEnd] = @cycleEnd
-          AND [PurposeCode] IS NOT NULL
+        FROM Unified
+        WHERE [PurposeCode] IS NOT NULL
         GROUP BY [PurposeCode]
         UNION ALL
         SELECT
@@ -462,10 +445,8 @@ public sealed class ExpenseReviewService(
             [ProgramCode] AS [Value],
             {{CodeNameLabelExpression("[ProgramCode]", "MAX(NULLIF([ProgramName], N''))")}} AS [Label],
             CAST([ProgramCode] AS NVARCHAR(500)) AS [SortKey]
-        FROM [data].[ExpenseReviewTransactionFacts]
-        WHERE [CycleStart] = @cycleStart
-          AND [CycleEnd] = @cycleEnd
-          AND [ProgramCode] IS NOT NULL
+        FROM Unified
+        WHERE [ProgramCode] IS NOT NULL
         GROUP BY [ProgramCode]
         UNION ALL
         SELECT
@@ -473,10 +454,8 @@ public sealed class ExpenseReviewService(
             [ActivityCode] AS [Value],
             {{CodeNameLabelExpression("[ActivityCode]", "MAX(NULLIF([ActivityName], N''))")}} AS [Label],
             CAST([ActivityCode] AS NVARCHAR(500)) AS [SortKey]
-        FROM [data].[ExpenseReviewTransactionFacts]
-        WHERE [CycleStart] = @cycleStart
-          AND [CycleEnd] = @cycleEnd
-          AND [ActivityCode] IS NOT NULL
+        FROM Unified
+        WHERE [ActivityCode] IS NOT NULL
         GROUP BY [ActivityCode]
         UNION ALL
         SELECT
@@ -484,10 +463,8 @@ public sealed class ExpenseReviewService(
             [Sfn] AS [Value],
             {{CodeNameLabelExpression("[Sfn]", "MAX(NULLIF([SfnLabel], N''))")}} AS [Label],
             CAST([Sfn] AS NVARCHAR(500)) AS [SortKey]
-        FROM [data].[ExpenseReviewTransactionFacts]
-        WHERE [CycleStart] = @cycleStart
-          AND [CycleEnd] = @cycleEnd
-          AND [Sfn] IS NOT NULL
+        FROM Unified
+        WHERE [Sfn] IS NOT NULL
         GROUP BY [Sfn]
         UNION ALL
         SELECT DISTINCT
@@ -495,20 +472,196 @@ public sealed class ExpenseReviewService(
             [Source] AS [Value],
             CASE [Source] WHEN N'AE' THEN N'Aggie Enterprise' ELSE N'UCPath' END AS [Label],
             [Source] AS [SortKey]
-        FROM [data].[ExpenseReviewTransactionFacts]
-        WHERE [CycleStart] = @cycleStart
-          AND [CycleEnd] = @cycleEnd
+        FROM Unified
         UNION ALL
-        SELECT DISTINCT
+        SELECT
             CAST('exclusionReason' AS NVARCHAR(30)) AS [Filter],
             [Code] AS [Value],
             [Label],
             [Label] AS [SortKey]
-        FROM [data].[ExpenseReviewTransactionReasons]
-        WHERE [CycleStart] = @cycleStart
-          AND [CycleEnd] = @cycleEnd
+        FROM ReasonOptions
         ) options
         ORDER BY [Filter], [SortKey], [Value], [Label];
+        """;
+
+    public const string UnifiedTransactionsCte = """
+        WITH Unified AS
+        (
+            SELECT
+                CAST(CONCAT('AE:', a.[Id]) AS NVARCHAR(160)) AS [Id],
+                CAST('AE' AS NVARCHAR(3)) AS [Source],
+                a.[Entity] AS [EntityCode],
+                a.[EntityDescription] AS [EntityName],
+                a.[FinancialDepartment] AS [FinancialDeptCode],
+                a.[FinancialDepartmentDescription] AS [FinancialDeptName],
+                a.[Fund] AS [FundCode],
+                a.[FundDescription] AS [FundName],
+                a.[Account] AS [AccountCode],
+                a.[AccountDescription] AS [AccountName],
+                a.[Project] AS [AeProjectCode],
+                a.[ProjectDescription] AS [AeProjectName],
+                a.[Purpose] AS [PurposeCode],
+                a.[PurposeDescription] AS [PurposeName],
+                a.[Program] AS [ProgramCode],
+                a.[ProgramDescription] AS [ProgramName],
+                a.[Activity] AS [ActivityCode],
+                a.[ActivityDescription] AS [ActivityName],
+                a.[PeriodName] AS [AccountingPeriod],
+                TRY_CONVERT(DATE, CONCAT('01-', a.[PeriodName]), 6) AS [AccountingPeriodSort],
+                fundClass.[Sfn] AS [Sfn],
+                sfn.[Label] AS [SfnLabel],
+                a.[Amount] AS [Amount],
+                a.[ExcludedByDate],
+                a.[AccountInUcPath],
+                CAST(NULL AS BIT) AS [AccountNotInAE],
+                financialDeptClass.[IncludeInReport] AS [FinancialDeptIncludeInReport],
+                fundClass.[IncludeInReport] AS [FundIncludeInReport],
+                accountClass.[IncludeInReport] AS [AccountIncludeInReport],
+                activityClass.[IncludeInReport] AS [ActivityIncludeInReport],
+                purposeClass.[IncludeInReport] AS [PurposeIncludeInReport],
+                CASE
+                    WHEN a.[ExcludedByDate] = 0
+                     AND a.[AccountInUcPath] = 0
+                     -- TODO: Seek stakeholder review on this fail-closed null/missing classification behavior.
+                     AND COALESCE(financialDeptClass.[IncludeInReport], 0) = 1
+                     AND COALESCE(fundClass.[IncludeInReport], 0) = 1
+                     AND COALESCE(accountClass.[IncludeInReport], 0) = 1
+                     AND COALESCE(activityClass.[IncludeInReport], 0) = 1
+                     AND (a.[Fund] = '13U02' OR COALESCE(purposeClass.[IncludeInReport], 0) = 1)
+                    THEN CAST(1 AS BIT)
+                    ELSE CAST(0 AS BIT)
+                END AS [Included]
+            FROM [data].[AETransactions] a
+            LEFT JOIN [data].[SegmentClassifications] financialDeptClass
+                ON financialDeptClass.[SegmentType] = 'FinancialDepartment'
+               AND financialDeptClass.[Code] = a.[FinancialDepartment]
+            LEFT JOIN [data].[SegmentClassifications] fundClass
+                ON fundClass.[SegmentType] = 'Fund'
+               AND fundClass.[Code] = a.[Fund]
+            LEFT JOIN [data].[SegmentClassifications] accountClass
+                ON accountClass.[SegmentType] = 'Account'
+               AND accountClass.[Code] = a.[Account]
+            LEFT JOIN [data].[SegmentClassifications] activityClass
+                ON activityClass.[SegmentType] = 'Activity'
+               AND activityClass.[Code] = a.[Activity]
+            LEFT JOIN [data].[SegmentClassifications] purposeClass
+                ON purposeClass.[SegmentType] = 'Purpose'
+               AND purposeClass.[Code] = a.[Purpose]
+            LEFT JOIN [data].[Sfns] sfn
+                ON sfn.[Sfn] = fundClass.[Sfn]
+            WHERE TRY_CONVERT(DATE, CONCAT('01-', a.[PeriodName]), 6) BETWEEN @cycleStart AND @cycleEnd
+
+            UNION ALL
+
+            SELECT
+                CAST(CONCAT('UCP:', u.[LaborTransactionId]) AS NVARCHAR(160)) AS [Id],
+                CAST('UCP' AS NVARCHAR(3)) AS [Source],
+                u.[Entity] AS [EntityCode],
+                COALESCE(NULLIF(entitySegment.[ValueDesc], ''), NULLIF(entitySegment.[Description], '')) AS [EntityName],
+                u.[FinancialDepartment] AS [FinancialDeptCode],
+                COALESCE(NULLIF(financialDeptSegment.[ValueDesc], ''), NULLIF(financialDeptSegment.[Description], '')) AS [FinancialDeptName],
+                u.[Fund] AS [FundCode],
+                COALESCE(NULLIF(fundSegment.[ValueDesc], ''), NULLIF(fundSegment.[Description], '')) AS [FundName],
+                u.[Account] AS [AccountCode],
+                COALESCE(NULLIF(accountSegment.[ValueDesc], ''), NULLIF(accountSegment.[Description], '')) AS [AccountName],
+                u.[Project] AS [AeProjectCode],
+                COALESCE(NULLIF(projectSegment.[ValueDesc], ''), NULLIF(projectSegment.[Description], '')) AS [AeProjectName],
+                u.[Purpose] AS [PurposeCode],
+                COALESCE(NULLIF(purposeSegment.[ValueDesc], ''), NULLIF(purposeSegment.[Description], '')) AS [PurposeName],
+                u.[Program] AS [ProgramCode],
+                COALESCE(NULLIF(programSegment.[ValueDesc], ''), NULLIF(programSegment.[Description], '')) AS [ProgramName],
+                u.[Activity] AS [ActivityCode],
+                COALESCE(NULLIF(activitySegment.[ValueDesc], ''), NULLIF(activitySegment.[Description], '')) AS [ActivityName],
+                CASE
+                    WHEN ucPeriod.[PeriodStart] IS NULL THEN NULL
+                    ELSE FORMAT(ucPeriod.[PeriodStart], 'MMM-yy', 'en-US')
+                END AS [AccountingPeriod],
+                ucPeriod.[PeriodStart] AS [AccountingPeriodSort],
+                fundClass.[Sfn] AS [Sfn],
+                sfn.[Label] AS [SfnLabel],
+                u.[Amount] AS [Amount],
+                u.[ExcludedByDate],
+                CAST(NULL AS BIT) AS [AccountInUcPath],
+                u.[AccountNotInAE],
+                financialDeptClass.[IncludeInReport] AS [FinancialDeptIncludeInReport],
+                fundClass.[IncludeInReport] AS [FundIncludeInReport],
+                accountClass.[IncludeInReport] AS [AccountIncludeInReport],
+                activityClass.[IncludeInReport] AS [ActivityIncludeInReport],
+                purposeClass.[IncludeInReport] AS [PurposeIncludeInReport],
+                CASE
+                    WHEN u.[ExcludedByDate] = 0
+                     AND u.[AccountNotInAE] = 0
+                     -- TODO: Seek stakeholder review on this fail-closed null/missing classification behavior.
+                     AND COALESCE(financialDeptClass.[IncludeInReport], 0) = 1
+                     AND COALESCE(fundClass.[IncludeInReport], 0) = 1
+                     AND COALESCE(accountClass.[IncludeInReport], 0) = 1
+                     AND COALESCE(activityClass.[IncludeInReport], 0) = 1
+                     AND (u.[Fund] = '13U02' OR COALESCE(purposeClass.[IncludeInReport], 0) = 1)
+                    THEN CAST(1 AS BIT)
+                    ELSE CAST(0 AS BIT)
+                END AS [Included]
+            FROM [data].[UcPathTransactions] u
+            CROSS APPLY
+            (
+                SELECT TRY_CONVERT(INT, NULLIF(u.[Period], '')) AS [PeriodNumber]
+            ) periodValue
+            OUTER APPLY
+            (
+                SELECT CASE
+                    WHEN periodValue.[PeriodNumber] BETWEEN 1 AND 12
+                    THEN DATEFROMPARTS(
+                        CASE
+                            WHEN periodValue.[PeriodNumber] BETWEEN 1 AND 6 THEN u.[FiscalYear] - 1
+                            ELSE u.[FiscalYear]
+                        END,
+                        ((periodValue.[PeriodNumber] + 5) % 12) + 1,
+                        1)
+                    ELSE NULL
+                END AS [PeriodStart]
+            ) ucPeriod
+            LEFT JOIN [data].[ChartSegments] entitySegment
+                ON entitySegment.[SegmentName] = 'Entity'
+               AND entitySegment.[Code] = u.[Entity]
+            LEFT JOIN [data].[ChartSegments] financialDeptSegment
+                ON financialDeptSegment.[SegmentName] = 'FinancialDepartment'
+               AND financialDeptSegment.[Code] = u.[FinancialDepartment]
+            LEFT JOIN [data].[ChartSegments] fundSegment
+                ON fundSegment.[SegmentName] = 'Fund'
+               AND fundSegment.[Code] = u.[Fund]
+            LEFT JOIN [data].[ChartSegments] accountSegment
+                ON accountSegment.[SegmentName] = 'Account'
+               AND accountSegment.[Code] = u.[Account]
+            LEFT JOIN [data].[ChartSegments] projectSegment
+                ON projectSegment.[SegmentName] = 'Project'
+               AND projectSegment.[Code] = u.[Project]
+            LEFT JOIN [data].[ChartSegments] purposeSegment
+                ON purposeSegment.[SegmentName] = 'Purpose'
+               AND purposeSegment.[Code] = u.[Purpose]
+            LEFT JOIN [data].[ChartSegments] programSegment
+                ON programSegment.[SegmentName] = 'Program'
+               AND programSegment.[Code] = u.[Program]
+            LEFT JOIN [data].[ChartSegments] activitySegment
+                ON activitySegment.[SegmentName] = 'Activity'
+               AND activitySegment.[Code] = u.[Activity]
+            LEFT JOIN [data].[SegmentClassifications] financialDeptClass
+                ON financialDeptClass.[SegmentType] = 'FinancialDepartment'
+               AND financialDeptClass.[Code] = u.[FinancialDepartment]
+            LEFT JOIN [data].[SegmentClassifications] fundClass
+                ON fundClass.[SegmentType] = 'Fund'
+               AND fundClass.[Code] = u.[Fund]
+            LEFT JOIN [data].[SegmentClassifications] accountClass
+                ON accountClass.[SegmentType] = 'Account'
+               AND accountClass.[Code] = u.[Account]
+            LEFT JOIN [data].[SegmentClassifications] activityClass
+                ON activityClass.[SegmentType] = 'Activity'
+               AND activityClass.[Code] = u.[Activity]
+            LEFT JOIN [data].[SegmentClassifications] purposeClass
+                ON purposeClass.[SegmentType] = 'Purpose'
+               AND purposeClass.[Code] = u.[Purpose]
+            LEFT JOIN [data].[Sfns] sfn
+                ON sfn.[Sfn] = fundClass.[Sfn]
+            WHERE CAST(u.[PayPeriodEndDate] AS DATE) BETWEEN @cycleStart AND @cycleEnd
+        )
         """;
 
     private const string GroupedSelectColumns = """
@@ -665,10 +818,8 @@ public sealed class ExpenseReviewService(
             EXISTS
             (
                 SELECT 1
-                FROM [data].[ExpenseReviewTransactionReasons] selectedReason
-                WHERE selectedReason.[CycleStart] = @cycleStart
-                  AND selectedReason.[CycleEnd] = @cycleEnd
-                  AND selectedReason.[TransactionId] = {alias}.[TransactionId]
+                FROM #CycleReasons selectedReason
+                WHERE selectedReason.[TransactionId] = {alias}.[Id]
                   AND selectedReason.[Code] IN @exclusionReason
             )
             """;
@@ -699,6 +850,36 @@ public sealed class ExpenseReviewService(
 
     private static string CodeNameLabelExpression(string codeExpression, string nameExpression) =>
         $"CONCAT({codeExpression}, CASE WHEN {nameExpression} IS NULL THEN N'' ELSE CONCAT(N' - ', {nameExpression}) END)";
+
+    private static string ReasonValuesSql(string alias) =>
+        $$"""
+                    (CASE WHEN {{alias}}.[ExcludedByDate] = 1 THEN CAST(N'excludedByDate' AS NVARCHAR(220)) END,
+                     CASE WHEN {{alias}}.[ExcludedByDate] = 1 THEN CAST(N'Excluded by date' AS NVARCHAR(500)) END),
+                    (CASE WHEN {{alias}}.[Source] = N'AE' AND {{alias}}.[AccountInUcPath] = 1 THEN CAST(N'aeAccountInUcPath' AS NVARCHAR(220)) END,
+                     CASE WHEN {{alias}}.[Source] = N'AE' AND {{alias}}.[AccountInUcPath] = 1 THEN CAST(N'AE account also in UCPath' AS NVARCHAR(500)) END),
+                    (CASE WHEN {{alias}}.[Source] = N'UCP' AND {{alias}}.[AccountNotInAE] = 1 THEN CAST(N'ucPathAccountNotInAE' AS NVARCHAR(220)) END,
+                     CASE WHEN {{alias}}.[Source] = N'UCP' AND {{alias}}.[AccountNotInAE] = 1 THEN CAST(N'UCPath account missing from AE chart' AS NVARCHAR(500)) END),
+                    (CASE WHEN {{alias}}.[FinancialDeptIncludeInReport] = 0 THEN CAST(N'financialDept:excluded' AS NVARCHAR(220)) END,
+                     CASE WHEN {{alias}}.[FinancialDeptIncludeInReport] = 0 THEN CAST(N'Excluded by financial department' AS NVARCHAR(500)) END),
+                    (CASE WHEN {{alias}}.[FinancialDeptIncludeInReport] IS NULL THEN CAST(N'financialDept:unclassified' AS NVARCHAR(220)) END,
+                     CASE WHEN {{alias}}.[FinancialDeptIncludeInReport] IS NULL THEN CAST(N'Unclassified financial department' AS NVARCHAR(500)) END),
+                    (CASE WHEN {{alias}}.[FundIncludeInReport] = 0 THEN CAST(N'fund:excluded' AS NVARCHAR(220)) END,
+                     CASE WHEN {{alias}}.[FundIncludeInReport] = 0 THEN CAST(N'Excluded by fund' AS NVARCHAR(500)) END),
+                    (CASE WHEN {{alias}}.[FundIncludeInReport] IS NULL THEN CAST(N'fund:unclassified' AS NVARCHAR(220)) END,
+                     CASE WHEN {{alias}}.[FundIncludeInReport] IS NULL THEN CAST(N'Unclassified fund' AS NVARCHAR(500)) END),
+                    (CASE WHEN {{alias}}.[AccountIncludeInReport] = 0 THEN CAST(N'account:excluded' AS NVARCHAR(220)) END,
+                     CASE WHEN {{alias}}.[AccountIncludeInReport] = 0 THEN CAST(N'Excluded by account' AS NVARCHAR(500)) END),
+                    (CASE WHEN {{alias}}.[AccountIncludeInReport] IS NULL THEN CAST(N'account:unclassified' AS NVARCHAR(220)) END,
+                     CASE WHEN {{alias}}.[AccountIncludeInReport] IS NULL THEN CAST(N'Unclassified account' AS NVARCHAR(500)) END),
+                    (CASE WHEN {{alias}}.[ActivityIncludeInReport] = 0 THEN CAST(N'activity:excluded' AS NVARCHAR(220)) END,
+                     CASE WHEN {{alias}}.[ActivityIncludeInReport] = 0 THEN CAST(N'Excluded by activity' AS NVARCHAR(500)) END),
+                    (CASE WHEN {{alias}}.[ActivityIncludeInReport] IS NULL THEN CAST(N'activity:unclassified' AS NVARCHAR(220)) END,
+                     CASE WHEN {{alias}}.[ActivityIncludeInReport] IS NULL THEN CAST(N'Unclassified activity' AS NVARCHAR(500)) END),
+                    (CASE WHEN COALESCE({{alias}}.[FundCode], N'') <> N'13U02' AND {{alias}}.[PurposeIncludeInReport] = 0 THEN CAST(N'purpose:excluded' AS NVARCHAR(220)) END,
+                     CASE WHEN COALESCE({{alias}}.[FundCode], N'') <> N'13U02' AND {{alias}}.[PurposeIncludeInReport] = 0 THEN CAST(N'Excluded by purpose' AS NVARCHAR(500)) END),
+                    (CASE WHEN COALESCE({{alias}}.[FundCode], N'') <> N'13U02' AND {{alias}}.[PurposeIncludeInReport] IS NULL THEN CAST(N'purpose:unclassified' AS NVARCHAR(220)) END,
+                     CASE WHEN COALESCE({{alias}}.[FundCode], N'') <> N'13U02' AND {{alias}}.[PurposeIncludeInReport] IS NULL THEN CAST(N'Unclassified purpose' AS NVARCHAR(500)) END)
+            """;
 
     private sealed record ExpenseReviewTransactionRow(
         string Id,

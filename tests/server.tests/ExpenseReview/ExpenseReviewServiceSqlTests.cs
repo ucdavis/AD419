@@ -13,23 +13,11 @@ public class ExpenseReviewServiceSqlTests
 
         sql.Should().NotContain("OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY");
         sql.Should().Contain("INTO #Grouped");
-        sql.Should().Contain("[data].[ExpenseReviewTransactionFacts]");
-        sql.Should().Contain("[data].[ExpenseReviewTransactionReasons]");
+        sql.Should().Contain("INTO #AggregatedReasons");
         sql.Should().Contain("ORDER BY");
         sql.Should().Contain("t.[Source]");
         sql.Should().Contain("CAST(NULL AS NVARCHAR(20)) AS [AccountingPeriod]");
         sql.Should().NotContain("t.[AccountingPeriod],");
-    }
-
-    [Fact]
-    public void BuildTransactionsSql_aggregates_reasons_after_pagination()
-    {
-        var sql = ExpenseReviewService.BuildTransactionsSql(Request());
-
-        sql.Should().Contain("INNER JOIN #PagedGroupIds p ON p.[Id] = t.[GroupId]");
-        sql.Should().Contain("[data].[ExpenseReviewTransactionReasons]");
-        sql.Should().NotContain("INTO #CycleReasons");
-        sql.Should().NotContain("INTO #FilteredReasons");
     }
 
     [Fact]
@@ -63,6 +51,33 @@ public class ExpenseReviewServiceSqlTests
         orderByClause.TrimEnd().Should().EndWith("g.[Id]");
     }
 
+    [Fact]
+    public void BuildTransactionsSql_excludes_zero_amount_groups_by_default()
+    {
+        var sql = ExpenseReviewService.BuildTransactionsSql(Request());
+
+        sql.Should().Contain("HAVING SUM(t.[Amount]) <> 0 OR SUM(t.[Amount]) IS NULL");
+    }
+
+    [Fact]
+    public void BuildTransactionsSql_can_include_zero_amount_groups()
+    {
+        var sql = ExpenseReviewService.BuildTransactionsSql(Request(includeZeroAmounts: true));
+
+        sql.Should().NotContain("HAVING SUM(t.[Amount])");
+    }
+
+    [Fact]
+    public void BuildTransactionsSql_uses_high_level_reason_codes_and_ucpath_fiscal_year_mapping()
+    {
+        var sql = ExpenseReviewService.BuildTransactionsSql(Request());
+
+        sql.Should().Contain("N'fund:excluded'");
+        sql.Should().Contain("N'Unclassified financial department'");
+        sql.Should().NotContain("fund:F2:excluded");
+        sql.Should().Contain("WHEN periodValue.[PeriodNumber] BETWEEN 1 AND 6 THEN u.[FiscalYear] - 1");
+    }
+
     private static string PagedOrderByClause(string sql)
     {
         var offsetIndex = sql.IndexOf("OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY", StringComparison.Ordinal);
@@ -70,7 +85,10 @@ public class ExpenseReviewServiceSqlTests
         return sql[orderByIndex..offsetIndex];
     }
 
-    private static ExpenseReviewTransactionsRequest Request(bool displayByPeriod = false, string sortBy = ExpenseReviewRequestParser.DefaultSortBy) =>
+    private static ExpenseReviewTransactionsRequest Request(
+        bool displayByPeriod = false,
+        string sortBy = ExpenseReviewRequestParser.DefaultSortBy,
+        bool includeZeroAmounts = false) =>
         new(
             ExpenseReviewIncludeState.All,
             1,
@@ -78,5 +96,6 @@ public class ExpenseReviewServiceSqlTests
             sortBy,
             false,
             displayByPeriod,
+            includeZeroAmounts,
             new ExpenseReviewFilters([], [], [], [], [], [], [], [], [], [], [], []));
 }
