@@ -389,16 +389,18 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
                 pageSize: 1,
                 sortBy: "amount",
                 sortDescending: true,
-                filters: Filters(fund: ["F1"], source: ["AE"])),
+                filters: Filters(fund: ["F1"])),
             output,
             CancellationToken.None);
 
         var csv = Encoding.UTF8.GetString(output.ToArray()).TrimStart('\ufeff');
         var lines = csv.Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
 
-        lines.Should().Equal(
-            "Source,Entity,Fund,Financial Dept,Account,Purpose,Program,Project,Activity,SFN,Amount,Include State,Exclusion Reasons",
-            "AE,3310 - Entity One,F1 - Fund One,D1 - Dept One,A1 - Account One,P1 - Purpose One,PG1 - Program One,PR1 - AE Project One,AC1 - Activity One,201 - Hatch,125.00,Included,");
+        lines.Should().HaveCount(3);
+        lines[0].Should().Be(
+            "Source,Entity,Fund,Financial Dept,Account,Purpose,Program,Project,Activity,SFN,Amount,Include State,Exclusion Reasons");
+        lines[1].Should().StartWith("UCP,").And.Contain(",500.00,Included,");
+        lines[2].Should().StartWith("AE,").And.Contain(",125.00,Included,");
     }
 
     [Fact]

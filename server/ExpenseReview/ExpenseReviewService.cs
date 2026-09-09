@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -119,18 +120,24 @@ public sealed class ExpenseReviewService(
 
         var parameters = CreateParameters(cycle, request);
 
-        using var reader = await connection.QueryMultipleAsync(new CommandDefinition(
+        await using var reader = await connection.QueryMultipleAsync(new CommandDefinition(
             BuildTransactionsExportSql(request),
             parameters,
             commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
             cancellationToken: cancellationToken));
 
-        var rows = (await reader.ReadAsync<ExpenseReviewTransactionRow>()).ToList();
-        var reasons = (await reader.ReadAsync<ExpenseReviewReasonRow>()).ToList();
+        var reasonsByGroup = new Dictionary<string, List<ExpenseReviewReasonRow>>(StringComparer.Ordinal);
+        await foreach (var reason in reader.ReadUnbufferedAsync<ExpenseReviewReasonRow>()
+                           .WithCancellation(cancellationToken))
+        {
+            AddReason(reasonsByGroup, reason);
+        }
+
+        var rows = reader.ReadUnbufferedAsync<ExpenseReviewTransactionRow>();
 
         await ExpenseReviewCsvWriter.WriteAsync(
             output,
-            ToAsyncEnumerable(ToDtos(rows, reasons)),
+            ToDtosAsync(rows, reasonsByGroup, cancellationToken),
             request.DisplayByPeriod,
             cancellationToken);
     }
@@ -191,13 +198,6 @@ public sealed class ExpenseReviewService(
             {{BuildGroupedTempTablesSql(request)}}
 
             SELECT
-                {{GroupedSelectColumns}}
-            FROM #Grouped g
-            WHERE {{includeClause}}
-            ORDER BY
-                {{orderByClause}};
-
-            SELECT
                 r.[GroupId],
                 r.[Code],
                 r.[Label],
@@ -208,6 +208,13 @@ public sealed class ExpenseReviewService(
                 {{BuildGroupedReasonsSql(string.Empty, includeClause)}}
             ) r
             ORDER BY r.[GroupId], r.[Label], r.[Code];
+
+            SELECT
+                {{GroupedSelectColumns}}
+            FROM #Grouped g
+            WHERE {{includeClause}}
+            ORDER BY
+                {{orderByClause}};
             """;
     }
 
@@ -704,42 +711,73 @@ public sealed class ExpenseReviewService(
         IReadOnlyList<ExpenseReviewTransactionRow> rows,
         IReadOnlyList<ExpenseReviewReasonRow> reasonRows)
     {
-        var reasonsByGroup = reasonRows.ToLookup(reason => reason.GroupId);
+        var reasonsByGroup = new Dictionary<string, List<ExpenseReviewReasonRow>>(StringComparer.Ordinal);
+        foreach (var reason in reasonRows)
+        {
+            AddReason(reasonsByGroup, reason);
+        }
 
         return rows
-            .Select(row => new ExpenseReviewTransactionDto(
-                row.Id,
-                row.Source,
-                new ExpenseReviewCodeNameDto(row.EntityCode, row.EntityName),
-                new ExpenseReviewCodeNameDto(row.FinancialDeptCode, row.FinancialDeptName),
-                new ExpenseReviewCodeNameDto(row.FundCode, row.FundName),
-                new ExpenseReviewCodeNameDto(row.AccountCode, row.AccountName),
-                new ExpenseReviewCodeNameDto(row.AeProjectCode, row.AeProjectName),
-                row.AccountingPeriod,
-                new ExpenseReviewCodeNameDto(row.PurposeCode, row.PurposeName),
-                new ExpenseReviewCodeNameDto(row.ProgramCode, row.ProgramName),
-                new ExpenseReviewCodeNameDto(row.ActivityCode, row.ActivityName),
-                row.Sfn,
-                row.SfnLabel,
-                row.Amount,
-                row.Included,
-                reasonsByGroup[row.Id]
+            .Select(row => ToDto(row, reasonsByGroup))
+            .ToList();
+    }
+
+    private static async IAsyncEnumerable<ExpenseReviewTransactionDto> ToDtosAsync(
+        IAsyncEnumerable<ExpenseReviewTransactionRow> rows,
+        IReadOnlyDictionary<string, List<ExpenseReviewReasonRow>> reasonsByGroup,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await foreach (var row in rows.WithCancellation(cancellationToken))
+        {
+            yield return ToDto(row, reasonsByGroup);
+        }
+    }
+
+    private static ExpenseReviewTransactionDto ToDto(
+        ExpenseReviewTransactionRow row,
+        IReadOnlyDictionary<string, List<ExpenseReviewReasonRow>> reasonsByGroup)
+    {
+        IReadOnlyList<ExpenseReviewExclusionReasonDto> reasons =
+            reasonsByGroup.TryGetValue(row.Id, out var reasonRows)
+                ? reasonRows
                     .Select(reason => new ExpenseReviewExclusionReasonDto(
                         reason.Code,
                         reason.Label,
                         reason.RowCount,
                         reason.Amount))
-                    .ToList()))
-            .ToList();
+                    .ToList()
+                : [];
+
+        return new ExpenseReviewTransactionDto(
+            row.Id,
+            row.Source,
+            new ExpenseReviewCodeNameDto(row.EntityCode, row.EntityName),
+            new ExpenseReviewCodeNameDto(row.FinancialDeptCode, row.FinancialDeptName),
+            new ExpenseReviewCodeNameDto(row.FundCode, row.FundName),
+            new ExpenseReviewCodeNameDto(row.AccountCode, row.AccountName),
+            new ExpenseReviewCodeNameDto(row.AeProjectCode, row.AeProjectName),
+            row.AccountingPeriod,
+            new ExpenseReviewCodeNameDto(row.PurposeCode, row.PurposeName),
+            new ExpenseReviewCodeNameDto(row.ProgramCode, row.ProgramName),
+            new ExpenseReviewCodeNameDto(row.ActivityCode, row.ActivityName),
+            row.Sfn,
+            row.SfnLabel,
+            row.Amount,
+            row.Included,
+            reasons);
     }
 
-    private static async IAsyncEnumerable<T> ToAsyncEnumerable<T>(IEnumerable<T> rows)
+    private static void AddReason(
+        IDictionary<string, List<ExpenseReviewReasonRow>> reasonsByGroup,
+        ExpenseReviewReasonRow reason)
     {
-        foreach (var row in rows)
+        if (!reasonsByGroup.TryGetValue(reason.GroupId, out var groupReasons))
         {
-            await Task.Yield();
-            yield return row;
+            groupReasons = [];
+            reasonsByGroup.Add(reason.GroupId, groupReasons);
         }
+
+        groupReasons.Add(reason);
     }
 
     private static DynamicParameters CreateParameters(FiscalYearCycle cycle, ExpenseReviewTransactionsRequest request)

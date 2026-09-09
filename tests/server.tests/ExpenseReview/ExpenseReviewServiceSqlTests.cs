@@ -7,9 +7,13 @@ namespace Server.Tests.ExpenseReview;
 public class ExpenseReviewServiceSqlTests
 {
     [Fact]
-    public void BuildTransactionsExportSql_does_not_paginate()
+    public void BuildTransactionsExportSql_returns_reasons_before_ordered_unpaginated_transactions()
     {
         var sql = ExpenseReviewService.BuildTransactionsExportSql(Request());
+        var reasonOrderIndex = sql.IndexOf(
+            "ORDER BY r.[GroupId], r.[Label], r.[Code]",
+            StringComparison.Ordinal);
+        var transactionFromIndex = sql.LastIndexOf("FROM #Grouped g", StringComparison.Ordinal);
 
         sql.Should().NotContain("OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY");
         sql.Should().Contain("INTO #Grouped");
@@ -20,6 +24,9 @@ public class ExpenseReviewServiceSqlTests
         sql.Should().Contain("u.[Source]");
         sql.Should().Contain("CAST(NULL AS NVARCHAR(20)) AS [AccountingPeriod]");
         sql.Should().NotContain("u.[AccountingPeriod],");
+        reasonOrderIndex.Should().BeGreaterThan(-1);
+        transactionFromIndex.Should().BeGreaterThan(reasonOrderIndex);
+        sql[transactionFromIndex..].Should().Contain("ORDER BY");
     }
 
     [Fact]
