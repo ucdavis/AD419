@@ -206,6 +206,91 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
     }
 
     [Fact]
+    public async Task Reason_processing_preserves_multi_reason_filters_paging_and_csv_output()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        await SeedMultiReasonTransactionAsync();
+
+        await using var db = fixture.CreateDataDbContext();
+        var service = new ExpenseReviewService(db, Configuration());
+
+        var firstPage = await service.GetTransactionsAsync(
+            Cycle(),
+            Request(
+                includeState: ExpenseReviewIncludeState.Excluded,
+                page: 1,
+                pageSize: 1,
+                sortBy: "amount"),
+            CancellationToken.None);
+
+        firstPage.TotalCount.Should().Be(2);
+        firstPage.PageCount.Should().Be(2);
+        firstPage.Rows.Should().ContainSingle(row => row.Fund.Code == "F2")
+            .Which.ExclusionReasons.Should().ContainSingle(reason => reason.Code == "fund:excluded");
+
+        var secondPage = await service.GetTransactionsAsync(
+            Cycle(),
+            Request(
+                includeState: ExpenseReviewIncludeState.Excluded,
+                page: 2,
+                pageSize: 1,
+                sortBy: "amount"),
+            CancellationToken.None);
+
+        var multiReasonRow = secondPage.Rows.Should().ContainSingle(row => row.AeProject.Code == "PR-MULTI").Subject;
+        multiReasonRow.Amount.Should().Be(405m);
+        multiReasonRow.ExclusionReasons.Select(reason => reason.Code).Should().BeEquivalentTo(
+            ["excludedByDate", "aeAccountInUcPath"]);
+
+        var reasonFiltered = await service.GetTransactionsAsync(
+            Cycle(),
+            Request(filters: Filters(exclusionReason: ["excludedByDate"])),
+            CancellationToken.None);
+
+        var filteredRow = reasonFiltered.Rows.Should().ContainSingle().Subject;
+        filteredRow.AeProject.Code.Should().Be("PR-MULTI");
+        filteredRow.Amount.Should().Be(405m);
+        filteredRow.ExclusionReasons.Select(reason => reason.Code).Should().BeEquivalentTo(
+            ["excludedByDate", "aeAccountInUcPath"]);
+
+        await using var output = new MemoryStream();
+        await service.WriteTransactionsCsvAsync(
+            Cycle(),
+            Request(filters: Filters(exclusionReason: ["excludedByDate"])),
+            output,
+            CancellationToken.None);
+
+        var csv = Encoding.UTF8.GetString(output.ToArray());
+        csv.Should().Contain("405.00,Excluded,");
+        csv.Should().Contain("Excluded by date · $405.00 · 1 row");
+        csv.Should().Contain("AE account also in UCPath · $405.00 · 1 row");
+    }
+
+    [Fact]
+    public async Task Classification_reason_counts_null_amount_rows_as_zero_dollars()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        await SeedNullAmountTransactionAsync();
+
+        await using var db = fixture.CreateDataDbContext();
+        var service = new ExpenseReviewService(db, Configuration());
+
+        var response = await service.GetTransactionsAsync(
+            Cycle(),
+            Request(filters: Filters(fund: ["F-NULL"])),
+            CancellationToken.None);
+
+        var row = response.Rows.Should().ContainSingle().Subject;
+        row.Amount.Should().BeNull();
+        row.ExclusionReasons.Should().ContainSingle(reason =>
+            reason.Code == "fund:excluded" &&
+            reason.RowCount == 1 &&
+            reason.Amount == 0m);
+    }
+
+    [Fact]
     public async Task Transaction_queries_and_csv_exclude_zero_amount_groups_by_default()
     {
         await fixture.ClearDataTablesAsync();
@@ -471,6 +556,47 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
                  '20000004', 'POS00004', 10.000000, 403.00, 0.050000, '2024-11-30', 'S', 2025, '5', 0, 0, 1, 0),
                 ('UCP-ACCOUNT-NOT-AE', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01',
                  '20000005', 'POS00005', 10.000000, 404.00, 0.050000, '2024-11-30', 'S', 2025, '5', 0, 0, 0, 1);
+            """);
+    }
+
+    private async Task SeedMultiReasonTransactionAsync()
+    {
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[AETransactions]
+                ([Entity], [Fund], [FinancialDepartment], [Account], [Purpose], [Program], [Project], [Activity],
+                 [EntityDescription], [FundDescription], [FinancialDepartmentDescription], [AccountDescription],
+                 [PurposeDescription], [ProgramDescription], [ProjectDescription], [ActivityDescription],
+                 [PeriodName], [Amount], [ExcludedByDate], [AccountInUcPath])
+            VALUES
+                ('3310', 'F1', 'D1', 'A1', 'P1', 'PG1', 'PR-MULTI', 'AC1',
+                 'Entity One', 'Fund One', 'Dept One', 'Account One', 'Purpose One', 'Program One', 'Multi Reason Project', 'Activity One',
+                 'Oct-24', 405.00, 1, 1);
+            """);
+    }
+
+    private async Task SeedNullAmountTransactionAsync()
+    {
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description], [IncludeInReport], [Sfn])
+            VALUES ('Fund', 'F-NULL', 'Null Amount Fund', 0, '201');
+
+            INSERT INTO [data].[AETransactions]
+                ([Entity], [Fund], [FinancialDepartment], [Account], [Purpose], [Program], [Project], [Activity],
+                 [EntityDescription], [FundDescription], [FinancialDepartmentDescription], [AccountDescription],
+                 [PurposeDescription], [ProgramDescription], [ProjectDescription], [ActivityDescription],
+                 [PeriodName], [Amount], [ExcludedByDate], [AccountInUcPath])
+            VALUES
+                ('3310', 'F-NULL', 'D1', 'A1', 'P1', 'PG1', 'PR-NULL', 'AC1',
+                 'Entity One', 'Null Amount Fund', 'Dept One', 'Account One', 'Purpose One', 'Program One', 'Null Amount Project', 'Activity One',
+                 'Oct-24', NULL, 0, 0);
             """);
     }
 

@@ -174,8 +174,10 @@ public sealed class ExpenseReviewService(
                 r.[Label],
                 r.[RowCount],
                 r.[Amount]
-            FROM #AggregatedReasons r
-            INNER JOIN #PagedGroupIds p ON p.[Id] = r.[GroupId]
+            FROM
+            (
+                {{BuildGroupedReasonsSql("INNER JOIN #PagedGroupIds p ON p.[Id] = g.[Id]", null)}}
+            ) r
             ORDER BY r.[GroupId], r.[Label], r.[Code];
             """;
     }
@@ -201,9 +203,10 @@ public sealed class ExpenseReviewService(
                 r.[Label],
                 r.[RowCount],
                 r.[Amount]
-            FROM #AggregatedReasons r
-            INNER JOIN #Grouped g ON g.[Id] = r.[GroupId]
-            WHERE {{includeClause}}
+            FROM
+            (
+                {{BuildGroupedReasonsSql(string.Empty, includeClause)}}
+            ) r
             ORDER BY r.[GroupId], r.[Label], r.[Code];
             """;
     }
@@ -212,100 +215,97 @@ public sealed class ExpenseReviewService(
     {
         var filters = request.Filters;
         var filterClause = BuildFilterClause(filters, "u");
-        var exclusionReasonClause = BuildExclusionReasonFilterClause(filters, "t");
+        var exclusionReasonClause = BuildExclusionReasonFilterClause(filters, "u");
         var periodSelectColumns = request.DisplayByPeriod
-            ? "t.[AccountingPeriod],\n                t.[AccountingPeriodSort],"
+            ? "u.[AccountingPeriod],\n                u.[AccountingPeriodSort],"
             : "CAST(NULL AS NVARCHAR(20)) AS [AccountingPeriod],\n                CAST(NULL AS DATE) AS [AccountingPeriodSort],";
         var periodGroupByColumns = request.DisplayByPeriod
-            ? ",\n                t.[AccountingPeriod],\n                t.[AccountingPeriodSort]"
+            ? ",\n                u.[AccountingPeriod],\n                u.[AccountingPeriodSort]"
             : string.Empty;
         var zeroAmountHavingClause = request.IncludeZeroAmounts
             ? string.Empty
-            : "\n            HAVING SUM(t.[Amount]) <> 0 OR SUM(t.[Amount]) IS NULL";
+            : "\n            HAVING SUM(u.[Amount]) <> 0 OR SUM(u.[Amount]) IS NULL";
 
         return $$"""
             {{UnifiedTransactionsCte}}
-            SELECT *
-            INTO #CycleTransactions
-            FROM Unified u
-            WHERE {{filterClause}};
-
-            {{BuildReasonRowsSql("#CycleTransactions", "#CycleReasons", request.DisplayByPeriod)}}
-
-            SELECT t.*
-            INTO #FilteredTransactions
-            FROM #CycleTransactions t
-            WHERE {{exclusionReasonClause}};
-
-            {{BuildReasonRowsSql("#FilteredTransactions", "#FilteredReasons", request.DisplayByPeriod)}}
-
             SELECT
-                {{GroupIdExpression("t", request.DisplayByPeriod)}} AS [Id],
-                t.[Source],
+                {{GroupIdExpression("u", request.DisplayByPeriod)}} AS [Id],
+                u.[Source],
                 {{periodSelectColumns}}
-                t.[EntityCode],
-                MAX(NULLIF(t.[EntityName], N'')) AS [EntityName],
-                t.[FinancialDeptCode],
-                MAX(NULLIF(t.[FinancialDeptName], N'')) AS [FinancialDeptName],
-                t.[FundCode],
-                MAX(NULLIF(t.[FundName], N'')) AS [FundName],
-                t.[AccountCode],
-                MAX(NULLIF(t.[AccountName], N'')) AS [AccountName],
-                t.[AeProjectCode],
-                MAX(NULLIF(t.[AeProjectName], N'')) AS [AeProjectName],
-                t.[PurposeCode],
-                MAX(NULLIF(t.[PurposeName], N'')) AS [PurposeName],
-                t.[ProgramCode],
-                MAX(NULLIF(t.[ProgramName], N'')) AS [ProgramName],
-                t.[ActivityCode],
-                MAX(NULLIF(t.[ActivityName], N'')) AS [ActivityName],
-                MAX(t.[Sfn]) AS [Sfn],
-                MAX(t.[SfnLabel]) AS [SfnLabel],
-                SUM(t.[Amount]) AS [Amount],
-                t.[Included]
+                u.[EntityCode],
+                MAX(NULLIF(u.[EntityName], N'')) AS [EntityName],
+                u.[FinancialDeptCode],
+                MAX(NULLIF(u.[FinancialDeptName], N'')) AS [FinancialDeptName],
+                u.[FundCode],
+                MAX(NULLIF(u.[FundName], N'')) AS [FundName],
+                u.[AccountCode],
+                MAX(NULLIF(u.[AccountName], N'')) AS [AccountName],
+                u.[AeProjectCode],
+                MAX(NULLIF(u.[AeProjectName], N'')) AS [AeProjectName],
+                u.[PurposeCode],
+                MAX(NULLIF(u.[PurposeName], N'')) AS [PurposeName],
+                u.[ProgramCode],
+                MAX(NULLIF(u.[ProgramName], N'')) AS [ProgramName],
+                u.[ActivityCode],
+                MAX(NULLIF(u.[ActivityName], N'')) AS [ActivityName],
+                MAX(u.[Sfn]) AS [Sfn],
+                MAX(u.[SfnLabel]) AS [SfnLabel],
+                SUM(u.[Amount]) AS [Amount],
+                u.[Included],
+                COUNT(1) AS [GroupReasonRowCount],
+                SUM(COALESCE(u.[Amount], 0)) AS [GroupReasonAmount],
+                SUM(CASE WHEN u.[ExcludedByDate] = 1 THEN 1 ELSE 0 END) AS [ExcludedByDateRowCount],
+                SUM(CASE WHEN u.[ExcludedByDate] = 1 THEN COALESCE(u.[Amount], 0) ELSE 0 END) AS [ExcludedByDateAmount],
+                SUM(CASE WHEN u.[Source] = N'AE' AND u.[AccountInUcPath] = 1 THEN 1 ELSE 0 END) AS [AeAccountInUcPathRowCount],
+                SUM(CASE WHEN u.[Source] = N'AE' AND u.[AccountInUcPath] = 1 THEN COALESCE(u.[Amount], 0) ELSE 0 END) AS [AeAccountInUcPathAmount],
+                SUM(CASE WHEN u.[Source] = N'UCP' AND u.[AccountNotInAE] = 1 THEN 1 ELSE 0 END) AS [UcPathAccountNotInAeRowCount],
+                SUM(CASE WHEN u.[Source] = N'UCP' AND u.[AccountNotInAE] = 1 THEN COALESCE(u.[Amount], 0) ELSE 0 END) AS [UcPathAccountNotInAeAmount],
+                MAX(CONVERT(TINYINT, u.[FinancialDeptIncludeInReport])) AS [FinancialDeptIncludeInReport],
+                MAX(CONVERT(TINYINT, u.[FundIncludeInReport])) AS [FundIncludeInReport],
+                MAX(CONVERT(TINYINT, u.[AccountIncludeInReport])) AS [AccountIncludeInReport],
+                MAX(CONVERT(TINYINT, u.[ActivityIncludeInReport])) AS [ActivityIncludeInReport],
+                MAX(CONVERT(TINYINT, u.[PurposeIncludeInReport])) AS [PurposeIncludeInReport]
             INTO #Grouped
-            FROM #FilteredTransactions t
+            FROM Unified u
+            WHERE {{filterClause}}
+              AND {{exclusionReasonClause}}
             GROUP BY
-                t.[Source],
-                t.[Included],
-                t.[EntityCode],
-                t.[FinancialDeptCode],
-                t.[FundCode],
-                t.[AccountCode],
-                t.[AeProjectCode],
-                t.[PurposeCode],
-                t.[ProgramCode],
-                t.[ActivityCode]{{periodGroupByColumns}}{{zeroAmountHavingClause}};
-
-            SELECT
-                r.[GroupId],
-                r.[Code],
-                r.[Label],
-                COUNT(1) AS [RowCount],
-                SUM(COALESCE(r.[Amount], 0)) AS [Amount]
-            INTO #AggregatedReasons
-            FROM #FilteredReasons r
-            GROUP BY r.[GroupId], r.[Code], r.[Label];
+                u.[Source],
+                u.[Included],
+                u.[EntityCode],
+                u.[FinancialDeptCode],
+                u.[FundCode],
+                u.[AccountCode],
+                u.[AeProjectCode],
+                u.[PurposeCode],
+                u.[ProgramCode],
+                u.[ActivityCode]{{periodGroupByColumns}}{{zeroAmountHavingClause}};
             """;
     }
 
-    private static string BuildReasonRowsSql(string source, string destination, bool displayByPeriod) =>
-        $$"""
+    private static string BuildGroupedReasonsSql(
+        string joinSql,
+        string? whereClause)
+    {
+        var additionalFilter = whereClause is null ? string.Empty : $"\n              AND {whereClause}";
+
+        return $$"""
             SELECT
-                t.[Id] AS [TransactionId],
-                {{GroupIdExpression("t", displayByPeriod)}} AS [GroupId],
+                g.[Id] AS [GroupId],
                 reason.[Code],
                 reason.[Label],
-                t.[Amount]
-            INTO {{destination}}
-            FROM {{source}} t
+                reason.[RowCount],
+                reason.[Amount]
+            FROM #Grouped g
+            {{joinSql}}
             CROSS APPLY
             (
                 VALUES
-                    {{ReasonValuesSql("t")}}
-            ) reason([Code], [Label])
-            WHERE reason.[Code] IS NOT NULL;
+                    {{GroupedReasonValuesSql("g")}}
+            ) reason([Code], [Label], [RowCount], [Amount])
+            WHERE reason.[RowCount] > 0{{additionalFilter}}
             """;
+    }
 
     private static string BuildIncludeClause(ExpenseReviewIncludeState includeState, string alias)
     {
@@ -818,9 +818,12 @@ public sealed class ExpenseReviewService(
             EXISTS
             (
                 SELECT 1
-                FROM #CycleReasons selectedReason
-                WHERE selectedReason.[TransactionId] = {alias}.[Id]
-                  AND selectedReason.[Code] IN @exclusionReason
+                FROM
+                (
+                    VALUES
+                        {ReasonValuesSql(alias)}
+                ) selectedReason([Code], [Label])
+                WHERE selectedReason.[Code] IN @exclusionReason
             )
             """;
     }
@@ -850,6 +853,62 @@ public sealed class ExpenseReviewService(
 
     private static string CodeNameLabelExpression(string codeExpression, string nameExpression) =>
         $"CONCAT({codeExpression}, CASE WHEN {nameExpression} IS NULL THEN N'' ELSE CONCAT(N' - ', {nameExpression}) END)";
+
+    private static string GroupedReasonValuesSql(string alias) =>
+        $$"""
+                    (CAST(N'excludedByDate' AS NVARCHAR(220)),
+                     CAST(N'Excluded by date' AS NVARCHAR(500)),
+                     {{alias}}.[ExcludedByDateRowCount],
+                     {{alias}}.[ExcludedByDateAmount]),
+                    (CAST(N'aeAccountInUcPath' AS NVARCHAR(220)),
+                     CAST(N'AE account also in UCPath' AS NVARCHAR(500)),
+                     {{alias}}.[AeAccountInUcPathRowCount],
+                     {{alias}}.[AeAccountInUcPathAmount]),
+                    (CAST(N'ucPathAccountNotInAE' AS NVARCHAR(220)),
+                     CAST(N'UCPath account missing from AE chart' AS NVARCHAR(500)),
+                     {{alias}}.[UcPathAccountNotInAeRowCount],
+                     {{alias}}.[UcPathAccountNotInAeAmount]),
+                    (CAST(N'financialDept:excluded' AS NVARCHAR(220)),
+                     CAST(N'Excluded by financial department' AS NVARCHAR(500)),
+                     CASE WHEN {{alias}}.[FinancialDeptIncludeInReport] = 0 THEN {{alias}}.[GroupReasonRowCount] ELSE 0 END,
+                     CASE WHEN {{alias}}.[FinancialDeptIncludeInReport] = 0 THEN {{alias}}.[GroupReasonAmount] ELSE 0 END),
+                    (CAST(N'financialDept:unclassified' AS NVARCHAR(220)),
+                     CAST(N'Unclassified financial department' AS NVARCHAR(500)),
+                     CASE WHEN {{alias}}.[FinancialDeptIncludeInReport] IS NULL THEN {{alias}}.[GroupReasonRowCount] ELSE 0 END,
+                     CASE WHEN {{alias}}.[FinancialDeptIncludeInReport] IS NULL THEN {{alias}}.[GroupReasonAmount] ELSE 0 END),
+                    (CAST(N'fund:excluded' AS NVARCHAR(220)),
+                     CAST(N'Excluded by fund' AS NVARCHAR(500)),
+                     CASE WHEN {{alias}}.[FundIncludeInReport] = 0 THEN {{alias}}.[GroupReasonRowCount] ELSE 0 END,
+                     CASE WHEN {{alias}}.[FundIncludeInReport] = 0 THEN {{alias}}.[GroupReasonAmount] ELSE 0 END),
+                    (CAST(N'fund:unclassified' AS NVARCHAR(220)),
+                     CAST(N'Unclassified fund' AS NVARCHAR(500)),
+                     CASE WHEN {{alias}}.[FundIncludeInReport] IS NULL THEN {{alias}}.[GroupReasonRowCount] ELSE 0 END,
+                     CASE WHEN {{alias}}.[FundIncludeInReport] IS NULL THEN {{alias}}.[GroupReasonAmount] ELSE 0 END),
+                    (CAST(N'account:excluded' AS NVARCHAR(220)),
+                     CAST(N'Excluded by account' AS NVARCHAR(500)),
+                     CASE WHEN {{alias}}.[AccountIncludeInReport] = 0 THEN {{alias}}.[GroupReasonRowCount] ELSE 0 END,
+                     CASE WHEN {{alias}}.[AccountIncludeInReport] = 0 THEN {{alias}}.[GroupReasonAmount] ELSE 0 END),
+                    (CAST(N'account:unclassified' AS NVARCHAR(220)),
+                     CAST(N'Unclassified account' AS NVARCHAR(500)),
+                     CASE WHEN {{alias}}.[AccountIncludeInReport] IS NULL THEN {{alias}}.[GroupReasonRowCount] ELSE 0 END,
+                     CASE WHEN {{alias}}.[AccountIncludeInReport] IS NULL THEN {{alias}}.[GroupReasonAmount] ELSE 0 END),
+                    (CAST(N'activity:excluded' AS NVARCHAR(220)),
+                     CAST(N'Excluded by activity' AS NVARCHAR(500)),
+                     CASE WHEN {{alias}}.[ActivityIncludeInReport] = 0 THEN {{alias}}.[GroupReasonRowCount] ELSE 0 END,
+                     CASE WHEN {{alias}}.[ActivityIncludeInReport] = 0 THEN {{alias}}.[GroupReasonAmount] ELSE 0 END),
+                    (CAST(N'activity:unclassified' AS NVARCHAR(220)),
+                     CAST(N'Unclassified activity' AS NVARCHAR(500)),
+                     CASE WHEN {{alias}}.[ActivityIncludeInReport] IS NULL THEN {{alias}}.[GroupReasonRowCount] ELSE 0 END,
+                     CASE WHEN {{alias}}.[ActivityIncludeInReport] IS NULL THEN {{alias}}.[GroupReasonAmount] ELSE 0 END),
+                    (CAST(N'purpose:excluded' AS NVARCHAR(220)),
+                     CAST(N'Excluded by purpose' AS NVARCHAR(500)),
+                     CASE WHEN COALESCE({{alias}}.[FundCode], N'') <> N'13U02' AND {{alias}}.[PurposeIncludeInReport] = 0 THEN {{alias}}.[GroupReasonRowCount] ELSE 0 END,
+                     CASE WHEN COALESCE({{alias}}.[FundCode], N'') <> N'13U02' AND {{alias}}.[PurposeIncludeInReport] = 0 THEN {{alias}}.[GroupReasonAmount] ELSE 0 END),
+                    (CAST(N'purpose:unclassified' AS NVARCHAR(220)),
+                     CAST(N'Unclassified purpose' AS NVARCHAR(500)),
+                     CASE WHEN COALESCE({{alias}}.[FundCode], N'') <> N'13U02' AND {{alias}}.[PurposeIncludeInReport] IS NULL THEN {{alias}}.[GroupReasonRowCount] ELSE 0 END,
+                     CASE WHEN COALESCE({{alias}}.[FundCode], N'') <> N'13U02' AND {{alias}}.[PurposeIncludeInReport] IS NULL THEN {{alias}}.[GroupReasonAmount] ELSE 0 END)
+            """;
 
     private static string ReasonValuesSql(string alias) =>
         $$"""

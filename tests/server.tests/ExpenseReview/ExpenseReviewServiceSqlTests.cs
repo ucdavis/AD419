@@ -13,11 +13,45 @@ public class ExpenseReviewServiceSqlTests
 
         sql.Should().NotContain("OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY");
         sql.Should().Contain("INTO #Grouped");
-        sql.Should().Contain("INTO #AggregatedReasons");
+        sql.Should().NotContain("INTO #AggregatedReasons");
+        sql.Should().Contain("FROM #Grouped g");
+        sql.Should().Contain("WHERE reason.[RowCount] > 0");
         sql.Should().Contain("ORDER BY");
-        sql.Should().Contain("t.[Source]");
+        sql.Should().Contain("u.[Source]");
         sql.Should().Contain("CAST(NULL AS NVARCHAR(20)) AS [AccountingPeriod]");
-        sql.Should().NotContain("t.[AccountingPeriod],");
+        sql.Should().NotContain("u.[AccountingPeriod],");
+    }
+
+    [Fact]
+    public void BuildTransactionsSql_aggregates_directly_and_builds_reasons_after_pagination()
+    {
+        var sql = ExpenseReviewService.BuildTransactionsSql(Request());
+
+        sql.Should().Contain("FROM Unified u");
+        sql.Should().Contain("INTO #Grouped");
+        sql.Should().Contain("COUNT(1) AS [GroupReasonRowCount]");
+        sql.Should().Contain("[ExcludedByDateRowCount]");
+        sql.Should().Contain("INNER JOIN #PagedGroupIds p ON p.[Id] = g.[Id]");
+        sql.Should().NotContain("#CycleTransactions");
+        sql.Should().NotContain("INTO #FilteredTransactions");
+        sql.Should().NotContain("INTO #AggregatedReasons");
+        CountOccurrences(sql, "HASHBYTES").Should().Be(1);
+    }
+
+    [Fact]
+    public void BuildTransactionsSql_applies_reason_filter_before_direct_aggregation()
+    {
+        var sql = ExpenseReviewService.BuildTransactionsSql(Request(
+            filters: new ExpenseReviewFilters(
+                [], [], [], [], [], [], [], [], [], [], [], ["fund:excluded"])));
+
+        sql.Should().Contain("selectedReason([Code], [Label])");
+        sql.Should().Contain("selectedReason.[Code] IN @exclusionReason");
+        sql.Should().Contain("FROM Unified u");
+        sql.Should().Contain("INTO #Grouped");
+        sql.Should().NotContain("#CycleTransactions");
+        sql.Should().NotContain("#FilteredTransactions");
+        CountOccurrences(sql, "HASHBYTES").Should().Be(1);
     }
 
     [Fact]
@@ -25,8 +59,8 @@ public class ExpenseReviewServiceSqlTests
     {
         var sql = ExpenseReviewService.BuildTransactionsSql(Request(displayByPeriod: true));
 
-        sql.Should().Contain("t.[AccountingPeriod],");
-        sql.Should().Contain("t.[AccountingPeriodSort]");
+        sql.Should().Contain("u.[AccountingPeriod],");
+        sql.Should().Contain("u.[AccountingPeriodSort]");
     }
 
     [Fact]
@@ -56,7 +90,7 @@ public class ExpenseReviewServiceSqlTests
     {
         var sql = ExpenseReviewService.BuildTransactionsSql(Request());
 
-        sql.Should().Contain("HAVING SUM(t.[Amount]) <> 0 OR SUM(t.[Amount]) IS NULL");
+        sql.Should().Contain("HAVING SUM(u.[Amount]) <> 0 OR SUM(u.[Amount]) IS NULL");
     }
 
     [Fact]
@@ -64,7 +98,7 @@ public class ExpenseReviewServiceSqlTests
     {
         var sql = ExpenseReviewService.BuildTransactionsSql(Request(includeZeroAmounts: true));
 
-        sql.Should().NotContain("HAVING SUM(t.[Amount])");
+        sql.Should().NotContain("HAVING SUM(u.[Amount])");
     }
 
     [Fact]
@@ -85,10 +119,14 @@ public class ExpenseReviewServiceSqlTests
         return sql[orderByIndex..offsetIndex];
     }
 
+    private static int CountOccurrences(string value, string search) =>
+        value.Split(search, StringSplitOptions.None).Length - 1;
+
     private static ExpenseReviewTransactionsRequest Request(
         bool displayByPeriod = false,
         string sortBy = ExpenseReviewRequestParser.DefaultSortBy,
-        bool includeZeroAmounts = false) =>
+        bool includeZeroAmounts = false,
+        ExpenseReviewFilters? filters = null) =>
         new(
             ExpenseReviewIncludeState.All,
             1,
@@ -97,5 +135,5 @@ public class ExpenseReviewServiceSqlTests
             false,
             displayByPeriod,
             includeZeroAmounts,
-            new ExpenseReviewFilters([], [], [], [], [], [], [], [], [], [], [], []));
+            filters ?? new ExpenseReviewFilters([], [], [], [], [], [], [], [], [], [], [], []));
 }
