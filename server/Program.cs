@@ -67,6 +67,7 @@ builder.Services.AddScoped<IFlatFileImportService, FlatFileImportService>();
 builder.Services.AddScoped<IProjectIdentificationService, ProjectIdentificationService>();
 builder.Services.AddScoped<IProjectListService, ProjectListService>();
 builder.Services.AddScoped<IExpenseReviewService, ExpenseReviewService>();
+builder.Services.AddScoped<IConfirmedCycleProvider, ConfirmedCycleProvider>();
 builder.Services.AddScoped<IWorkflowService, WorkflowService>();
 builder.Services.AddScoped<IOrgRReviewSeeder, OrgRReviewSeeder>();
 builder.Services.AddScoped<IAutoAssociationBuilder, AutoAssociationBuilder>();

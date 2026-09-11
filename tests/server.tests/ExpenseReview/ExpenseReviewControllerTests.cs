@@ -17,7 +17,7 @@ public class ExpenseReviewControllerTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         var service = new StubExpenseReviewService();
-        var controller = new ExpenseReviewController(service, db);
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db));
 
         var result = await controller.Transactions(new ExpenseReviewTransactionsQuery(), CancellationToken.None);
 
@@ -30,7 +30,7 @@ public class ExpenseReviewControllerTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         var service = new StubExpenseReviewService();
-        var controller = new ExpenseReviewController(service, db);
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db));
 
         var result = await controller.Filters(CancellationToken.None);
 
@@ -43,7 +43,7 @@ public class ExpenseReviewControllerTests
     {
         await using var db = await CreateDbWithConfirmedRunAsync();
         var service = new StubExpenseReviewService();
-        var controller = new ExpenseReviewController(service, db);
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db));
 
         var result = await controller.Transactions(
             new ExpenseReviewTransactionsQuery
@@ -86,7 +86,7 @@ public class ExpenseReviewControllerTests
     {
         await using var db = await CreateDbWithConfirmedRunAsync();
         var service = new StubExpenseReviewService();
-        var controller = new ExpenseReviewController(service, db)
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db))
         {
             ControllerContext = new ControllerContext
             {
@@ -141,7 +141,7 @@ public class ExpenseReviewControllerTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         var service = new StubExpenseReviewService();
-        var controller = new ExpenseReviewController(service, db);
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db));
 
         var result = await controller.TransactionsCsv(new ExpenseReviewTransactionsQuery(), CancellationToken.None);
 
@@ -154,7 +154,7 @@ public class ExpenseReviewControllerTests
     {
         await using var db = await CreateDbWithConfirmedRunAsync();
         var service = new StubExpenseReviewService();
-        var controller = new ExpenseReviewController(service, db);
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db));
 
         var result = await controller.Filters(CancellationToken.None);
 
@@ -170,7 +170,7 @@ public class ExpenseReviewControllerTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         var service = new StubExpenseReviewService();
-        var controller = new ExpenseReviewController(service, db);
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db));
 
         var result = await controller.UnmatchedJobCodes(CancellationToken.None);
 
@@ -183,7 +183,7 @@ public class ExpenseReviewControllerTests
     {
         await using var db = await CreateDbWithConfirmedRunAsync();
         var service = new StubExpenseReviewService();
-        var controller = new ExpenseReviewController(service, db);
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db));
 
         var result = await controller.UnmatchedJobCodes(CancellationToken.None);
 
@@ -202,7 +202,7 @@ public class ExpenseReviewControllerTests
     {
         await using var db = await CreateDbWithConfirmedRunAsync();
         var service = new StubExpenseReviewService();
-        var controller = new ExpenseReviewController(service, db);
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db));
 
         var result = await controller.Transactions(query, CancellationToken.None);
 
