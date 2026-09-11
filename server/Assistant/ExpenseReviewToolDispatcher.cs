@@ -49,6 +49,10 @@ public sealed class ExpenseReviewToolDispatcher(
         {
             return ToolExecutionResponse.Failure("invalid_arguments", "The tool arguments are not valid JSON for this tool.");
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception exception)
         {
             logger.LogError(exception, "Assistant tool {ToolName} failed for call {ToolCallId}", request.ToolName, request.ToolCallId);

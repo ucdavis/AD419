@@ -171,6 +171,20 @@ public class ExpenseReviewToolDispatcherTests
         response.Error.Message.Should().NotContain("boom");
     }
 
+    [Fact]
+    public async Task Cancellation_propagates_instead_of_becoming_a_tool_failure()
+    {
+        await using var db = await DbWithCycleAsync();
+        var dispatcher = Dispatcher(db, new StubService { ThrowCancelled = true });
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var act = () => dispatcher.ExecuteAsync(
+            Request(ExpenseReviewToolManifest.FilterOptions, "{}"), UserId.ToString(), cts.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
     private static ExpenseReviewToolDispatcher Dispatcher(AppDbContext db, IExpenseReviewService service) =>
         new(service, new ConfirmedCycleProvider(db), db, NullLogger<ExpenseReviewToolDispatcher>.Instance);
 
@@ -212,6 +226,7 @@ public class ExpenseReviewToolDispatcherTests
     private sealed class StubService : IExpenseReviewService
     {
         public bool Throw { get; init; }
+        public bool ThrowCancelled { get; init; }
         public ExpenseReviewTransactionsRequest? LastRequest { get; private set; }
         public ExpenseReviewSummaryRequest? LastSummaryRequest { get; private set; }
 
@@ -244,6 +259,11 @@ public class ExpenseReviewToolDispatcherTests
             if (Throw)
             {
                 throw new InvalidOperationException("boom");
+            }
+
+            if (ThrowCancelled)
+            {
+                throw new OperationCanceledException(cancellationToken);
             }
 
             IReadOnlyList<ExpenseReviewFilterOptionDto> fund = [new("12345", "12345 - Hatch")];
