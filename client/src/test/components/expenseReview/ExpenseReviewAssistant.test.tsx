@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
-import { screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
+import { AssistantToast } from '@/components/expenseReview/ExpenseReviewAssistant.tsx';
 import { createWorkflowSnapshot, server } from '@/test/mswUtils.ts';
 import { renderRoute } from '@/test/routerUtils.tsx';
 import { userEvent } from '@testing-library/user-event';
@@ -128,5 +129,64 @@ describe('Expense Review assistant', () => {
     } finally {
       cleanup();
     }
+  });
+});
+
+describe('AssistantToast', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('resets the dismiss timer when a new toast replaces the old one', () => {
+    const onDismiss = vi.fn();
+    const { rerender } = render(
+      <AssistantToast
+        onDismiss={onDismiss}
+        toast={{ level: 'info', message: 'first' }}
+      />
+    );
+    expect(screen.getByText('first')).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    rerender(
+      <AssistantToast
+        onDismiss={onDismiss}
+        toast={{ level: 'success', message: 'second' }}
+      />
+    );
+    expect(screen.getByText('second')).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(onDismiss).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears its timer on unmount so it never fires late', () => {
+    const onDismiss = vi.fn();
+    const { unmount } = render(
+      <AssistantToast
+        onDismiss={onDismiss}
+        toast={{ level: 'error', message: 'unmount me' }}
+      />
+    );
+
+    unmount();
+    act(() => {
+      vi.advanceTimersByTime(4000);
+    });
+
+    expect(onDismiss).not.toHaveBeenCalled();
   });
 });

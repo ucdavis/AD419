@@ -13,7 +13,7 @@ import {
 import '@ucdavis/caes-ai-assistant-react/theme.css';
 import { useQueryClient } from '@tanstack/react-query';
 import { getRouteApi } from '@tanstack/react-router';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 const routeApi = getRouteApi('/(authenticated)/workflow/$stageId');
 
@@ -23,7 +23,7 @@ function createAssistantSession() {
   });
 }
 
-interface Toast {
+export interface Toast {
   level: 'error' | 'info' | 'success';
   message: string;
 }
@@ -33,6 +33,36 @@ const TOAST_CLASS: Record<Toast['level'], string> = {
   info: 'alert-info',
   success: 'alert-success',
 };
+
+const TOAST_DURATION_MS = 4000;
+
+export function AssistantToast({
+  onDismiss,
+  toast,
+}: {
+  onDismiss: () => void;
+  toast: Toast | null;
+}) {
+  useEffect(() => {
+    if (!toast) {
+      return;
+    }
+    const timerId = window.setTimeout(onDismiss, TOAST_DURATION_MS);
+    return () => window.clearTimeout(timerId);
+  }, [onDismiss, toast]);
+
+  if (!toast) {
+    return null;
+  }
+
+  return (
+    <div className="toast toast-end">
+      <div className={`alert ${TOAST_CLASS[toast.level]}`} role="status">
+        <span>{toast.message}</span>
+      </div>
+    </div>
+  );
+}
 
 export function ExpenseReviewAssistant({ children }: { children: ReactNode }) {
   const search = routeApi.useSearch();
@@ -58,14 +88,13 @@ export function ExpenseReviewAssistant({ children }: { children: ReactNode }) {
     [navigate, search]
   );
 
+  const dismissToast = useCallback(() => setToast(null), []);
+
   const uiBridge = useMemo<AssistantUiBridge>(
     () => ({
       invalidateQuery: (key) =>
         queryClient.invalidateQueries({ queryKey: [...key] }),
-      showToast: (level, message) => {
-        setToast({ level, message });
-        window.setTimeout(() => setToast(null), 4000);
-      },
+      showToast: (level, message) => setToast({ level, message }),
     }),
     [queryClient]
   );
@@ -89,13 +118,7 @@ export function ExpenseReviewAssistant({ children }: { children: ReactNode }) {
             }}
           />
         </div>
-        {toast ? (
-          <div className="toast toast-end">
-            <div className={`alert ${TOAST_CLASS[toast.level]}`} role="status">
-              <span>{toast.message}</span>
-            </div>
-          </div>
-        ) : null}
+        <AssistantToast onDismiss={dismissToast} toast={toast} />
       </div>
     </AssistantProvider>
   );
