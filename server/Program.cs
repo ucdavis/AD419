@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Server.Assistant;
 using Server.AutoAssociations;
 using Server.Authorization;
 using Server.Controllers;
@@ -17,6 +18,7 @@ using Server.OrgRReview;
 using Server.ProjectIdentification;
 using Server.ProjectList;
 using Server.Workflow;
+using UCDavis.CaesAi.AppSdk;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -68,6 +70,8 @@ builder.Services.AddScoped<IProjectIdentificationService, ProjectIdentificationS
 builder.Services.AddScoped<IProjectListService, ProjectListService>();
 builder.Services.AddScoped<IExpenseReviewService, ExpenseReviewService>();
 builder.Services.AddScoped<IConfirmedCycleProvider, ConfirmedCycleProvider>();
+builder.Services.AddCaesAiAppSdk(builder.Configuration.GetSection(CaesAiAppOptions.SectionName));
+builder.Services.AddScoped<ICaesAiToolDispatcher, ExpenseReviewToolDispatcher>();
 builder.Services.AddScoped<IWorkflowService, WorkflowService>();
 builder.Services.AddScoped<IOrgRReviewSeeder, OrgRReviewSeeder>();
 builder.Services.AddScoped<IAutoAssociationBuilder, AutoAssociationBuilder>();
@@ -163,6 +167,7 @@ await StartupLogging.RunAsync(app, async cancellationToken =>
     // app.UseHttpLogging(); // if you want extra logging. It's a little overkill though with the current logging setup
 
     app.MapControllers();
+    app.MapCaesAiToolCallback();
 
     var healthEndpoint = app.MapHealthChecks("/health");
 
