@@ -308,6 +308,9 @@ function buildColumns(displayByPeriod: boolean): ColumnDef<ExpenseReviewTransact
   return columns;
 }
 
+const FLAT_COLUMNS = buildColumns(false);
+const PERIOD_COLUMNS = buildColumns(true);
+
 function IncludeStateSelect({
   counts,
   disabled,
@@ -548,7 +551,7 @@ export function ExpenseReviewStage() {
       });
     },
   });
-  const columns = buildColumns(displayByPeriod);
+  const columns = displayByPeriod ? PERIOD_COLUMNS : FLAT_COLUMNS;
   const exportUrl = buildExpenseReviewTransactionsCsvUrl({
     displayByPeriod,
     filters,
