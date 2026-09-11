@@ -9,6 +9,8 @@ import { z } from 'zod';
 
 export const EXPENSE_REVIEW_PAGE_SIZES = [10, 25, 50, 100] as const;
 
+export const DEFAULT_EXPENSE_REVIEW_PAGE_SIZE = 25;
+
 const SORT_FIELDS = [
   'account',
   'accountingPeriod',
@@ -100,7 +102,7 @@ export function resolveExpenseReviewView(
     includeState: search.include ?? 'all',
     includeZeroAmounts: search.zero ?? false,
     page: search.page ?? 1,
-    pageSize: search.size ?? 25,
+    pageSize: search.size ?? DEFAULT_EXPENSE_REVIEW_PAGE_SIZE,
     sortBy: search.sort ?? 'source',
     sortDirection: search.dir ?? 'asc',
   };

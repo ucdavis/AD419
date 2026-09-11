@@ -20,6 +20,7 @@ import {
 import { DataTable } from '@/shared/dataTable.tsx';
 import { ExportEndpointButton } from '@/shared/exportDataButton.tsx';
 import {
+  DEFAULT_EXPENSE_REVIEW_PAGE_SIZE,
   EXPENSE_REVIEW_PAGE_SIZES,
   filtersToSearch,
   resolveExpenseReviewView,
@@ -566,33 +567,43 @@ export function ExpenseReviewStage() {
 
   const resetExportError = () => setExportError(null);
   const applyFilters = (
-    next: ExpenseReviewFilters,
+    update: (current: ExpenseReviewFilters) => ExpenseReviewFilters,
     nextIncludeState: ExpenseReviewIncludeState
   ) => {
-    setSearch(filtersToSearch(next, nextIncludeState));
+    void navigateSearch({
+      replace: true,
+      search: (previous: ExpenseReviewSearch) => ({
+        ...previous,
+        ...filtersToSearch(
+          update(resolveExpenseReviewView(previous).filters),
+          nextIncludeState
+        ),
+      }),
+    });
     resetExportError();
   };
   const addFilter = (filter: keyof ExpenseReviewFilters, value: string) =>
     applyFilters(
-      {
-        ...filters,
-        [filter]: filters[filter].includes(value)
-          ? filters[filter]
-          : [...filters[filter], value],
-      },
+      (current) => ({
+        ...current,
+        [filter]: current[filter].includes(value)
+          ? current[filter]
+          : [...current[filter], value],
+      }),
       includeState
     );
   const removeFilter = (filter: keyof ExpenseReviewFilters, value: string) =>
     applyFilters(
-      {
-        ...filters,
-        [filter]: filters[filter].filter((candidate) => candidate !== value),
-      },
+      (current) => ({
+        ...current,
+        [filter]: current[filter].filter((candidate) => candidate !== value),
+      }),
       includeState
     );
-  const clearFilters = () => applyFilters(EMPTY_EXPENSE_REVIEW_FILTERS, 'all');
+  const clearFilters = () =>
+    applyFilters(() => EMPTY_EXPENSE_REVIEW_FILTERS, 'all');
   const handleIncludeStateChange = (state: ExpenseReviewIncludeState) =>
-    applyFilters(filters, state);
+    applyFilters((current) => current, state);
   const handleDisplayByPeriodChange = (checked: boolean) => {
     setSearch({
       byPeriod: checked ? true : undefined,
@@ -747,7 +758,7 @@ export function ExpenseReviewStage() {
           setSearch({
             page: undefined,
             size:
-              nextPageSize === 25
+              nextPageSize === DEFAULT_EXPENSE_REVIEW_PAGE_SIZE
                 ? undefined
                 : (nextPageSize as ExpenseReviewSearch['size']),
           })
