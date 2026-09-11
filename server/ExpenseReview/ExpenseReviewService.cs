@@ -139,6 +139,37 @@ public sealed class ExpenseReviewService(
                 .ToList());
     }
 
+    public async Task<ExpenseReviewSummaryResponse> GetSummaryAsync(
+        FiscalYearCycle cycle,
+        ExpenseReviewSummaryRequest request,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var parameters = CycleParameters(cycle);
+        AddFilterParameters(parameters, request.Filters);
+        parameters.Add("limit", request.Limit);
+
+        using var reader = await connection.QueryMultipleAsync(new CommandDefinition(
+            BuildSummarySql(request),
+            parameters,
+            commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
+            cancellationToken: cancellationToken));
+
+        var totals = await reader.ReadSingleAsync<ExpenseReviewTotalsRow>();
+        var groupCount = await reader.ReadSingleAsync<int>();
+        var groups = (await reader.ReadAsync<ExpenseReviewSummaryGroupDto>()).ToList();
+
+        return new ExpenseReviewSummaryResponse(
+            cycle.FiscalYear,
+            request.GroupBy,
+            totals.TotalCount,
+            totals.TotalAmount,
+            groupCount,
+            groups);
+    }
+
     public async Task WriteTransactionsCsvAsync(
         FiscalYearCycle cycle,
         ExpenseReviewTransactionsRequest request,
@@ -247,6 +278,104 @@ public sealed class ExpenseReviewService(
             WHERE {{includeClause}}
             ORDER BY
                 {{orderByClause}};
+            """;
+    }
+
+    private static readonly IReadOnlyDictionary<string, (string Code, string Name)> SummaryDimensionColumns =
+        new Dictionary<string, (string, string)>(StringComparer.Ordinal)
+        {
+            ["entity"] = ("g.[EntityCode]", "MAX(NULLIF(g.[EntityName], N''))"),
+            ["financialDept"] = ("g.[FinancialDeptCode]", "MAX(NULLIF(g.[FinancialDeptName], N''))"),
+            ["fund"] = ("g.[FundCode]", "MAX(NULLIF(g.[FundName], N''))"),
+            ["account"] = ("g.[AccountCode]", "MAX(NULLIF(g.[AccountName], N''))"),
+            ["aeProject"] = ("g.[AeProjectCode]", "MAX(NULLIF(g.[AeProjectName], N''))"),
+            ["accountingPeriod"] = ("g.[AccountingPeriod]", "MAX(g.[AccountingPeriod])"),
+            ["purpose"] = ("g.[PurposeCode]", "MAX(NULLIF(g.[PurposeName], N''))"),
+            ["program"] = ("g.[ProgramCode]", "MAX(NULLIF(g.[ProgramName], N''))"),
+            ["activity"] = ("g.[ActivityCode]", "MAX(NULLIF(g.[ActivityName], N''))"),
+            ["sfn"] = ("g.[Sfn]", "MAX(g.[SfnLabel])"),
+            ["source"] = ("g.[Source]", "MAX(CASE g.[Source] WHEN N'AE' THEN N'Aggie Enterprise' ELSE N'UCPath' END)"),
+        };
+
+    public static string BuildSummarySql(ExpenseReviewSummaryRequest request)
+    {
+        if (!ExpenseReviewSummaryDimensions.IsValid(request.GroupBy))
+        {
+            throw new ArgumentException($"Unknown summary dimension: {request.GroupBy}", nameof(request));
+        }
+
+        var tempTableRequest = new ExpenseReviewTransactionsRequest(
+            request.IncludeState,
+            1,
+            1,
+            ExpenseReviewRequestParser.DefaultSortBy,
+            false,
+            DisplayByPeriod: request.GroupBy == "accountingPeriod",
+            request.IncludeZeroAmounts,
+            request.Filters);
+        var includeClause = BuildIncludeClause(request.IncludeState, "g");
+        var orderBy = request.SortByRowCount ? "[RowCount] DESC, [Code]" : "[Amount] DESC, [Code]";
+
+        var totalsSql = $$"""
+            SELECT
+                COUNT(1) AS [TotalCount],
+                COALESCE(SUM(g.[Amount]), 0) AS [TotalAmount]
+            FROM #Grouped g
+            WHERE {{includeClause}};
+            """;
+
+        if (request.GroupBy == "exclusionReason")
+        {
+            return $$"""
+                {{BuildGroupedTempTablesSql(tempTableRequest)}}
+
+                {{totalsSql}}
+
+                SELECT COUNT(DISTINCT r.[Code])
+                FROM
+                (
+                    {{BuildGroupedReasonsSql(string.Empty, includeClause)}}
+                ) r;
+
+                SELECT TOP (@limit)
+                    r.[Code] AS [Code],
+                    MAX(r.[Label]) AS [Name],
+                    SUM(r.[RowCount]) AS [RowCount],
+                    COALESCE(SUM(r.[Amount]), 0) AS [Amount]
+                FROM
+                (
+                    {{BuildGroupedReasonsSql(string.Empty, includeClause)}}
+                ) r
+                GROUP BY r.[Code]
+                ORDER BY {{orderBy}};
+                """;
+        }
+
+        var (codeColumn, nameExpression) = SummaryDimensionColumns[request.GroupBy];
+
+        return $$"""
+            {{BuildGroupedTempTablesSql(tempTableRequest)}}
+
+            {{totalsSql}}
+
+            SELECT COUNT(1)
+            FROM
+            (
+                SELECT {{codeColumn}} AS [Code]
+                FROM #Grouped g
+                WHERE {{includeClause}}
+                GROUP BY {{codeColumn}}
+            ) x;
+
+            SELECT TOP (@limit)
+                {{codeColumn}} AS [Code],
+                {{nameExpression}} AS [Name],
+                COUNT(1) AS [RowCount],
+                COALESCE(SUM(g.[Amount]), 0) AS [Amount]
+            FROM #Grouped g
+            WHERE {{includeClause}}
+            GROUP BY {{codeColumn}}
+            ORDER BY {{orderBy}};
             """;
     }
 
@@ -820,21 +949,24 @@ public sealed class ExpenseReviewService(
         var parameters = CycleParameters(cycle);
         parameters.Add("offset", (request.Page - 1) * request.PageSize);
         parameters.Add("pageSize", request.PageSize);
-
-        AddList("entity", request.Filters.Entity);
-        AddList("financialDept", request.Filters.FinancialDept);
-        AddList("fund", request.Filters.Fund);
-        AddList("account", request.Filters.Account);
-        AddList("aeProject", request.Filters.AeProject);
-        AddList("accountingPeriod", request.Filters.AccountingPeriod);
-        AddList("purpose", request.Filters.Purpose);
-        AddList("program", request.Filters.Program);
-        AddList("activity", request.Filters.Activity);
-        AddList("sfn", request.Filters.Sfn);
-        AddList("source", request.Filters.Source);
-        AddList("exclusionReason", request.Filters.ExclusionReason);
-
+        AddFilterParameters(parameters, request.Filters);
         return parameters;
+    }
+
+    private static void AddFilterParameters(DynamicParameters parameters, ExpenseReviewFilters filters)
+    {
+        AddList("entity", filters.Entity);
+        AddList("financialDept", filters.FinancialDept);
+        AddList("fund", filters.Fund);
+        AddList("account", filters.Account);
+        AddList("aeProject", filters.AeProject);
+        AddList("accountingPeriod", filters.AccountingPeriod);
+        AddList("purpose", filters.Purpose);
+        AddList("program", filters.Program);
+        AddList("activity", filters.Activity);
+        AddList("sfn", filters.Sfn);
+        AddList("source", filters.Source);
+        AddList("exclusionReason", filters.ExclusionReason);
 
         void AddList(string name, IReadOnlyList<string> values)
         {

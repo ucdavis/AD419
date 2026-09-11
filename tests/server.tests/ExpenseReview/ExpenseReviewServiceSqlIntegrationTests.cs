@@ -745,6 +745,81 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
             """);
     }
 
+    [Fact]
+    public async Task GetSummaryAsync_by_fund_matches_sums_of_the_grouped_rows()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        var service = new ExpenseReviewService(fixture.CreateDataDbContext(), Configuration());
+
+        var rows = await service.GetTransactionsAsync(Cycle(), Request(pageSize: 500), CancellationToken.None);
+        var summary = await service.GetSummaryAsync(
+            Cycle(),
+            new ExpenseReviewSummaryRequest(ExpenseReviewIncludeState.All, false, Filters(), "fund", 100, false),
+            CancellationToken.None);
+
+        var expected = rows.Rows
+            .GroupBy(row => row.Fund.Code)
+            .Select(group => new { Code = group.Key, RowCount = group.Count(), Amount = group.Sum(row => row.Amount ?? 0m) })
+            .ToList();
+
+        summary.TotalCount.Should().Be(rows.TotalCount);
+        summary.TotalAmount.Should().Be(rows.TotalAmount);
+        summary.GroupCount.Should().Be(expected.Count);
+        summary.Groups.Select(group => (group.Code, group.RowCount, group.Amount))
+            .Should().BeEquivalentTo(expected.Select(item => (item.Code, item.RowCount, item.Amount)));
+        summary.Groups.Should().BeInDescendingOrder(group => group.Amount);
+    }
+
+    [Fact]
+    public async Task GetSummaryAsync_limit_truncates_groups_but_reports_the_full_count()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        var service = new ExpenseReviewService(fixture.CreateDataDbContext(), Configuration());
+
+        var full = await service.GetSummaryAsync(
+            Cycle(),
+            new ExpenseReviewSummaryRequest(ExpenseReviewIncludeState.All, false, Filters(), "fund", 100, false),
+            CancellationToken.None);
+        var limited = await service.GetSummaryAsync(
+            Cycle(),
+            new ExpenseReviewSummaryRequest(ExpenseReviewIncludeState.All, false, Filters(), "fund", 1, false),
+            CancellationToken.None);
+
+        full.GroupCount.Should().BeGreaterThan(1);
+        limited.Groups.Should().HaveCount(1);
+        limited.GroupCount.Should().Be(full.GroupCount);
+        limited.Groups[0].Should().BeEquivalentTo(full.Groups[0]);
+    }
+
+    [Fact]
+    public async Task GetSummaryAsync_by_exclusion_reason_matches_the_row_reason_chips()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedMultiReasonTransactionAsync();
+        var service = new ExpenseReviewService(fixture.CreateDataDbContext(), Configuration());
+
+        var rows = await service.GetTransactionsAsync(
+            Cycle(),
+            Request(includeState: ExpenseReviewIncludeState.Excluded, pageSize: 500),
+            CancellationToken.None);
+        var summary = await service.GetSummaryAsync(
+            Cycle(),
+            new ExpenseReviewSummaryRequest(ExpenseReviewIncludeState.Excluded, false, Filters(), "exclusionReason", 100, false),
+            CancellationToken.None);
+
+        var expected = rows.Rows
+            .SelectMany(row => row.ExclusionReasons)
+            .GroupBy(reason => reason.Code)
+            .Select(group => (Code: group.Key, RowCount: group.Sum(r => r.RowCount), Amount: group.Sum(r => r.Amount)))
+            .ToList();
+
+        summary.Groups.Select(group => (group.Code, group.RowCount, group.Amount))
+            .Should().BeEquivalentTo(expected);
+        summary.GroupCount.Should().Be(expected.Count);
+    }
+
     private async Task SeedExpenseReviewScenarioAsync()
     {
         await using var connection = new SqlConnection(fixture.ConnectionString);

@@ -313,6 +313,12 @@ public class ExpenseReviewControllerTests
                 [new UnmatchedJobCodeDto("1234", "Professor", null, "titleHasNoStaffType", 2, 1, 100m, 0.25m)]));
         }
 
+        public Task<ExpenseReviewSummaryResponse> GetSummaryAsync(
+            FiscalYearCycle cycle,
+            ExpenseReviewSummaryRequest request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new ExpenseReviewSummaryResponse(cycle.FiscalYear, request.GroupBy, 0, 0m, 0, []));
+
         public async Task WriteTransactionsCsvAsync(
             FiscalYearCycle cycle,
             ExpenseReviewTransactionsRequest request,

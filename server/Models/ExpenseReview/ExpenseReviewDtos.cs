@@ -158,6 +158,51 @@ public sealed record UnmatchedJobCodeDto(
     decimal Amount,
     decimal Fte);
 
+public static class ExpenseReviewSummaryDimensions
+{
+    public static readonly IReadOnlyList<string> All =
+    [
+        "entity",
+        "financialDept",
+        "fund",
+        "account",
+        "aeProject",
+        "accountingPeriod",
+        "purpose",
+        "program",
+        "activity",
+        "sfn",
+        "source",
+        "exclusionReason",
+    ];
+
+    private static readonly HashSet<string> Set = new(All, StringComparer.Ordinal);
+
+    public static bool IsValid(string value) => Set.Contains(value);
+}
+
+public sealed record ExpenseReviewSummaryRequest(
+    ExpenseReviewIncludeState IncludeState,
+    bool IncludeZeroAmounts,
+    ExpenseReviewFilters Filters,
+    string GroupBy,
+    int Limit,
+    bool SortByRowCount);
+
+public sealed record ExpenseReviewSummaryGroupDto(
+    string? Code,
+    string? Name,
+    int RowCount,
+    decimal Amount);
+
+public sealed record ExpenseReviewSummaryResponse(
+    string FiscalYear,
+    string GroupBy,
+    int TotalCount,
+    decimal TotalAmount,
+    int GroupCount,
+    IReadOnlyList<ExpenseReviewSummaryGroupDto> Groups);
+
 public static class ExpenseReviewRequestParser
 {
     public const int MaxPageSize = 500;

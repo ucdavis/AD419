@@ -142,6 +142,77 @@ public class ExpenseReviewServiceSqlTests
         sql.Should().Contain("COALESCE(SUM(g.[Amount]), 0) AS [TotalAmount]");
     }
 
+    [Fact]
+    public void BuildSummarySql_groups_by_a_dimension_code_over_the_grouped_temp_table()
+    {
+        var sql = ExpenseReviewService.BuildSummarySql(SummaryRequest("fund"));
+
+        sql.Should().Contain("INTO #Grouped");
+        sql.Should().Contain("GROUP BY g.[FundCode]");
+        sql.Should().Contain("MAX(NULLIF(g.[FundName], N'')) AS [Name]");
+        sql.Should().Contain("SELECT TOP (@limit)");
+        sql.Should().Contain("ORDER BY [Amount] DESC, [Code]");
+        sql.Should().NotContain("reason.[Code]");
+    }
+
+    [Fact]
+    public void BuildSummarySql_orders_by_row_count_when_requested()
+    {
+        var sql = ExpenseReviewService.BuildSummarySql(SummaryRequest("fund", sortByRowCount: true));
+
+        sql.Should().Contain("ORDER BY [RowCount] DESC, [Code]");
+    }
+
+    [Fact]
+    public void BuildSummarySql_groups_by_accounting_period_using_period_columns()
+    {
+        var sql = ExpenseReviewService.BuildSummarySql(SummaryRequest("accountingPeriod"));
+
+        sql.Should().Contain("u.[AccountingPeriod],");
+        sql.Should().Contain("GROUP BY g.[AccountingPeriod]");
+    }
+
+    [Fact]
+    public void BuildSummarySql_groups_exclusion_reasons_from_the_reason_values()
+    {
+        var sql = ExpenseReviewService.BuildSummarySql(SummaryRequest("exclusionReason"));
+
+        sql.Should().Contain("CROSS APPLY");
+        sql.Should().Contain("GROUP BY r.[Code]");
+        sql.Should().Contain("SUM(r.[RowCount]) AS [RowCount]");
+    }
+
+    [Fact]
+    public void BuildSummarySql_applies_the_include_state()
+    {
+        var sql = ExpenseReviewService.BuildSummarySql(
+            SummaryRequest("fund", includeState: ExpenseReviewIncludeState.Excluded));
+
+        sql.Should().Contain("WHERE g.[Included] = 0");
+    }
+
+    [Fact]
+    public void BuildSummarySql_rejects_unknown_dimensions()
+    {
+        var act = () => ExpenseReviewService.BuildSummarySql(SummaryRequest("DROP TABLE"));
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    private static ExpenseReviewSummaryRequest SummaryRequest(
+        string groupBy,
+        ExpenseReviewIncludeState includeState = ExpenseReviewIncludeState.All,
+        bool includeZeroAmounts = false,
+        bool sortByRowCount = false,
+        ExpenseReviewFilters? filters = null) =>
+        new(
+            includeState,
+            includeZeroAmounts,
+            filters ?? Request().Filters,
+            groupBy,
+            100,
+            sortByRowCount);
+
     private static string PagedOrderByClause(string sql)
     {
         var offsetIndex = sql.IndexOf("OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY", StringComparison.Ordinal);
