@@ -133,6 +133,15 @@ public class ExpenseReviewServiceSqlTests
         sql.Should().NotContain("[data].[v_TransactionSfn]");
     }
 
+    [Fact]
+    public void BuildTransactionsSql_returns_the_filtered_total_amount_with_the_total_count()
+    {
+        var sql = ExpenseReviewService.BuildTransactionsSql(Request());
+
+        sql.Should().Contain("COUNT(1) AS [TotalCount]");
+        sql.Should().Contain("COALESCE(SUM(g.[Amount]), 0) AS [TotalAmount]");
+    }
+
     private static string PagedOrderByClause(string sql)
     {
         var offsetIndex = sql.IndexOf("OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY", StringComparison.Ordinal);

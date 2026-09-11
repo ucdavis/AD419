@@ -122,6 +122,24 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
     }
 
     [Fact]
+    public async Task GetTransactionsAsync_total_amount_matches_the_filtered_rows()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+
+        await using var db = fixture.CreateDataDbContext();
+        var service = new ExpenseReviewService(db, Configuration());
+
+        var response = await service.GetTransactionsAsync(
+            Cycle(),
+            Request(includeState: ExpenseReviewIncludeState.Excluded, pageSize: 500),
+            CancellationToken.None);
+
+        response.TotalAmount.Should().Be(response.Rows.Sum(row => row.Amount ?? 0m));
+        response.Rows.Should().NotBeEmpty();
+    }
+
+    [Fact]
     public async Task Transaction_queries_explain_persisted_exclusion_flags()
     {
         await fixture.ClearDataTablesAsync();

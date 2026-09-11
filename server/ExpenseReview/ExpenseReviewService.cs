@@ -60,7 +60,7 @@ public sealed class ExpenseReviewService(
             cancellationToken: cancellationToken));
 
         var counts = await reader.ReadSingleAsync<ExpenseReviewCountsDto>();
-        var totalCount = await reader.ReadSingleAsync<int>();
+        var totals = await reader.ReadSingleAsync<ExpenseReviewTotalsRow>();
         var rows = (await reader.ReadAsync<ExpenseReviewTransactionRow>()).ToList();
         var reasons = (await reader.ReadAsync<ExpenseReviewReasonRow>()).ToList();
 
@@ -69,10 +69,11 @@ public sealed class ExpenseReviewService(
             cycle.CycleStart,
             cycle.CycleEnd,
             counts,
-            totalCount,
+            totals.TotalCount,
+            totals.TotalAmount,
             request.Page,
             request.PageSize,
-            totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)request.PageSize),
+            totals.TotalCount == 0 ? 0 : (int)Math.Ceiling(totals.TotalCount / (double)request.PageSize),
             ToDtos(rows, reasons));
     }
 
@@ -185,7 +186,9 @@ public sealed class ExpenseReviewService(
                 COALESCE(SUM(CASE WHEN [Included] = 0 THEN 1 ELSE 0 END), 0) AS [Excluded]
             FROM #Grouped;
 
-            SELECT COUNT(1)
+            SELECT
+                COUNT(1) AS [TotalCount],
+                COALESCE(SUM(g.[Amount]), 0) AS [TotalAmount]
             FROM #Grouped g
             WHERE {{includeClause}};
 
@@ -1027,6 +1030,8 @@ public sealed class ExpenseReviewService(
                     (CASE WHEN COALESCE({{alias}}.[PurposeExempt], 0) = 0 AND {{alias}}.[PurposeIncludeInReport] IS NULL THEN CAST(N'purpose:unclassified' AS NVARCHAR(220)) END,
                      CASE WHEN COALESCE({{alias}}.[PurposeExempt], 0) = 0 AND {{alias}}.[PurposeIncludeInReport] IS NULL THEN CAST(N'Unclassified purpose' AS NVARCHAR(500)) END)
             """;
+
+    private sealed record ExpenseReviewTotalsRow(int TotalCount, decimal TotalAmount);
 
     private sealed record ExpenseReviewTransactionRow(
         string Id,

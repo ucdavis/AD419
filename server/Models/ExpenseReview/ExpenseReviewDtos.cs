@@ -81,6 +81,7 @@ public sealed record ExpenseReviewTransactionsResponse(
     DateOnly CycleEnd,
     ExpenseReviewCountsDto Counts,
     int TotalCount,
+    decimal TotalAmount,
     int Page,
     int PageSize,
     int PageCount,
