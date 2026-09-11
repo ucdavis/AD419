@@ -88,6 +88,7 @@ function transactionsResponse(page = 1) {
     pageCount: 2,
     pageSize: 25,
     rows: transactionRows,
+    totalAmount: 6000.5,
     totalCount: 2,
   };
 }
