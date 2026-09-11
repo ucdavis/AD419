@@ -550,6 +550,52 @@ describe('Expense Review stage', () => {
     }
   );
 
+  it('hydrates filters, include state, sort, and paging from the URL', async () => {
+    const requests: URL[] = [];
+    mockExpenseReviewApi(requests);
+    const { cleanup } = renderRoute({
+      initialPath:
+        '/workflow/expense-review?fund=%5B%2213U02%22%5D&include=excluded&sort=amount&dir=desc&page=2&size=50&zero=true',
+    });
+
+    try {
+      await screen.findByRole('tab', { name: /grouped expenses/i });
+      const last = requests.at(-1)!.searchParams;
+      expect(last.getAll('fund')).toEqual(['13U02']);
+      expect(last.get('includeState')).toBe('excluded');
+      expect(last.get('sortBy')).toBe('amount');
+      expect(last.get('sortDirection')).toBe('desc');
+      expect(last.get('page')).toBe('2');
+      expect(last.get('pageSize')).toBe('50');
+      expect(last.get('includeZeroAmounts')).toBe('true');
+      expect(
+        screen.getByRole('button', { name: 'Fund: 13U02 - Experiment Station' })
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText('Include $0 groups')).toBeChecked();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('writes filter changes to the URL and resets the page', async () => {
+    const user = userEvent.setup();
+    mockExpenseReviewApi();
+    const { cleanup, router } = renderRoute({
+      initialPath: '/workflow/expense-review?page=2',
+    });
+
+    try {
+      await screen.findByRole('tab', { name: /grouped expenses/i });
+      await user.selectOptions(screen.getByLabelText('Fund filter'), ['13U02']);
+
+      await waitFor(() => {
+        expect(router.state.location.search).toEqual({ fund: ['13U02'] });
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
   it('shows loading and server error body states', async () => {
     server.use(
       http.get('/api/user/me', () => HttpResponse.json(mockUser)),

@@ -8,6 +8,7 @@ import { AutoAssociationsStage } from '@/components/autoAssociations/AutoAssocia
 import { DataClassificationStage } from '@/components/dataClassification/DataClassificationStage.tsx';
 import { DataImportStage } from '@/components/dataImport/DataImportStage.tsx';
 import { ExpenseReviewStage } from '@/components/expenseReview/ExpenseReviewStage.tsx';
+import { parseExpenseReviewSearch } from '@/components/expenseReview/expenseReviewSearch.ts';
 import { OrgRReviewStage } from '@/components/orgrReview/OrgRReviewStage.tsx';
 import { ProjectIdentificationStage } from '@/components/ProjectIdentificationStage.tsx';
 import { SectionPanel } from '@/components/SectionPanel.tsx';
@@ -45,6 +46,7 @@ export const Route = createFileRoute('/(authenticated)/workflow/$stageId')({
     }
   },
   component: WorkflowStageRoute,
+  validateSearch: parseExpenseReviewSearch,
 });
 
 function WorkflowStageRoute() {
