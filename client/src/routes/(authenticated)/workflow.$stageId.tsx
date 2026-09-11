@@ -7,6 +7,7 @@ import {
 import { AutoAssociationsStage } from '@/components/autoAssociations/AutoAssociationsStage.tsx';
 import { DataClassificationStage } from '@/components/dataClassification/DataClassificationStage.tsx';
 import { DataImportStage } from '@/components/dataImport/DataImportStage.tsx';
+import { ExpenseReviewAssistant } from '@/components/expenseReview/ExpenseReviewAssistant.tsx';
 import { ExpenseReviewStage } from '@/components/expenseReview/ExpenseReviewStage.tsx';
 import { parseExpenseReviewSearch } from '@/components/expenseReview/expenseReviewSearch.ts';
 import { OrgRReviewStage } from '@/components/orgrReview/OrgRReviewStage.tsx';
@@ -69,7 +70,9 @@ function WorkflowStageRoute() {
         ) : workflowStageId === 'data-import' ? (
           <DataImportStage status={stage.status} />
         ) : workflowStageId === 'expense-review' ? (
-          <ExpenseReviewStage />
+          <ExpenseReviewAssistant>
+            <ExpenseReviewStage />
+          </ExpenseReviewAssistant>
         ) : workflowStageId === 'station-specialist-import' ? (
           <StationSpecialistImportStage />
         ) : workflowStageId === 'orgr-review' ? (
