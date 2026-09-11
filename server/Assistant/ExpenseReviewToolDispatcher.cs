@@ -95,7 +95,7 @@ public sealed class ExpenseReviewToolDispatcher(
         var query = ToQuery(
             input,
             input.Page ?? 1,
-            Math.Min(input.PageSize ?? ExpenseReviewToolManifest.DefaultPageSize, ExpenseReviewToolManifest.MaxPageSize),
+            Math.Clamp(input.PageSize ?? ExpenseReviewToolManifest.DefaultPageSize, 1, ExpenseReviewToolManifest.MaxPageSize),
             input.SortBy,
             input.SortDirection,
             input.DisplayByPeriod ?? false);

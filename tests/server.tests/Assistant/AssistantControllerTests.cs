@@ -3,6 +3,7 @@ using System.Security.Claims;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Server.Assistant;
 using Server.Controllers;
 using UCDavis.CaesAi.AppSdk;
@@ -65,14 +66,44 @@ public class AssistantControllerTests
         result.Should().BeOfType<UnauthorizedResult>();
     }
 
+    [Fact]
+    public async Task Returns_503_when_the_assistant_service_is_not_registered()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddMvcCore();
+        var httpContext = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim("oid", EntraId.ToString()) }, "test")),
+            RequestServices = services.BuildServiceProvider(),
+        };
+        var controller = new AssistantController(httpContext.RequestServices)
+        {
+            ControllerContext = new ControllerContext { HttpContext = httpContext },
+        };
+
+        var result = await controller.CreateSession(CancellationToken.None);
+
+        var problem = result.Should().BeOfType<ObjectResult>().Subject;
+        problem.StatusCode.Should().Be(StatusCodes.Status503ServiceUnavailable);
+        problem.Value.Should().BeOfType<ProblemDetails>()
+            .Which.Title.Should().Be("The assistant service is not configured.");
+    }
+
     private static AssistantController Controller(StubSessions sessions, bool withEntraId = true)
     {
         var claims = withEntraId ? new[] { new Claim("oid", EntraId.ToString()) } : [];
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddMvcCore();
+        services.AddSingleton<ICaesAiSessionService>(sessions);
+        var provider = services.BuildServiceProvider();
         var httpContext = new DefaultHttpContext
         {
             User = new ClaimsPrincipal(new ClaimsIdentity(claims, "test")),
+            RequestServices = provider,
         };
-        return new AssistantController(sessions)
+        return new AssistantController(provider)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext },
         };

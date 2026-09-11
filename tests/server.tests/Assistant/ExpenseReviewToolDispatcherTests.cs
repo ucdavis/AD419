@@ -105,6 +105,22 @@ public class ExpenseReviewToolDispatcherTests
     }
 
     [Fact]
+    public async Task Query_clamps_page_size_below_one()
+    {
+        await using var db = await DbWithCycleAsync();
+        var service = new StubService();
+        var dispatcher = Dispatcher(db, service);
+
+        var response = await dispatcher.ExecuteAsync(
+            Request(ExpenseReviewToolManifest.QueryTransactions, """{"pageSize":0}"""),
+            UserId.ToString(),
+            CancellationToken.None);
+
+        response.Ok.Should().BeTrue();
+        service.LastRequest!.PageSize.Should().Be(1);
+    }
+
+    [Fact]
     public async Task Query_defaults_page_size_to_25()
     {
         await using var db = await DbWithCycleAsync();

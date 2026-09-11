@@ -65,7 +65,9 @@ public static class ExpenseReviewToolManifest
         new(
             Summarize,
             "Aggregates the filtered Expense Review rows by one dimension and returns row count and amount per group, sorted descending, " +
-            "plus the total count and amount and how many groups exist in all. Prefer this for any question about how much, how many, or which groups are largest.",
+            "plus the total count and amount and how many groups exist in all. Prefer this for any question about how much, how many, or which groups are largest. " +
+            "When groupBy is exclusionReason, a transaction is counted once per reason it carries, rowCount counts transactions rather than grouped rows, and group counts and amounts can sum to more than totalCount and totalAmount. " +
+            "When groupBy is accountingPeriod, totalCount counts period-split rows.",
             CaesAiToolExecution.Server,
             CaesAiToolRisk.Read,
             false,
@@ -103,16 +105,7 @@ public static class ExpenseReviewToolManifest
 
     private static JsonObject IncludeStateSchema() => CaesAiJsonSchema.String("all", "included", "excluded");
 
-    private static JsonObject FiltersSchema()
-    {
-        var properties = new JsonObject();
-        foreach (var name in FilterNames)
-        {
-            properties[name] = StringArray();
-        }
-
-        return CaesAiJsonSchema.Object(properties, FilterNames.ToArray());
-    }
+    private static JsonObject FiltersSchema() => CaesAiJsonSchema.Object(FilterProperties(), FilterNames.ToArray());
 
     private static JsonObject FilterProperties()
     {
@@ -160,7 +153,7 @@ public static class ExpenseReviewToolManifest
             ["type"] = "array",
             ["items"] = new JsonObject { ["type"] = "array" },
         },
-    }, "fiscalYear", "counts", "totalCount", "totalAmount", "page", "pageSize", "pageCount", "columns", "rows");
+    }, "fiscalYear", "cycleStart", "cycleEnd", "counts", "totalCount", "totalAmount", "page", "pageSize", "pageCount", "columns", "rows");
 
     private static JsonObject SummaryInputSchema()
     {

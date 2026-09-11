@@ -70,8 +70,13 @@ builder.Services.AddScoped<IProjectIdentificationService, ProjectIdentificationS
 builder.Services.AddScoped<IProjectListService, ProjectListService>();
 builder.Services.AddScoped<IExpenseReviewService, ExpenseReviewService>();
 builder.Services.AddScoped<IConfirmedCycleProvider, ConfirmedCycleProvider>();
-builder.Services.AddCaesAiAppSdk(builder.Configuration.GetSection(CaesAiAppOptions.SectionName));
-builder.Services.AddScoped<ICaesAiToolDispatcher, ExpenseReviewToolDispatcher>();
+var caesAiSection = builder.Configuration.GetSection(CaesAiAppOptions.SectionName);
+var caesAiConfigured = !string.IsNullOrWhiteSpace(caesAiSection["ServerUrl"]);
+if (caesAiConfigured)
+{
+    builder.Services.AddCaesAiAppSdk(caesAiSection);
+    builder.Services.AddScoped<ICaesAiToolDispatcher, ExpenseReviewToolDispatcher>();
+}
 builder.Services.AddScoped<IWorkflowService, WorkflowService>();
 builder.Services.AddScoped<IOrgRReviewSeeder, OrgRReviewSeeder>();
 builder.Services.AddScoped<IAutoAssociationBuilder, AutoAssociationBuilder>();
@@ -167,7 +172,14 @@ await StartupLogging.RunAsync(app, async cancellationToken =>
     // app.UseHttpLogging(); // if you want extra logging. It's a little overkill though with the current logging setup
 
     app.MapControllers();
-    app.MapCaesAiToolCallback();
+    if (caesAiConfigured)
+    {
+        app.MapCaesAiToolCallback();
+    }
+    else
+    {
+        app.Logger.LogWarning("CaesAi:ServerUrl is not configured; the expense review assistant is disabled.");
+    }
 
     var healthEndpoint = app.MapHealthChecks("/health");
 

@@ -15,5 +15,6 @@ public static class ExpenseReviewAssistant
         - When the user asks to see, show, or filter rows on screen, call set_expense_review_filters to change the page rather than listing rows yourself.
         - You cannot change any data. Never say a transaction was included, excluded, or edited.
         - Amounts are US dollars. Keep answers short and cite the filters you applied.
+        - Summaries grouped by exclusionReason count a transaction once per reason, so those counts and amounts can exceed the totals and are not comparable to grouped-row counts. Say so if you compare them.
         """;
 }
