@@ -495,7 +495,7 @@ describe('Expense Review stage', () => {
     }
   });
 
-  it('continues to Auto-Associations after completing the stage', async () => {
+  it('continues to OrgR Review after completing the stage', async () => {
     const user = userEvent.setup();
     let updateRequests = 0;
     mockExpenseReviewApi();
@@ -506,10 +506,10 @@ describe('Expense Review stage', () => {
         updateRequests += 1;
         return HttpResponse.json(
           createWorkflowSnapshot({
-            'auto-associations': 'InProgress',
             'data-classification': 'Complete',
             'data-import': 'Complete',
             'expense-review': 'Complete',
+            'orgr-review': 'InProgress',
             'project-identification': 'Complete',
           })
         );
@@ -522,14 +522,12 @@ describe('Expense Review stage', () => {
     try {
       await screen.findByRole('tab', { name: /grouped expenses/i });
       await user.click(
-        screen.getByRole('button', { name: /continue to auto-associations/i })
+        screen.getByRole('button', { name: /continue to orgr review/i })
       );
 
       await waitFor(() => {
         expect(updateRequests).toBe(1);
-        expect(router.state.location.pathname).toBe(
-          '/workflow/auto-associations'
-        );
+        expect(router.state.location.pathname).toBe('/workflow/orgr-review');
       });
     } finally {
       cleanup();
