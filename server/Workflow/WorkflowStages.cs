@@ -6,6 +6,7 @@ public static class WorkflowStageIds
     public const string DataImport = "data-import";
     public const string DataClassification = "data-classification";
     public const string ExpenseReview = "expense-review";
+    public const string OrgRReview = "orgr-review";
     public const string AutoAssociations = "auto-associations";
     public const string ManualAssociations = "manual-associations";
     public const string PostAssociationReview = "post-association-review";
@@ -43,23 +44,28 @@ public static class WorkflowStages
             "Expense Review",
             "Confirm the right transactions are included before triggering auto-associations."),
         new(
-            WorkflowStageIds.AutoAssociations,
+            WorkflowStageIds.OrgRReview,
             5,
+            "OrgR Review",
+            "Assign an OrgR to every financial department and NIFA department before associations run."),
+        new(
+            WorkflowStageIds.AutoAssociations,
+            6,
             "Auto-Associations",
             "Run the rules engine to associate as many expenses as possible before manual review."),
         new(
             WorkflowStageIds.ManualAssociations,
-            6,
+            7,
             "Manual Associations",
             "Complete any associations that require manual review in AD419 Next."),
         new(
             WorkflowStageIds.PostAssociationReview,
-            7,
+            8,
             "Post-Association Review",
             "Resolve flagged items after manual associations are complete."),
         new(
             WorkflowStageIds.FinalReports,
-            8,
+            9,
             "Final Reports",
             "Generate the final files for ANR submission and cycle signoff."),
     ];
