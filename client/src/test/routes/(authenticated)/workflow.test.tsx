@@ -1117,7 +1117,7 @@ describe('AD419 workflow routes', () => {
       ).toBeInTheDocument();
 
       await user.click(
-        screen.getByRole('button', {
+        await screen.findByRole('button', {
           name: /continue to manual associations/i,
         })
       );

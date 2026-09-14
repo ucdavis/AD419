@@ -6,6 +6,7 @@ import {
 } from '@/queries.ts';
 import { DataClassificationStage } from '@/components/dataClassification/DataClassificationStage.tsx';
 import { DataImportStage } from '@/components/dataImport/DataImportStage.tsx';
+import { ExpenseReviewStage } from '@/components/expenseReview/ExpenseReviewStage.tsx';
 import { OrgRReviewStage } from '@/components/orgrReview/OrgRReviewStage.tsx';
 import { ProjectIdentificationStage } from '@/components/ProjectIdentificationStage.tsx';
 import { SectionPanel } from '@/components/SectionPanel.tsx';
@@ -63,6 +64,8 @@ function WorkflowStageRoute() {
           <DataClassificationStage status={stage.status} />
         ) : workflowStageId === 'data-import' ? (
           <DataImportStage status={stage.status} />
+        ) : workflowStageId === 'expense-review' ? (
+          <ExpenseReviewStage />
         ) : workflowStageId === 'orgr-review' ? (
           <OrgRReviewStage status={stage.status} />
         ) : (

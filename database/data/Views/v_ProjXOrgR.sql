@@ -9,10 +9,9 @@ AS
 --
 -- [data].[Projects] is at NIFA x AE grain: a single project can have several
 -- rows sharing the same AccessionNumber and NifaProjectNumber (one per AE
--- project). SELECT DISTINCT on the Default branch collapses those back to one
--- row per (AccessionNumber, NifaProjectNumber) pair; the Manual branch
--- already yields one row per addition since OrgRProjectAdditions is keyed by
--- AccessionNumber and OrgR.
+-- project). Both branches join to Projects, so both fan out per AE project;
+-- SELECT DISTINCT on each branch collapses those back to one row per
+-- (AccessionNumber, NifaProjectNumber, OrgR) triple.
 --
 -- No LEN >= 8 guard is needed here (unlike SeedOrgRReviewRows) because a
 -- department segment is 3 characters: SUBSTRING never returns a value that
@@ -29,7 +28,7 @@ WHERE n.[OrgR] IS NOT NULL
 
 UNION ALL
 
-SELECT
+SELECT DISTINCT
     p.[AccessionNumber],
     p.[NifaProjectNumber],
     a.[OrgR],

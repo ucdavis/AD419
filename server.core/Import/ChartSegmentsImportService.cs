@@ -30,38 +30,44 @@ public sealed class ChartSegmentsImportService
     // purpose: the destination default applies to unmapped columns.
     // Source names verified against the warehouse 2026-07-30; all eight erp_*
     // tables share this schema.
-    private static readonly (string Source, string Destination)[] ColumnMappings =
+    private static readonly ImportColumnMapping[] ColumnMappings =
     [
-        ("segment_name", "SegmentName"),
-        ("code", "Code"),
-        ("value_id", "ValueId"),
-        ("description", "Description"),
-        ("value_desc", "ValueDesc"),
-        ("hierarchy_depth", "HierarchyDepth"),
-        ("summary_flag", "SummaryFlag"),
-        ("enabled_flag", "EnabledFlag"),
-        ("start_date_active", "StartDateActive"),
-        ("end_date_active", "EndDateActive"),
-        ("parent_level_0_code", "ParentLevel0Code"),
-        ("parent_level_1_code", "ParentLevel1Code"),
-        ("parent_level_2_code", "ParentLevel2Code"),
-        ("parent_level_3_code", "ParentLevel3Code"),
-        ("parent_level_4_code", "ParentLevel4Code"),
-        ("parent_level_5_code", "ParentLevel5Code"),
+        new("segment_name", "SegmentName"),
+        new("code", "Code"),
+        new("value_id", "ValueId"),
+        new("description", "Description"),
+        new("value_desc", "ValueDesc"),
+        new("hierarchy_depth", "HierarchyDepth"),
+        new("summary_flag", "SummaryFlag"),
+        new("enabled_flag", "EnabledFlag"),
+        new("start_date_active", "StartDateActive"),
+        new("end_date_active", "EndDateActive"),
+        new("parent_level_0_code", "ParentLevel0Code"),
+        new("parent_level_1_code", "ParentLevel1Code"),
+        new("parent_level_2_code", "ParentLevel2Code"),
+        new("parent_level_3_code", "ParentLevel3Code"),
+        new("parent_level_4_code", "ParentLevel4Code"),
+        new("parent_level_5_code", "ParentLevel5Code"),
     ];
 
     private readonly DataDbContext _dataDbContext;
     private readonly IConfiguration _configuration;
     private readonly ILogger<ChartSegmentsImportService> _logger;
+    private readonly ILinkedServerQueryExecutor _linkedServer;
+    private readonly ISqlBulkCopyWriter _bulkCopy;
 
     public ChartSegmentsImportService(
         DataDbContext dataDbContext,
         IConfiguration configuration,
-        ILogger<ChartSegmentsImportService> logger)
+        ILogger<ChartSegmentsImportService> logger,
+        ILinkedServerQueryExecutor linkedServer,
+        ISqlBulkCopyWriter bulkCopy)
     {
         _dataDbContext = dataDbContext;
         _configuration = configuration;
         _logger = logger;
+        _linkedServer = linkedServer;
+        _bulkCopy = bulkCopy;
     }
 
     public async Task<int> ImportSegmentAsync(string segmentName, CancellationToken cancellationToken = default)
@@ -72,18 +78,6 @@ public sealed class ChartSegmentsImportService
         var destinationConnectionString = DataDbConnection.Resolve(
             _configuration,
             _dataDbContext.Database.GetConnectionString());
-
-        await using var source = new SqlConnection(sourceConnectionString);
-        await source.OpenAsync(cancellationToken);
-
-        await using var query = new SqlCommand($"EXEC (@remoteQuery) AT [{RemoteLinkedServer}];", source)
-        {
-            CommandTimeout = CommandTimeoutSeconds,
-        };
-        query.Parameters.Add(new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1)
-        {
-            Value = BuildRemoteQuery(segmentName, sourceTable),
-        });
 
         await using var destination = new SqlConnection(destinationConnectionString);
         await destination.OpenAsync(cancellationToken);
@@ -97,22 +91,20 @@ public sealed class ChartSegmentsImportService
             await delete.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        using var bulkCopy = new SqlBulkCopy(destination, SqlBulkCopyOptions.Default, transaction)
-        {
-            DestinationTableName = DestinationTable,
-            BulkCopyTimeout = CommandTimeoutSeconds,
-        };
-        foreach (var (sourceColumn, destinationColumn) in ColumnMappings)
-        {
-            bulkCopy.ColumnMappings.Add(sourceColumn, destinationColumn);
-        }
+        var rowsCopied = await _linkedServer.ExecuteReaderAsync(
+            sourceConnectionString,
+            $"EXEC (@remoteQuery) AT [{RemoteLinkedServer}];",
+            [new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = BuildRemoteQuery(segmentName, sourceTable) }],
+            (reader, ct) => _bulkCopy.WriteToServerAsync(
+                destination,
+                transaction,
+                DestinationTable,
+                ColumnMappings,
+                reader,
+                ct),
+            cancellationToken);
 
-        await using (var reader = await query.ExecuteReaderAsync(cancellationToken))
-        {
-            await bulkCopy.WriteToServerAsync(reader, cancellationToken);
-        }
-
-        var rowsImported = (int)bulkCopy.RowsCopied64;
+        var rowsImported = (int)rowsCopied;
         await transaction.CommitAsync(cancellationToken);
 
         _logger.LogInformation("Imported {RowCount} {Segment} chart segments", rowsImported, segmentName);
