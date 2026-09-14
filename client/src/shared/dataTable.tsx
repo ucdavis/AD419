@@ -7,8 +7,13 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   InitialTableState,
+  type OnChangeFn,
+  type PaginationState,
   type RowData,
+  type SortingState,
   type Table,
+  type Updater,
+  type VisibilityState,
   useReactTable,
 } from '@tanstack/react-table';
 
@@ -26,29 +31,120 @@ type TableActionsRenderer<TData extends object> =
 interface DataTableProps<TData extends object> {
   cellClassName?: string;
   columns: ColumnDef<TData>[];
+  columnVisibility?: VisibilityState;
   data: TData[];
   filterPlaceholder?: string;
   globalFilter?: 'left' | 'right' | 'none'; // Controls the position of the search box
   headerClassName?: string;
   initialState?: InitialTableState; // Optional initial state for the table, use for stuff like setting page size or sorting
+  manualPagination?: boolean;
+  manualSorting?: boolean;
+  onColumnVisibilityChange?: (columnVisibility: VisibilityState) => void;
+  onPageIndexChange?: (pageIndex: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
+  onSortingChange?: (sorting: SortingState) => void;
+  pageCount?: number;
+  pageIndex?: number;
+  pageSize?: number;
   pageSizeOptions?: number[];
+  rowCount?: number;
+  sorting?: SortingState;
   tableActions?: TableActionsRenderer<TData>;
   tableClassName?: string;
+}
+
+function applyUpdater<T>(updater: Updater<T>, current: T): T {
+  return typeof updater === 'function'
+    ? (updater as (previous: T) => T)(current)
+    : updater;
 }
 
 export const DataTable = <TData extends object>({
   cellClassName,
   columns,
+  columnVisibility,
   data,
   filterPlaceholder = 'Search all columns...',
   globalFilter = 'right',
   headerClassName,
   initialState,
+  manualPagination = false,
+  manualSorting = false,
+  onColumnVisibilityChange,
+  onPageIndexChange,
+  onPageSizeChange,
+  onSortingChange,
+  pageCount: manualPageCount,
+  pageIndex,
+  pageSize,
   pageSizeOptions = [10, 25, 50, 100],
+  rowCount,
+  sorting,
   tableActions,
   tableClassName = 'table-zebra',
 }: DataTableProps<TData>) => {
   const [pageInputValue, setPageInputValue] = useState('');
+  const [internalColumnVisibility, setInternalColumnVisibility] =
+    useState<VisibilityState>(initialState?.columnVisibility ?? {});
+  const [internalPagination, setInternalPagination] =
+    useState<PaginationState>({
+      pageIndex: initialState?.pagination?.pageIndex ?? 0,
+      pageSize: initialState?.pagination?.pageSize ?? 10,
+    });
+  const [internalSorting, setInternalSorting] = useState<SortingState>(
+    initialState?.sorting ?? []
+  );
+  const resolvedColumnVisibility =
+    columnVisibility ?? internalColumnVisibility;
+  const resolvedPagination = {
+    pageIndex: pageIndex ?? internalPagination.pageIndex,
+    pageSize: pageSize ?? internalPagination.pageSize,
+  };
+  const resolvedSorting = sorting ?? internalSorting;
+  const handleColumnVisibilityChange: OnChangeFn<VisibilityState> = (
+    updater
+  ) => {
+    const nextColumnVisibility = applyUpdater(
+      updater,
+      resolvedColumnVisibility
+    );
+
+    if (columnVisibility === undefined) {
+      setInternalColumnVisibility(nextColumnVisibility);
+    }
+    onColumnVisibilityChange?.(nextColumnVisibility);
+  };
+  const handlePaginationChange: OnChangeFn<PaginationState> = (updater) => {
+    const nextPagination = applyUpdater(updater, resolvedPagination);
+
+    if (pageIndex === undefined || pageSize === undefined) {
+      setInternalPagination({
+        pageIndex:
+          pageIndex === undefined
+            ? nextPagination.pageIndex
+            : resolvedPagination.pageIndex,
+        pageSize:
+          pageSize === undefined
+            ? nextPagination.pageSize
+            : resolvedPagination.pageSize,
+      });
+    }
+
+    if (nextPagination.pageIndex !== resolvedPagination.pageIndex) {
+      onPageIndexChange?.(nextPagination.pageIndex);
+    }
+    if (nextPagination.pageSize !== resolvedPagination.pageSize) {
+      onPageSizeChange?.(nextPagination.pageSize);
+    }
+  };
+  const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
+    const nextSorting = applyUpdater(updater, resolvedSorting);
+
+    if (sorting === undefined) {
+      setInternalSorting(nextSorting);
+    }
+    onSortingChange?.(nextSorting);
+  };
 
   // TanStack Table is not yet marked compatible with the React Compiler.
   // Keep this suppression until the library compatibility guidance changes.
@@ -63,6 +159,18 @@ export const DataTable = <TData extends object>({
     getSortedRowModel: getSortedRowModel(), // enable sorting feature
     initialState: {
       ...initialState,
+    },
+    manualPagination,
+    manualSorting,
+    onColumnVisibilityChange: handleColumnVisibilityChange,
+    onPaginationChange: handlePaginationChange,
+    onSortingChange: handleSortingChange,
+    pageCount: manualPageCount,
+    rowCount,
+    state: {
+      columnVisibility: resolvedColumnVisibility,
+      pagination: resolvedPagination,
+      sorting: resolvedSorting,
     },
   });
 
