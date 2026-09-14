@@ -11,10 +11,12 @@ public class ImportStageProviderTests
     {
         var db = TestDbContextFactory.CreateDataInMemory();
         var config = new ConfigurationBuilder().Build();
+        var linkedServer = new LinkedServerQueryExecutor();
+        var bulkCopy = new SqlBulkCopyWriter();
         return new ImportStageProvider(
-            new ChartSegmentsImportService(db, config, NullLogger<ChartSegmentsImportService>.Instance),
-            new AeTransactionsImportService(db, config, NullLogger<AeTransactionsImportService>.Instance),
-            new UcPathTransactionsImportService(db, config, NullLogger<UcPathTransactionsImportService>.Instance),
+            new ChartSegmentsImportService(db, config, NullLogger<ChartSegmentsImportService>.Instance, linkedServer, bulkCopy),
+            new AeTransactionsImportService(db, config, NullLogger<AeTransactionsImportService>.Instance, linkedServer, bulkCopy),
+            new UcPathTransactionsImportService(db, config, NullLogger<UcPathTransactionsImportService>.Instance, linkedServer, bulkCopy),
             new SprocStageService(db, config));
     }
 
