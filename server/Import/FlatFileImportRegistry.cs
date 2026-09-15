@@ -71,6 +71,51 @@ public sealed class FlatFileImportRegistry : IFlatFileImportRegistry
                 new("Project Number", ["ProjectNumber"]),
             ]),
         new(
+            "field-station-expenses",
+            "Field Station Expenses",
+            "data",
+            "ad419_FieldStationExpenses",
+            [
+                Text("ProjectAccessionNum", true, 7, "Project Accession Number", "Accession Number"),
+                Text("ProjectDirector", false, 200, "Project Director"),
+                Number("FieldStationCharge", true, 19, 4, "Field Station Charge"),
+            ],
+            [
+                new("Project Accession Number", ["ProjectAccessionNum"]),
+            ],
+            referenceValidations:
+            [
+                ActiveProjectAccession("ProjectAccessionNum"),
+            ]),
+        new(
+            "ce-specialists",
+            "CE Specialists",
+            "data",
+            "ad419_CESpecialists",
+            [
+                Text("DeptCode", false, 6, "Dept code", "Department Code"),
+                Text("DeptName", false, 200, "Dept Name", "Department Name"),
+                Text("Pi", false, 200, "PI"),
+                Text("DeptLevelOrg", true, 50, "Dept Level Org"),
+                Text("EmployeeId", false, 8, "EmployeeID", "Employee ID"),
+                Text("ProjectAccessionNum", true, 7, "Project Accession Number", "Accession Number"),
+                Text("ProjectNumber", false, 20, "Project Number"),
+                Number("PercentCeEffort", true, 9, 6, "Percent CE Effort"),
+                Number("FullAnnualPayRate", true, 19, 4, "Full Annual Pay Rate"),
+                Text("TitleCode", false, 10, "Title Code"),
+                Number("FTE", true, 9, 6),
+                Text("Entity", false, 10),
+                Text("Exp SFN", true, 10, "EXP SFN", "Expense SFN"),
+                Text("FTE SFN", true, 10),
+            ],
+            [
+                new("Project Accession Number", ["ProjectAccessionNum"]),
+            ],
+            referenceValidations:
+            [
+                ActiveProjectAccession("ProjectAccessionNum"),
+            ]),
+        new(
             "assistance-listing-numbers",
             "Assistance Listing Numbers",
             "data",
@@ -147,7 +192,24 @@ public sealed class FlatFileImportRegistry : IFlatFileImportRegistry
 
     private static ImportColumn Number(string targetColumn, bool required, params string[] sourceHeaders)
     {
-        return new ImportColumn(targetColumn, ImportColumnType.Decimal, required, null, sourceHeaders);
+        return Number(targetColumn, required, 9, 2, sourceHeaders);
+    }
+
+    private static ImportColumn Number(
+        string targetColumn,
+        bool required,
+        int precision,
+        int scale,
+        params string[] sourceHeaders)
+    {
+        return new ImportColumn(
+            targetColumn,
+            ImportColumnType.Decimal,
+            required,
+            null,
+            sourceHeaders,
+            Precision: precision,
+            Scale: scale);
     }
 
     private static ImportColumn Date(string targetColumn, bool required, params string[] sourceHeaders)
@@ -170,5 +232,15 @@ public sealed class FlatFileImportRegistry : IFlatFileImportRegistry
 
         var normalized = text.Trim().Replace("-", "", StringComparison.Ordinal);
         return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+
+    private static ImportReferenceValidation ActiveProjectAccession(string targetColumn)
+    {
+        return new ImportReferenceValidation(
+            targetColumn,
+            "data",
+            "ActiveProjects",
+            "AccessionNumber",
+            "the active project list");
     }
 }

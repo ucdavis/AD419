@@ -27,6 +27,183 @@ public class FlatFileImportServiceTests
         column!.TargetColumn.Should().Be(expectedTargetColumn);
     }
 
+    [Theory]
+    [InlineData("Dept code", "DeptCode")]
+    [InlineData("dept-code", "DeptCode")]
+    [InlineData("Dept Name", "DeptName")]
+    [InlineData("PI", "Pi")]
+    [InlineData("EmployeeID", "EmployeeId")]
+    [InlineData("EXP SFN", "Exp SFN")]
+    [InlineData("FTE SFN", "FTE SFN")]
+    public void Ce_specialists_registry_maps_source_headers(string sourceHeader, string expectedTargetColumn)
+    {
+        var dataset = new FlatFileImportRegistry().Find("ce-specialists");
+
+        dataset.Should().NotBeNull();
+        dataset!.FindColumnBySourceHeader(sourceHeader)?.TargetColumn.Should().Be(expectedTargetColumn);
+    }
+
+    [Fact]
+    public void Field_station_parser_allows_nullable_project_director()
+    {
+        var dataset = new FlatFileImportRegistry().Find("field-station-expenses");
+        var file = CreateWorkbook(
+            "field-station.xlsx",
+            ["ProjectAccessionNum", "ProjectDirector", "FieldStationCharge"],
+            [["1234567", "", "1234.5678"]]);
+
+        var parsedValues = ParseSingleRowValues(dataset!, file);
+
+        parsedValues["ProjectAccessionNum"].Should().Be("1234567");
+        parsedValues["ProjectDirector"].Should().BeNull();
+        parsedValues["FieldStationCharge"].Should().Be(1234.5678m);
+    }
+
+    [Theory]
+    [InlineData("ce-specialists.csv")]
+    [InlineData("ce-specialists.xlsx")]
+    public void Ce_specialists_parser_preserves_all_columns_and_formatted_decimals(string filename)
+    {
+        var dataset = new FlatFileImportRegistry().Find("ce-specialists");
+        var file = CreateImportFile(
+            filename,
+            [
+                "Dept code",
+                "Dept Name",
+                "PI",
+                "DeptLevelOrg",
+                "EmployeeID",
+                "ProjectAccessionNum",
+                "ProjectNumber",
+                "PercentCeEffort",
+                "FullAnnualPayRate",
+                "TitleCode",
+                "FTE",
+                "Entity",
+                "EXP SFN",
+                "FTE SFN",
+            ],
+            [["ABC123", "Department", "Director", "ORG", "12345678", "7654321", "PRJ-1", "0.123456", "127,900.00", "1234", "0.654321", "UCD", "241", "242"]]);
+
+        var parsedValues = ParseSingleRowValues(dataset!, file);
+
+        parsedValues.Should().HaveCount(14);
+        parsedValues["ProjectAccessionNum"].Should().Be("7654321");
+        parsedValues["PercentCeEffort"].Should().Be(0.123456m);
+        parsedValues["FullAnnualPayRate"].Should().Be(127900.00m);
+        parsedValues["FTE"].Should().Be(0.654321m);
+        parsedValues["Exp SFN"].Should().Be("241");
+        parsedValues["FTE SFN"].Should().Be("242");
+    }
+
+    [Fact]
+    public void Ce_specialists_parser_allows_nullable_informational_columns()
+    {
+        var dataset = new FlatFileImportRegistry().Find("ce-specialists");
+        var file = CreateWorkbook(
+            "ce-specialists.xlsx",
+            [
+                "Dept code",
+                "Dept Name",
+                "PI",
+                "DeptLevelOrg",
+                "EmployeeID",
+                "ProjectAccessionNum",
+                "ProjectNumber",
+                "PercentCeEffort",
+                "FullAnnualPayRate",
+                "TitleCode",
+                "FTE",
+                "Entity",
+                "EXP SFN",
+                "FTE SFN",
+            ],
+            [["", "", "", "ORG", "", "7654321", "", "0.1", "100000", "", "0.5", "", "241", "242"]]);
+
+        var parsedValues = ParseSingleRowValues(dataset!, file);
+
+        parsedValues["DeptCode"].Should().BeNull();
+        parsedValues["DeptName"].Should().BeNull();
+        parsedValues["Pi"].Should().BeNull();
+        parsedValues["EmployeeId"].Should().BeNull();
+        parsedValues["ProjectNumber"].Should().BeNull();
+        parsedValues["TitleCode"].Should().BeNull();
+        parsedValues["Entity"].Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Ce_specialists_import_requires_every_downstream_column()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
+        var file = CreateCsvFile(
+            "ce-specialists.csv",
+            [
+                "Dept code",
+                "DeptLevelOrg",
+                "ProjectAccessionNum",
+                "PercentCeEffort",
+                "FullAnnualPayRate",
+                "FTE",
+                "EXP SFN",
+                "FTE SFN",
+            ],
+            [["ABC123", "", "", "", "", "", "", ""]]);
+
+        var result = await service.ImportAsync(
+            "ce-specialists",
+            file,
+            null,
+            CancellationToken.None);
+
+        var validation = result.Should().BeOfType<ImportValidationFailed>().Subject.Response;
+        validation.FileErrors.Should().BeEmpty();
+        validation.Rows.Should().ContainSingle();
+        validation.Rows[0].CellErrors
+            .Where(error => error.Code == "required")
+            .Select(error => error.TargetColumn)
+            .Should().BeEquivalentTo(
+                "DeptLevelOrg",
+                "ProjectAccessionNum",
+                "PercentCeEffort",
+                "FullAnnualPayRate",
+                "FTE",
+                "Exp SFN",
+                "FTE SFN");
+    }
+
+    [Fact]
+    public async Task Ce_specialists_import_rejects_unknown_headers()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = CreateService(db, dataDb);
+        var file = CreateCsvFile(
+            "ce-specialists.csv",
+            [
+                "DeptLevelOrg",
+                "ProjectAccessionNum",
+                "PercentCeEffort",
+                "FullAnnualPayRate",
+                "FTE",
+                "EXP SFN",
+                "FTE SFN",
+                "Unexpected Column",
+            ],
+            [["ORG", "7654321", "0.1", "100000", "0.5", "241", "242", "unexpected"]]);
+
+        var result = await service.ImportAsync(
+            "ce-specialists",
+            file,
+            null,
+            CancellationToken.None);
+
+        var validation = result.Should().BeOfType<ImportValidationFailed>().Subject.Response;
+        validation.FileErrors.Should().ContainSingle(error =>
+            error.Code == "unknown_header" && error.SourceHeader == "Unexpected Column");
+    }
+
     [Fact]
     public void Dataset_definition_rejects_normalized_header_collisions_between_columns()
     {

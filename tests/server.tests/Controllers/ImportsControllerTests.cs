@@ -58,12 +58,18 @@ public class ImportsControllerTests
         var activeProjects = summaries.Single(summary => summary.Dataset == "active-projects");
         var assistanceListingNumbers = summaries.Single(summary =>
             summary.Dataset == "assistance-listing-numbers");
+        var fieldStationExpenses = summaries.Single(summary =>
+            summary.Dataset == "field-station-expenses");
+        var ceSpecialists = summaries.Single(summary =>
+            summary.Dataset == "ce-specialists");
 
         allProjects.LastImport.Should().NotBeNull();
         allProjects.LastImport!.Filename.Should().Be("all-projects-29.csv");
         activeProjects.LastImport.Should().NotBeNull();
         activeProjects.LastImport!.Filename.Should().Be("active-projects.csv");
         assistanceListingNumbers.LastImport.Should().BeNull();
+        fieldStationExpenses.LastImport.Should().BeNull();
+        ceSpecialists.LastImport.Should().BeNull();
     }
 
     private sealed class NoOpFlatFileImportService : IFlatFileImportService

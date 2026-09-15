@@ -29,19 +29,22 @@ public class WorkflowServiceTests
         snapshot.Stages.Should().HaveCount(9);
         snapshot.Stages.Select(stage => stage.Id).Should().Equal(
             WorkflowStageIds.ProjectIdentification,
+            WorkflowStageIds.StationSpecialistImport,
             WorkflowStageIds.DataImport,
             WorkflowStageIds.DataClassification,
             WorkflowStageIds.ExpenseReview,
             WorkflowStageIds.AutoAssociations,
             WorkflowStageIds.ManualAssociations,
             WorkflowStageIds.PostAssociationReview,
-            WorkflowStageIds.StationSpecialistImport,
             WorkflowStageIds.FinalReports);
+        snapshot.Stages.Select(stage => stage.Number).Should().Equal(1, 2, 3, 4, 5, 6, 7, 8, 9);
         snapshot.CurrentStageId.Should().Be(WorkflowStageIds.ProjectIdentification);
         snapshot.Stages[0].Status.Should().Be(WorkflowStageStatus.InProgress);
         snapshot.Stages[0].CanAccess.Should().BeTrue();
         snapshot.Stages[1].Status.Should().Be(WorkflowStageStatus.NotStarted);
-        snapshot.Stages[1].CanAccess.Should().BeFalse();
+        snapshot.Stages[1].CanAccess.Should().BeTrue();
+        snapshot.Stages[1].IsRequired.Should().BeFalse();
+        snapshot.Stages[2].CanAccess.Should().BeFalse();
         db.WorkflowStageStates.Should().HaveCount(9);
     }
 
@@ -130,7 +133,7 @@ public class WorkflowServiceTests
     }
 
     [Fact]
-    public async Task Completing_post_association_starts_station_specialist_import_before_final_reports()
+    public async Task Optional_station_specialist_import_never_blocks_or_accepts_status_changes()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
@@ -141,20 +144,34 @@ public class WorkflowServiceTests
         await CompleteStageAsync(service, WorkflowStageIds.DataClassification);
         await CompleteStageAsync(service, WorkflowStageIds.ExpenseReview);
         await CompleteStageAsync(service, WorkflowStageIds.AutoAssociations);
+        var initial = await service.GetSnapshotAsync(User, CancellationToken.None);
+        var optional = initial.Stages.Single(stage => stage.Id == WorkflowStageIds.StationSpecialistImport);
+
+        optional.CanAccess.Should().BeTrue();
+        optional.IsRequired.Should().BeFalse();
+        optional.Status.Should().Be(WorkflowStageStatus.NotStarted);
+
+        var rejected = await service.SetStageStatusAsync(
+            WorkflowStageIds.StationSpecialistImport,
+            WorkflowStageStatus.Complete,
+            User,
+            CancellationToken.None);
+
+        rejected.Should().BeNull();
+
+        var reset = () => service.ResetFromStageAsync(
+            WorkflowStageIds.StationSpecialistImport,
+            User,
+            CancellationToken.None);
+        await reset.Should().ThrowAsync<ArgumentException>()
+            .WithMessage("*optional*");
+
         await CompleteStageAsync(service, WorkflowStageIds.ManualAssociations);
-        var stationSpecialist = await CompleteStageAsync(service, WorkflowStageIds.PostAssociationReview);
-
-        stationSpecialist.CurrentStageId.Should().Be(WorkflowStageIds.StationSpecialistImport);
-        stationSpecialist.Stages.Single(stage => stage.Id == WorkflowStageIds.StationSpecialistImport)
-            .Status.Should().Be(WorkflowStageStatus.InProgress);
-        stationSpecialist.Stages.Single(stage => stage.Id == WorkflowStageIds.FinalReports)
-            .CanAccess.Should().BeFalse();
-
-        var finalReports = await CompleteStageAsync(service, WorkflowStageIds.StationSpecialistImport);
+        var finalReports = await CompleteStageAsync(service, WorkflowStageIds.PostAssociationReview);
 
         finalReports.CurrentStageId.Should().Be(WorkflowStageIds.FinalReports);
         finalReports.Stages.Single(stage => stage.Id == WorkflowStageIds.StationSpecialistImport)
-            .Status.Should().Be(WorkflowStageStatus.Complete);
+            .Status.Should().Be(WorkflowStageStatus.NotStarted);
         finalReports.Stages.Single(stage => stage.Id == WorkflowStageIds.FinalReports)
             .Status.Should().Be(WorkflowStageStatus.InProgress);
     }
@@ -197,6 +214,8 @@ public class WorkflowServiceTests
             .Status.Should().Be(WorkflowStageStatus.NotStarted);
         reopened.Stages.Single(stage => stage.Id == WorkflowStageIds.ExpenseReview)
             .CanAccess.Should().BeFalse();
+        reopened.Stages.Single(stage => stage.Id == WorkflowStageIds.StationSpecialistImport)
+            .CanAccess.Should().BeTrue();
 
         var dataClassification = await db.WorkflowStageStates.SingleAsync(
             state => state.StageId == WorkflowStageIds.DataClassification);
