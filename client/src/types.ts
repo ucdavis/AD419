@@ -16,6 +16,7 @@ export interface WorkflowStage {
   completedByName: string | null;
   description: string;
   id: WorkflowStageId;
+  isRequired: boolean;
   number: number;
   status: WorkflowStageStatus;
   title: string;

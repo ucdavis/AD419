@@ -84,7 +84,36 @@ public sealed class FlatFileImportService(
             definition.Id,
             importStopwatch.ElapsedMilliseconds);
 
-        if (parseResult.FileErrors.Count > 0 || parseResult.Rows.Any(row => row.Errors.Count > 0 || row.CellErrors.Count > 0))
+        var hasParseErrors = parseResult.FileErrors.Count > 0
+            || parseResult.Rows.Any(row => row.Errors.Count > 0 || row.CellErrors.Count > 0);
+        if (!hasParseErrors && definition.ReferenceValidations.Count > 0)
+        {
+            try
+            {
+                await AddReferenceValidationErrorsAsync(
+                    definition,
+                    parseResult.ParsedRows,
+                    cancellationToken);
+            }
+            catch (Exception ex) when (ex is SqlException or InvalidOperationException)
+            {
+                logger.LogWarning(ex, "Import reference validation failed for dataset {DatasetId}.", definition.Id);
+
+                var failedRows = parseResult.Rows.Count > 0
+                    ? parseResult.Rows
+                    : [new ImportRowResult(0, [], ["The database rejected the import before any rows were replaced."], [])];
+
+                return await ValidationAsync(definition.Id, file!.FileName, parseResult.Rows.Count,
+                    [new ImportFileError("database_validation_failed", "The database rejected the import. Existing data was not changed.")],
+                    failedRows,
+                    user,
+                    startedAt,
+                    cancellationToken,
+                    StatusPersistenceFailed);
+            }
+        }
+
+        if (hasParseErrors || parseResult.Rows.Any(row => row.Errors.Count > 0 || row.CellErrors.Count > 0))
         {
             return await ValidationAsync(
                 definition.Id,
@@ -802,6 +831,44 @@ public sealed class FlatFileImportService(
         return string.Join('\u001f', parts);
     }
 
+    private async Task AddReferenceValidationErrorsAsync(
+        ImportDatasetDefinition definition,
+        IReadOnlyList<ParsedImportRow> rows,
+        CancellationToken cancellationToken)
+    {
+        var connectionString = DataDbConnection.Resolve(
+            configuration,
+            dataDbContext.Database.GetConnectionString());
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        foreach (var validation in definition.ReferenceValidations)
+        {
+            var referenceValues = await connection.QueryAsync<string>(new CommandDefinition(
+                $"SELECT {Quote(validation.ReferenceColumn)} FROM {Quote(validation.SchemaName)}.{Quote(validation.TableName)};",
+                commandTimeout: DatabaseCommandTimeoutSeconds,
+                cancellationToken: cancellationToken));
+            var validValues = referenceValues
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var row in rows)
+            {
+                var value = Convert.ToString(
+                    row.ParsedValues.GetValueOrDefault(validation.TargetColumn),
+                    CultureInfo.InvariantCulture)?.Trim();
+                if (string.IsNullOrWhiteSpace(value) || validValues.Contains(value))
+                {
+                    continue;
+                }
+
+                row.Result.Errors.Add(
+                    $"{validation.TargetColumn} '{value}' was not found in {validation.DisplayName}.");
+            }
+        }
+    }
+
     private async Task ReplaceTargetTableAsync(
         ImportDatasetDefinition definition,
         IReadOnlyList<ParsedImportRow> rows,
@@ -1061,7 +1128,7 @@ public sealed class FlatFileImportService(
         {
             ImportColumnType.String => column.MaxLength is null ? "NVARCHAR(MAX)" : $"NVARCHAR({column.MaxLength.Value})",
             ImportColumnType.Boolean => "BIT",
-            ImportColumnType.Decimal => "DECIMAL(9, 2)",
+            ImportColumnType.Decimal => $"DECIMAL({column.Precision ?? 9}, {column.Scale ?? 2})",
             ImportColumnType.Date => "DATE",
             ImportColumnType.Int16 => "SMALLINT",
             _ => throw new ArgumentOutOfRangeException(nameof(column), column.Type, "Unsupported import column type."),

@@ -22,6 +22,10 @@ function stepClasses(stage: WorkflowStage, activeStageId: string) {
 }
 
 function statusLabel(stage: WorkflowStage) {
+  if (!stage.isRequired) {
+    return 'Optional';
+  }
+
   if (stage.status === 'Complete') {
     return 'Complete';
   }

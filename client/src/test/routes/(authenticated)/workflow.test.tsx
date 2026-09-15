@@ -451,7 +451,9 @@ describe('AD419 workflow routes', () => {
       await user.click(screen.getByRole('tab', { name: /excluded\s*1/i }));
 
       expect(await screen.findByText('Singh, R.')).toBeInTheDocument();
-      expect(screen.getByText('Excluded from associations')).toBeInTheDocument();
+      expect(
+        screen.getByText('Excluded from associations')
+      ).toBeInTheDocument();
       expect(screen.queryByText('Okonkwo, Y.')).not.toBeInTheDocument();
       expect(
         screen.getByRole('button', { name: 'Re-include' })
@@ -681,7 +683,9 @@ describe('AD419 workflow routes', () => {
       await user.click(
         screen.getByRole('button', { name: 'Select PGM award' })
       );
-      expect(await screen.findByLabelText('Search candidates')).toBeInTheDocument();
+      expect(
+        await screen.findByLabelText('Search candidates')
+      ).toBeInTheDocument();
       await user.keyboard('{Escape}');
 
       await waitFor(() => {
@@ -693,7 +697,9 @@ describe('AD419 workflow routes', () => {
       await user.click(
         screen.getByRole('button', { name: 'Select All Projects' })
       );
-      expect(await screen.findByLabelText('Search candidates')).toBeInTheDocument();
+      expect(
+        await screen.findByLabelText('Search candidates')
+      ).toBeInTheDocument();
       await user.click(screen.getByText('Active NIFA'));
 
       await waitFor(() => {
@@ -1069,7 +1075,7 @@ describe('AD419 workflow routes', () => {
     }
   });
 
-  it('allows the Station/Specialist Import placeholder to complete and advance', async () => {
+  it('shows two fixed optional import panels with recent metadata and validation history', async () => {
     const user = userEvent.setup();
     let updateRequests = 0;
 
@@ -1078,68 +1084,86 @@ describe('AD419 workflow routes', () => {
         return HttpResponse.json(mockUser);
       }),
       http.get('/api/workflow/snapshot', () => {
-        return HttpResponse.json(
-          createWorkflowSnapshot({
-            'auto-associations': 'Complete',
-            'data-classification': 'Complete',
-            'data-import': 'Complete',
-            'expense-review': 'Complete',
-            'manual-associations': 'Complete',
-            'post-association-review': 'Complete',
-            'project-identification': 'Complete',
-            'station-specialist-import': 'InProgress',
-          })
-        );
+        return HttpResponse.json(createWorkflowSnapshot());
       }),
-      http.get('/api/expensereview/filters', () => {
+      http.get('/api/imports/recent', () => {
+        return HttpResponse.json([
+          {
+            dataset: 'field-station-expenses',
+            displayName: 'Field Station Expenses',
+            lastImport: {
+              attemptedRows: 2,
+              dataset: 'field-station-expenses',
+              filename: 'field-station.xlsx',
+              id: 51,
+              importedAt: '2026-07-07T12:00:00Z',
+              rowsImported: null,
+              status: 'ValidationFailed',
+              uploadedByEmail: 'shannon@example.edu',
+              uploadedByName: 'Shannon Taylor',
+              validationStats: {
+                errorCount: 1,
+                fileErrorCount: 0,
+                rowCount: 2,
+                rowsWithErrors: 1,
+              },
+            },
+          },
+          {
+            dataset: 'ce-specialists',
+            displayName: 'CE Specialists',
+            lastImport: {
+              attemptedRows: 8,
+              dataset: 'ce-specialists',
+              filename: 'ce-specialists.xlsx',
+              id: 52,
+              importedAt: '2026-07-07T12:05:00Z',
+              rowsImported: 8,
+              status: 'Succeeded',
+              uploadedByEmail: 'shannon@example.edu',
+              uploadedByName: 'Shannon Taylor',
+              validationStats: null,
+            },
+          },
+        ]);
+      }),
+      http.get('/api/imports/51', () => {
         return HttpResponse.json({
-          accounts: [],
-          activities: [],
-          aeProjects: [],
-          entities: [],
-          exclusionReasons: [],
-          financialDepts: [],
-          funds: [],
-          programs: [],
-          purposes: [],
-          sfns: [],
+          attemptedRows: 2,
+          dataset: 'field-station-expenses',
+          filename: 'field-station.xlsx',
+          id: 51,
+          importedAt: '2026-07-07T12:00:00Z',
+          rowsImported: null,
+          status: 'ValidationFailed',
+          validation: {
+            attemptedRows: 2,
+            dataset: 'field-station-expenses',
+            errorCount: 1,
+            fileErrors: [],
+            filename: 'field-station.xlsx',
+            rowCount: 2,
+            rows: [
+              {
+                cellErrors: [],
+                errors: [
+                  "ProjectAccessionNum '9999999' was not found in the active project list.",
+                ],
+                rowNum: 3,
+              },
+            ],
+            rowsWithErrors: 1,
+            truncated: false,
+          },
         });
       }),
-      http.get('/api/expensereview/transactions', () => {
-        return HttpResponse.json({
-          counts: { all: 0, excluded: 0, included: 0 },
-          cycleEnd: '2026-09-30',
-          cycleStart: '2025-10-01',
-          fiscalYear: 'FY26',
-          page: 1,
-          pageCount: 0,
-          pageSize: 25,
-          rows: [],
-          totalCount: 0,
-        });
-      }),
-      http.put('/api/workflow/stages/:stageId', async ({ params, request }) => {
-        expect(params.stageId).toBe('station-specialist-import');
-        expect(await request.json()).toEqual({ status: 'Complete' });
+      http.put('/api/workflow/stages/:stageId', () => {
         updateRequests += 1;
-
-        return HttpResponse.json(
-          createWorkflowSnapshot({
-            'auto-associations': 'Complete',
-            'data-classification': 'Complete',
-            'data-import': 'Complete',
-            'expense-review': 'Complete',
-            'final-reports': 'InProgress',
-            'manual-associations': 'Complete',
-            'post-association-review': 'Complete',
-            'project-identification': 'Complete',
-            'station-specialist-import': 'Complete',
-          })
-        );
+        return HttpResponse.json(createWorkflowSnapshot());
       })
     );
 
-    const { cleanup, router } = renderRoute({
+    const { cleanup } = renderRoute({
       initialPath: '/workflow/station-specialist-import',
     });
 
@@ -1150,29 +1174,139 @@ describe('AD419 workflow routes', () => {
           name: 'Station/Specialist Import',
         })
       ).toBeInTheDocument();
+      expect(screen.getByText('Optional')).toBeInTheDocument();
+      expect(
+        document.querySelector('.workflow-step--active')
+      ).toHaveTextContent('Station/Specialist Import');
+      expect(
+        screen.getByRole('heading', { name: 'Field Station Expenses' })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { name: 'CE Specialists' })
+      ).toBeInTheDocument();
+      expect(screen.getAllByLabelText('Import file')).toHaveLength(2);
+      expect(screen.queryByLabelText('Dataset')).not.toBeInTheDocument();
+      expect(await screen.findByText('field-station.xlsx')).toBeInTheDocument();
+      expect(screen.getByText('ce-specialists.xlsx')).toBeInTheDocument();
+      expect(screen.getAllByText('Uploaded by Shannon Taylor')).toHaveLength(2);
+      expect(screen.getByText('8 rows')).toBeInTheDocument();
+      expect(screen.queryByText(/continue to/i)).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /mark done/i })
+      ).not.toBeInTheDocument();
 
       await user.click(
-        await screen.findByRole('button', {
-          name: /continue to final reports/i,
+        screen.getByRole('button', {
+          name: 'Field Station Expenses import status',
         })
       );
 
-      await waitFor(() => {
-        expect(updateRequests).toBe(1);
-        expect(router.state.location.pathname).toBe(
-          '/workflow/final-reports'
-        );
-      });
       expect(
-        await screen.findByRole('heading', {
-          level: 1,
-          name: 'Final Reports',
-        })
+        await screen.findByRole('heading', { name: 'Validation history' })
       ).toBeInTheDocument();
+      expect(
+        screen.getByText(/9999999.*active project list/i)
+      ).toBeInTheDocument();
+      expect(updateRequests).toBe(0);
     } finally {
       cleanup();
     }
   });
+
+  it.each([
+    ['project identification', {}],
+    ['data import', { 'project-identification': 'Complete' }],
+    [
+      'data classification',
+      {
+        'data-import': 'Complete',
+        'project-identification': 'Complete',
+      },
+    ],
+    [
+      'expense review',
+      {
+        'data-classification': 'Complete',
+        'data-import': 'Complete',
+        'project-identification': 'Complete',
+      },
+    ],
+    [
+      'auto-associations',
+      {
+        'data-classification': 'Complete',
+        'data-import': 'Complete',
+        'expense-review': 'Complete',
+        'project-identification': 'Complete',
+      },
+    ],
+    [
+      'manual associations',
+      {
+        'auto-associations': 'Complete',
+        'data-classification': 'Complete',
+        'data-import': 'Complete',
+        'expense-review': 'Complete',
+        'project-identification': 'Complete',
+      },
+    ],
+    [
+      'post-association review',
+      {
+        'auto-associations': 'Complete',
+        'data-classification': 'Complete',
+        'data-import': 'Complete',
+        'expense-review': 'Complete',
+        'manual-associations': 'Complete',
+        'project-identification': 'Complete',
+      },
+    ],
+    [
+      'final reports',
+      {
+        'auto-associations': 'Complete',
+        'data-classification': 'Complete',
+        'data-import': 'Complete',
+        'expense-review': 'Complete',
+        'manual-associations': 'Complete',
+        'post-association-review': 'Complete',
+        'project-identification': 'Complete',
+      },
+    ],
+  ] as const)(
+    'allows direct navigation to the optional import stage during %s',
+    async (_workflowState, statuses) => {
+      server.use(
+        http.get('/api/user/me', () => {
+          return HttpResponse.json(mockUser);
+        }),
+        http.get('/api/workflow/snapshot', () => {
+          return HttpResponse.json(createWorkflowSnapshot(statuses));
+        }),
+        http.get('/api/imports/recent', () => {
+          return HttpResponse.json([]);
+        })
+      );
+
+      const { cleanup, router } = renderRoute({
+        initialPath: '/workflow/station-specialist-import',
+      });
+
+      try {
+        expect(
+          await screen.findByRole('heading', {
+            level: 1,
+            name: 'Station/Specialist Import',
+          })
+        ).toBeInTheDocument();
+        expect(router.state.location.pathname).toBe(
+          '/workflow/station-specialist-import'
+        );
+      } finally {
+        cleanup();
+      }
+    }
+  );
 
   it('adds hover text to locked workflow stages', async () => {
     server.use(
@@ -1200,10 +1334,8 @@ describe('AD419 workflow routes', () => {
       ).toBeInTheDocument();
 
       expect(
-        screen.getAllByTitle(
-          'Locked until all previous steps are complete.'
-        )
-      ).toHaveLength(8);
+        screen.getAllByTitle('Locked until all previous steps are complete.')
+      ).toHaveLength(7);
     } finally {
       cleanup();
     }
