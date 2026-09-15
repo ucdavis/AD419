@@ -15,7 +15,9 @@ import { ConfirmationDialog } from '@/shared/ConfirmationDialog.tsx';
 export type ImportDatasetId =
   | 'active-projects'
   | 'all-projects'
-  | 'assistance-listing-numbers';
+  | 'assistance-listing-numbers'
+  | 'ce-specialists'
+  | 'field-station-expenses';
 
 interface ImportDatasetOption {
   id: ImportDatasetId;
@@ -134,6 +136,8 @@ export const datasetOptions: ImportDatasetOption[] = [
     id: 'assistance-listing-numbers',
     label: 'Assistance Listing Numbers',
   },
+  { id: 'field-station-expenses', label: 'Field Station Expenses' },
+  { id: 'ce-specialists', label: 'CE Specialists' },
 ];
 
 async function uploadImport({
@@ -180,10 +184,16 @@ async function fetchImportDetail(id: number): Promise<ImportLogDetailResponse> {
   return fetchJson<ImportLogDetailResponse>(`/api/imports/${id}`);
 }
 
-export function FlatFileImportPanel() {
+export function FlatFileImportPanel({
+  dataset: fixedDataset,
+}: {
+  dataset?: ImportDatasetId;
+} = {}) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [dataset, setDataset] = useState<ImportDatasetId>('all-projects');
+  const [selectedDataset, setSelectedDataset] =
+    useState<ImportDatasetId>('all-projects');
+  const dataset = fixedDataset ?? selectedDataset;
   const [file, setFile] = useState<File | null>(null);
   const [selectedImportId, setSelectedImportId] = useState<number | null>(null);
   const [validation, setValidation] = useState<ImportValidationResponse | null>(
@@ -194,7 +204,11 @@ export function FlatFileImportPanel() {
     queryFn: fetchRecentImports,
     queryKey: ['imports', 'recent'],
   });
-  const importSummaries = getImportSummaries(recentImportsQuery.data);
+  const importSummaries = fixedDataset
+    ? getImportSummaries(recentImportsQuery.data).filter(
+        (summary) => summary.dataset === fixedDataset
+      )
+    : getImportSummaries(recentImportsQuery.data);
   const importDetailQuery = useQuery({
     enabled: selectedImportId !== null,
     queryFn: () => fetchImportDetail(selectedImportId!),
@@ -259,25 +273,33 @@ export function FlatFileImportPanel() {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 lg:grid-cols-[minmax(12rem,18rem)_1fr_auto] lg:items-end">
-        <label className="form-control w-full">
-          <span className="label-text">Dataset</span>
-          <select
-            className="select select-bordered w-full"
-            onChange={(event) => {
-              setDataset(event.target.value as ImportDatasetId);
-              setValidation(null);
-              setSuccess(null);
-            }}
-            value={dataset}
-          >
-            {datasetOptions.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div
+        className={
+          fixedDataset
+            ? 'grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end'
+            : 'grid gap-4 lg:grid-cols-[minmax(12rem,18rem)_1fr_auto] lg:items-end'
+        }
+      >
+        {!fixedDataset ? (
+          <label className="form-control w-full">
+            <span className="label-text">Dataset</span>
+            <select
+              className="select select-bordered w-full"
+              onChange={(event) => {
+                setSelectedDataset(event.target.value as ImportDatasetId);
+                setValidation(null);
+                setSuccess(null);
+              }}
+              value={selectedDataset}
+            >
+              {datasetOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
 
         <label className="form-control w-full">
           <span className="label-text">Import file</span>
@@ -428,7 +450,8 @@ export function FlatFileImportChecklistItem({
     Boolean(latestImport) &&
     (resolutionEditsQuery.data?.hasResolutionEdits === true ||
       resolutionEditsQuery.isError);
-  const canUpload = Boolean(file) && !mutation.isPending && !checkingResolutionEdits;
+  const canUpload =
+    Boolean(file) && !mutation.isPending && !checkingResolutionEdits;
   const canMarkDone = ready && !completed && !markDonePending;
 
   const startUpload = (selectedFile: File) => {
@@ -535,8 +558,8 @@ export function FlatFileImportChecklistItem({
         <div className="alert alert-success py-3 text-sm">
           <span>
             Imported {success.rowsImported.toLocaleString()} rows from{' '}
-            {success.filename}. Mark this checklist item done when you are
-            ready to use this import.
+            {success.filename}. Mark this checklist item done when you are ready
+            to use this import.
           </span>
         </div>
       )}
@@ -673,6 +696,12 @@ function RecentImportSummary({
         <time dateTime={importLog.importedAt}>
           {formatImportDate(importLog.importedAt)}
         </time>
+        <div>
+          Uploaded by{' '}
+          {importLog.uploadedByName ??
+            importLog.uploadedByEmail ??
+            'Unknown user'}
+        </div>
       </div>
     </button>
   );
@@ -793,7 +822,8 @@ function HistoricalImportDetails({
         <h3 className="font-semibold">Validation history</h3>
         <p className="mt-1 text-sm text-base-content/70">
           {validation.errorCount.toLocaleString()} validation errors across{' '}
-          {validation.rowsWithErrors.toLocaleString()} rows in {detail.filename}.
+          {validation.rowsWithErrors.toLocaleString()} rows in {detail.filename}
+          .
         </p>
       </div>
 
@@ -860,7 +890,9 @@ function getImportSummaries(
 }
 
 function getDatasetLabel(dataset: ImportDatasetId): string {
-  return datasetOptions.find((option) => option.id === dataset)?.label ?? dataset;
+  return (
+    datasetOptions.find((option) => option.id === dataset)?.label ?? dataset
+  );
 }
 
 function getImportStatusPresentation(status: string) {

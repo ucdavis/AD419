@@ -6,6 +6,7 @@ export type WorkflowStageId =
   | 'auto-associations'
   | 'manual-associations'
   | 'post-association-review'
+  | 'station-specialist-import'
   | 'final-reports';
 
 export interface WorkflowStage {
@@ -15,6 +16,7 @@ export interface WorkflowStage {
   completedByName: string | null;
   description: string;
   id: WorkflowStageId;
+  isRequired: boolean;
   number: number;
   status: WorkflowStageStatus;
   title: string;

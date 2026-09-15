@@ -13,9 +13,23 @@ export const workflowStages: WorkflowStage[] = [
     description:
       'Load the NIFA project list and resolve any data issues before pulling expenses.',
     id: 'project-identification',
+    isRequired: true,
     number: 1,
     status: 'InProgress',
     title: 'Project Identification',
+  },
+  {
+    canAccess: true,
+    completedAt: null,
+    completedByEmail: null,
+    completedByName: null,
+    description:
+      'Upload Field Station expenses and CE Specialist data at any point in the cycle.',
+    id: 'station-specialist-import',
+    isRequired: false,
+    number: 2,
+    status: 'NotStarted',
+    title: 'Station/Specialist Import',
   },
   {
     canAccess: false,
@@ -25,7 +39,8 @@ export const workflowStages: WorkflowStage[] = [
     description:
       'Pull AE and UCPath transactions for the cycle and seed new chart-string segments for classification.',
     id: 'data-import',
-    number: 2,
+    isRequired: true,
+    number: 3,
     status: 'NotStarted',
     title: 'Data Import',
   },
@@ -37,7 +52,8 @@ export const workflowStages: WorkflowStage[] = [
     description:
       'Classify new chart-string segments before they can be included in the AD419 report.',
     id: 'data-classification',
-    number: 3,
+    isRequired: true,
+    number: 4,
     status: 'NotStarted',
     title: 'Data Classification',
   },
@@ -49,7 +65,8 @@ export const workflowStages: WorkflowStage[] = [
     description:
       'Confirm the right transactions are included before triggering auto-associations.',
     id: 'expense-review',
-    number: 4,
+    isRequired: true,
+    number: 5,
     status: 'NotStarted',
     title: 'Expense Review',
   },
@@ -61,7 +78,8 @@ export const workflowStages: WorkflowStage[] = [
     description:
       'Run the rules engine to associate as many expenses as possible before manual review.',
     id: 'auto-associations',
-    number: 5,
+    isRequired: true,
+    number: 6,
     status: 'NotStarted',
     title: 'Auto-Associations',
   },
@@ -70,9 +88,11 @@ export const workflowStages: WorkflowStage[] = [
     completedAt: null,
     completedByEmail: null,
     completedByName: null,
-    description: 'Complete any associations that require manual review in AD419 Next.',
+    description:
+      'Complete any associations that require manual review in AD419 Next.',
     id: 'manual-associations',
-    number: 6,
+    isRequired: true,
+    number: 7,
     status: 'NotStarted',
     title: 'Manual Associations',
   },
@@ -84,7 +104,8 @@ export const workflowStages: WorkflowStage[] = [
     description:
       'Resolve flagged items after manual associations are complete.',
     id: 'post-association-review',
-    number: 7,
+    isRequired: true,
+    number: 8,
     status: 'NotStarted',
     title: 'Post-Association Review',
   },
@@ -96,7 +117,8 @@ export const workflowStages: WorkflowStage[] = [
     description:
       'Generate the final files for ANR submission and cycle signoff.',
     id: 'final-reports',
-    number: 8,
+    isRequired: true,
+    number: 9,
     status: 'NotStarted',
     title: 'Final Reports',
   },

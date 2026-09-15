@@ -13,58 +13,77 @@ const workflowStageDefinitions = [
     description:
       'Load the NIFA project list and resolve any data issues before pulling expenses.',
     id: 'project-identification',
+    isRequired: true,
     number: 1,
     title: 'Project Identification',
   },
   {
     description:
+      'Upload Field Station expenses and CE Specialist data at any point in the cycle.',
+    id: 'station-specialist-import',
+    isRequired: false,
+    number: 2,
+    title: 'Station/Specialist Import',
+  },
+  {
+    description:
       'Pull AE and UCPath transactions for the cycle and seed new chart-string segments for classification.',
     id: 'data-import',
-    number: 2,
+    isRequired: true,
+    number: 3,
     title: 'Data Import',
   },
   {
     description:
       'Classify new chart-string segments before they can be included in the AD419 report.',
     id: 'data-classification',
-    number: 3,
+    isRequired: true,
+    number: 4,
     title: 'Data Classification',
   },
   {
     description:
       'Confirm the right transactions are included before triggering auto-associations.',
     id: 'expense-review',
-    number: 4,
+    isRequired: true,
+    number: 5,
     title: 'Expense Review',
   },
   {
     description:
       'Run the rules engine to associate as many expenses as possible before manual review.',
     id: 'auto-associations',
-    number: 5,
+    isRequired: true,
+    number: 6,
     title: 'Auto-Associations',
   },
   {
-    description: 'Complete any associations that require manual review in AD419 Next.',
+    description:
+      'Complete any associations that require manual review in AD419 Next.',
     id: 'manual-associations',
-    number: 6,
+    isRequired: true,
+    number: 7,
     title: 'Manual Associations',
   },
   {
     description:
       'Resolve flagged items after manual associations are complete.',
     id: 'post-association-review',
-    number: 7,
+    isRequired: true,
+    number: 8,
     title: 'Post-Association Review',
   },
   {
     description:
       'Generate the final files for ANR submission and cycle signoff.',
     id: 'final-reports',
-    number: 8,
+    isRequired: true,
+    number: 9,
     title: 'Final Reports',
   },
-] satisfies Array<Pick<WorkflowStage, 'description' | 'id' | 'number' | 'title'>>;
+] satisfies Array<
+  Pick<WorkflowStage, 'description' | 'id' | 'isRequired' | 'number' | 'title'>
+>;
 
 export function createWorkflowSnapshot(
   statuses: Partial<Record<WorkflowStageId, WorkflowStageStatus>> = {}
@@ -73,9 +92,7 @@ export function createWorkflowSnapshot(
     ...definition,
     canAccess: false,
     completedAt:
-      statuses[definition.id] === 'Complete'
-        ? '2026-07-07T12:00:00Z'
-        : null,
+      statuses[definition.id] === 'Complete' ? '2026-07-07T12:00:00Z' : null,
     completedByEmail:
       statuses[definition.id] === 'Complete' ? 'shannon@example.edu' : null,
     completedByName: statuses[definition.id] === 'Complete' ? 'Shannon' : null,
@@ -83,20 +100,22 @@ export function createWorkflowSnapshot(
   }));
 
   if (stages.every((stage) => stage.status === 'NotStarted')) {
-    stages[0].status = 'InProgress';
+    stages.find((stage) => stage.isRequired)!.status = 'InProgress';
   }
 
   stages.forEach((stage, index) => {
     const previousComplete = stages
       .slice(0, index)
+      .filter((candidate) => candidate.isRequired)
       .every((candidate) => candidate.status === 'Complete');
-    stage.canAccess = stage.status === 'Complete' || previousComplete;
+    stage.canAccess =
+      !stage.isRequired || stage.status === 'Complete' || previousComplete;
   });
 
   return {
     currentStageId:
-      stages.find((stage) => stage.status !== 'Complete')?.id ??
-      'final-reports',
+      stages.find((stage) => stage.isRequired && stage.status !== 'Complete')
+        ?.id ?? 'final-reports',
     cycleEnd: '2026-09-30',
     cycleStart: '2025-10-01',
     fiscalYear: 'FY26',

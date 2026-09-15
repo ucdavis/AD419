@@ -17,12 +17,21 @@ public sealed record ImportColumn(
     bool Required,
     int? MaxLength,
     IReadOnlyList<string> SourceHeaders,
-    Func<IReadOnlyDictionary<string, object?>, object?>? ValueFactory = null)
+    Func<IReadOnlyDictionary<string, object?>, object?>? ValueFactory = null,
+    int? Precision = null,
+    int? Scale = null)
 {
     public bool IsDerived => ValueFactory is not null;
 }
 
 public sealed record ImportUniqueKey(string Name, IReadOnlyList<string> Columns);
+
+public sealed record ImportReferenceValidation(
+    string TargetColumn,
+    string SchemaName,
+    string TableName,
+    string ReferenceColumn,
+    string DisplayName);
 
 public sealed partial class ImportDatasetDefinition
 {
@@ -35,7 +44,8 @@ public sealed partial class ImportDatasetDefinition
         string tableName,
         IReadOnlyList<ImportColumn> columns,
         IReadOnlyList<ImportUniqueKey> uniqueKeys,
-        bool truncateStringsToMaxLength = false)
+        bool truncateStringsToMaxLength = false,
+        IReadOnlyList<ImportReferenceValidation>? referenceValidations = null)
     {
         Id = id;
         DisplayName = displayName;
@@ -44,6 +54,7 @@ public sealed partial class ImportDatasetDefinition
         Columns = columns;
         UniqueKeys = uniqueKeys;
         TruncateStringsToMaxLength = truncateStringsToMaxLength;
+        ReferenceValidations = referenceValidations ?? [];
 
         columnsByNormalizedHeader = [];
         var normalizedHeaderSources = new Dictionary<string, (ImportColumn Column, string SourceHeader)>();
@@ -85,6 +96,7 @@ public sealed partial class ImportDatasetDefinition
     public IReadOnlyList<ImportColumn> Columns { get; }
     public IReadOnlyList<ImportUniqueKey> UniqueKeys { get; }
     public bool TruncateStringsToMaxLength { get; }
+    public IReadOnlyList<ImportReferenceValidation> ReferenceValidations { get; }
 
     public ImportColumn? FindColumnBySourceHeader(string sourceHeader)
     {
