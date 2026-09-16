@@ -28,11 +28,11 @@
   }
 
   .workflow-stepper {
-    @apply flex flex-col border-b border-slate-200 bg-white px-4 shadow-sm lg:flex-row lg:flex-nowrap lg:px-8;
+    @apply grid border-b border-slate-200 bg-white px-4 shadow-sm lg:auto-cols-fr lg:grid-flow-col lg:px-8;
   }
 
   .workflow-step {
-    @apply border-b border-slate-200 lg:min-w-0 lg:flex-1 lg:border-b-0 lg:border-r;
+    @apply border-b border-slate-200 lg:min-w-0 lg:border-b-0 lg:border-r;
   }
 
   .workflow-step:last-child {

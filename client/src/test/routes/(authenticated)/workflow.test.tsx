@@ -1213,6 +1213,76 @@ describe('AD419 workflow routes', () => {
     }
   });
 
+  it('allows placeholder workflow stages to complete and advance', async () => {
+    const user = userEvent.setup();
+    let updateRequests = 0;
+
+    server.use(
+      http.get('/api/user/me', () => {
+        return HttpResponse.json(mockUser);
+      }),
+      http.get('/api/workflow/snapshot', () => {
+        return HttpResponse.json(
+          createWorkflowSnapshot({
+            'data-classification': 'Complete',
+            'data-import': 'Complete',
+            'expense-review': 'Complete',
+            'orgr-review': 'Complete',
+            'project-identification': 'Complete',
+          })
+        );
+      }),
+      http.put('/api/workflow/stages/:stageId', async ({ params, request }) => {
+        expect(params.stageId).toBe('auto-associations');
+        expect(await request.json()).toEqual({ status: 'Complete' });
+        updateRequests += 1;
+
+        return HttpResponse.json(
+          createWorkflowSnapshot({
+            'auto-associations': 'Complete',
+            'data-classification': 'Complete',
+            'data-import': 'Complete',
+            'expense-review': 'Complete',
+            'manual-associations': 'InProgress',
+            'orgr-review': 'Complete',
+            'project-identification': 'Complete',
+          })
+        );
+      })
+    );
+
+    const { cleanup, router } = renderRoute({
+      initialPath: '/workflow/auto-associations',
+    });
+
+    try {
+      expect(
+        await screen.findByRole('heading', { level: 1, name: 'Auto-Associations' })
+      ).toBeInTheDocument();
+
+      await user.click(
+        await screen.findByRole('button', {
+          name: /continue to manual associations/i,
+        })
+      );
+
+      await waitFor(() => {
+        expect(updateRequests).toBe(1);
+        expect(router.state.location.pathname).toBe(
+          '/workflow/manual-associations'
+        );
+      });
+      expect(
+        await screen.findByRole('heading', {
+          level: 1,
+          name: 'Manual Associations',
+        })
+      ).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
   it.each([
     ['project identification', {}],
     ['data import', { 'project-identification': 'Complete' }],
@@ -1232,11 +1302,21 @@ describe('AD419 workflow routes', () => {
       },
     ],
     [
+      'orgr review',
+      {
+        'data-classification': 'Complete',
+        'data-import': 'Complete',
+        'expense-review': 'Complete',
+        'project-identification': 'Complete',
+      },
+    ],
+    [
       'auto-associations',
       {
         'data-classification': 'Complete',
         'data-import': 'Complete',
         'expense-review': 'Complete',
+        'orgr-review': 'Complete',
         'project-identification': 'Complete',
       },
     ],
@@ -1247,6 +1327,7 @@ describe('AD419 workflow routes', () => {
         'data-classification': 'Complete',
         'data-import': 'Complete',
         'expense-review': 'Complete',
+        'orgr-review': 'Complete',
         'project-identification': 'Complete',
       },
     ],
@@ -1258,6 +1339,7 @@ describe('AD419 workflow routes', () => {
         'data-import': 'Complete',
         'expense-review': 'Complete',
         'manual-associations': 'Complete',
+        'orgr-review': 'Complete',
         'project-identification': 'Complete',
       },
     ],
@@ -1269,6 +1351,7 @@ describe('AD419 workflow routes', () => {
         'data-import': 'Complete',
         'expense-review': 'Complete',
         'manual-associations': 'Complete',
+        'orgr-review': 'Complete',
         'post-association-review': 'Complete',
         'project-identification': 'Complete',
       },
@@ -1335,7 +1418,7 @@ describe('AD419 workflow routes', () => {
 
       expect(
         screen.getAllByTitle('Locked until all previous steps are complete.')
-      ).toHaveLength(7);
+      ).toHaveLength(8);
     } finally {
       cleanup();
     }
@@ -1357,6 +1440,7 @@ describe('AD419 workflow routes', () => {
             'data-import': 'Complete',
             'expense-review': 'Complete',
             'manual-associations': 'InProgress',
+            'orgr-review': 'Complete',
             'project-identification': 'Complete',
           })
         );
@@ -1373,6 +1457,7 @@ describe('AD419 workflow routes', () => {
             'data-import': 'Complete',
             'expense-review': 'Complete',
             'manual-associations': 'Complete',
+            'orgr-review': 'Complete',
             'post-association-review': 'InProgress',
             'project-identification': 'Complete',
           })

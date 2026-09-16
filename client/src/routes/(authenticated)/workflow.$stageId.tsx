@@ -7,6 +7,7 @@ import {
 import { DataClassificationStage } from '@/components/dataClassification/DataClassificationStage.tsx';
 import { DataImportStage } from '@/components/dataImport/DataImportStage.tsx';
 import { ExpenseReviewStage } from '@/components/expenseReview/ExpenseReviewStage.tsx';
+import { OrgRReviewStage } from '@/components/orgrReview/OrgRReviewStage.tsx';
 import { ProjectIdentificationStage } from '@/components/ProjectIdentificationStage.tsx';
 import { SectionPanel } from '@/components/SectionPanel.tsx';
 import { StationSpecialistImportStage } from '@/components/stationSpecialistImport/StationSpecialistImportStage.tsx';
@@ -68,6 +69,8 @@ function WorkflowStageRoute() {
           <ExpenseReviewStage />
         ) : workflowStageId === 'station-specialist-import' ? (
           <StationSpecialistImportStage />
+        ) : workflowStageId === 'orgr-review' ? (
+          <OrgRReviewStage status={stage.status} />
         ) : (
           <PlaceholderWorkflowStage
             snapshot={snapshot}

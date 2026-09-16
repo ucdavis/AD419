@@ -2,6 +2,7 @@ using System.Security.Claims;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Server.Core.Domain;
+using Server.Tests.OrgRReview;
 using Server.Workflow;
 
 namespace Server.Tests.Workflow;
@@ -21,23 +22,24 @@ public class WorkflowServiceTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
-        var service = new WorkflowService(db, dataDb);
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder());
 
         var snapshot = await service.GetSnapshotAsync(User, CancellationToken.None);
 
         snapshot.WorkflowRunId.Should().BePositive();
-        snapshot.Stages.Should().HaveCount(9);
+        snapshot.Stages.Should().HaveCount(10);
         snapshot.Stages.Select(stage => stage.Id).Should().Equal(
             WorkflowStageIds.ProjectIdentification,
             WorkflowStageIds.StationSpecialistImport,
             WorkflowStageIds.DataImport,
             WorkflowStageIds.DataClassification,
             WorkflowStageIds.ExpenseReview,
+            WorkflowStageIds.OrgRReview,
             WorkflowStageIds.AutoAssociations,
             WorkflowStageIds.ManualAssociations,
             WorkflowStageIds.PostAssociationReview,
             WorkflowStageIds.FinalReports);
-        snapshot.Stages.Select(stage => stage.Number).Should().Equal(1, 2, 3, 4, 5, 6, 7, 8, 9);
+        snapshot.Stages.Select(stage => stage.Number).Should().Equal(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
         snapshot.CurrentStageId.Should().Be(WorkflowStageIds.ProjectIdentification);
         snapshot.Stages[0].Status.Should().Be(WorkflowStageStatus.InProgress);
         snapshot.Stages[0].CanAccess.Should().BeTrue();
@@ -45,7 +47,7 @@ public class WorkflowServiceTests
         snapshot.Stages[1].CanAccess.Should().BeTrue();
         snapshot.Stages[1].IsRequired.Should().BeFalse();
         snapshot.Stages[2].CanAccess.Should().BeFalse();
-        db.WorkflowStageStates.Should().HaveCount(9);
+        db.WorkflowStageStates.Should().HaveCount(10);
     }
 
     [Fact]
@@ -79,18 +81,20 @@ public class WorkflowServiceTests
         db.WorkflowRuns.Add(run);
         await db.SaveChangesAsync();
         var projectIdentificationStateId = run.StageStates.Single().Id;
-        var service = new WorkflowService(db, dataDb);
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder());
 
         var snapshot = await service.GetSnapshotAsync(User, CancellationToken.None);
 
         snapshot.WorkflowRunId.Should().Be(run.Id);
-        snapshot.Stages.Should().HaveCount(9);
+        snapshot.Stages.Should().HaveCount(10);
         snapshot.CurrentStageId.Should().Be(WorkflowStageIds.ProjectIdentification);
-        db.WorkflowStageStates.Should().HaveCount(9);
+        db.WorkflowStageStates.Should().HaveCount(10);
         db.WorkflowStageStates.Should().Contain(state =>
             state.StageId == WorkflowStageIds.ManualAssociations);
         db.WorkflowStageStates.Should().Contain(state =>
             state.StageId == WorkflowStageIds.StationSpecialistImport);
+        db.WorkflowStageStates.Should().Contain(state =>
+            state.StageId == WorkflowStageIds.OrgRReview);
         var projectIdentificationStates = await db.WorkflowStageStates
             .Where(state => state.StageId == WorkflowStageIds.ProjectIdentification)
             .ToListAsync();
@@ -107,7 +111,7 @@ public class WorkflowServiceTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
-        var service = new WorkflowService(db, dataDb);
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder());
         await service.GetSnapshotAsync(User, CancellationToken.None);
 
         var blocked = await service.SetStageStatusAsync(
@@ -137,12 +141,13 @@ public class WorkflowServiceTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
-        var service = new WorkflowService(db, dataDb);
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder());
 
         await CompleteStageAsync(service, WorkflowStageIds.ProjectIdentification);
         await CompleteStageAsync(service, WorkflowStageIds.DataImport);
         await CompleteStageAsync(service, WorkflowStageIds.DataClassification);
         await CompleteStageAsync(service, WorkflowStageIds.ExpenseReview);
+        await CompleteStageAsync(service, WorkflowStageIds.OrgRReview);
         await CompleteStageAsync(service, WorkflowStageIds.AutoAssociations);
         var initial = await service.GetSnapshotAsync(User, CancellationToken.None);
         var optional = initial.Stages.Single(stage => stage.Id == WorkflowStageIds.StationSpecialistImport);
@@ -181,7 +186,7 @@ public class WorkflowServiceTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
-        var service = new WorkflowService(db, dataDb);
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder());
         await service.SetStageStatusAsync(
             WorkflowStageIds.ProjectIdentification,
             WorkflowStageStatus.Complete,
@@ -235,7 +240,7 @@ public class WorkflowServiceTests
             SegmentType = SegmentType.Fund,
         });
         await dataDb.SaveChangesAsync();
-        var service = new WorkflowService(db, dataDb);
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder());
 
         await service.SetStageStatusAsync(
             WorkflowStageIds.ProjectIdentification,
@@ -264,7 +269,7 @@ public class WorkflowServiceTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
-        var service = new WorkflowService(db, dataDb);
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder());
         await service.GetSnapshotAsync(User, CancellationToken.None);
         var startedAt = DateTimeOffset.Parse("2026-06-01T12:00:00Z");
         var completedAt = DateTimeOffset.Parse("2026-06-02T12:00:00Z");
@@ -326,7 +331,7 @@ public class WorkflowServiceTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
-        var service = new WorkflowService(db, dataDb);
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder());
         await service.SetStageStatusAsync(
             WorkflowStageIds.ProjectIdentification,
             WorkflowStageStatus.Complete,
@@ -367,5 +372,118 @@ public class WorkflowServiceTests
 
         snapshot.Should().NotBeNull();
         return snapshot!;
+    }
+
+    [Fact]
+    public async Task Stages_include_orgr_review_between_expense_review_and_auto_associations()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder());
+
+        var snapshot = await service.GetSnapshotAsync(User, CancellationToken.None);
+
+        snapshot.Stages.Select(stage => stage.Id).Should().ContainInOrder(
+            WorkflowStageIds.ExpenseReview,
+            WorkflowStageIds.OrgRReview,
+            WorkflowStageIds.AutoAssociations);
+        snapshot.Stages.Single(stage => stage.Id == WorkflowStageIds.OrgRReview).Number.Should().Be(6);
+        snapshot.Stages.Single(stage => stage.Id == WorkflowStageIds.FinalReports).Number.Should().Be(10);
+    }
+
+    [Fact]
+    public async Task Completing_expense_review_seeds_orgr_review_rows()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var seeder = new FakeOrgRReviewSeeder();
+        var service = new WorkflowService(db, dataDb, seeder);
+        await CompleteThrough(service, WorkflowStageIds.DataClassification);
+
+        await service.SetStageStatusAsync(WorkflowStageIds.ExpenseReview, WorkflowStageStatus.Complete, User, CancellationToken.None);
+
+        seeder.Calls.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task OrgR_review_cannot_complete_while_a_mapping_is_unset()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        dataDb.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.FinancialDepartment, Code = "AARE001", IncludeInReport = true });
+        dataDb.OrgRFinancialDepartments.Add(new OrgRFinancialDepartment { FinancialDepartment = "AARE001", OrgR = null });
+        await dataDb.SaveChangesAsync();
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder());
+        await CompleteThrough(service, WorkflowStageIds.ExpenseReview);
+
+        var result = await service.SetStageStatusAsync(WorkflowStageIds.OrgRReview, WorkflowStageStatus.Complete, User, CancellationToken.None);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task OrgR_review_ignores_unmapped_departments_not_in_this_cycle()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        // No SegmentClassifications row, so this department is not in the cycle.
+        dataDb.OrgRFinancialDepartments.Add(new OrgRFinancialDepartment { FinancialDepartment = "9OLD001", OrgR = null });
+        await dataDb.SaveChangesAsync();
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder());
+        await CompleteThrough(service, WorkflowStageIds.ExpenseReview);
+
+        var result = await service.SetStageStatusAsync(WorkflowStageIds.OrgRReview, WorkflowStageStatus.Complete, User, CancellationToken.None);
+
+        result.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task OrgR_review_ignores_unmapped_departments_excluded_from_the_report()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        // Seeded when included, then reclassified as excluded: no OrgR is needed.
+        dataDb.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.FinancialDepartment, Code = "EXCL001", IncludeInReport = false });
+        dataDb.OrgRFinancialDepartments.Add(new OrgRFinancialDepartment { FinancialDepartment = "EXCL001", OrgR = null });
+        await dataDb.SaveChangesAsync();
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder());
+        await CompleteThrough(service, WorkflowStageIds.ExpenseReview);
+
+        var result = await service.SetStageStatusAsync(WorkflowStageIds.OrgRReview, WorkflowStageStatus.Complete, User, CancellationToken.None);
+
+        result.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task OrgR_review_completes_when_every_mapping_is_set()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        dataDb.OrgRs.Add(new OrgR { Code = "AARE" });
+        dataDb.OrgRFinancialDepartments.Add(new OrgRFinancialDepartment { FinancialDepartment = "AARE001", OrgR = "AARE" });
+        dataDb.OrgRNifaDepartments.Add(new OrgRNifaDepartment { NifaDepartment = "ARE", OrgR = "AARE" });
+        await dataDb.SaveChangesAsync();
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder());
+        await CompleteThrough(service, WorkflowStageIds.ExpenseReview);
+
+        var result = await service.SetStageStatusAsync(WorkflowStageIds.OrgRReview, WorkflowStageStatus.Complete, User, CancellationToken.None);
+
+        result.Should().NotBeNull();
+        result!.Stages.Single(stage => stage.Id == WorkflowStageIds.OrgRReview).Status.Should().Be(WorkflowStageStatus.Complete);
+        result.Stages.Single(stage => stage.Id == WorkflowStageIds.AutoAssociations).Status.Should().Be(WorkflowStageStatus.InProgress);
+    }
+
+    // Completes every required stage from Project Identification through `lastStageId` in order.
+    private static async Task CompleteThrough(WorkflowService service, string lastStageId)
+    {
+        foreach (var stage in WorkflowStages.All.Where(stage => stage.IsRequired))
+        {
+            var result = await service.SetStageStatusAsync(stage.Id, WorkflowStageStatus.Complete, User, CancellationToken.None);
+            result.Should().NotBeNull($"stage {stage.Id} should complete");
+            if (stage.Id == lastStageId)
+            {
+                return;
+            }
+        }
     }
 }
