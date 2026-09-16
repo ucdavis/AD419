@@ -3,6 +3,7 @@ import { OrgRSelect } from './OrgRSelect.tsx';
 import { unmappedFirst } from './orgrTabs.ts';
 import {
   apiErrorMessage,
+  ORGR_MUTATION_KEY,
   type OrgRFinancialDepartment,
   orgRFinancialDepartmentsQueryOptions,
   orgRsQueryOptions,
@@ -10,7 +11,7 @@ import {
 } from '@/queries/orgr.ts';
 import { DataTable } from '@/shared/dataTable.tsx';
 import { ExportDataButton } from '@/shared/exportDataButton.tsx';
-import { useQuery } from '@tanstack/react-query';
+import { useIsMutating, useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 
 // Levels A and B are always the campus; the college and below are what
@@ -31,6 +32,7 @@ export function FinancialDepartmentsTab() {
   const { data: rows = [], isLoading } = useQuery(orgRFinancialDepartmentsQueryOptions());
   const { data: orgRs = [] } = useQuery(orgRsQueryOptions());
   const setOrgR = useSetFinancialDepartmentOrgR();
+  const pendingMutations = useIsMutating({ mutationKey: ORGR_MUTATION_KEY });
   const [error, setError] = useState<string | null>(null);
 
   // Freeze the default row order: unmapped rows on top, otherwise by code.
@@ -89,6 +91,7 @@ export function FinancialDepartmentsTab() {
       cell: ({ row }) => (
         <OrgRSelect
           ariaLabel={`OrgR for ${row.original.financialDepartment}`}
+          disabled={pendingMutations > 0}
           onChange={(orgR) => {
             setError(null);
             setOrgR.mutate(

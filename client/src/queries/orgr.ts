@@ -1,4 +1,5 @@
 import { fetchJson, HttpError } from '../lib/api.ts';
+import { WORKFLOW_SNAPSHOT_KEY } from '@/queries.ts';
 import {
   queryOptions,
   useMutation,
@@ -134,10 +135,12 @@ export const useSetFinancialDepartmentOrgR = () => {
         queryClient.setQueryData(ORGR_KEYS.financialDepartments, context.previous);
       }
     },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ORGR_KEYS.financialDepartments });
-      void queryClient.invalidateQueries({ queryKey: ORGR_KEYS.orgRs });
-    },
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ORGR_KEYS.financialDepartments }),
+        queryClient.invalidateQueries({ queryKey: ORGR_KEYS.orgRs }),
+        queryClient.invalidateQueries({ queryKey: WORKFLOW_SNAPSHOT_KEY }),
+      ]),
   });
 };
 
@@ -172,11 +175,13 @@ export const useSetNifaDepartmentOrgR = () => {
         queryClient.setQueryData(ORGR_KEYS.nifaDepartments, context.previous);
       }
     },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ORGR_KEYS.nifaDepartments });
-      void queryClient.invalidateQueries({ queryKey: ORGR_KEYS.projects });
-      void queryClient.invalidateQueries({ queryKey: ORGR_KEYS.orgRs });
-    },
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ORGR_KEYS.nifaDepartments }),
+        queryClient.invalidateQueries({ queryKey: ORGR_KEYS.projects }),
+        queryClient.invalidateQueries({ queryKey: ORGR_KEYS.orgRs }),
+        queryClient.invalidateQueries({ queryKey: WORKFLOW_SNAPSHOT_KEY }),
+      ]),
   });
 };
 

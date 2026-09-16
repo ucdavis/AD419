@@ -1,16 +1,130 @@
+using System.Security.Claims;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Server.Controllers;
+using Server.Core.Data;
 using Server.Core.Domain;
 using Server.Models.OrgR;
 using Server.Models.SegmentClassifications;
+using Server.Workflow;
 
 namespace Server.Tests.OrgRReview;
 
-public class OrgRControllerTests
+public class OrgRControllerTests : IDisposable
 {
-    private static OrgRController CreateController(Server.Core.Data.DataDbContext db, FakeOrgRReviewSeeder? seeder = null) =>
-        new(db, seeder ?? new FakeOrgRReviewSeeder());
+    private readonly AppDbContext appDb = TestDbContextFactory.CreateInMemory();
+    private static readonly ClaimsPrincipal TestUser = new(new ClaimsIdentity(
+        [new Claim("name", "OrgR Reviewer")], "Test"));
+
+    public void Dispose() => appDb.Dispose();
+
+    private OrgRController CreateController(DataDbContext db, FakeOrgRReviewSeeder? seeder = null) =>
+        new(db, seeder ?? new FakeOrgRReviewSeeder(), new WorkflowService(appDb, db, new FakeOrgRReviewSeeder()))
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = TestUser },
+            },
+        };
+
+    private async Task<WorkflowService> CompleteWorkflowAsync(DataDbContext db)
+    {
+        db.OrgRs.AddRange(new OrgR { Code = "AARE" }, new OrgR { Code = "APLS" });
+        db.OrgRFinancialDepartments.Add(new OrgRFinancialDepartment { FinancialDepartment = "AARE001", OrgR = "AARE" });
+        db.OrgRNifaDepartments.Add(new OrgRNifaDepartment { NifaDepartment = "ARE", OrgR = "AARE" });
+        db.SegmentClassifications.Add(new SegmentClassification
+        {
+            SegmentType = SegmentType.FinancialDepartment, Code = "AARE001", IncludeInReport = true,
+        });
+        await db.SaveChangesAsync();
+        var workflow = new WorkflowService(appDb, db, new FakeOrgRReviewSeeder());
+        foreach (var stage in WorkflowStages.All)
+        {
+            var result = await workflow.SetStageStatusAsync(stage.Id, WorkflowStageStatus.Complete, TestUser, CancellationToken.None);
+            result.Should().NotBeNull();
+        }
+        return workflow;
+    }
+
+    [Theory]
+    [InlineData(true, null)]
+    [InlineData(false, null)]
+    [InlineData(true, "APLS")]
+    [InlineData(false, "APLS")]
+    public async Task Changing_department_mapping_reopens_review_and_clears_downstream(bool financial, string? orgR)
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        var workflow = await CompleteWorkflowAsync(db);
+        var before = await workflow.GetSnapshotAsync(TestUser, CancellationToken.None);
+        var controller = CreateController(db);
+
+        var result = financial
+            ? await controller.SetFinancialDepartmentOrgR("AARE001", new SetOrgRRequest(orgR), CancellationToken.None)
+            : await controller.SetNifaDepartmentOrgR("ARE", new SetOrgRRequest(orgR), CancellationToken.None);
+
+        result.Should().BeOfType<NoContentResult>();
+        (financial ? db.OrgRFinancialDepartments.Single().OrgR : db.OrgRNifaDepartments.Single().OrgR)
+            .Should().Be(orgR);
+        var after = await workflow.GetSnapshotAsync(TestUser, CancellationToken.None);
+        var review = after.Stages.Single(stage => stage.Id == WorkflowStageIds.OrgRReview);
+        review.Status.Should().Be(WorkflowStageStatus.InProgress);
+        review.CompletedAt.Should().BeNull();
+        review.CompletedByName.Should().BeNull();
+        after.CurrentStageId.Should().Be(WorkflowStageIds.OrgRReview);
+        after.Stages.Where(stage => stage.Number < review.Number)
+            .Should().BeEquivalentTo(before.Stages.Where(stage => stage.Number < review.Number));
+        after.Stages.Where(stage => stage.Number > review.Number).Should().OnlyContain(stage =>
+            stage.Status == WorkflowStageStatus.NotStarted && !stage.CanAccess
+            && stage.CompletedAt == null && stage.CompletedByName == null && stage.CompletedByEmail == null);
+
+        var completed = await workflow.SetStageStatusAsync(
+            WorkflowStageIds.OrgRReview, WorkflowStageStatus.Complete, TestUser, CancellationToken.None);
+        if (orgR == null)
+        {
+            completed.Should().BeNull();
+        }
+        else
+        {
+            completed.Should().NotBeNull();
+        }
+    }
+
+    [Theory]
+    [InlineData(true, " aare ", false)]
+    [InlineData(false, " aare ", false)]
+    [InlineData(true, "UNKNOWN", false)]
+    [InlineData(false, "UNKNOWN", false)]
+    [InlineData(true, "AARE", true)]
+    [InlineData(false, "AARE", true)]
+    public async Task Unchanged_or_invalid_mapping_preserves_completed_workflow(bool financial, string orgR, bool unknownDepartment)
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        var workflow = await CompleteWorkflowAsync(db);
+        var before = await workflow.GetSnapshotAsync(TestUser, CancellationToken.None);
+        var controller = CreateController(db);
+        var code = unknownDepartment ? "MISSING" : financial ? "AARE001" : "ARE";
+
+        var result = financial
+            ? await controller.SetFinancialDepartmentOrgR(code, new SetOrgRRequest(orgR), CancellationToken.None)
+            : await controller.SetNifaDepartmentOrgR(code, new SetOrgRRequest(orgR), CancellationToken.None);
+
+        if (unknownDepartment)
+        {
+            result.Should().BeOfType<NotFoundResult>();
+        }
+        else if (orgR == "UNKNOWN")
+        {
+            result.Should().BeOfType<BadRequestObjectResult>();
+        }
+        else
+        {
+            result.Should().BeOfType<NoContentResult>();
+        }
+        db.OrgRFinancialDepartments.Single().OrgR.Should().Be("AARE");
+        db.OrgRNifaDepartments.Single().OrgR.Should().Be("AARE");
+        (await workflow.GetSnapshotAsync(TestUser, CancellationToken.None)).Should().BeEquivalentTo(before);
+    }
 
     [Fact]
     public async Task GetOrgRs_returns_department_project_and_reference_counts()

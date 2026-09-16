@@ -3,6 +3,7 @@ import { OrgRSelect } from './OrgRSelect.tsx';
 import { unmappedFirst } from './orgrTabs.ts';
 import {
   apiErrorMessage,
+  ORGR_MUTATION_KEY,
   type OrgRNifaDepartment,
   orgRNifaDepartmentsQueryOptions,
   orgRsQueryOptions,
@@ -10,13 +11,14 @@ import {
 } from '@/queries/orgr.ts';
 import { DataTable } from '@/shared/dataTable.tsx';
 import { ExportDataButton } from '@/shared/exportDataButton.tsx';
-import { useQuery } from '@tanstack/react-query';
+import { useIsMutating, useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 
 export function NifaDepartmentsTab() {
   const { data: rows = [], isLoading } = useQuery(orgRNifaDepartmentsQueryOptions());
   const { data: orgRs = [] } = useQuery(orgRsQueryOptions());
   const setOrgR = useSetNifaDepartmentOrgR();
+  const pendingMutations = useIsMutating({ mutationKey: ORGR_MUTATION_KEY });
   const [error, setError] = useState<string | null>(null);
 
   // Freeze the default row order: unmapped rows on top, otherwise by code.
@@ -55,6 +57,7 @@ export function NifaDepartmentsTab() {
       cell: ({ row }) => (
         <OrgRSelect
           ariaLabel={`OrgR for ${row.original.nifaDepartment}`}
+          disabled={pendingMutations > 0}
           onChange={(orgR) => {
             setError(null);
             setOrgR.mutate(

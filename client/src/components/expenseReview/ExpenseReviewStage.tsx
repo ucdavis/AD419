@@ -565,7 +565,7 @@ export function ExpenseReviewStage() {
     onSuccess: (snapshot) => {
       queryClient.setQueryData(WORKFLOW_SNAPSHOT_KEY, snapshot);
       void navigate({
-        params: { stageId: 'auto-associations' },
+        params: { stageId: 'orgr-review' },
         to: '/workflow/$stageId',
       });
     },

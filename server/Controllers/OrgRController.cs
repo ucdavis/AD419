@@ -6,10 +6,11 @@ using Server.Core.Domain;
 using Server.Models.OrgR;
 using Server.Models.SegmentClassifications;
 using Server.OrgRReview;
+using Server.Workflow;
 
 namespace Server.Controllers;
 
-public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder) : ApiControllerBase
+public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, IWorkflowService workflowService) : ApiControllerBase
 {
     [GeneratedRegex("^[A-Z0-9]{1,10}$")]
     private static partial Regex OrgRCodePattern();
@@ -223,8 +224,14 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder) 
             return BadRequest(error);
         }
 
+        if (mapping.OrgR == orgR)
+        {
+            return NoContent();
+        }
+
         mapping.OrgR = orgR;
         await db.SaveChangesAsync(cancellationToken);
+        await workflowService.ResetFromStageAsync(WorkflowStageIds.OrgRReview, User, cancellationToken);
         return NoContent();
     }
 
@@ -280,8 +287,14 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder) 
             return BadRequest(error);
         }
 
+        if (mapping.OrgR == orgR)
+        {
+            return NoContent();
+        }
+
         mapping.OrgR = orgR;
         await db.SaveChangesAsync(cancellationToken);
+        await workflowService.ResetFromStageAsync(WorkflowStageIds.OrgRReview, User, cancellationToken);
         return NoContent();
     }
 
