@@ -231,6 +231,74 @@ describe('OrgR Review stage', () => {
     }
   );
 
+  it.each([false, true])(
+    'pauses mapping edits during review completion (failure: %s)',
+    async (fails) => {
+      mockApi({ unmappedDepartment: false });
+      const completion = Promise.withResolvers<void>();
+      let attempts = 0;
+      server.use(
+        http.put('/api/workflow/stages/orgr-review', async () => {
+          attempts += 1;
+          await completion.promise;
+          if (fails && attempts === 1) {
+            return HttpResponse.text('Could not complete review.', { status: 500 });
+          }
+          return HttpResponse.json(
+            createWorkflowSnapshot({ ...completedUpstream, 'orgr-review': 'Complete' })
+          );
+        })
+      );
+      const user = userEvent.setup();
+      const { cleanup, router } = renderRoute({ initialPath: '/workflow/orgr-review' });
+
+      try {
+        await user.click(await screen.findByRole('tab', { name: /Financial Departments/ }));
+        expect(await screen.findByLabelText('OrgR for AARE001')).toBeEnabled();
+        const button = screen.getByRole('button', { name: /Continue to Auto-Associations/ });
+        await waitFor(() => expect(button).toBeEnabled());
+        await user.click(button);
+
+        await waitFor(() =>
+          expect(screen.getByLabelText('OrgR for AARE001')).toBeDisabled()
+        );
+        expect(screen.getByLabelText('OrgR for ANEW001')).toBeDisabled();
+        expect(screen.getByRole('button', { name: /Continuing/ })).toBeDisabled();
+        await user.click(screen.getByRole('tab', { name: /NIFA Departments/ }));
+        expect(await screen.findByLabelText('OrgR for ARE')).toBeDisabled();
+
+        completion.resolve();
+        if (fails) {
+          expect(await screen.findByRole('alert')).toHaveTextContent('HTTP 500 for /api/workflow/stages/orgr-review');
+          expect(router.state.location.pathname).toBe('/workflow/orgr-review');
+          await waitFor(() => expect(screen.getByLabelText('OrgR for ARE')).toBeEnabled());
+          await user.click(screen.getByRole('tab', { name: /Financial Departments/ }));
+          expect(await screen.findByLabelText('OrgR for AARE001')).toBeEnabled();
+          expect(screen.getByLabelText('OrgR for ANEW001')).toBeEnabled();
+
+          // Exercise editing after failure, then restore the mapping and retry.
+          await user.selectOptions(screen.getByLabelText('OrgR for AARE001'), '');
+          await waitFor(() => expect(screen.getByLabelText('OrgR for AARE001')).toBeEnabled());
+          expect(screen.getByLabelText('OrgR for AARE001')).toHaveValue('');
+          expect(screen.getByRole('button', { name: /Continue to Auto-Associations/ })).toBeDisabled();
+          await user.selectOptions(screen.getByLabelText('OrgR for AARE001'), 'AARE');
+          await waitFor(() =>
+            expect(screen.getByRole('button', { name: /Continue to Auto-Associations/ })).toBeEnabled()
+          );
+          await user.click(screen.getByRole('button', { name: /Continue to Auto-Associations/ }));
+        }
+
+        await waitFor(() =>
+          expect(router.state.location.pathname).toBe('/workflow/auto-associations')
+        );
+        expect(attempts).toBe(fails ? 2 : 1);
+      } finally {
+        completion.resolve();
+        cleanup();
+      }
+    }
+  );
+
   it('renders the four tabs with a needs-review badge', async () => {
     mockApi({ unmappedDepartment: true });
     const { cleanup } = renderRoute({ initialPath: '/workflow/orgr-review' });

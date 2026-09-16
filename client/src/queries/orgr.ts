@@ -44,7 +44,7 @@ export const ORGR_KEYS = {
   projects: ['orgr', 'projects'] as const,
 };
 
-// Shared by every OrgR mutation so the stage can block Continue while saving.
+// Shared by OrgR edits and review completion so mapping edits and Continue block each other.
 export const ORGR_MUTATION_KEY = ['orgr', 'mutate'] as const;
 
 export const orgRsQueryOptions = () =>

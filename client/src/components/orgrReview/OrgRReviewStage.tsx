@@ -39,6 +39,7 @@ export function OrgRReviewStage({ status }: { status: WorkflowStageStatus }) {
   const [activeId, setActiveId] = useState<OrgRTabId>(ORGR_TABS[0].id);
   const continueMutation = useMutation({
     mutationFn: () => updateWorkflowStageStatus('orgr-review', 'Complete'),
+    mutationKey: ORGR_MUTATION_KEY,
     onSuccess: (snapshot) => {
       queryClient.setQueryData(WORKFLOW_SNAPSHOT_KEY, snapshot);
       void navigate({
