@@ -807,7 +807,7 @@ export function ExpenseReviewStage() {
           >
             {continueMutation.isPending
               ? 'Continuing...'
-              : 'Continue to Auto-Associations'}
+              : 'Continue to OrgR Review'}
           </button>
         </div>
       </div>

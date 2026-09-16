@@ -1082,49 +1082,25 @@ describe('AD419 workflow routes', () => {
           createWorkflowSnapshot({
             'data-classification': 'Complete',
             'data-import': 'Complete',
-            'expense-review': 'InProgress',
+            'expense-review': 'Complete',
+            'orgr-review': 'Complete',
             'project-identification': 'Complete',
           })
         );
       }),
-      http.get('/api/expensereview/filters', () => {
-        return HttpResponse.json({
-          accounts: [],
-          activities: [],
-          aeProjects: [],
-          entities: [],
-          exclusionReasons: [],
-          financialDepts: [],
-          funds: [],
-          programs: [],
-          purposes: [],
-          sfns: [],
-        });
-      }),
-      http.get('/api/expensereview/transactions', () => {
-        return HttpResponse.json({
-          counts: { all: 0, excluded: 0, included: 0 },
-          cycleEnd: '2026-09-30',
-          cycleStart: '2025-10-01',
-          fiscalYear: 'FY26',
-          page: 1,
-          pageCount: 0,
-          pageSize: 25,
-          rows: [],
-          totalCount: 0,
-        });
-      }),
       http.put('/api/workflow/stages/:stageId', async ({ params, request }) => {
-        expect(params.stageId).toBe('expense-review');
+        expect(params.stageId).toBe('auto-associations');
         expect(await request.json()).toEqual({ status: 'Complete' });
         updateRequests += 1;
 
         return HttpResponse.json(
           createWorkflowSnapshot({
-            'auto-associations': 'InProgress',
+            'auto-associations': 'Complete',
             'data-classification': 'Complete',
             'data-import': 'Complete',
             'expense-review': 'Complete',
+            'manual-associations': 'InProgress',
+            'orgr-review': 'Complete',
             'project-identification': 'Complete',
           })
         );
@@ -1132,30 +1108,30 @@ describe('AD419 workflow routes', () => {
     );
 
     const { cleanup, router } = renderRoute({
-      initialPath: '/workflow/expense-review',
+      initialPath: '/workflow/auto-associations',
     });
 
     try {
       expect(
-        await screen.findByRole('heading', { level: 1, name: 'Expense Review' })
+        await screen.findByRole('heading', { level: 1, name: 'Auto-Associations' })
       ).toBeInTheDocument();
 
       await user.click(
         await screen.findByRole('button', {
-          name: /continue to auto-associations/i,
+          name: /continue to manual associations/i,
         })
       );
 
       await waitFor(() => {
         expect(updateRequests).toBe(1);
         expect(router.state.location.pathname).toBe(
-          '/workflow/auto-associations'
+          '/workflow/manual-associations'
         );
       });
       expect(
         await screen.findByRole('heading', {
           level: 1,
-          name: 'Auto-Associations',
+          name: 'Manual Associations',
         })
       ).toBeInTheDocument();
     } finally {
@@ -1192,7 +1168,7 @@ describe('AD419 workflow routes', () => {
         screen.getAllByTitle(
           'Locked until all previous steps are complete.'
         )
-      ).toHaveLength(7);
+      ).toHaveLength(8);
     } finally {
       cleanup();
     }
@@ -1214,6 +1190,7 @@ describe('AD419 workflow routes', () => {
             'data-import': 'Complete',
             'expense-review': 'Complete',
             'manual-associations': 'InProgress',
+            'orgr-review': 'Complete',
             'project-identification': 'Complete',
           })
         );
@@ -1230,6 +1207,7 @@ describe('AD419 workflow routes', () => {
             'data-import': 'Complete',
             'expense-review': 'Complete',
             'manual-associations': 'Complete',
+            'orgr-review': 'Complete',
             'post-association-review': 'InProgress',
             'project-identification': 'Complete',
           })
