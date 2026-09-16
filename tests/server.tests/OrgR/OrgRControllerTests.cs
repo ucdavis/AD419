@@ -2,11 +2,15 @@ using System.Security.Claims;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Storage;
 using Server.Controllers;
 using Server.Core.Data;
 using Server.Core.Domain;
 using Server.Models.OrgR;
 using Server.Models.SegmentClassifications;
+using Server.Models.Workflow;
 using Server.Workflow;
 
 namespace Server.Tests.OrgRReview;
@@ -19,8 +23,11 @@ public class OrgRControllerTests : IDisposable
 
     public void Dispose() => appDb.Dispose();
 
-    private OrgRController CreateController(DataDbContext db, FakeOrgRReviewSeeder? seeder = null) =>
-        new(db, seeder ?? new FakeOrgRReviewSeeder(), new WorkflowService(appDb, db, new FakeOrgRReviewSeeder()))
+    private OrgRController CreateController(
+        DataDbContext db,
+        FakeOrgRReviewSeeder? seeder = null,
+        IWorkflowService? workflowService = null) =>
+        new(db, seeder ?? new FakeOrgRReviewSeeder(), workflowService ?? new WorkflowService(appDb, db, new FakeOrgRReviewSeeder()))
         {
             ControllerContext = new ControllerContext
             {
@@ -28,7 +35,7 @@ public class OrgRControllerTests : IDisposable
             },
         };
 
-    private async Task<WorkflowService> CompleteWorkflowAsync(DataDbContext db)
+    private async Task<WorkflowService> CompleteWorkflowAsync(DataDbContext db, AppDbContext? workflowDb = null)
     {
         db.OrgRs.AddRange(new OrgR { Code = "AARE" }, new OrgR { Code = "APLS" });
         db.OrgRFinancialDepartments.Add(new OrgRFinancialDepartment { FinancialDepartment = "AARE001", OrgR = "AARE" });
@@ -38,13 +45,172 @@ public class OrgRControllerTests : IDisposable
             SegmentType = SegmentType.FinancialDepartment, Code = "AARE001", IncludeInReport = true,
         });
         await db.SaveChangesAsync();
-        var workflow = new WorkflowService(appDb, db, new FakeOrgRReviewSeeder());
+        var workflow = new WorkflowService(workflowDb ?? appDb, db, new FakeOrgRReviewSeeder());
         foreach (var stage in WorkflowStages.All)
         {
             var result = await workflow.SetStageStatusAsync(stage.Id, WorkflowStageStatus.Complete, TestUser, CancellationToken.None);
             result.Should().NotBeNull();
         }
         return workflow;
+    }
+
+    [Theory]
+    [InlineData(true, null)]
+    [InlineData(false, null)]
+    [InlineData(true, "APLS")]
+    [InlineData(false, "APLS")]
+    public Task Failed_reset_preserves_mapping_and_allows_retry(bool financial, string? orgR) =>
+        AssertFailedUpdateCanBeRetriedAsync(financial, orgR, SaveFailure.WorkflowReset);
+
+    [Theory]
+    [InlineData(true, null)]
+    [InlineData(false, null)]
+    [InlineData(true, "APLS")]
+    [InlineData(false, "APLS")]
+    public Task Failed_mapping_save_leaves_review_reopened_and_allows_retry(bool financial, string? orgR) =>
+        AssertFailedUpdateCanBeRetriedAsync(financial, orgR, SaveFailure.MappingSave);
+
+    [Theory]
+    [InlineData(true, null)]
+    [InlineData(false, null)]
+    [InlineData(true, "APLS")]
+    [InlineData(false, "APLS")]
+    public Task Cancelled_reset_preserves_mapping_and_allows_retry(bool financial, string? orgR) =>
+        AssertFailedUpdateCanBeRetriedAsync(financial, orgR, SaveFailure.CancelledReset);
+
+    private async Task AssertFailedUpdateCanBeRetriedAsync(bool financial, string? orgR, SaveFailure failure)
+    {
+        // Explicit roots keep fresh contexts on the same stores, including contexts with interceptors.
+        var appOptions = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase($"OrgRApp_{Guid.NewGuid():N}", new InMemoryDatabaseRoot()).Options;
+        var dataOptions = new DbContextOptionsBuilder<DataDbContext>()
+            .UseInMemoryDatabase($"OrgRData_{Guid.NewGuid():N}", new InMemoryDatabaseRoot()).Options;
+        WorkflowSnapshotResponse before;
+        using (var setupApp = new AppDbContext(appOptions))
+        using (var setupData = new DataDbContext(dataOptions))
+        {
+            var workflow = await CompleteWorkflowAsync(setupData, setupApp);
+            before = await workflow.GetSnapshotAsync(TestUser, CancellationToken.None);
+        }
+
+        using var cancellation = new CancellationTokenSource();
+        var interceptor = new FailSaveOnceInterceptor(token =>
+        {
+            if (failure == SaveFailure.CancelledReset)
+            {
+                token.Should().Be(cancellation.Token);
+                cancellation.Cancel();
+                token.ThrowIfCancellationRequested();
+            }
+
+            throw new DbUpdateException("Injected save failure.");
+        });
+        var requestAppOptions = new DbContextOptionsBuilder<AppDbContext>(appOptions);
+        var requestDataOptions = new DbContextOptionsBuilder<DataDbContext>(dataOptions);
+        if (failure == SaveFailure.MappingSave)
+        {
+            requestDataOptions.AddInterceptors(interceptor);
+        }
+        else
+        {
+            requestAppOptions.AddInterceptors(interceptor);
+        }
+
+        using (var requestApp = new AppDbContext(requestAppOptions.Options))
+        using (var requestData = new DataDbContext(requestDataOptions.Options))
+        {
+            var controller = CreateController(requestData, workflowService:
+                new WorkflowService(requestApp, requestData, new FakeOrgRReviewSeeder()));
+            Func<Task> update = () => SetMappingAsync(controller, financial, orgR, cancellation.Token);
+            if (failure == SaveFailure.CancelledReset)
+            {
+                await update.Should().ThrowAsync<OperationCanceledException>();
+            }
+            else
+            {
+                await update.Should().ThrowAsync<DbUpdateException>().WithMessage("Injected save failure.");
+            }
+            interceptor.HasFailed.Should().BeTrue();
+        }
+
+        using (var verificationApp = new AppDbContext(appOptions))
+        using (var verificationData = new DataDbContext(dataOptions))
+        {
+            (await ReadMappingAsync(verificationData, financial)).Should().Be("AARE");
+            var workflow = new WorkflowService(verificationApp, verificationData, new FakeOrgRReviewSeeder());
+            var afterFailure = await workflow.GetSnapshotAsync(TestUser, CancellationToken.None);
+            if (failure == SaveFailure.MappingSave)
+            {
+                AssertReviewReopened(before, afterFailure);
+            }
+            else
+            {
+                afterFailure.Should().BeEquivalentTo(before);
+            }
+        }
+
+        using (var retryApp = new AppDbContext(appOptions))
+        using (var retryData = new DataDbContext(dataOptions))
+        {
+            var controller = CreateController(retryData, workflowService:
+                new WorkflowService(retryApp, retryData, new FakeOrgRReviewSeeder()));
+            (await SetMappingAsync(controller, financial, orgR, CancellationToken.None))
+                .Should().BeOfType<NoContentResult>();
+        }
+
+        using (var verificationApp = new AppDbContext(appOptions))
+        using (var verificationData = new DataDbContext(dataOptions))
+        {
+            (await ReadMappingAsync(verificationData, financial)).Should().Be(orgR);
+            var workflow = new WorkflowService(verificationApp, verificationData, new FakeOrgRReviewSeeder());
+            AssertReviewReopened(before, await workflow.GetSnapshotAsync(TestUser, CancellationToken.None));
+        }
+    }
+
+    private static Task<IActionResult> SetMappingAsync(
+        OrgRController controller, bool financial, string? orgR, CancellationToken cancellationToken) =>
+        financial
+            ? controller.SetFinancialDepartmentOrgR("AARE001", new SetOrgRRequest(orgR), cancellationToken)
+            : controller.SetNifaDepartmentOrgR("ARE", new SetOrgRRequest(orgR), cancellationToken);
+
+    private static async Task<string?> ReadMappingAsync(DataDbContext db, bool financial) =>
+        financial
+            ? (await db.OrgRFinancialDepartments.SingleAsync()).OrgR
+            : (await db.OrgRNifaDepartments.SingleAsync()).OrgR;
+
+    private static void AssertReviewReopened(WorkflowSnapshotResponse before, WorkflowSnapshotResponse after)
+    {
+        var review = after.Stages.Single(stage => stage.Id == WorkflowStageIds.OrgRReview);
+        review.Status.Should().Be(WorkflowStageStatus.InProgress);
+        review.CompletedAt.Should().BeNull();
+        review.CompletedByName.Should().BeNull();
+        review.CompletedByEmail.Should().BeNull();
+        after.CurrentStageId.Should().Be(WorkflowStageIds.OrgRReview);
+        after.Stages.Where(stage => stage.Number < review.Number)
+            .Should().BeEquivalentTo(before.Stages.Where(stage => stage.Number < review.Number));
+        after.Stages.Where(stage => stage.Number > review.Number).Should().OnlyContain(stage =>
+            stage.Status == WorkflowStageStatus.NotStarted && !stage.CanAccess
+            && stage.CompletedAt == null && stage.CompletedByName == null && stage.CompletedByEmail == null);
+    }
+
+    private enum SaveFailure { WorkflowReset, MappingSave, CancelledReset }
+
+    private sealed class FailSaveOnceInterceptor(Action<CancellationToken> fail) : SaveChangesInterceptor
+    {
+        public bool HasFailed { get; private set; }
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (!HasFailed)
+            {
+                HasFailed = true;
+                fail(cancellationToken);
+            }
+            return ValueTask.FromResult(result);
+        }
     }
 
     [Theory]

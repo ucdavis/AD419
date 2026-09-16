@@ -229,9 +229,11 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
             return NoContent();
         }
 
+        // Reset first so a failed reset leaves the mapping retryable. If saving then fails,
+        // keeping the review reopened is safer than leaving changed mappings marked complete.
+        await workflowService.ResetFromStageAsync(WorkflowStageIds.OrgRReview, User, cancellationToken);
         mapping.OrgR = orgR;
         await db.SaveChangesAsync(cancellationToken);
-        await workflowService.ResetFromStageAsync(WorkflowStageIds.OrgRReview, User, cancellationToken);
         return NoContent();
     }
 
@@ -292,9 +294,11 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
             return NoContent();
         }
 
+        // Reset first so a failed reset leaves the mapping retryable. If saving then fails,
+        // keeping the review reopened is safer than leaving changed mappings marked complete.
+        await workflowService.ResetFromStageAsync(WorkflowStageIds.OrgRReview, User, cancellationToken);
         mapping.OrgR = orgR;
         await db.SaveChangesAsync(cancellationToken);
-        await workflowService.ResetFromStageAsync(WorkflowStageIds.OrgRReview, User, cancellationToken);
         return NoContent();
     }
 
