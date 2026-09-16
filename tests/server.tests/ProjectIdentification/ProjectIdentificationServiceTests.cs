@@ -8,6 +8,7 @@ using Server.Models;
 using Server.Models.ProjectList;
 using Server.ProjectIdentification;
 using Server.ProjectList;
+using Server.Tests.OrgRReview;
 using Server.Workflow;
 
 namespace Server.Tests.ProjectIdentification;
@@ -274,7 +275,7 @@ public class ProjectIdentificationServiceTests
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
         var service = CreateService(db, dataDb);
-        var workflowService = new WorkflowService(db, dataDb);
+        var workflowService = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder());
 
         await service.ConfirmFiscalPeriodAsync("FY26", User, CancellationToken.None);
         await workflowService.SetStageStatusAsync(
@@ -306,7 +307,7 @@ public class ProjectIdentificationServiceTests
             db,
             new FlatFileImportRegistry(),
             projectListService ?? new StubProjectListService(),
-            new WorkflowService(db, dataDb));
+            new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder()));
 
     private static void AddImport(
         AppDbContext db,
