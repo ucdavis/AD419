@@ -79,7 +79,7 @@ public sealed class WorkflowService(
         CancellationToken cancellationToken)
     {
         var definition = WorkflowStages.Find(stageId);
-        if (definition is null || !IsValidTransitionStatus(status))
+        if (definition is null || !definition.IsRequired || !IsValidTransitionStatus(status))
         {
             return null;
         }
@@ -111,7 +111,8 @@ public sealed class WorkflowService(
             }
 
             CompleteStage(state, user, now);
-            var next = WorkflowStages.All.FirstOrDefault(stage => stage.Number == definition.Number + 1);
+            var next = WorkflowStages.All.FirstOrDefault(stage =>
+                stage.IsRequired && stage.Number > definition.Number);
             if (next is not null && states[next.Id].Status == WorkflowStageStatus.NotStarted)
             {
                 StartStage(states[next.Id], user, now);
@@ -143,6 +144,10 @@ public sealed class WorkflowService(
     {
         var definition = WorkflowStages.Find(stageId)
             ?? throw new ArgumentException($"Unknown workflow stage '{stageId}'.", nameof(stageId));
+        if (!definition.IsRequired)
+        {
+            throw new ArgumentException($"Workflow stage '{stageId}' is optional and cannot be reset.", nameof(stageId));
+        }
         var run = await GetOrCreateCurrentRunAsync(user, cancellationToken);
         var now = DateTimeOffset.UtcNow;
         EnsureStageStates(run, user, now);
@@ -230,7 +235,8 @@ public sealed class WorkflowService(
             .Select(definition =>
             {
                 var state = states[definition.Id];
-                var canAccess = state.Status == WorkflowStageStatus.Complete
+                var canAccess = !definition.IsRequired
+                    || state.Status == WorkflowStageStatus.Complete
                     || PreviousStagesComplete(states, definition.Number);
 
                 return new WorkflowStageDto(
@@ -238,6 +244,7 @@ public sealed class WorkflowService(
                     definition.Number,
                     definition.Title,
                     definition.Description,
+                    definition.IsRequired,
                     state.Status,
                     canAccess,
                     state.CompletedAt,
@@ -246,7 +253,8 @@ public sealed class WorkflowService(
             })
             .ToList();
 
-        var currentStageId = stages.FirstOrDefault(stage => stage.Status != WorkflowStageStatus.Complete)?.Id
+        var currentStageId = stages.FirstOrDefault(stage =>
+                stage.IsRequired && stage.Status != WorkflowStageStatus.Complete)?.Id
             ?? WorkflowStageIds.FinalReports;
 
         return new WorkflowSnapshotResponse(
@@ -265,7 +273,7 @@ public sealed class WorkflowService(
         IReadOnlyDictionary<string, WorkflowStageState> states,
         int stageNumber) =>
         WorkflowStages.All
-            .Where(stage => stage.Number < stageNumber)
+            .Where(stage => stage.IsRequired && stage.Number < stageNumber)
             .All(stage => states[stage.Id].Status == WorkflowStageStatus.Complete);
 
     private static bool IsValidTransitionStatus(string status) =>
@@ -349,7 +357,8 @@ public sealed class WorkflowService(
         IReadOnlyDictionary<string, WorkflowStageState> states,
         int stageNumber)
     {
-        foreach (var definition in WorkflowStages.All.Where(stage => stage.Number > stageNumber))
+        foreach (var definition in WorkflowStages.All.Where(stage =>
+                     stage.IsRequired && stage.Number > stageNumber))
         {
             ClearStage(states[definition.Id]);
         }

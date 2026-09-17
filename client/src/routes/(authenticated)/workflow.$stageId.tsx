@@ -10,6 +10,7 @@ import { ExpenseReviewStage } from '@/components/expenseReview/ExpenseReviewStag
 import { OrgRReviewStage } from '@/components/orgrReview/OrgRReviewStage.tsx';
 import { ProjectIdentificationStage } from '@/components/ProjectIdentificationStage.tsx';
 import { SectionPanel } from '@/components/SectionPanel.tsx';
+import { StationSpecialistImportStage } from '@/components/stationSpecialistImport/StationSpecialistImportStage.tsx';
 import { WorkflowShell } from '@/components/WorkflowShell.tsx';
 import type { WorkflowSnapshot, WorkflowStageId } from '@/types.ts';
 import type { RouterContext } from '@/main.tsx';
@@ -66,6 +67,8 @@ function WorkflowStageRoute() {
           <DataImportStage status={stage.status} />
         ) : workflowStageId === 'expense-review' ? (
           <ExpenseReviewStage />
+        ) : workflowStageId === 'station-specialist-import' ? (
+          <StationSpecialistImportStage />
         ) : workflowStageId === 'orgr-review' ? (
           <OrgRReviewStage status={stage.status} />
         ) : (

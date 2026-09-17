@@ -15,6 +15,7 @@ public sealed record WorkflowStageDto(
     int Number,
     string Title,
     string Description,
+    bool IsRequired,
     string Status,
     bool CanAccess,
     DateTimeOffset? CompletedAt,

@@ -10,6 +10,7 @@ public static class WorkflowStageIds
     public const string AutoAssociations = "auto-associations";
     public const string ManualAssociations = "manual-associations";
     public const string PostAssociationReview = "post-association-review";
+    public const string StationSpecialistImport = "station-specialist-import";
     public const string FinalReports = "final-reports";
 }
 
@@ -17,7 +18,8 @@ public sealed record WorkflowStageDefinition(
     string Id,
     int Number,
     string Title,
-    string Description);
+    string Description,
+    bool IsRequired = true);
 
 public static class WorkflowStages
 {
@@ -29,43 +31,49 @@ public static class WorkflowStages
             "Project Identification",
             "Load the NIFA project list and resolve any data issues before pulling expenses."),
         new(
-            WorkflowStageIds.DataImport,
+            WorkflowStageIds.StationSpecialistImport,
             2,
+            "Station/Specialist Import",
+            "Upload Field Station expenses and CE Specialist data at any point in the cycle.",
+            IsRequired: false),
+        new(
+            WorkflowStageIds.DataImport,
+            3,
             "Data Import",
             "Pull AE and UCPath transactions for the cycle and seed new chart-string segments for classification."),
         new(
             WorkflowStageIds.DataClassification,
-            3,
+            4,
             "Data Classification",
             "Classify new chart-string segments before they can be included in the AD419 report."),
         new(
             WorkflowStageIds.ExpenseReview,
-            4,
+            5,
             "Expense Review",
             "Confirm the right transactions are included before triggering auto-associations."),
         new(
             WorkflowStageIds.OrgRReview,
-            5,
+            6,
             "OrgR Review",
             "Assign an OrgR to every financial department and NIFA department before associations run."),
         new(
             WorkflowStageIds.AutoAssociations,
-            6,
+            7,
             "Auto-Associations",
             "Run the rules engine to associate as many expenses as possible before manual review."),
         new(
             WorkflowStageIds.ManualAssociations,
-            7,
+            8,
             "Manual Associations",
             "Complete any associations that require manual review in AD419 Next."),
         new(
             WorkflowStageIds.PostAssociationReview,
-            8,
+            9,
             "Post-Association Review",
             "Resolve flagged items after manual associations are complete."),
         new(
             WorkflowStageIds.FinalReports,
-            9,
+            10,
             "Final Reports",
             "Generate the final files for ANR submission and cycle signoff."),
     ];

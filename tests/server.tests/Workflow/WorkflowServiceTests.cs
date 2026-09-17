@@ -27,17 +27,27 @@ public class WorkflowServiceTests
         var snapshot = await service.GetSnapshotAsync(User, CancellationToken.None);
 
         snapshot.WorkflowRunId.Should().BePositive();
-        snapshot.Stages.Should().HaveCount(9);
-        snapshot.Stages.Select(stage => stage.Id).Should().ContainInOrder(
+        snapshot.Stages.Should().HaveCount(10);
+        snapshot.Stages.Select(stage => stage.Id).Should().Equal(
+            WorkflowStageIds.ProjectIdentification,
+            WorkflowStageIds.StationSpecialistImport,
+            WorkflowStageIds.DataImport,
+            WorkflowStageIds.DataClassification,
+            WorkflowStageIds.ExpenseReview,
+            WorkflowStageIds.OrgRReview,
             WorkflowStageIds.AutoAssociations,
             WorkflowStageIds.ManualAssociations,
-            WorkflowStageIds.PostAssociationReview);
+            WorkflowStageIds.PostAssociationReview,
+            WorkflowStageIds.FinalReports);
+        snapshot.Stages.Select(stage => stage.Number).Should().Equal(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
         snapshot.CurrentStageId.Should().Be(WorkflowStageIds.ProjectIdentification);
         snapshot.Stages[0].Status.Should().Be(WorkflowStageStatus.InProgress);
         snapshot.Stages[0].CanAccess.Should().BeTrue();
         snapshot.Stages[1].Status.Should().Be(WorkflowStageStatus.NotStarted);
-        snapshot.Stages[1].CanAccess.Should().BeFalse();
-        db.WorkflowStageStates.Should().HaveCount(9);
+        snapshot.Stages[1].CanAccess.Should().BeTrue();
+        snapshot.Stages[1].IsRequired.Should().BeFalse();
+        snapshot.Stages[2].CanAccess.Should().BeFalse();
+        db.WorkflowStageStates.Should().HaveCount(10);
     }
 
     [Fact]
@@ -76,11 +86,15 @@ public class WorkflowServiceTests
         var snapshot = await service.GetSnapshotAsync(User, CancellationToken.None);
 
         snapshot.WorkflowRunId.Should().Be(run.Id);
-        snapshot.Stages.Should().HaveCount(9);
+        snapshot.Stages.Should().HaveCount(10);
         snapshot.CurrentStageId.Should().Be(WorkflowStageIds.ProjectIdentification);
-        db.WorkflowStageStates.Should().HaveCount(9);
+        db.WorkflowStageStates.Should().HaveCount(10);
         db.WorkflowStageStates.Should().Contain(state =>
             state.StageId == WorkflowStageIds.ManualAssociations);
+        db.WorkflowStageStates.Should().Contain(state =>
+            state.StageId == WorkflowStageIds.StationSpecialistImport);
+        db.WorkflowStageStates.Should().Contain(state =>
+            state.StageId == WorkflowStageIds.OrgRReview);
         var projectIdentificationStates = await db.WorkflowStageStates
             .Where(state => state.StageId == WorkflowStageIds.ProjectIdentification)
             .ToListAsync();
@@ -123,6 +137,51 @@ public class WorkflowServiceTests
     }
 
     [Fact]
+    public async Task Optional_station_specialist_import_never_blocks_or_accepts_status_changes()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder());
+
+        await CompleteStageAsync(service, WorkflowStageIds.ProjectIdentification);
+        await CompleteStageAsync(service, WorkflowStageIds.DataImport);
+        await CompleteStageAsync(service, WorkflowStageIds.DataClassification);
+        await CompleteStageAsync(service, WorkflowStageIds.ExpenseReview);
+        await CompleteStageAsync(service, WorkflowStageIds.OrgRReview);
+        await CompleteStageAsync(service, WorkflowStageIds.AutoAssociations);
+        var initial = await service.GetSnapshotAsync(User, CancellationToken.None);
+        var optional = initial.Stages.Single(stage => stage.Id == WorkflowStageIds.StationSpecialistImport);
+
+        optional.CanAccess.Should().BeTrue();
+        optional.IsRequired.Should().BeFalse();
+        optional.Status.Should().Be(WorkflowStageStatus.NotStarted);
+
+        var rejected = await service.SetStageStatusAsync(
+            WorkflowStageIds.StationSpecialistImport,
+            WorkflowStageStatus.Complete,
+            User,
+            CancellationToken.None);
+
+        rejected.Should().BeNull();
+
+        var reset = () => service.ResetFromStageAsync(
+            WorkflowStageIds.StationSpecialistImport,
+            User,
+            CancellationToken.None);
+        await reset.Should().ThrowAsync<ArgumentException>()
+            .WithMessage("*optional*");
+
+        await CompleteStageAsync(service, WorkflowStageIds.ManualAssociations);
+        var finalReports = await CompleteStageAsync(service, WorkflowStageIds.PostAssociationReview);
+
+        finalReports.CurrentStageId.Should().Be(WorkflowStageIds.FinalReports);
+        finalReports.Stages.Single(stage => stage.Id == WorkflowStageIds.StationSpecialistImport)
+            .Status.Should().Be(WorkflowStageStatus.NotStarted);
+        finalReports.Stages.Single(stage => stage.Id == WorkflowStageIds.FinalReports)
+            .Status.Should().Be(WorkflowStageStatus.InProgress);
+    }
+
+    [Fact]
     public async Task Reopening_completed_stage_clears_downstream_stages()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
@@ -160,6 +219,8 @@ public class WorkflowServiceTests
             .Status.Should().Be(WorkflowStageStatus.NotStarted);
         reopened.Stages.Single(stage => stage.Id == WorkflowStageIds.ExpenseReview)
             .CanAccess.Should().BeFalse();
+        reopened.Stages.Single(stage => stage.Id == WorkflowStageIds.StationSpecialistImport)
+            .CanAccess.Should().BeTrue();
 
         var dataClassification = await db.WorkflowStageStates.SingleAsync(
             state => state.StageId == WorkflowStageIds.DataClassification);
@@ -299,6 +360,20 @@ public class WorkflowServiceTests
             .Status.Should().Be(WorkflowStageStatus.NotStarted);
     }
 
+    private static async Task<Server.Models.Workflow.WorkflowSnapshotResponse> CompleteStageAsync(
+        WorkflowService service,
+        string stageId)
+    {
+        var snapshot = await service.SetStageStatusAsync(
+            stageId,
+            WorkflowStageStatus.Complete,
+            User,
+            CancellationToken.None);
+
+        snapshot.Should().NotBeNull();
+        return snapshot!;
+    }
+
     [Fact]
     public async Task Stages_include_orgr_review_between_expense_review_and_auto_associations()
     {
@@ -312,8 +387,8 @@ public class WorkflowServiceTests
             WorkflowStageIds.ExpenseReview,
             WorkflowStageIds.OrgRReview,
             WorkflowStageIds.AutoAssociations);
-        snapshot.Stages.Single(stage => stage.Id == WorkflowStageIds.OrgRReview).Number.Should().Be(5);
-        snapshot.Stages.Single(stage => stage.Id == WorkflowStageIds.FinalReports).Number.Should().Be(9);
+        snapshot.Stages.Single(stage => stage.Id == WorkflowStageIds.OrgRReview).Number.Should().Be(6);
+        snapshot.Stages.Single(stage => stage.Id == WorkflowStageIds.FinalReports).Number.Should().Be(10);
     }
 
     [Fact]
@@ -398,10 +473,10 @@ public class WorkflowServiceTests
         result.Stages.Single(stage => stage.Id == WorkflowStageIds.AutoAssociations).Status.Should().Be(WorkflowStageStatus.InProgress);
     }
 
-    // Completes every stage from Project Identification through `lastStageId` in order.
+    // Completes every required stage from Project Identification through `lastStageId` in order.
     private static async Task CompleteThrough(WorkflowService service, string lastStageId)
     {
-        foreach (var stage in WorkflowStages.All)
+        foreach (var stage in WorkflowStages.All.Where(stage => stage.IsRequired))
         {
             var result = await service.SetStageStatusAsync(stage.Id, WorkflowStageStatus.Complete, User, CancellationToken.None);
             result.Should().NotBeNull($"stage {stage.Id} should complete");
