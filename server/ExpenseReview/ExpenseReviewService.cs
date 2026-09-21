@@ -267,6 +267,8 @@ public sealed class ExpenseReviewService(
                 SUM(CASE WHEN u.[Source] = N'AE' AND u.[AccountInUcPath] = 1 THEN COALESCE(u.[Amount], 0) ELSE 0 END) AS [AeAccountInUcPathAmount],
                 SUM(CASE WHEN u.[Source] = N'UCP' AND u.[AccountNotInAE] = 1 THEN 1 ELSE 0 END) AS [UcPathAccountNotInAeRowCount],
                 SUM(CASE WHEN u.[Source] = N'UCP' AND u.[AccountNotInAE] = 1 THEN COALESCE(u.[Amount], 0) ELSE 0 END) AS [UcPathAccountNotInAeAmount],
+                SUM(CASE WHEN u.[Sfn] IS NULL THEN 1 ELSE 0 END) AS [ExpenseSfnUnresolvedRowCount],
+                SUM(CASE WHEN u.[Sfn] IS NULL THEN COALESCE(u.[Amount], 0) ELSE 0 END) AS [ExpenseSfnUnresolvedAmount],
                 MAX(CONVERT(TINYINT, u.[FinancialDeptIncludeInReport])) AS [FinancialDeptIncludeInReport],
                 MAX(CONVERT(TINYINT, u.[FundIncludeInReport])) AS [FundIncludeInReport],
                 MAX(CONVERT(TINYINT, u.[AccountIncludeInReport])) AS [AccountIncludeInReport],
@@ -515,7 +517,7 @@ public sealed class ExpenseReviewService(
                 a.[ActivityDescription] AS [ActivityName],
                 a.[PeriodName] AS [AccountingPeriod],
                 TRY_CONVERT(DATE, CONCAT('01-', a.[PeriodName]), 6) AS [AccountingPeriodSort],
-                fundClass.[Sfn] AS [Sfn],
+                txnSfn.[ExpenseSfn] AS [Sfn],
                 sfn.[Label] AS [SfnLabel],
                 a.[Amount] AS [Amount],
                 a.[ExcludedByDate],
@@ -529,6 +531,7 @@ public sealed class ExpenseReviewService(
                 CASE
                     WHEN a.[ExcludedByDate] = 0
                      AND a.[AccountInUcPath] = 0
+                     AND txnSfn.[ExpenseSfn] IS NOT NULL
                      -- TODO: Seek stakeholder review on this fail-closed null/missing classification behavior.
                      AND COALESCE(financialDeptClass.[IncludeInReport], 0) = 1
                      AND COALESCE(fundClass.[IncludeInReport], 0) = 1
@@ -554,8 +557,10 @@ public sealed class ExpenseReviewService(
             LEFT JOIN [data].[SegmentClassifications] purposeClass
                 ON purposeClass.[SegmentType] = 'Purpose'
                AND purposeClass.[Code] = a.[Purpose]
+            LEFT JOIN [data].[v_TransactionSfn] txnSfn
+                ON txnSfn.[Source] = N'AE' AND txnSfn.[TransactionId] = CAST(a.[Id] AS NVARCHAR(125))
             LEFT JOIN [data].[Sfns] sfn
-                ON sfn.[Sfn] = fundClass.[Sfn]
+                ON sfn.[Sfn] = txnSfn.[ExpenseSfn]
             WHERE TRY_CONVERT(DATE, CONCAT('01-', a.[PeriodName]), 6) BETWEEN @cycleStart AND @cycleEnd
 
             UNION ALL
@@ -584,7 +589,7 @@ public sealed class ExpenseReviewService(
                     ELSE FORMAT(ucPeriod.[PeriodStart], 'MMM-yy', 'en-US')
                 END AS [AccountingPeriod],
                 ucPeriod.[PeriodStart] AS [AccountingPeriodSort],
-                fundClass.[Sfn] AS [Sfn],
+                txnSfn.[ExpenseSfn] AS [Sfn],
                 sfn.[Label] AS [SfnLabel],
                 u.[Amount] AS [Amount],
                 u.[ExcludedByDate],
@@ -598,6 +603,7 @@ public sealed class ExpenseReviewService(
                 CASE
                     WHEN u.[ExcludedByDate] = 0
                      AND u.[AccountNotInAE] = 0
+                     AND txnSfn.[ExpenseSfn] IS NOT NULL
                      -- TODO: Seek stakeholder review on this fail-closed null/missing classification behavior.
                      AND COALESCE(financialDeptClass.[IncludeInReport], 0) = 1
                      AND COALESCE(fundClass.[IncludeInReport], 0) = 1
@@ -665,8 +671,10 @@ public sealed class ExpenseReviewService(
             LEFT JOIN [data].[SegmentClassifications] purposeClass
                 ON purposeClass.[SegmentType] = 'Purpose'
                AND purposeClass.[Code] = u.[Purpose]
+            LEFT JOIN [data].[v_TransactionSfn] txnSfn
+                ON txnSfn.[Source] = N'UCPath' AND txnSfn.[TransactionId] = u.[LaborTransactionId]
             LEFT JOIN [data].[Sfns] sfn
-                ON sfn.[Sfn] = fundClass.[Sfn]
+                ON sfn.[Sfn] = txnSfn.[ExpenseSfn]
             WHERE CAST(u.[PayPeriodEndDate] AS DATE) BETWEEN @cycleStart AND @cycleEnd
         )
         """;
@@ -906,6 +914,10 @@ public sealed class ExpenseReviewService(
                      CAST(N'UCPath account missing from AE chart' AS NVARCHAR(500)),
                      {{alias}}.[UcPathAccountNotInAeRowCount],
                      {{alias}}.[UcPathAccountNotInAeAmount]),
+                    (CAST(N'sfn:unresolved' AS NVARCHAR(220)),
+                     CAST(N'No SFN (fund is Multiple, project unmapped)' AS NVARCHAR(500)),
+                     {{alias}}.[ExpenseSfnUnresolvedRowCount],
+                     {{alias}}.[ExpenseSfnUnresolvedAmount]),
                     (CAST(N'financialDept:excluded' AS NVARCHAR(220)),
                      CAST(N'Excluded by financial department' AS NVARCHAR(500)),
                      CASE WHEN {{alias}}.[FinancialDeptIncludeInReport] = 0 THEN {{alias}}.[GroupReasonRowCount] ELSE 0 END,
@@ -956,6 +968,8 @@ public sealed class ExpenseReviewService(
                      CASE WHEN {{alias}}.[Source] = N'AE' AND {{alias}}.[AccountInUcPath] = 1 THEN CAST(N'AE account also in UCPath' AS NVARCHAR(500)) END),
                     (CASE WHEN {{alias}}.[Source] = N'UCP' AND {{alias}}.[AccountNotInAE] = 1 THEN CAST(N'ucPathAccountNotInAE' AS NVARCHAR(220)) END,
                      CASE WHEN {{alias}}.[Source] = N'UCP' AND {{alias}}.[AccountNotInAE] = 1 THEN CAST(N'UCPath account missing from AE chart' AS NVARCHAR(500)) END),
+                    (CASE WHEN {{alias}}.[Sfn] IS NULL THEN CAST(N'sfn:unresolved' AS NVARCHAR(220)) END,
+                     CASE WHEN {{alias}}.[Sfn] IS NULL THEN CAST(N'No SFN (fund is Multiple, project unmapped)' AS NVARCHAR(500)) END),
                     (CASE WHEN {{alias}}.[FinancialDeptIncludeInReport] = 0 THEN CAST(N'financialDept:excluded' AS NVARCHAR(220)) END,
                      CASE WHEN {{alias}}.[FinancialDeptIncludeInReport] = 0 THEN CAST(N'Excluded by financial department' AS NVARCHAR(500)) END),
                     (CASE WHEN {{alias}}.[FinancialDeptIncludeInReport] IS NULL THEN CAST(N'financialDept:unclassified' AS NVARCHAR(220)) END,

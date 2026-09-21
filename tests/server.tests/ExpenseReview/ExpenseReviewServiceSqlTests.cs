@@ -119,6 +119,18 @@ public class ExpenseReviewServiceSqlTests
         sql.Should().Contain("WHEN periodValue.[PeriodNumber] BETWEEN 1 AND 6 THEN u.[FiscalYear] - 1");
     }
 
+    [Fact]
+    public void Unified_cte_joins_the_transaction_sfn_view_for_both_sources()
+    {
+        var sql = ExpenseReviewService.UnifiedTransactionsCte;
+
+        sql.Should().Contain("LEFT JOIN [data].[v_TransactionSfn] txnSfn");
+        sql.Should().Contain("txnSfn.[Source] = N'AE' AND txnSfn.[TransactionId] = CAST(a.[Id] AS NVARCHAR(125))");
+        sql.Should().Contain("txnSfn.[Source] = N'UCPath' AND txnSfn.[TransactionId] = u.[LaborTransactionId]");
+        sql.Should().Contain("AND txnSfn.[ExpenseSfn] IS NOT NULL");
+        sql.Should().NotContain("fundClass.[Sfn] AS [Sfn]");
+    }
+
     private static string PagedOrderByClause(string sql)
     {
         var offsetIndex = sql.IndexOf("OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY", StringComparison.Ordinal);

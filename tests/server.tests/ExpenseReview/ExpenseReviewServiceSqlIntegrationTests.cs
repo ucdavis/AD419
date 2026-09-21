@@ -434,6 +434,94 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
             line.Contains("Excluded by date · $401.00 · 1 row", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task Transaction_queries_use_derived_expense_sfn_and_exclude_unresolved_rows()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        await SeedDerivedSfnRowsAsync();
+
+        await using var db = fixture.CreateDataDbContext();
+        var service = new ExpenseReviewService(db, Configuration());
+
+        var all = await service.GetTransactionsAsync(Cycle(), Request(), CancellationToken.None);
+
+        var stateRow = all.Rows.Should().ContainSingle(row => row.AeProject.Code == "PR-STATE").Subject;
+        stateRow.Sfn.Should().Be("220");
+        stateRow.SfnLabel.Should().Be("State Appropriations");
+        stateRow.Included.Should().BeTrue();
+        stateRow.ExclusionReasons.Should().BeEmpty();
+
+        var resolvedRow = all.Rows.Should().ContainSingle(row => row.AeProject.Code == "PR-204").Subject;
+        resolvedRow.Sfn.Should().Be("204");
+        resolvedRow.Included.Should().BeTrue();
+
+        var unresolvedRow = all.Rows.Should().ContainSingle(row => row.AeProject.Code == "PR-UNMAPPED").Subject;
+        unresolvedRow.Sfn.Should().BeNull();
+        unresolvedRow.Included.Should().BeFalse();
+        unresolvedRow.ExclusionReasons.Should().ContainSingle(reason =>
+            reason.Code == "sfn:unresolved" &&
+            reason.Label == "No SFN (fund is Multiple, project unmapped)" &&
+            reason.RowCount == 1 &&
+            reason.Amount == 77m);
+
+        var reasonFiltered = await service.GetTransactionsAsync(
+            Cycle(),
+            Request(filters: Filters(exclusionReason: ["sfn:unresolved"])),
+            CancellationToken.None);
+        reasonFiltered.TotalCount.Should().Be(1);
+        reasonFiltered.Rows.Should().ContainSingle(row => row.AeProject.Code == "PR-UNMAPPED");
+
+        var sfnFiltered = await service.GetTransactionsAsync(
+            Cycle(),
+            Request(filters: Filters(sfn: ["220"])),
+            CancellationToken.None);
+        sfnFiltered.Rows.Should().ContainSingle(row => row.AeProject.Code == "PR-STATE");
+
+        var filters = await service.GetFilterOptionsAsync(Cycle(), CancellationToken.None);
+        filters.Sfns.Select(option => option.Value).Should().BeEquivalentTo(["201", "204", "220"]);
+        filters.Sfns.Should().NotContain(option => option.Value == "Multiple");
+        filters.ExclusionReasons.Should().Contain(option =>
+            option.Value == "sfn:unresolved" && option.Label == "No SFN (fund is Multiple, project unmapped)");
+    }
+
+    private async Task SeedDerivedSfnRowsAsync()
+    {
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[Sfns] ([Sfn], [Label])
+            VALUES ('220', 'State Appropriations'), ('204', 'Contracts and Grants');
+
+            INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description], [IncludeInReport], [Sfn])
+            VALUES
+                ('Fund', '13U02',  'State Appropriations', 1, '201'),
+                ('Fund', 'FMULTI', 'Grant Fund',           1, 'Multiple');
+
+            INSERT INTO [data].[Projects]
+                ([AccessionNumber], [NifaProjectNumber], [Is204], [Sfn], [AEProjectNumber])
+            VALUES ('1000001', 'CA-D-ABC-1001-CG', 1, '204', 'PR-204');
+
+            INSERT INTO [data].[AETransactions]
+                ([Entity], [Fund], [FinancialDepartment], [Account], [Purpose], [Program], [Project], [Activity],
+                 [EntityDescription], [FundDescription], [FinancialDepartmentDescription], [AccountDescription],
+                 [PurposeDescription], [ProgramDescription], [ProjectDescription], [ActivityDescription],
+                 [PeriodName], [Amount], [ExcludedByDate], [AccountInUcPath])
+            VALUES
+                ('3310', '13U02', 'D1', 'A1', 'P1', 'PG1', 'PR-STATE', 'AC1',
+                 'Entity One', 'State Appropriations', 'Dept One', 'Account One', 'Purpose One', 'Program One', 'State Project', 'Activity One',
+                 'Oct-24', 75.00, 0, 0),
+                ('3310', 'FMULTI', 'D1', 'A1', 'P1', 'PG1', 'PR-204', 'AC1',
+                 'Entity One', 'Grant Fund', 'Dept One', 'Account One', 'Purpose One', 'Program One', '204 Project', 'Activity One',
+                 'Oct-24', 76.00, 0, 0),
+                ('3310', 'FMULTI', 'D1', 'A1', 'P1', 'PG1', 'PR-UNMAPPED', 'AC1',
+                 'Entity One', 'Grant Fund', 'Dept One', 'Account One', 'Purpose One', 'Program One', 'Unmapped Grant Project', 'Activity One',
+                 'Oct-24', 77.00, 0, 0);
+            """);
+    }
+
     private async Task SeedExpenseReviewScenarioAsync()
     {
         await using var connection = new SqlConnection(fixture.ConnectionString);
