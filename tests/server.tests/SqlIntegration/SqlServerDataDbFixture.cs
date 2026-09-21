@@ -69,6 +69,8 @@ public sealed class SqlServerDataDbFixture : IAsyncLifetime
             """
             DELETE FROM [data].[ad419_CESpecialists];
             DELETE FROM [data].[ad419_FieldStationExpenses];
+            DELETE FROM [data].[Titles];
+            DELETE FROM [data].[StaffTypes];
             DELETE FROM [data].[Projects];
             DELETE FROM [data].[AETransactions];
             DELETE FROM [data].[UcPathTransactions];
