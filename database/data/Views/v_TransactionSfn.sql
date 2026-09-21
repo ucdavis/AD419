@@ -7,6 +7,10 @@ AS
 --
 -- ExpenseSfn, first match wins, for both sources:
 --   1. Fund 13U02 is State Appropriations (220) regardless of anything else.
+--      The fund's own classified SFN is deliberately ignored for 13U02;
+--      Expense Review's purpose exception for 13U02 lives in
+--      ExpenseReviewService.UnifiedTransactionsCte and must stay in step
+--      with this rule.
 --   2. The fund's classified SFN when it is a concrete line.
 --   3. When the fund is classified 'Multiple', the AE project decides: the
 --      cycle project list (data.Projects) when every NIFA project the AE

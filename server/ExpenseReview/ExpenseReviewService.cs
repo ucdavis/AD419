@@ -403,6 +403,7 @@ public sealed class ExpenseReviewService(
     // explain which link in the chain is missing: no job code, no title, a
     // title with no staff type code, a staff type code with no StaffTypes row
     // (Titles has no foreign key to StaffTypes), or a staff type with no line.
+    // Rows already excluded by the persisted flags (date, account not in the AE chart) are skipped; fund and other classification exclusions are not applied here.
     public const string UnmatchedJobCodesSql = """
         SELECT
             u.[JobCode],
@@ -427,6 +428,8 @@ public sealed class ExpenseReviewService(
         LEFT JOIN [data].[StaffTypes] staffType
             ON staffType.[StaffTypeCode] = title.[StaffTypeCode]
         WHERE CAST(u.[PayPeriodEndDate] AS DATE) BETWEEN @cycleStart AND @cycleEnd
+          AND COALESCE(u.[ExcludedByDate], 1) = 0
+          AND COALESCE(u.[AccountNotInAE], 1) = 0
           AND txnSfn.[FteSfn] IS NULL
         GROUP BY u.[JobCode]
         ORDER BY SUM(u.[CalculatedFte]) DESC, u.[JobCode];

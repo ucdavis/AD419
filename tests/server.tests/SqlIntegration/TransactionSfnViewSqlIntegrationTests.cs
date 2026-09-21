@@ -33,7 +33,8 @@ public sealed class TransactionSfnViewSqlIntegrationTests(SqlServerDataDbFixture
                 ('multiple-no-project',         'FMULTI', NULL,          1),
                 ('unclassified-fund',           'FNONE',  'AE-204',      1),
                 ('null-sfn-fund',               'FNULL',  'AE-204',      1),
-                ('multiple-unknown-plus-concrete', 'FMULTI', 'AE-UNKNOWN-PLUS', 1);
+                ('multiple-unknown-plus-concrete', 'FMULTI', 'AE-UNKNOWN-PLUS', 1),
+                ('multiple-conflicting-award',   'FMULTI', 'AE-PGM-CONFLICT', 1);
             """);
 
         var rows = (await connection.QueryAsync<AeRow>(
@@ -44,7 +45,7 @@ public sealed class TransactionSfnViewSqlIntegrationTests(SqlServerDataDbFixture
                 ON s.[Source] = N'AE' AND s.[AeTransactionId] = a.[Id]
             """)).ToDictionary(row => row.Reference);
 
-        rows.Should().HaveCount(12);
+        rows.Should().HaveCount(13);
         rows["13u02-beats-classified-fund"].Should().BeEquivalentTo(new AeRow("13u02-beats-classified-fund", "220", "Fund13U02", null));
         rows["13u02-no-project"].Should().BeEquivalentTo(new AeRow("13u02-no-project", "220", "Fund13U02", null));
         rows["classified-fund"].Should().BeEquivalentTo(new AeRow("classified-fund", "201", "FundClassification", null));
@@ -57,6 +58,7 @@ public sealed class TransactionSfnViewSqlIntegrationTests(SqlServerDataDbFixture
         rows["unclassified-fund"].Should().BeEquivalentTo(new AeRow("unclassified-fund", null, null, null));
         rows["null-sfn-fund"].Should().BeEquivalentTo(new AeRow("null-sfn-fund", null, null, null));
         rows["multiple-unknown-plus-concrete"].Should().BeEquivalentTo(new AeRow("multiple-unknown-plus-concrete", "204", "ProjectList", null));
+        rows["multiple-conflicting-award"].Should().BeEquivalentTo(new AeRow("multiple-conflicting-award", null, null, null));
     }
 
     [Fact]
@@ -139,12 +141,15 @@ public sealed class TransactionSfnViewSqlIntegrationTests(SqlServerDataDbFixture
             INSERT INTO [data].[AssistanceListingNumbers] ([ProgramNumber], [FederalAgency030])
             VALUES
                 ('47.041', 'NATIONAL SCIENCE FOUNDATION'),
-                ('10.203', 'NATIONAL INSTITUTE OF FOOD AND AGRICULTURE, AGRICULTURE, DEPARTMENT OF');
+                ('10.203', 'NATIONAL INSTITUTE OF FOOD AND AGRICULTURE, AGRICULTURE, DEPARTMENT OF'),
+                ('10.001', 'AGRICULTURAL RESEARCH SERVICE, AGRICULTURE, DEPARTMENT OF');
 
             INSERT INTO [data].[PGMProjects] ([ProjectId], [ProjectNumber], [CfdaProgramNumber], [SponsorAwardKey])
             VALUES
                 (1, 'AE-NSF',   '47.041', 'AWD-NSF'),
-                (2, 'AE-HATCH', '10.203', 'AWD-HATCH');
+                (2, 'AE-HATCH', '10.203', 'AWD-HATCH'),
+                (3, 'AE-PGM-CONFLICT', '47.041', 'AWD-C1'),
+                (4, 'AE-PGM-CONFLICT', '10.001', 'AWD-C2');
 
             INSERT INTO [data].[StaffTypes] ([StaffTypeCode], [Ad419LineNum], [Description])
             VALUES
