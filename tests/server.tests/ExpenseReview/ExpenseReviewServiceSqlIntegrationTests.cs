@@ -504,7 +504,8 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
             (null, "missingJobCode"),
             ("0000", "noTitle"),
             ("5678", "titleHasNoStaffType"),
-            ("9999", "staffTypeHasNoLine"));
+            ("9999", "staffTypeHasNoLine"),
+            ("7777", "staffTypeNotFound"));
 
         var noTitle = response.Rows.Single(row => row.JobCode == "0000");
         noTitle.TitleName.Should().BeNull();
@@ -521,6 +522,11 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         var noLine = response.Rows.Single(row => row.JobCode == "9999");
         noLine.TitleName.Should().Be("Title with lineless staff type");
         noLine.StaffTypeCode.Should().Be("NOLINE");
+
+        var notFound = response.Rows.Single(row => row.JobCode == "7777");
+        notFound.TitleName.Should().Be("Title with dangling staff type");
+        notFound.StaffTypeCode.Should().Be("GHOST");
+        notFound.RowCount.Should().Be(1);
 
         response.Rows.Should().NotContain(row => row.JobCode == "1234");
     }
@@ -539,7 +545,8 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
             VALUES
                 ('1234', 'PROF',   'Professor'),
                 ('5678', NULL,     'Unclassified title'),
-                ('9999', 'NOLINE', 'Title with lineless staff type');
+                ('9999', 'NOLINE', 'Title with lineless staff type'),
+                ('7777', 'GHOST',  'Title with dangling staff type');
 
             INSERT INTO [data].[UcPathTransactions]
                 ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
@@ -553,7 +560,8 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
                 ('JC-NO-TITLE-OLD',   '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000002', 'POS2', '0000', 10, 99.00, 0.100000, '2023-11-15', 'S', 2024, '5', 0, 0, 1, 0),
                 ('JC-NO-STAFF-TYPE',  '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000003', 'POS3', '5678', 10, 10.00, 0.050000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
                 ('JC-NO-LINE',        '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000004', 'POS4', '9999', 10, 10.00, 0.040000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
-                ('JC-MISSING',        '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000005', 'POS5', NULL,   10, 10.00, 0.030000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0);
+                ('JC-MISSING',        '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000005', 'POS5', NULL,   10, 10.00, 0.030000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-STAFF-TYPE-MISSING', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000006', 'POS6', '7777', 10, 10.00, 0.020000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0);
             """);
     }
 

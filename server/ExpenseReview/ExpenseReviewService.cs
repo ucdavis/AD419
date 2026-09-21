@@ -399,16 +399,19 @@ public sealed class ExpenseReviewService(
 
     // In-window UCPath rows with no FTESFN, one row per job code. The view is
     // the source of truth for FteSfn; the title and staff type joins here only
-    // explain which link in the chain is missing.
+    // explain which link in the chain is missing: no job code, no title, a
+    // title with no staff type code, a staff type code with no StaffTypes row
+    // (Titles has no foreign key to StaffTypes), or a staff type with no line.
     public const string UnmatchedJobCodesSql = """
         SELECT
             u.[JobCode],
             MAX(title.[Name]) AS [TitleName],
             MAX(title.[StaffTypeCode]) AS [StaffTypeCode],
             CASE
-                WHEN u.[JobCode] IS NULL                                        THEN N'missingJobCode'
-                WHEN MAX(CASE WHEN title.[TitleCode] IS NULL THEN 1 ELSE 0 END) = 1 THEN N'noTitle'
-                WHEN MAX(title.[StaffTypeCode]) IS NULL                         THEN N'titleHasNoStaffType'
+                WHEN u.[JobCode] IS NULL                                                THEN N'missingJobCode'
+                WHEN MAX(CASE WHEN title.[TitleCode] IS NULL THEN 1 ELSE 0 END) = 1     THEN N'noTitle'
+                WHEN MAX(title.[StaffTypeCode]) IS NULL                                 THEN N'titleHasNoStaffType'
+                WHEN MAX(CASE WHEN staffType.[StaffTypeCode] IS NULL THEN 1 ELSE 0 END) = 1 THEN N'staffTypeNotFound'
                 ELSE N'staffTypeHasNoLine'
             END AS [Reason],
             COUNT(1) AS [RowCount],
@@ -420,6 +423,8 @@ public sealed class ExpenseReviewService(
             ON txnSfn.[Source] = N'UCPath' AND txnSfn.[TransactionId] = u.[LaborTransactionId]
         LEFT JOIN [data].[Titles] title
             ON title.[TitleCode] = u.[JobCode]
+        LEFT JOIN [data].[StaffTypes] staffType
+            ON staffType.[StaffTypeCode] = title.[StaffTypeCode]
         WHERE CAST(u.[PayPeriodEndDate] AS DATE) BETWEEN @cycleStart AND @cycleEnd
           AND txnSfn.[FteSfn] IS NULL
         GROUP BY u.[JobCode]

@@ -145,7 +145,7 @@ public sealed record UnmatchedJobCodesResponse(
 
 /// <summary>
 /// One UCPath job code inside the cycle window whose rows have no FTESFN.
-/// Reason is one of missingJobCode, noTitle, titleHasNoStaffType, staffTypeHasNoLine.
+/// Reason is one of missingJobCode, noTitle, titleHasNoStaffType, staffTypeNotFound, staffTypeHasNoLine.
 /// </summary>
 public sealed record UnmatchedJobCodeDto(
     string? JobCode,
