@@ -46,10 +46,10 @@ public class OrgRControllerTests : IDisposable
         });
         await db.SaveChangesAsync();
         var workflow = new WorkflowService(workflowDb ?? appDb, db, new FakeOrgRReviewSeeder());
-        foreach (var stage in WorkflowStages.All)
+        foreach (var stage in WorkflowStages.All.Where(stage => stage.IsRequired))
         {
             var result = await workflow.SetStageStatusAsync(stage.Id, WorkflowStageStatus.Complete, TestUser, CancellationToken.None);
-            result.Should().NotBeNull();
+            result.Should().NotBeNull($"stage {stage.Id} should complete");
         }
         return workflow;
     }
