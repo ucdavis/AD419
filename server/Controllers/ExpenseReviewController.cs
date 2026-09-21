@@ -78,6 +78,19 @@ public sealed class ExpenseReviewController(
         return Ok(response);
     }
 
+    [HttpGet("unmatched-job-codes")]
+    public async Task<IActionResult> UnmatchedJobCodes(CancellationToken cancellationToken)
+    {
+        var (cycle, cycleError) = await GetConfirmedCycleAsync(cancellationToken);
+        if (cycle is null)
+        {
+            return cycleError!;
+        }
+
+        var response = await expenseReviewService.GetUnmatchedJobCodesAsync(cycle, cancellationToken);
+        return Ok(response);
+    }
+
     private async Task<(FiscalYearCycle? Cycle, IActionResult? Error)> GetConfirmedCycleAsync(
         CancellationToken cancellationToken)
     {

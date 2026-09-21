@@ -485,6 +485,78 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
             option.Value == "sfn:unresolved" && option.Label == "No SFN (fund is Multiple, project unmapped)");
     }
 
+    [Fact]
+    public async Task Unmatched_job_codes_group_in_window_ucpath_rows_without_an_fte_line_by_reason()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        await SeedUnmatchedJobCodeRowsAsync();
+
+        await using var db = fixture.CreateDataDbContext();
+        var service = new ExpenseReviewService(db, Configuration());
+
+        var response = await service.GetUnmatchedJobCodesAsync(Cycle(), CancellationToken.None);
+
+        response.FiscalYear.Should().Be("FY25");
+        // Ordered by summed FTE descending. The NULL job code group is the base
+        // scenario's two in-window rows (0.75) plus JC-MISSING (0.03).
+        response.Rows.Select(row => (row.JobCode, row.Reason)).Should().Equal(
+            (null, "missingJobCode"),
+            ("0000", "noTitle"),
+            ("5678", "titleHasNoStaffType"),
+            ("9999", "staffTypeHasNoLine"));
+
+        var noTitle = response.Rows.Single(row => row.JobCode == "0000");
+        noTitle.TitleName.Should().BeNull();
+        noTitle.StaffTypeCode.Should().BeNull();
+        noTitle.RowCount.Should().Be(2);
+        noTitle.EmployeeCount.Should().Be(1);
+        noTitle.Amount.Should().Be(30m);
+        noTitle.Fte.Should().Be(0.300000m);
+
+        var noStaffType = response.Rows.Single(row => row.JobCode == "5678");
+        noStaffType.TitleName.Should().Be("Unclassified title");
+        noStaffType.StaffTypeCode.Should().BeNull();
+
+        var noLine = response.Rows.Single(row => row.JobCode == "9999");
+        noLine.TitleName.Should().Be("Title with lineless staff type");
+        noLine.StaffTypeCode.Should().Be("NOLINE");
+
+        response.Rows.Should().NotContain(row => row.JobCode == "1234");
+    }
+
+    private async Task SeedUnmatchedJobCodeRowsAsync()
+    {
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[StaffTypes] ([StaffTypeCode], [Ad419LineNum], [Description])
+            VALUES ('PROF', '241', 'Professors'), ('NOLINE', NULL, 'Not yet classified');
+
+            INSERT INTO [data].[Titles] ([TitleCode], [StaffTypeCode], [Name])
+            VALUES
+                ('1234', 'PROF',   'Professor'),
+                ('5678', NULL,     'Unclassified title'),
+                ('9999', 'NOLINE', 'Title with lineless staff type');
+
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [PositionNumber], [JobCode],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
+            VALUES
+                ('JC-MATCHED',        '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000001', 'POS1', '1234', 10, 10.00, 0.100000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-NO-TITLE-A',     '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000002', 'POS2', '0000', 10, 10.00, 0.100000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-NO-TITLE-B',     '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000002', 'POS2', '0000', 20, 20.00, 0.200000, '2024-12-15', 'S', 2025, '6', 0, 0, 0, 0),
+                ('JC-NO-TITLE-OLD',   '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000002', 'POS2', '0000', 10, 99.00, 0.100000, '2023-11-15', 'S', 2024, '5', 0, 0, 1, 0),
+                ('JC-NO-STAFF-TYPE',  '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000003', 'POS3', '5678', 10, 10.00, 0.050000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-NO-LINE',        '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000004', 'POS4', '9999', 10, 10.00, 0.040000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-MISSING',        '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000005', 'POS5', NULL,   10, 10.00, 0.030000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0);
+            """);
+    }
+
     private async Task SeedDerivedSfnRowsAsync()
     {
         await using var connection = new SqlConnection(fixture.ConnectionString);

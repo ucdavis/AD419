@@ -137,6 +137,26 @@ public sealed record ExpenseReviewFilterOptionDto(
     string Value,
     string Label);
 
+public sealed record UnmatchedJobCodesResponse(
+    string FiscalYear,
+    DateOnly CycleStart,
+    DateOnly CycleEnd,
+    IReadOnlyList<UnmatchedJobCodeDto> Rows);
+
+/// <summary>
+/// One UCPath job code inside the cycle window whose rows have no FTESFN.
+/// Reason is one of missingJobCode, noTitle, titleHasNoStaffType, staffTypeHasNoLine.
+/// </summary>
+public sealed record UnmatchedJobCodeDto(
+    string? JobCode,
+    string? TitleName,
+    string? StaffTypeCode,
+    string Reason,
+    int RowCount,
+    int EmployeeCount,
+    decimal Amount,
+    decimal Fte);
+
 public static class ExpenseReviewRequestParser
 {
     public const int MaxPageSize = 500;

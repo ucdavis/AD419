@@ -109,6 +109,35 @@ public sealed class ExpenseReviewService(
             Options("exclusionReason"));
     }
 
+    public async Task<UnmatchedJobCodesResponse> GetUnmatchedJobCodesAsync(
+        FiscalYearCycle cycle,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var rows = (await connection.QueryAsync<UnmatchedJobCodeRow>(new CommandDefinition(
+            UnmatchedJobCodesSql,
+            CycleParameters(cycle),
+            commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
+            cancellationToken: cancellationToken))).ToList();
+
+        return new UnmatchedJobCodesResponse(
+            cycle.FiscalYear,
+            cycle.CycleStart,
+            cycle.CycleEnd,
+            rows.Select(row => new UnmatchedJobCodeDto(
+                    row.JobCode,
+                    row.TitleName,
+                    row.StaffTypeCode,
+                    row.Reason,
+                    row.RowCount,
+                    row.EmployeeCount,
+                    row.Amount,
+                    row.Fte))
+                .ToList());
+    }
+
     public async Task WriteTransactionsCsvAsync(
         FiscalYearCycle cycle,
         ExpenseReviewTransactionsRequest request,
@@ -367,6 +396,35 @@ public sealed class ExpenseReviewService(
             ? $"{alias}.{expression}"
             : expression;
     }
+
+    // In-window UCPath rows with no FTESFN, one row per job code. The view is
+    // the source of truth for FteSfn; the title and staff type joins here only
+    // explain which link in the chain is missing.
+    public const string UnmatchedJobCodesSql = """
+        SELECT
+            u.[JobCode],
+            MAX(title.[Name]) AS [TitleName],
+            MAX(title.[StaffTypeCode]) AS [StaffTypeCode],
+            CASE
+                WHEN u.[JobCode] IS NULL                                        THEN N'missingJobCode'
+                WHEN MAX(CASE WHEN title.[TitleCode] IS NULL THEN 1 ELSE 0 END) = 1 THEN N'noTitle'
+                WHEN MAX(title.[StaffTypeCode]) IS NULL                         THEN N'titleHasNoStaffType'
+                ELSE N'staffTypeHasNoLine'
+            END AS [Reason],
+            COUNT(1) AS [RowCount],
+            COUNT(DISTINCT u.[EmployeeId]) AS [EmployeeCount],
+            SUM(u.[Amount]) AS [Amount],
+            SUM(u.[CalculatedFte]) AS [Fte]
+        FROM [data].[UcPathTransactions] u
+        JOIN [data].[v_TransactionSfn] txnSfn
+            ON txnSfn.[Source] = N'UCPath' AND txnSfn.[TransactionId] = u.[LaborTransactionId]
+        LEFT JOIN [data].[Titles] title
+            ON title.[TitleCode] = u.[JobCode]
+        WHERE CAST(u.[PayPeriodEndDate] AS DATE) BETWEEN @cycleStart AND @cycleEnd
+          AND txnSfn.[FteSfn] IS NULL
+        GROUP BY u.[JobCode]
+        ORDER BY SUM(u.[CalculatedFte]) DESC, u.[JobCode];
+        """;
 
     public static string FilterOptionsSql => $$"""
         {{UnifiedTransactionsCte}},
@@ -1029,4 +1087,14 @@ public sealed class ExpenseReviewService(
         string Filter,
         string Value,
         string Label);
+
+    private sealed record UnmatchedJobCodeRow(
+        string? JobCode,
+        string? TitleName,
+        string? StaffTypeCode,
+        string Reason,
+        int RowCount,
+        int EmployeeCount,
+        decimal Amount,
+        decimal Fte);
 }
