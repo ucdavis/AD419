@@ -12,13 +12,22 @@ AS
 --      cycle project list (data.Projects) when every NIFA project the AE
 --      project maps to agrees on a line (UNKNOWN rows do not count), otherwise
 --      the PGM award's ALN derived line (v_PgmProjectSfnBuckets.PgmSfn) when
---      every award row agrees.
+--      every award row agrees. An UNKNOWN row (or a NULL PgmSfn award) is not
+--      a dissenting vote: it is dropped before the agreement check, so one
+--      UNKNOWN row plus one 204 row resolves to 204.
 --   4. Otherwise NULL. Unclassified funds, funds with no SFN, and 'Multiple'
 --      funds on unmapped projects all land here and are excluded downstream.
 --
 -- FteSfn: UCPath rows only. JobCode to Titles to StaffTypes.Ad419LineNum; any
 -- missing link is NULL. Fringe rows carry the backfilled job code so they
 -- resolve like their salary rows. AE rows are always NULL.
+--
+-- LaborTransactionId and AeTransactionId carry the native keys so consumers
+-- can join on an indexed column; TransactionId is the text form shared with
+-- v_TransactionOrgR.
+--
+-- ExpenseSfnSource has no consumer yet; the auto-association build (#76)
+-- will read it.
 WITH FundSfn AS
 (
     SELECT [Code] AS [Fund], [Sfn]
@@ -48,6 +57,7 @@ Transactions AS
     SELECT
         CAST(N'UCPath' AS NVARCHAR(6)) AS [Source],
         CAST(u.[LaborTransactionId] AS NVARCHAR(125)) AS [TransactionId],
+        u.[LaborTransactionId] AS [LaborTransactionId], CAST(NULL AS BIGINT) AS [AeTransactionId],
         u.[Fund],
         u.[Project],
         u.[JobCode]
@@ -58,6 +68,7 @@ Transactions AS
     SELECT
         CAST(N'AE' AS NVARCHAR(6)) AS [Source],
         CAST(a.[Id] AS NVARCHAR(125)) AS [TransactionId],
+        CAST(NULL AS NVARCHAR(125)) AS [LaborTransactionId], a.[Id] AS [AeTransactionId],
         a.[Fund],
         a.[Project],
         CAST(NULL AS NVARCHAR(4)) AS [JobCode]
@@ -66,6 +77,8 @@ Transactions AS
 SELECT
     t.[Source],
     t.[TransactionId],
+    t.[LaborTransactionId],
+    t.[AeTransactionId],
     CAST(CASE
         WHEN t.[Fund] = '13U02'                              THEN '220'
         WHEN fs.[Sfn] IS NOT NULL AND fs.[Sfn] <> 'Multiple' THEN fs.[Sfn]

@@ -455,13 +455,14 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         var resolvedRow = all.Rows.Should().ContainSingle(row => row.AeProject.Code == "PR-204").Subject;
         resolvedRow.Sfn.Should().Be("204");
         resolvedRow.Included.Should().BeTrue();
+        resolvedRow.ExclusionReasons.Should().BeEmpty();
 
         var unresolvedRow = all.Rows.Should().ContainSingle(row => row.AeProject.Code == "PR-UNMAPPED").Subject;
         unresolvedRow.Sfn.Should().BeNull();
         unresolvedRow.Included.Should().BeFalse();
         unresolvedRow.ExclusionReasons.Should().ContainSingle(reason =>
             reason.Code == "sfn:unresolved" &&
-            reason.Label == "No SFN (fund is Multiple, project unmapped)" &&
+            reason.Label == "No SFN derived for this transaction" &&
             reason.RowCount == 1 &&
             reason.Amount == 77m);
 
@@ -482,7 +483,7 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         filters.Sfns.Select(option => option.Value).Should().BeEquivalentTo(["201", "204", "220"]);
         filters.Sfns.Should().NotContain(option => option.Value == "Multiple");
         filters.ExclusionReasons.Should().Contain(option =>
-            option.Value == "sfn:unresolved" && option.Label == "No SFN (fund is Multiple, project unmapped)");
+            option.Value == "sfn:unresolved" && option.Label == "No SFN derived for this transaction");
     }
 
     [Fact]

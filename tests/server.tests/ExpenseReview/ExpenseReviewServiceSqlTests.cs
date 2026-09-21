@@ -125,8 +125,8 @@ public class ExpenseReviewServiceSqlTests
         var sql = ExpenseReviewService.UnifiedTransactionsCte;
 
         sql.Should().Contain("LEFT JOIN [data].[v_TransactionSfn] txnSfn");
-        sql.Should().Contain("txnSfn.[Source] = N'AE' AND txnSfn.[TransactionId] = CAST(a.[Id] AS NVARCHAR(125))");
-        sql.Should().Contain("txnSfn.[Source] = N'UCPath' AND txnSfn.[TransactionId] = u.[LaborTransactionId]");
+        sql.Should().Contain("txnSfn.[Source] = N'AE' AND txnSfn.[AeTransactionId] = a.[Id]");
+        sql.Should().Contain("txnSfn.[Source] = N'UCPath' AND txnSfn.[LaborTransactionId] = u.[LaborTransactionId]");
         sql.Should().Contain("AND txnSfn.[ExpenseSfn] IS NOT NULL");
         sql.Should().NotContain("fundClass.[Sfn] AS [Sfn]");
     }

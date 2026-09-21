@@ -32,7 +32,8 @@ public sealed class TransactionSfnViewSqlIntegrationTests(SqlServerDataDbFixture
                 ('multiple-hatch-award',        'FMULTI', 'AE-HATCH',    1),
                 ('multiple-no-project',         'FMULTI', NULL,          1),
                 ('unclassified-fund',           'FNONE',  'AE-204',      1),
-                ('null-sfn-fund',               'FNULL',  'AE-204',      1);
+                ('null-sfn-fund',               'FNULL',  'AE-204',      1),
+                ('multiple-unknown-plus-concrete', 'FMULTI', 'AE-UNKNOWN-PLUS', 1);
             """);
 
         var rows = (await connection.QueryAsync<AeRow>(
@@ -40,10 +41,10 @@ public sealed class TransactionSfnViewSqlIntegrationTests(SqlServerDataDbFixture
             SELECT a.[Reference], s.[ExpenseSfn], s.[ExpenseSfnSource], s.[FteSfn]
             FROM [data].[AETransactions] a
             JOIN [data].[v_TransactionSfn] s
-                ON s.[Source] = N'AE' AND s.[TransactionId] = CAST(a.[Id] AS NVARCHAR(125))
+                ON s.[Source] = N'AE' AND s.[AeTransactionId] = a.[Id]
             """)).ToDictionary(row => row.Reference);
 
-        rows.Should().HaveCount(11);
+        rows.Should().HaveCount(12);
         rows["13u02-beats-classified-fund"].Should().BeEquivalentTo(new AeRow("13u02-beats-classified-fund", "220", "Fund13U02", null));
         rows["13u02-no-project"].Should().BeEquivalentTo(new AeRow("13u02-no-project", "220", "Fund13U02", null));
         rows["classified-fund"].Should().BeEquivalentTo(new AeRow("classified-fund", "201", "FundClassification", null));
@@ -55,6 +56,7 @@ public sealed class TransactionSfnViewSqlIntegrationTests(SqlServerDataDbFixture
         rows["multiple-no-project"].Should().BeEquivalentTo(new AeRow("multiple-no-project", null, null, null));
         rows["unclassified-fund"].Should().BeEquivalentTo(new AeRow("unclassified-fund", null, null, null));
         rows["null-sfn-fund"].Should().BeEquivalentTo(new AeRow("null-sfn-fund", null, null, null));
+        rows["multiple-unknown-plus-concrete"].Should().BeEquivalentTo(new AeRow("multiple-unknown-plus-concrete", "204", "ProjectList", null));
     }
 
     [Fact]
@@ -130,7 +132,9 @@ public sealed class TransactionSfnViewSqlIntegrationTests(SqlServerDataDbFixture
                 ('1000001', 'CA-D-ABC-1001-CG', 1, '204',     'AE-204'),
                 ('1000002', 'CA-D-ABC-1002-H',  0, '201',     'AE-CONFLICT'),
                 ('1000003', 'CA-D-ABC-1003-RR', 0, '202',     'AE-CONFLICT'),
-                ('1000004', 'CA-D-ABC-1004-XX', 0, 'UNKNOWN', 'AE-UNKNOWN');
+                ('1000004', 'CA-D-ABC-1004-XX', 0, 'UNKNOWN', 'AE-UNKNOWN'),
+                ('1000005', 'CA-D-ABC-1005-XX', 0, 'UNKNOWN', 'AE-UNKNOWN-PLUS'),
+                ('1000006', 'CA-D-ABC-1006-CG', 1, '204',     'AE-UNKNOWN-PLUS');
 
             INSERT INTO [data].[AssistanceListingNumbers] ([ProgramNumber], [FederalAgency030])
             VALUES

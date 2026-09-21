@@ -307,6 +307,7 @@ public sealed class ExpenseReviewService(
             FROM Unified u
             WHERE {{filterClause}}
               AND {{exclusionReasonClause}}
+            -- Sfn is single valued per group only because FundCode and AeProjectCode are both group keys; keep them if grouping ever changes.
             GROUP BY
                 u.[Source],
                 u.[Included],
@@ -420,7 +421,7 @@ public sealed class ExpenseReviewService(
             SUM(u.[CalculatedFte]) AS [Fte]
         FROM [data].[UcPathTransactions] u
         JOIN [data].[v_TransactionSfn] txnSfn
-            ON txnSfn.[Source] = N'UCPath' AND txnSfn.[TransactionId] = u.[LaborTransactionId]
+            ON txnSfn.[Source] = N'UCPath' AND txnSfn.[LaborTransactionId] = u.[LaborTransactionId]
         LEFT JOIN [data].[Titles] title
             ON title.[TitleCode] = u.[JobCode]
         LEFT JOIN [data].[StaffTypes] staffType
@@ -621,7 +622,7 @@ public sealed class ExpenseReviewService(
                 ON purposeClass.[SegmentType] = 'Purpose'
                AND purposeClass.[Code] = a.[Purpose]
             LEFT JOIN [data].[v_TransactionSfn] txnSfn
-                ON txnSfn.[Source] = N'AE' AND txnSfn.[TransactionId] = CAST(a.[Id] AS NVARCHAR(125))
+                ON txnSfn.[Source] = N'AE' AND txnSfn.[AeTransactionId] = a.[Id]
             LEFT JOIN [data].[Sfns] sfn
                 ON sfn.[Sfn] = txnSfn.[ExpenseSfn]
             WHERE TRY_CONVERT(DATE, CONCAT('01-', a.[PeriodName]), 6) BETWEEN @cycleStart AND @cycleEnd
@@ -735,7 +736,7 @@ public sealed class ExpenseReviewService(
                 ON purposeClass.[SegmentType] = 'Purpose'
                AND purposeClass.[Code] = u.[Purpose]
             LEFT JOIN [data].[v_TransactionSfn] txnSfn
-                ON txnSfn.[Source] = N'UCPath' AND txnSfn.[TransactionId] = u.[LaborTransactionId]
+                ON txnSfn.[Source] = N'UCPath' AND txnSfn.[LaborTransactionId] = u.[LaborTransactionId]
             LEFT JOIN [data].[Sfns] sfn
                 ON sfn.[Sfn] = txnSfn.[ExpenseSfn]
             WHERE CAST(u.[PayPeriodEndDate] AS DATE) BETWEEN @cycleStart AND @cycleEnd
@@ -978,7 +979,7 @@ public sealed class ExpenseReviewService(
                      {{alias}}.[UcPathAccountNotInAeRowCount],
                      {{alias}}.[UcPathAccountNotInAeAmount]),
                     (CAST(N'sfn:unresolved' AS NVARCHAR(220)),
-                     CAST(N'No SFN (fund is Multiple, project unmapped)' AS NVARCHAR(500)),
+                     CAST(N'No SFN derived for this transaction' AS NVARCHAR(500)),
                      {{alias}}.[ExpenseSfnUnresolvedRowCount],
                      {{alias}}.[ExpenseSfnUnresolvedAmount]),
                     (CAST(N'financialDept:excluded' AS NVARCHAR(220)),
@@ -1032,7 +1033,7 @@ public sealed class ExpenseReviewService(
                     (CASE WHEN {{alias}}.[Source] = N'UCP' AND {{alias}}.[AccountNotInAE] = 1 THEN CAST(N'ucPathAccountNotInAE' AS NVARCHAR(220)) END,
                      CASE WHEN {{alias}}.[Source] = N'UCP' AND {{alias}}.[AccountNotInAE] = 1 THEN CAST(N'UCPath account missing from AE chart' AS NVARCHAR(500)) END),
                     (CASE WHEN {{alias}}.[Sfn] IS NULL THEN CAST(N'sfn:unresolved' AS NVARCHAR(220)) END,
-                     CASE WHEN {{alias}}.[Sfn] IS NULL THEN CAST(N'No SFN (fund is Multiple, project unmapped)' AS NVARCHAR(500)) END),
+                     CASE WHEN {{alias}}.[Sfn] IS NULL THEN CAST(N'No SFN derived for this transaction' AS NVARCHAR(500)) END),
                     (CASE WHEN {{alias}}.[FinancialDeptIncludeInReport] = 0 THEN CAST(N'financialDept:excluded' AS NVARCHAR(220)) END,
                      CASE WHEN {{alias}}.[FinancialDeptIncludeInReport] = 0 THEN CAST(N'Excluded by financial department' AS NVARCHAR(500)) END),
                     (CASE WHEN {{alias}}.[FinancialDeptIncludeInReport] IS NULL THEN CAST(N'financialDept:unclassified' AS NVARCHAR(220)) END,
