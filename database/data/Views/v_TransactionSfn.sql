@@ -22,7 +22,7 @@ AS
 --   4. Otherwise NULL. Unclassified funds, funds with no SFN, and 'Multiple'
 --      funds on unmapped projects all land here and are excluded downstream.
 --
--- FteSfn: UCPath rows only. JobCode to Titles to StaffTypes.Ad419LineNum; any
+-- FteSfn: UCPath rows only. JobCode to Titles to StaffTypes.FteSfn; any
 -- missing link is NULL. Fringe rows carry the backfilled job code so they
 -- resolve like their salary rows. AE rows are always NULL.
 --
@@ -96,7 +96,7 @@ SELECT
         WHEN fs.[Sfn] = 'Multiple' AND pa.[Sfn] IS NOT NULL  THEN N'PgmAward'
         ELSE NULL
     END AS NVARCHAR(20)) AS [ExpenseSfnSource],
-    CAST(CASE WHEN t.[Source] = N'UCPath' THEN st.[Ad419LineNum] END AS NVARCHAR(10)) AS [FteSfn]
+    CAST(CASE WHEN t.[Source] = N'UCPath' THEN st.[FteSfn] END AS NVARCHAR(10)) AS [FteSfn]
 FROM Transactions t
 LEFT JOIN FundSfn fs
     ON fs.[Fund] = t.[Fund]

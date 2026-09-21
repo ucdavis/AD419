@@ -151,7 +151,7 @@ public sealed class TransactionSfnViewSqlIntegrationTests(SqlServerDataDbFixture
                 (3, 'AE-PGM-CONFLICT', '47.041', 'AWD-C1'),
                 (4, 'AE-PGM-CONFLICT', '10.001', 'AWD-C2');
 
-            INSERT INTO [data].[StaffTypes] ([StaffTypeCode], [Ad419LineNum], [Description])
+            INSERT INTO [data].[StaffTypes] ([StaffTypeCode], [FteSfn], [Description])
             VALUES
                 ('PROF', '241', 'Professors'),
                 ('NOLINE', NULL, 'Not yet classified');

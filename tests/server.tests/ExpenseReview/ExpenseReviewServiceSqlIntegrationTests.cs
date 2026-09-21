@@ -539,7 +539,7 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
 
         await connection.ExecuteAsync(
             """
-            INSERT INTO [data].[StaffTypes] ([StaffTypeCode], [Ad419LineNum], [Description])
+            INSERT INTO [data].[StaffTypes] ([StaffTypeCode], [FteSfn], [Description])
             VALUES ('PROF', '241', 'Professors'), ('NOLINE', NULL, 'Not yet classified');
 
             INSERT INTO [data].[Titles] ([TitleCode], [StaffTypeCode], [Name])
