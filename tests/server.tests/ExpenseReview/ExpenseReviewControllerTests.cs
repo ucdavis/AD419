@@ -165,6 +165,37 @@ public class ExpenseReviewControllerTests
             new DateOnly(2025, 9, 30)));
     }
 
+    [Fact]
+    public async Task UnmatchedJobCodes_conflicts_when_no_confirmed_workflow_cycle_exists()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var service = new StubExpenseReviewService();
+        var controller = new ExpenseReviewController(service, db);
+
+        var result = await controller.UnmatchedJobCodes(CancellationToken.None);
+
+        result.Should().BeOfType<ConflictObjectResult>();
+        service.UnmatchedJobCodesCalled.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task UnmatchedJobCodes_sources_cycle_from_current_workflow_run()
+    {
+        await using var db = await CreateDbWithConfirmedRunAsync();
+        var service = new StubExpenseReviewService();
+        var controller = new ExpenseReviewController(service, db);
+
+        var result = await controller.UnmatchedJobCodes(CancellationToken.None);
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        var response = ok.Value.Should().BeOfType<UnmatchedJobCodesResponse>().Subject;
+        response.Rows.Should().ContainSingle().Which.JobCode.Should().Be("1234");
+        service.ReceivedUnmatchedJobCodesCycle.Should().Be(new FiscalYearCycle(
+            "FY25",
+            new DateOnly(2024, 10, 1),
+            new DateOnly(2025, 9, 30)));
+    }
+
     [Theory]
     [MemberData(nameof(InvalidQueries))]
     public async Task Transactions_validates_invalid_query_inputs(ExpenseReviewTransactionsQuery query)
@@ -210,9 +241,11 @@ public class ExpenseReviewControllerTests
         public bool TransactionsCalled { get; private set; }
         public bool FiltersCalled { get; private set; }
         public bool CsvCalled { get; private set; }
+        public bool UnmatchedJobCodesCalled { get; private set; }
         public FiscalYearCycle? ReceivedTransactionsCycle { get; private set; }
         public FiscalYearCycle? ReceivedFiltersCycle { get; private set; }
         public FiscalYearCycle? ReceivedCsvCycle { get; private set; }
+        public FiscalYearCycle? ReceivedUnmatchedJobCodesCycle { get; private set; }
         public ExpenseReviewTransactionsRequest? ReceivedRequest { get; private set; }
         public ExpenseReviewTransactionsRequest? ReceivedCsvRequest { get; private set; }
 
@@ -263,6 +296,20 @@ public class ExpenseReviewControllerTests
             ReceivedFiltersCycle = cycle;
 
             return Task.FromResult(new ExpenseReviewFilterOptionsResponse([], [], [], [], [], [], [], [], [], [], [], []));
+        }
+
+        public Task<UnmatchedJobCodesResponse> GetUnmatchedJobCodesAsync(
+            FiscalYearCycle cycle,
+            CancellationToken cancellationToken)
+        {
+            UnmatchedJobCodesCalled = true;
+            ReceivedUnmatchedJobCodesCycle = cycle;
+
+            return Task.FromResult(new UnmatchedJobCodesResponse(
+                cycle.FiscalYear,
+                cycle.CycleStart,
+                cycle.CycleEnd,
+                [new UnmatchedJobCodeDto("1234", "Professor", null, "titleHasNoStaffType", 2, 1, 100m, 0.25m)]));
         }
 
         public async Task WriteTransactionsCsvAsync(

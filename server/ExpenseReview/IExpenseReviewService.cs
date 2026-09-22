@@ -14,6 +14,10 @@ public interface IExpenseReviewService
         FiscalYearCycle cycle,
         CancellationToken cancellationToken);
 
+    Task<UnmatchedJobCodesResponse> GetUnmatchedJobCodesAsync(
+        FiscalYearCycle cycle,
+        CancellationToken cancellationToken);
+
     Task WriteTransactionsCsvAsync(
         FiscalYearCycle cycle,
         ExpenseReviewTransactionsRequest request,

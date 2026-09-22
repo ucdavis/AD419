@@ -434,6 +434,178 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
             line.Contains("Excluded by date · $401.00 · 1 row", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task Transaction_queries_use_derived_expense_sfn_and_exclude_unresolved_rows()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        await SeedDerivedSfnRowsAsync();
+
+        await using var db = fixture.CreateDataDbContext();
+        var service = new ExpenseReviewService(db, Configuration());
+
+        var all = await service.GetTransactionsAsync(Cycle(), Request(), CancellationToken.None);
+
+        var stateRow = all.Rows.Should().ContainSingle(row => row.AeProject.Code == "PR-STATE").Subject;
+        stateRow.Sfn.Should().Be("220");
+        stateRow.SfnLabel.Should().Be("State Appropriations");
+        stateRow.Included.Should().BeTrue();
+        stateRow.ExclusionReasons.Should().BeEmpty();
+
+        var resolvedRow = all.Rows.Should().ContainSingle(row => row.AeProject.Code == "PR-204").Subject;
+        resolvedRow.Sfn.Should().Be("204");
+        resolvedRow.Included.Should().BeTrue();
+        resolvedRow.ExclusionReasons.Should().BeEmpty();
+
+        var unresolvedRow = all.Rows.Should().ContainSingle(row => row.AeProject.Code == "PR-UNMAPPED").Subject;
+        unresolvedRow.Sfn.Should().BeNull();
+        unresolvedRow.Included.Should().BeFalse();
+        unresolvedRow.ExclusionReasons.Should().ContainSingle(reason =>
+            reason.Code == "sfn:unresolved" &&
+            reason.Label == "No SFN derived for this transaction" &&
+            reason.RowCount == 1 &&
+            reason.Amount == 77m);
+
+        var reasonFiltered = await service.GetTransactionsAsync(
+            Cycle(),
+            Request(filters: Filters(exclusionReason: ["sfn:unresolved"])),
+            CancellationToken.None);
+        reasonFiltered.TotalCount.Should().Be(1);
+        reasonFiltered.Rows.Should().ContainSingle(row => row.AeProject.Code == "PR-UNMAPPED");
+
+        var sfnFiltered = await service.GetTransactionsAsync(
+            Cycle(),
+            Request(filters: Filters(sfn: ["220"])),
+            CancellationToken.None);
+        sfnFiltered.Rows.Should().ContainSingle(row => row.AeProject.Code == "PR-STATE");
+
+        var filters = await service.GetFilterOptionsAsync(Cycle(), CancellationToken.None);
+        filters.Sfns.Select(option => option.Value).Should().BeEquivalentTo(["201", "204", "220"]);
+        filters.Sfns.Should().NotContain(option => option.Value == "Multiple");
+        filters.ExclusionReasons.Should().Contain(option =>
+            option.Value == "sfn:unresolved" && option.Label == "No SFN derived for this transaction");
+    }
+
+    [Fact]
+    public async Task Unmatched_job_codes_group_in_window_ucpath_rows_without_an_fte_line_by_reason()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        await SeedUnmatchedJobCodeRowsAsync();
+
+        await using var db = fixture.CreateDataDbContext();
+        var service = new ExpenseReviewService(db, Configuration());
+
+        var response = await service.GetUnmatchedJobCodesAsync(Cycle(), CancellationToken.None);
+
+        response.FiscalYear.Should().Be("FY25");
+        // Ordered by summed FTE descending. The NULL job code group is the base
+        // scenario's two in-window rows (0.75) plus JC-MISSING (0.03).
+        response.Rows.Select(row => (row.JobCode, row.Reason)).Should().Equal(
+            (null, "missingJobCode"),
+            ("0000", "noTitle"),
+            ("5678", "titleHasNoStaffType"),
+            ("9999", "staffTypeHasNoLine"),
+            ("7777", "staffTypeNotFound"));
+
+        var noTitle = response.Rows.Single(row => row.JobCode == "0000");
+        noTitle.TitleName.Should().BeNull();
+        noTitle.StaffTypeCode.Should().BeNull();
+        noTitle.RowCount.Should().Be(2);
+        noTitle.EmployeeCount.Should().Be(1);
+        noTitle.Amount.Should().Be(30m);
+        noTitle.Fte.Should().Be(0.300000m);
+
+        var noStaffType = response.Rows.Single(row => row.JobCode == "5678");
+        noStaffType.TitleName.Should().Be("Unclassified title");
+        noStaffType.StaffTypeCode.Should().BeNull();
+
+        var noLine = response.Rows.Single(row => row.JobCode == "9999");
+        noLine.TitleName.Should().Be("Title with lineless staff type");
+        noLine.StaffTypeCode.Should().Be("NOLINE");
+
+        var notFound = response.Rows.Single(row => row.JobCode == "7777");
+        notFound.TitleName.Should().Be("Title with dangling staff type");
+        notFound.StaffTypeCode.Should().Be("GHOST");
+        notFound.RowCount.Should().Be(1);
+
+        response.Rows.Should().NotContain(row => row.JobCode == "1234");
+    }
+
+    private async Task SeedUnmatchedJobCodeRowsAsync()
+    {
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[StaffTypes] ([StaffTypeCode], [FteSfn], [Description])
+            VALUES ('PROF', '241', 'Professors'), ('NOLINE', NULL, 'Not yet classified');
+
+            INSERT INTO [data].[Titles] ([TitleCode], [StaffTypeCode], [Name])
+            VALUES
+                ('1234', 'PROF',   'Professor'),
+                ('5678', NULL,     'Unclassified title'),
+                ('9999', 'NOLINE', 'Title with lineless staff type'),
+                ('7777', 'GHOST',  'Title with dangling staff type');
+
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [PositionNumber], [JobCode],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
+            VALUES
+                ('JC-MATCHED',        '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000001', 'POS1', '1234', 10, 10.00, 0.100000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-NO-TITLE-A',     '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000002', 'POS2', '0000', 10, 10.00, 0.100000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-NO-TITLE-B',     '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000002', 'POS2', '0000', 20, 20.00, 0.200000, '2024-12-15', 'S', 2025, '6', 0, 0, 0, 0),
+                ('JC-NO-TITLE-OLD',   '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000002', 'POS2', '0000', 10, 99.00, 0.100000, '2023-11-15', 'S', 2024, '5', 0, 0, 1, 0),
+                ('JC-NO-STAFF-TYPE',  '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000003', 'POS3', '5678', 10, 10.00, 0.050000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-NO-LINE',        '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000004', 'POS4', '9999', 10, 10.00, 0.040000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-MISSING',        '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000005', 'POS5', NULL,   10, 10.00, 0.030000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-STAFF-TYPE-MISSING', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000006', 'POS6', '7777', 10, 10.00, 0.020000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                -- Flagged rows are in window but already excluded; they must not count.
+                ('JC-NO-TITLE-DATE-FLAG',    '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000002', 'POS2', '0000', 10, 50.00, 0.500000, '2024-11-15', 'S', 2025, '5', 0, 0, 1, 0),
+                ('JC-NO-TITLE-ACCOUNT-FLAG', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000002', 'POS2', '0000', 10, 60.00, 0.600000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 1);
+            """);
+    }
+
+    private async Task SeedDerivedSfnRowsAsync()
+    {
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[Sfns] ([Sfn], [Label])
+            VALUES ('220', 'State Appropriations'), ('204', 'Contracts and Grants');
+
+            INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description], [IncludeInReport], [Sfn])
+            VALUES
+                ('Fund', '13U02',  'State Appropriations', 1, '201'),
+                ('Fund', 'FMULTI', 'Grant Fund',           1, 'Multiple');
+
+            INSERT INTO [data].[Projects]
+                ([AccessionNumber], [NifaProjectNumber], [Is204], [Sfn], [AEProjectNumber])
+            VALUES ('1000001', 'CA-D-ABC-1001-CG', 1, '204', 'PR-204');
+
+            INSERT INTO [data].[AETransactions]
+                ([Entity], [Fund], [FinancialDepartment], [Account], [Purpose], [Program], [Project], [Activity],
+                 [EntityDescription], [FundDescription], [FinancialDepartmentDescription], [AccountDescription],
+                 [PurposeDescription], [ProgramDescription], [ProjectDescription], [ActivityDescription],
+                 [PeriodName], [Amount], [ExcludedByDate], [AccountInUcPath])
+            VALUES
+                ('3310', '13U02', 'D1', 'A1', 'P1', 'PG1', 'PR-STATE', 'AC1',
+                 'Entity One', 'State Appropriations', 'Dept One', 'Account One', 'Purpose One', 'Program One', 'State Project', 'Activity One',
+                 'Oct-24', 75.00, 0, 0),
+                ('3310', 'FMULTI', 'D1', 'A1', 'P1', 'PG1', 'PR-204', 'AC1',
+                 'Entity One', 'Grant Fund', 'Dept One', 'Account One', 'Purpose One', 'Program One', '204 Project', 'Activity One',
+                 'Oct-24', 76.00, 0, 0),
+                ('3310', 'FMULTI', 'D1', 'A1', 'P1', 'PG1', 'PR-UNMAPPED', 'AC1',
+                 'Entity One', 'Grant Fund', 'Dept One', 'Account One', 'Purpose One', 'Program One', 'Unmapped Grant Project', 'Activity One',
+                 'Oct-24', 77.00, 0, 0);
+            """);
+    }
+
     private async Task SeedExpenseReviewScenarioAsync()
     {
         await using var connection = new SqlConnection(fixture.ConnectionString);
