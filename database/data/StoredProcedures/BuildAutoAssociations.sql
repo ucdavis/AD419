@@ -115,10 +115,12 @@ BEGIN
 
     -- Dry run against every project: projects whose total would be under $100
     -- are excluded so proration does not scatter dollars onto tiny projects.
+    -- Projects is at NIFA x AE grain; collapse to one row per accession so shares are not counted once per AE project.
     INSERT INTO [data].[AutoAssociationExcludedProjects] ([AccessionNumber], [NifaProjectNumber], [Total])
     SELECT c.[AccessionNumber], MIN(p.[NifaProjectNumber]), SUM(c.[Expenses])
     FROM [data].[AutoAssociationCandidates]() c
-    JOIN [data].[Projects] p ON p.[AccessionNumber] = c.[AccessionNumber]
+    JOIN (SELECT DISTINCT [AccessionNumber], [NifaProjectNumber] FROM [data].[Projects]) p
+        ON p.[AccessionNumber] = c.[AccessionNumber]
     GROUP BY c.[AccessionNumber]
     HAVING SUM(c.[Expenses]) < 100;
 

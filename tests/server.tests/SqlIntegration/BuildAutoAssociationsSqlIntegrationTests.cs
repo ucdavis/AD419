@@ -168,6 +168,96 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
             """);
     }
 
+    [Fact]
+    public async Task Dry_run_counts_each_accession_once_and_exclusions_raise_survivor_shares()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedDryRunScenarioAsync();
+
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        var build = await connection.QuerySingleAsync<BuildRow>(
+            "EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd",
+            new { cycleStart = CycleStart, cycleEnd = CycleEnd });
+
+        build.SummaryRows.Should().Be(4);
+        build.AssociationRows.Should().Be(2);
+        build.ExcludedProjects.Should().Be(2);
+        build.Misclassified204Rows.Should().Be(0);
+
+        var excluded = (await connection.QueryAsync<ExcludedRow>(
+            "SELECT [AccessionNumber], [NifaProjectNumber], [Total] FROM [data].[AutoAssociationExcludedProjects]")).ToList();
+        excluded.Should().BeEquivalentTo(new[]
+        {
+            new ExcludedRow("2000001", "CA-D-XYZ-2001-CG", 70m),
+            new ExcludedRow("2000003", "CA-D-XYZ-2003-H", 75m),
+        });
+
+        var staged = (await connection.QueryAsync<StagedRow>(
+            """
+            SELECT s.[Rule], s.[AccessionNumber], s.[OrgR], s.[AeProject], s.[ExpenseSfn], s.[Expenses], s.[Fte], s.[FteSfn], e.[Source], e.[Project], e.[Fund], e.[EmployeeId]
+            FROM [data].[StagedAssociations] s
+            JOIN [data].[ExpenseSummary] e ON e.[ExpenseId] = s.[ExpenseId]
+            """)).ToList();
+
+        staged.Should().HaveCount(2);
+        staged.Should().NotContain(row => row.Rule == "204");
+        staged.Single(row => row.Rule == "20x").Should().BeEquivalentTo(
+            new { AccessionNumber = "2000002", Expenses = 150m, Fte = 0.300000m, EmployeeId = "P2" });
+        staged.Single(row => row.Rule == "FS").Should().BeEquivalentTo(
+            new { AccessionNumber = "2000002", Expenses = 50m, Fte = 0m });
+    }
+
+    private async Task SeedDryRunScenarioAsync()
+    {
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[Sfns] ([Sfn], [Label]) VALUES ('201', 'Hatch'), ('204', 'Grants');
+
+            INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description], [IncludeInReport], [Sfn])
+            VALUES
+                ('FinancialDepartment', 'D1', 'Dept', 1, NULL),
+                ('Fund', 'F204', 'Grant fund', 1, '204'),
+                ('Fund', 'F201', 'Hatch fund', 1, '201'),
+                ('Account', 'A1', 'Account', 1, NULL),
+                ('Activity', 'AC1', 'Activity', 1, NULL),
+                ('Purpose', 'P1', 'Purpose', 1, NULL),
+                ('Ern', 'REG', 'Regular', 1, NULL);
+
+            INSERT INTO [data].[OrgRs] ([Code]) VALUES ('AAAA');
+            INSERT INTO [data].[OrgRFinancialDepartments] ([FinancialDepartment], [OrgR]) VALUES ('D1', 'AAAA');
+
+            INSERT INTO [data].[Projects]
+                ([AccessionNumber], [NifaProjectNumber], [UcpEmployeeId], [Is204], [Sfn], [AEProjectNumber])
+            VALUES
+                ('2000001', 'CA-D-XYZ-2001-CG', 'P1', 1, '204', 'AE-M1'),
+                ('2000001', 'CA-D-XYZ-2001-CG', 'P1', 1, '204', 'AE-M2'),
+                ('2000002', 'CA-D-XYZ-2002-H',  'P2', 0, '201', NULL),
+                ('2000003', 'CA-D-XYZ-2003-H',  'P2', 0, '201', NULL);
+
+            INSERT INTO [data].[AETransactions]
+                ([Reference], [Entity], [Fund], [FinancialDepartment], [Account], [Activity], [Purpose], [Project], [PeriodName], [Amount], [ExcludedByDate], [AccountInUcPath])
+            VALUES
+                ('ae-m1', '3310', 'F204', 'D1', 'A1', 'AC1', 'P1', 'AE-M1', 'Oct-24', 30, 0, 0),
+                ('ae-m2', '3310', 'F204', 'D1', 'A1', 'AC1', 'P1', 'AE-M2', 'Oct-24', 40, 0, 0);
+
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [EmployeeName], [PositionNumber], [JobCode],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
+            VALUES
+                ('ucp-p2-201', '3310', 'F201', 'D1', 'D1', 'A1', 'P1', NULL, 'AE-Q', 'AC1', 'REG', 'P2', 'PI Two', 'POS2', NULL, 10, 150, 0.300000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0);
+
+            INSERT INTO [data].[ad419_FieldStationExpenses] ([ProjectAccessionNum], [ProjectDirector], [FieldStationCharge])
+            VALUES ('2000002', 'PI Two', 50);
+            """);
+    }
+
     private sealed record BuildRow(int BuildId, int SummaryRows, int AssociationRows, int ExcludedProjects, int Misclassified204Rows);
 
     private sealed record SummaryRow(int ExpenseId, string Source, string OrgR, string? Project, string? Fund, string? EmployeeId, string? AccessionNumber, string? ExpenseSfn, string? FteSfn, decimal Expenses, decimal Fte, string? RuleExclusion);
