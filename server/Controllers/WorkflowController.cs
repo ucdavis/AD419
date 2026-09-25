@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Server.AutoAssociations;
 using Server.Models.Workflow;
 using Server.Workflow;
 
@@ -25,11 +26,19 @@ public sealed class WorkflowController(IWorkflowService workflowService) : ApiCo
             return BadRequest("Status must be InProgress or Complete.");
         }
 
-        var response = await workflowService.SetStageStatusAsync(
-            stageId,
-            request.Status,
-            User,
-            cancellationToken);
+        WorkflowSnapshotResponse? response;
+        try
+        {
+            response = await workflowService.SetStageStatusAsync(
+                stageId,
+                request.Status,
+                User,
+                cancellationToken);
+        }
+        catch (AutoAssociationBuildException ex)
+        {
+            return Conflict(ex.Message);
+        }
 
         if (response is null)
         {
