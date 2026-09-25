@@ -11,6 +11,7 @@ using Server.Core.Domain;
 using Server.Models.OrgR;
 using Server.Models.SegmentClassifications;
 using Server.Models.Workflow;
+using Server.Tests.AutoAssociations;
 using Server.Workflow;
 
 namespace Server.Tests.OrgRReview;
@@ -27,7 +28,7 @@ public class OrgRControllerTests : IDisposable
         DataDbContext db,
         FakeOrgRReviewSeeder? seeder = null,
         IWorkflowService? workflowService = null) =>
-        new(db, seeder ?? new FakeOrgRReviewSeeder(), workflowService ?? new WorkflowService(appDb, db, new FakeOrgRReviewSeeder()))
+        new(db, seeder ?? new FakeOrgRReviewSeeder(), workflowService ?? new WorkflowService(appDb, db, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder()))
         {
             ControllerContext = new ControllerContext
             {
@@ -45,7 +46,7 @@ public class OrgRControllerTests : IDisposable
             SegmentType = SegmentType.FinancialDepartment, Code = "AARE001", IncludeInReport = true,
         });
         await db.SaveChangesAsync();
-        var workflow = new WorkflowService(workflowDb ?? appDb, db, new FakeOrgRReviewSeeder());
+        var workflow = new WorkflowService(workflowDb ?? appDb, db, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder());
         foreach (var stage in WorkflowStages.All.Where(stage => stage.IsRequired))
         {
             var result = await workflow.SetStageStatusAsync(stage.Id, WorkflowStageStatus.Complete, TestUser, CancellationToken.None);
@@ -120,7 +121,7 @@ public class OrgRControllerTests : IDisposable
         using (var requestData = new DataDbContext(requestDataOptions.Options))
         {
             var controller = CreateController(requestData, workflowService:
-                new WorkflowService(requestApp, requestData, new FakeOrgRReviewSeeder()));
+                new WorkflowService(requestApp, requestData, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder()));
             Func<Task> update = () => SetMappingAsync(controller, financial, orgR, cancellation.Token);
             if (failure == SaveFailure.CancelledReset)
             {
@@ -137,7 +138,7 @@ public class OrgRControllerTests : IDisposable
         using (var verificationData = new DataDbContext(dataOptions))
         {
             (await ReadMappingAsync(verificationData, financial)).Should().Be("AARE");
-            var workflow = new WorkflowService(verificationApp, verificationData, new FakeOrgRReviewSeeder());
+            var workflow = new WorkflowService(verificationApp, verificationData, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder());
             var afterFailure = await workflow.GetSnapshotAsync(TestUser, CancellationToken.None);
             if (failure == SaveFailure.MappingSave)
             {
@@ -153,7 +154,7 @@ public class OrgRControllerTests : IDisposable
         using (var retryData = new DataDbContext(dataOptions))
         {
             var controller = CreateController(retryData, workflowService:
-                new WorkflowService(retryApp, retryData, new FakeOrgRReviewSeeder()));
+                new WorkflowService(retryApp, retryData, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder()));
             (await SetMappingAsync(controller, financial, orgR, CancellationToken.None))
                 .Should().BeOfType<NoContentResult>();
         }
@@ -162,7 +163,7 @@ public class OrgRControllerTests : IDisposable
         using (var verificationData = new DataDbContext(dataOptions))
         {
             (await ReadMappingAsync(verificationData, financial)).Should().Be(orgR);
-            var workflow = new WorkflowService(verificationApp, verificationData, new FakeOrgRReviewSeeder());
+            var workflow = new WorkflowService(verificationApp, verificationData, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder());
             AssertReviewReopened(before, await workflow.GetSnapshotAsync(TestUser, CancellationToken.None));
         }
     }
