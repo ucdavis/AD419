@@ -9,7 +9,9 @@ RETURN
     -- once with the excluded table empty (dry run, to find projects whose total
     -- would be under $100) and once for real. Rules run in order; an expense
     -- taken by an earlier rule is skipped by later ones. Summary rows with a
-    -- RuleExclusion never participate.
+    -- RuleExclusion never participate. The NOT EXISTS chain between rules is
+    -- defensive: v_TransactionSfn gives fund 13U02 an unconditional 220, so a
+    -- row can never qualify for both 204 and 220.
     WITH Eligible AS
     (
         SELECT p.[AccessionNumber], p.[UcpEmployeeId], p.[Sfn], p.[AEProjectNumber]

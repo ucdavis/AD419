@@ -13,8 +13,8 @@ AS
 --   the purpose is classified included, or the fund is 13U02 (State
 --   Appropriations are reported regardless of purpose);
 --   an ExpenseSfn was derived (v_TransactionSfn);
---   not a UCPath row on account 531010 whose fund maps to 201, 202 or 205
---   (last year's summary carve-out).
+--   not a UCPath row on account 531010 whose derived ExpenseSfn is 201, 202
+--   or 205 (last year's summary carve-out).
 --
 -- ErnIncludeInReport is exposed but is not part of Included: an excluded ERN
 -- code removes a UCPath row's FTE from totals, never its dollars.

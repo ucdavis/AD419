@@ -1,6 +1,7 @@
 using Dapper;
 using FluentAssertions;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
 
 namespace Server.Tests.SqlIntegration;
 
@@ -95,6 +96,59 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
         await connection.ExecuteAsync("DELETE FROM [data].[Projects]");
         var act = () => connection.ExecuteAsync("EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd", new { cycleStart = CycleStart, cycleEnd = CycleEnd });
         await act.Should().ThrowAsync<SqlException>().WithMessage("*Projects*");
+    }
+
+    [Fact]
+    public async Task Build_rejects_bad_parameters_missing_orgr_and_long_ce_orgr_with_named_messages()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedScenarioAsync();
+
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        var reversed = () => connection.ExecuteAsync("EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd", new { cycleStart = CycleEnd, cycleEnd = CycleStart });
+        await reversed.Should().ThrowAsync<SqlException>().WithMessage("*must not be after*");
+
+        await connection.ExecuteAsync("UPDATE [data].[OrgRFinancialDepartments] SET [OrgR] = NULL WHERE [FinancialDepartment] = 'D1'");
+        var noOrgR = () => connection.ExecuteAsync("EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd", new { cycleStart = CycleStart, cycleEnd = CycleEnd });
+        await noOrgR.Should().ThrowAsync<SqlException>().WithMessage("*no OrgR*");
+        (await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM [data].[ExpenseSummary]")).Should().Be(0);
+        await connection.ExecuteAsync("UPDATE [data].[OrgRFinancialDepartments] SET [OrgR] = 'AAAA' WHERE [FinancialDepartment] = 'D1'");
+
+        await connection.ExecuteAsync("UPDATE [data].[ad419_CESpecialists] SET [DeptLevelOrg] = 'THIS-IS-TOO-LONG'");
+        var longCe = () => connection.ExecuteAsync("EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd", new { cycleStart = CycleStart, cycleEnd = CycleEnd });
+        await longCe.Should().ThrowAsync<SqlException>().WithMessage("*1000004*");
+    }
+
+    [Fact]
+    public async Task Summary_total_equals_expense_review_included_total()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedScenarioAsync();
+
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+        await connection.ExecuteAsync("EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd", new { cycleStart = CycleStart, cycleEnd = CycleEnd });
+
+        await using var db = fixture.CreateDataDbContext();
+        var configuration = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:DataConnection"] = fixture.ConnectionString })
+            .Build();
+        var service = new Server.ExpenseReview.ExpenseReviewService(db, configuration);
+        Server.Models.FiscalYearCycle.TryParse("FY25", out var cycle).Should().BeTrue();
+        var review = await service.GetTransactionsAsync(
+            cycle!,
+            new Server.Models.ExpenseReview.ExpenseReviewTransactionsRequest(
+                Server.Models.ExpenseReview.ExpenseReviewIncludeState.Included, 1, 500, "source", false, false, true,
+                new Server.Models.ExpenseReview.ExpenseReviewFilters([], [], [], [], [], [], [], [], [], [], [], [])),
+            CancellationToken.None);
+
+        var reviewTotal = review.Rows.Sum(row => row.Amount ?? 0m);
+        var summaryTotal = await connection.ExecuteScalarAsync<decimal>(
+            "SELECT SUM([Expenses]) FROM [data].[ExpenseSummary] WHERE [Source] IN (N'AE', N'UCPath')");
+
+        summaryTotal.Should().Be(reviewTotal);
     }
 
     private async Task SeedScenarioAsync()
