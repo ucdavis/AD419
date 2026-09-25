@@ -532,6 +532,73 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         response.Rows.Should().NotContain(row => row.JobCode == "1234");
     }
 
+    [Fact]
+    public async Task Transaction_queries_exclude_ucpath_account_531010_on_hatch_funds_with_a_reason()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        await SeedAccount531010RowsAsync();
+
+        await using var db = fixture.CreateDataDbContext();
+        var service = new ExpenseReviewService(db, Configuration());
+
+        var all = await service.GetTransactionsAsync(Cycle(), Request(), CancellationToken.None);
+
+        var hatchRow = all.Rows.Should().ContainSingle(row => row.Source == "UCP" && row.Account.Code == "531010" && row.Fund.Code == "F1").Subject;
+        hatchRow.Included.Should().BeFalse();
+        hatchRow.ExclusionReasons.Should().ContainSingle(reason =>
+            reason.Code == "account:531010" &&
+            reason.Label == "UCPath account 531010 on a Hatch fund" &&
+            reason.RowCount == 1 &&
+            reason.Amount == 61m);
+
+        var grantRow = all.Rows.Should().ContainSingle(row => row.Source == "UCP" && row.Account.Code == "531010" && row.Fund.Code == "F204").Subject;
+        grantRow.Included.Should().BeTrue();
+        grantRow.ExclusionReasons.Should().BeEmpty();
+
+        var aeRow = all.Rows.Should().ContainSingle(row => row.Source == "AE" && row.Account.Code == "531010").Subject;
+        aeRow.Included.Should().BeTrue();
+
+        var filters = await service.GetFilterOptionsAsync(Cycle(), CancellationToken.None);
+        filters.ExclusionReasons.Should().Contain(option =>
+            option.Value == "account:531010" && option.Label == "UCPath account 531010 on a Hatch fund");
+    }
+
+    private async Task SeedAccount531010RowsAsync()
+    {
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description], [IncludeInReport], [Sfn])
+            VALUES
+                ('Fund', 'F204', 'Grant fund', 1, '204'),
+                ('Account', '531010', 'Academic salary', 1, NULL);
+
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [PositionNumber],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
+            VALUES
+                ('UCP-531010-HATCH', '3310', 'F1',   'D1', 'D1', '531010', 'P1', 'PG1', 'PR1', 'AC1', 'E01',
+                 '20000011', 'POS00011', 10.000000, 61.00, 0.050000, '2024-11-30', 'S', 2025, '5', 0, 0, 0, 0),
+                ('UCP-531010-GRANT', '3310', 'F204', 'D1', 'D1', '531010', 'P1', 'PG1', 'PR1', 'AC1', 'E01',
+                 '20000012', 'POS00012', 10.000000, 62.00, 0.050000, '2024-11-30', 'S', 2025, '5', 0, 0, 0, 0);
+
+            INSERT INTO [data].[AETransactions]
+                ([Entity], [Fund], [FinancialDepartment], [Account], [Purpose], [Program], [Project], [Activity],
+                 [EntityDescription], [FundDescription], [FinancialDepartmentDescription], [AccountDescription],
+                 [PurposeDescription], [ProgramDescription], [ProjectDescription], [ActivityDescription],
+                 [PeriodName], [Amount], [ExcludedByDate], [AccountInUcPath])
+            VALUES
+                ('3310', 'F1', 'D1', '531010', 'P1', 'PG1', 'PR1', 'AC1',
+                 'Entity One', 'Fund One', 'Dept One', 'Academic salary', 'Purpose One', 'Program One', 'AE 531010', 'Activity One',
+                 'Oct-24', 63.00, 0, 0);
+            """);
+    }
+
     private async Task SeedUnmatchedJobCodeRowsAsync()
     {
         await using var connection = new SqlConnection(fixture.ConnectionString);

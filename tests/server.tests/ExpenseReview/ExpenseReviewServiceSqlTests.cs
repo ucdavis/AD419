@@ -124,11 +124,13 @@ public class ExpenseReviewServiceSqlTests
     {
         var sql = ExpenseReviewService.UnifiedTransactionsCte;
 
-        sql.Should().Contain("LEFT JOIN [data].[v_TransactionSfn] txnSfn");
-        sql.Should().Contain("txnSfn.[Source] = N'AE' AND txnSfn.[AeTransactionId] = a.[Id]");
-        sql.Should().Contain("txnSfn.[Source] = N'UCPath' AND txnSfn.[LaborTransactionId] = u.[LaborTransactionId]");
-        sql.Should().Contain("AND txnSfn.[ExpenseSfn] IS NOT NULL");
-        sql.Should().NotContain("fundClass.[Sfn] AS [Sfn]");
+        sql.Should().Contain("LEFT JOIN [data].[v_TransactionInclusion] incl");
+        sql.Should().Contain("incl.[Source] = N'AE' AND incl.[AeTransactionId] = a.[Id]");
+        sql.Should().Contain("incl.[Source] = N'UCPath' AND incl.[LaborTransactionId] = u.[LaborTransactionId]");
+        sql.Should().Contain("incl.[Included] AS [Included]");
+        sql.Should().Contain("incl.[Account531010OnHatchFund] AS [Account531010OnHatchFund]");
+        sql.Should().NotContain("[data].[SegmentClassifications]");
+        sql.Should().NotContain("[data].[v_TransactionSfn]");
     }
 
     private static string PagedOrderByClause(string sql)
