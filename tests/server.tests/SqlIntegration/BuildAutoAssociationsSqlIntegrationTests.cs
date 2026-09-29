@@ -25,8 +25,8 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
             "EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd",
             new { cycleStart = CycleStart, cycleEnd = CycleEnd });
 
-        build.SummaryRows.Should().Be(8);
-        build.AssociationRows.Should().Be(10);
+        build.SummaryRows.Should().Be(9);
+        build.AssociationRows.Should().Be(11);
         build.ExcludedProjects.Should().Be(2);
         build.Misclassified204Rows.Should().Be(1);
 
@@ -34,7 +34,7 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
             "SELECT [ExpenseId], [Source], [OrgR], [Project], [Fund], [EmployeeId], [ExpenseSfn], [FteSfn], [Expenses], [Fte], [RuleExclusion] FROM [data].[ExpenseSummary]"))
             .ToList();
 
-        summary.Should().HaveCount(8);
+        summary.Should().HaveCount(9);
         summary.Should().OnlyContain(row => row.OrgR == "AAAA");
         summary.Single(row => row.Source == "AE" && row.Project == "AE-A" && row.Fund == "F204").Expenses.Should().Be(1000m);
         summary.Single(row => row.Source == "AE" && row.Project == "AE-B").Expenses.Should().Be(300m);
@@ -42,6 +42,7 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
         misclassified.Expenses.Should().Be(77m);
         misclassified.RuleExclusion.Should().Be("Misclassified204");
         summary.Should().NotContain(row => row.Source == "AE" && row.Fund == "F201" && row.Project == "AE-A");
+        summary.Single(row => row.Source == "AE" && row.Project == "AE-S").Expenses.Should().Be(80m);
         var stateGroup = summary.Single(row => row.Source == "UCPath" && row.Fund == "13U02");
         stateGroup.Expenses.Should().Be(540m);
         stateGroup.Fte.Should().Be(0.500000m);
@@ -52,8 +53,8 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
             "SELECT [AccessionNumber], [NifaProjectNumber], [Total] FROM [data].[AutoAssociationExcludedProjects]")).ToList();
         excluded.Should().BeEquivalentTo(new[]
         {
-            new ExcludedRow("1000006", "CA-D-ABC-1006-H", 60m),
-            new ExcludedRow("1000008", "CA-D-ABC-1008-H", 0m),
+            new ExcludedRow("1000009", "CA-D-ABC-1009-CG", 0m),
+            new ExcludedRow("1000010", "CA-D-ABC-1010-CG", 80m),
         });
 
         var staged = (await connection.QueryAsync<StagedRow>(
@@ -63,14 +64,14 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
             JOIN [data].[ExpenseSummary] e ON e.[ExpenseId] = s.[ExpenseId]
             """)).ToList();
 
-        staged.Should().HaveCount(10);
+        staged.Should().HaveCount(11);
         staged.Where(row => row.Rule == "204").Select(row => (row.AccessionNumber, row.Project, row.Expenses)).Should().BeEquivalentTo(
             new[] { ("1000001", "AE-A", 500m), ("1000002", "AE-A", 500m), ("1000007", "AE-B", 300m) });
         staged.Where(row => row.Rule == "20x").Select(row => (row.AccessionNumber, row.Fund, row.Expenses, row.Fte)).Should().BeEquivalentTo(
-            new[] { ("1000003", "F201", 300m, 0.300000m), ("1000004", "F201", 300m, 0.300000m), ("1000005", "F202", 200m, 0.200000m) });
+            new[] { ("1000003", "F201", 300m, 0.300000m), ("1000004", "F201", 300m, 0.300000m), ("1000005", "F202", 200m, 0.200000m), ("1000006", "F201", 60m, 0.060000m) });
         staged.Where(row => row.Rule == "220").Select(row => (row.AccessionNumber, row.ExpenseSfn, row.Expenses, row.Fte)).Should().BeEquivalentTo(
             new[] { ("1000001", "220", 135m, 0.125000m), ("1000003", "220", 135m, 0.125000m), ("1000004", "220", 135m, 0.125000m), ("1000005", "220", 135m, 0.125000m) });
-        staged.Should().NotContain(row => row.AccessionNumber == "1000006");
+        staged.Should().NotContain(row => row.AccessionNumber == "1000010" || row.AccessionNumber == "1000009");
         staged.Should().NotContain(row => row.Project == "AE-ZZ");
         staged.Should().NotContain(row => row.Source == "AE" && row.Fund == "F201");
     }
@@ -88,8 +89,8 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
         await connection.ExecuteAsync("EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd", new { cycleStart = CycleStart, cycleEnd = CycleEnd });
 
         (await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM [data].[AutoAssociationBuilds]")).Should().Be(1);
-        (await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM [data].[ExpenseSummary]")).Should().Be(8);
-        (await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM [data].[StagedAssociations]")).Should().Be(10);
+        (await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM [data].[ExpenseSummary]")).Should().Be(9);
+        (await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM [data].[StagedAssociations]")).Should().Be(11);
 
         await connection.ExecuteAsync("DELETE FROM [data].[Projects]");
         var act = () => connection.ExecuteAsync("EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd", new { cycleStart = CycleStart, cycleEnd = CycleEnd });
@@ -183,7 +184,9 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
                 ('1000005', 'CA-D-ABC-1005-RR', 'E1', 0, '202', NULL),
                 ('1000006', 'CA-D-ABC-1006-H',  'E2', 0, '201', NULL),
                 ('1000007', 'CA-D-ABC-1007-CG', 'E3', 1, '204', 'AE-B'),
-                ('1000008', 'CA-D-ABC-1008-H',  'E5', 0, '201', NULL);
+                ('1000008', 'CA-D-ABC-1008-H',  'E5', 0, '201', NULL),
+                ('1000009', 'CA-D-ABC-1009-CG', 'E6', 1, '204', 'AE-Z'),
+                ('1000010', 'CA-D-ABC-1010-CG', 'E7', 1, '204', 'AE-S');
 
             INSERT INTO [data].[AETransactions]
                 ([Reference], [Entity], [Fund], [FinancialDepartment], [Account], [Activity], [Purpose], [Project], [PeriodName], [Amount], [ExcludedByDate], [AccountInUcPath])
@@ -193,7 +196,8 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
                 ('ae-204-misclassified', '3310', 'F204', 'D1', 'A1', 'AC1', 'P1', 'AE-ZZ', 'Nov-24', 77,   0, 0),
                 ('ae-201-e1',            '3310', 'F201', 'D1', 'A1', 'AC1', 'P1', 'AE-C',  'Dec-24', 90,   0, 0),
                 ('ae-zero-a',            '3310', 'F201', 'D1', 'A1', 'AC1', 'P1', 'AE-A',  'Dec-24', 10,   0, 0),
-                ('ae-zero-b',            '3310', 'F201', 'D1', 'A1', 'AC1', 'P1', 'AE-A',  'Jan-25', -10,  0, 0);
+                ('ae-zero-b',            '3310', 'F201', 'D1', 'A1', 'AC1', 'P1', 'AE-A',  'Jan-25', -10,  0, 0),
+                ('ae-204-small',         '3310', 'F204', 'D1', 'A1', 'AC1', 'P1', 'AE-S',  'Nov-24', 80,   0, 0);
 
             INSERT INTO [data].[UcPathTransactions]
                 ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
@@ -211,10 +215,10 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
     }
 
     [Fact]
-    public async Task Dry_run_counts_each_accession_once_excludes_empty_projects_and_raises_survivor_shares()
+    public async Task Under_100_rule_applies_to_204_projects_on_direct_expenses_and_survivors_take_the_whole_share()
     {
         await fixture.ClearDataTablesAsync();
-        await SeedDryRunScenarioAsync();
+        await SeedUnder100ScenarioAsync();
 
         await using var connection = new SqlConnection(fixture.ConnectionString);
         await connection.OpenAsync();
@@ -225,7 +229,7 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
 
         build.SummaryRows.Should().Be(4);
         build.AssociationRows.Should().Be(2);
-        build.ExcludedProjects.Should().Be(3);
+        build.ExcludedProjects.Should().Be(2);
         build.Misclassified204Rows.Should().Be(0);
 
         var excluded = (await connection.QueryAsync<ExcludedRow>(
@@ -233,8 +237,7 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
         excluded.Should().BeEquivalentTo(new[]
         {
             new ExcludedRow("2000001", "CA-D-XYZ-2001-CG", 70m),
-            new ExcludedRow("2000003", "CA-D-XYZ-2003-H", 75m),
-            new ExcludedRow("2000004", "CA-D-XYZ-2004-H", 0m),
+            new ExcludedRow("2000003", "CA-D-XYZ-2003-CG", 0m),
         });
 
         var staged = (await connection.QueryAsync<StagedRow>(
@@ -252,7 +255,7 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
         staged.Should().NotContain(row => row.AccessionNumber == "2000001" || row.AccessionNumber == "2000003" || row.AccessionNumber == "2000004");
     }
 
-    private async Task SeedDryRunScenarioAsync()
+    private async Task SeedUnder100ScenarioAsync()
     {
         await using var connection = new SqlConnection(fixture.ConnectionString);
         await connection.OpenAsync();
@@ -277,13 +280,18 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
             INSERT INTO [data].[OrgRs] ([Code]) VALUES ('AAAA');
             INSERT INTO [data].[OrgRFinancialDepartments] ([FinancialDepartment], [OrgR]) VALUES ('D1', 'AAAA');
 
+            -- 2000001: one 204 accession on two AE projects, 30 + 40 = 70 (under 100).
+            -- 2000002: P2's 204 project with 300 of AE expenses.
+            -- 2000003: P2's second 204 project with no expenses (excluded at 0), so
+            --          P2's 13U02 salary goes whole to 2000002.
+            -- 2000004: a 201 project with no expenses; non-204, never excluded.
             INSERT INTO [data].[Projects]
                 ([AccessionNumber], [NifaProjectNumber], [UcpEmployeeId], [Is204], [Sfn], [AEProjectNumber])
             VALUES
                 ('2000001', 'CA-D-XYZ-2001-CG', 'P1', 1, '204', 'AE-M1'),
                 ('2000001', 'CA-D-XYZ-2001-CG', 'P1', 1, '204', 'AE-M2'),
                 ('2000002', 'CA-D-XYZ-2002-CG', 'P2', 1, '204', 'AE-N'),
-                ('2000003', 'CA-D-XYZ-2003-H',  'P2', 0, '201', NULL),
+                ('2000003', 'CA-D-XYZ-2003-CG', 'P2', 1, '204', 'AE-T'),
                 ('2000004', 'CA-D-XYZ-2004-H',  'P3', 0, '201', NULL);
 
             INSERT INTO [data].[AETransactions]

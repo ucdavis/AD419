@@ -5,10 +5,9 @@ RETURN
 (
     -- Every association the rules would make from the current ExpenseSummary
     -- against the eligible projects: the cycle project list minus
-    -- AutoAssociationExcludedProjects. BuildAutoAssociations calls this twice:
-    -- once with the excluded table empty (dry run, to find projects whose total
-    -- would be under $100) and once for real. Rules run in order; an expense
-    -- taken by an earlier rule is skipped by later ones. Summary rows with a
+    -- AutoAssociationExcludedProjects. Called once by BuildAutoAssociations
+    -- after AutoAssociationExcludedProjects is filled. Rules run in order; an
+    -- expense taken by an earlier rule is skipped by later ones. Summary rows with a
     -- RuleExclusion never participate. The NOT EXISTS chain between rules is
     -- defensive: v_TransactionSfn gives fund 13U02 an unconditional 220, so a
     -- row can never qualify for both 204 and 220. Field Station and CE

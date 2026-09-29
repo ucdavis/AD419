@@ -95,26 +95,27 @@ BEGIN
           WHERE p.[Sfn] = '204' AND p.[AEProjectNumber] = s.[Project]
       );
 
-    -- Dry run against every project: projects whose total would be under $100
-    -- are excluded so proration does not scatter dollars onto tiny projects.
-    -- Projects with no candidates at all are excluded the same way, at $0.
-    -- One pass by design: redistribution after an exclusion only raises
-    -- survivors' shares unless credits are involved, and that edge is accepted.
-    SELECT c.[AccessionNumber], SUM(c.[Expenses]) AS [Total]
-    INTO #DryRun
-    FROM [data].[AutoAssociationCandidates]() c
-    GROUP BY c.[AccessionNumber];
-
+    -- Under-$100 rule, 204 projects only. A 204 NIFA project's total is the
+    -- included expenses on its AE projects (AE and UCPath alike). Under $100,
+    -- including $0, it gets no associations at all: not its own 204 expenses
+    -- and no share of its PI's 13U02 proration. Non-204 projects have no
+    -- expenses of their own (everything reaches them by proration), so the
+    -- rule does not apply to them. An AE project shared by two 204 NIFA
+    -- projects counts in full for each; that is accepted.
     INSERT INTO [data].[AutoAssociationExcludedProjects] ([AccessionNumber], [NifaProjectNumber], [Total])
-    SELECT p.[AccessionNumber], p.[NifaProjectNumber], COALESCE(d.[Total], 0)
-    FROM (SELECT [AccessionNumber], MIN([NifaProjectNumber]) AS [NifaProjectNumber] FROM [data].[Projects] GROUP BY [AccessionNumber]) p
-    LEFT JOIN #DryRun d ON d.[AccessionNumber] = p.[AccessionNumber]
-    WHERE COALESCE(d.[Total], 0) < 100;
+    SELECT p.[AccessionNumber], MIN(p.[NifaProjectNumber]), COALESCE(SUM(t.[Expenses]), 0)
+    FROM (SELECT DISTINCT [AccessionNumber], [NifaProjectNumber], [AEProjectNumber] FROM [data].[Projects] WHERE [Sfn] = '204') p
+    LEFT JOIN
+    (
+        SELECT s.[Project], SUM(s.[Expenses]) AS [Expenses]
+        FROM [data].[ExpenseSummary] s
+        WHERE s.[Project] IS NOT NULL
+        GROUP BY s.[Project]
+    ) t ON t.[Project] = p.[AEProjectNumber]
+    GROUP BY p.[AccessionNumber]
+    HAVING COALESCE(SUM(t.[Expenses]), 0) < 100;
 
-    DROP TABLE #DryRun;
-
-    -- Real run: the function now skips the excluded projects, and shares are
-    -- recomputed over the survivors.
+    -- Run the rules; the function skips the excluded projects.
     INSERT INTO [data].[StagedAssociations]
         ([ExpenseId], [Rule], [OrgR], [AeProject], [AccessionNumber], [ExpenseSfn], [Expenses], [Fte], [FteSfn])
     SELECT [ExpenseId], [Rule], [OrgR], [AeProject], [AccessionNumber], [ExpenseSfn], [Expenses], [Fte], [FteSfn]
