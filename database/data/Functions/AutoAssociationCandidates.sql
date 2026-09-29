@@ -11,7 +11,8 @@ RETURN
     -- taken by an earlier rule is skipped by later ones. Summary rows with a
     -- RuleExclusion never participate. The NOT EXISTS chain between rules is
     -- defensive: v_TransactionSfn gives fund 13U02 an unconditional 220, so a
-    -- row can never qualify for both 204 and 220.
+    -- row can never qualify for both 204 and 220. Field Station and CE
+    -- Specialist uploads never enter the rules.
     WITH Eligible AS
     (
         SELECT p.[AccessionNumber], p.[UcpEmployeeId], p.[Sfn], p.[AEProjectNumber]
@@ -75,16 +76,6 @@ RETURN
         WHERE s.[Source] IN (N'AE', N'UCPath') AND s.[Fund] = '13U02' AND s.[FteSfn] = '241'
           AND NOT EXISTS (SELECT 1 FROM Rule204 r WHERE r.[ExpenseId] = s.[ExpenseId])
           AND NOT EXISTS (SELECT 1 FROM Rule20x r WHERE r.[ExpenseId] = s.[ExpenseId])
-    ),
-    -- Rules FS and CE: the upload rows go whole to their accession.
-    RuleUploads AS
-    (
-        SELECT s.[ExpenseId], CAST(CASE s.[Source] WHEN N'FieldStation' THEN N'FS' ELSE N'CE' END AS NVARCHAR(10)) AS [Rule],
-               s.[OrgR], CAST(NULL AS NVARCHAR(50)) AS [AeProject], s.[AccessionNumber],
-               s.[ExpenseSfn], s.[Expenses], s.[Fte], s.[FteSfn]
-        FROM Summary s
-        WHERE s.[Source] IN (N'FieldStation', N'CE')
-          AND EXISTS (SELECT 1 FROM Eligible e WHERE e.[AccessionNumber] = s.[AccessionNumber])
     )
     SELECT [ExpenseId], [Rule], [OrgR], [AeProject], [AccessionNumber], [ExpenseSfn],
            CAST([Expenses] AS DECIMAL(19, 4)) AS [Expenses], CAST([Fte] AS DECIMAL(9, 6)) AS [Fte], [FteSfn]
@@ -93,6 +84,5 @@ RETURN
         SELECT * FROM Rule204
         UNION ALL SELECT * FROM Rule20x
         UNION ALL SELECT * FROM Rule220
-        UNION ALL SELECT * FROM RuleUploads
     ) candidates
 );

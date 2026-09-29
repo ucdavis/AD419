@@ -8,8 +8,10 @@ BEGIN
     SET XACT_ABORT ON;
 
     -- Builds the expense summary and the staged auto-associations for the
-    -- current cycle, replacing whatever was there. Called when OrgR Review
-    -- completes; cleared when an upstream stage reopens (AutoAssociationBuilder).
+    -- current cycle, replacing whatever was there. Field Station and CE
+    -- Specialist uploads are not part of this build; final reports add them.
+    -- Called when OrgR Review completes; cleared when an upstream stage
+    -- reopens (AutoAssociationBuilder).
 
     IF @cycleStart IS NULL OR @cycleEnd IS NULL
         THROW 50000, '@cycleStart and @cycleEnd are required.', 1;
@@ -77,37 +79,6 @@ BEGIN
 
     DROP TABLE #Summary;
 
-    -- Field Station and CE Specialist uploads become synthetic summary rows
-    -- that associate whole to their accession (rules FS and CE).
-    INSERT INTO [data].[ExpenseSummary]
-        ([Source], [OrgR], [AccessionNumber], [ExpenseSfn], [FteSfn], [Expenses], [Fte])
-    SELECT N'FieldStation', N'FS', fs.[ProjectAccessionNum], N'22F', N'241', fs.[FieldStationCharge], 0
-    FROM [data].[ad419_FieldStationExpenses] fs
-    WHERE EXISTS (SELECT 1 FROM [data].[Projects] p WHERE p.[AccessionNumber] = fs.[ProjectAccessionNum]);
-
-    -- ExpenseSummary.OrgR is NVARCHAR(10); a CE upload row with a longer
-    -- Dept Level Org would abort the build with a truncation error that names
-    -- nothing. Fail first with the accession so the upload can be fixed.
-    DECLARE @badCeAccession NVARCHAR(7) =
-    (
-        SELECT TOP (1) ce.[ProjectAccessionNum]
-        FROM [data].[ad419_CESpecialists] ce
-        WHERE LEN(ce.[DeptLevelOrg]) > 10
-        ORDER BY ce.[ProjectAccessionNum]
-    );
-    IF @badCeAccession IS NOT NULL
-    BEGIN
-        DECLARE @ceMessage NVARCHAR(200) = CONCAT('CE Specialist row for accession ', @badCeAccession, ' has a Dept Level Org longer than 10 characters.');
-        THROW 50000, @ceMessage, 1;
-    END;
-
-    INSERT INTO [data].[ExpenseSummary]
-        ([Source], [OrgR], [EmployeeId], [PiName], [AccessionNumber], [ExpenseSfn], [FteSfn], [Expenses], [Fte])
-    SELECT N'CE', ce.[DeptLevelOrg], ce.[EmployeeId], ce.[Pi], ce.[ProjectAccessionNum], ce.[Exp SFN], ce.[FTE SFN],
-           ce.[FullAnnualPayRate] * ce.[FTE] * ce.[PercentCeEffort], ce.[PercentCeEffort] * ce.[FTE]
-    FROM [data].[ad419_CESpecialists] ce
-    WHERE EXISTS (SELECT 1 FROM [data].[Projects] p WHERE p.[AccessionNumber] = ce.[ProjectAccessionNum]);
-
     -- A 204 expense whose AE project is not on any 204 NIFA project cannot be
     -- associated; it is kept for the read-only report and skipped by the rules.
     -- A 204 row with no AE project at all is left unflagged: it cannot be
@@ -126,19 +97,19 @@ BEGIN
 
     -- Dry run against every project: projects whose total would be under $100
     -- are excluded so proration does not scatter dollars onto tiny projects.
-    -- Projects is at NIFA x AE grain; collapse to one row per accession so
-    -- shares are not counted once per AE project.
+    -- Projects with no candidates at all are excluded the same way, at $0.
+    -- One pass by design: redistribution after an exclusion only raises
+    -- survivors' shares unless credits are involved, and that edge is accepted.
     SELECT c.[AccessionNumber], SUM(c.[Expenses]) AS [Total]
     INTO #DryRun
     FROM [data].[AutoAssociationCandidates]() c
     GROUP BY c.[AccessionNumber];
 
     INSERT INTO [data].[AutoAssociationExcludedProjects] ([AccessionNumber], [NifaProjectNumber], [Total])
-    SELECT d.[AccessionNumber], p.[NifaProjectNumber], d.[Total]
-    FROM #DryRun d
-    JOIN (SELECT [AccessionNumber], MIN([NifaProjectNumber]) AS [NifaProjectNumber] FROM [data].[Projects] GROUP BY [AccessionNumber]) p
-        ON p.[AccessionNumber] = d.[AccessionNumber]
-    WHERE d.[Total] < 100;
+    SELECT p.[AccessionNumber], p.[NifaProjectNumber], COALESCE(d.[Total], 0)
+    FROM (SELECT [AccessionNumber], MIN([NifaProjectNumber]) AS [NifaProjectNumber] FROM [data].[Projects] GROUP BY [AccessionNumber]) p
+    LEFT JOIN #DryRun d ON d.[AccessionNumber] = p.[AccessionNumber]
+    WHERE COALESCE(d.[Total], 0) < 100;
 
     DROP TABLE #DryRun;
 
