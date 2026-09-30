@@ -6,6 +6,7 @@ public sealed record ExcludedProjectDto(string AccessionNumber, string NifaProje
 public sealed record FteOverOneDto(string EmployeeId, string? EmployeeName, decimal Fte, int RowCount);
 public sealed record PreAssociationTotalDto(string OrgR, string? FinancialDepartment, string? FinancialDepartmentName, string? ExpenseSfn, string? SfnLabel, decimal Expenses, decimal Fte);
 public sealed record AssociatedProjectDto(string AccessionNumber, string NifaProjectNumber, string? Title, string? ProjectDirector, string? AeProjects, decimal Expenses, decimal Fte);
+/// <summary>Reason is one of: Misclassified204, ProjectExcluded, NoRuleMatched, NoEmployee, NoProject, NoFteLine, NoAeProject.</summary>
 public sealed record UnassociatedExpenseDto(int ExpenseId, string Source, string? Project, string? Fund, string? FinancialDepartment, string OrgR, string? EmployeeId, string? EmployeeName, string? ExpenseSfn, decimal Expenses, decimal Fte, string Reason);
 public sealed record Rule204ReportDto(IReadOnlyList<AssociatedProjectDto> Projects, IReadOnlyList<UnassociatedExpenseDto> Unassociated, IReadOnlyList<UnassociatedExpenseDto> Misclassified);
 public sealed record Rule20xPiDto(string EmployeeId, string? EmployeeName, int ProjectCount, decimal Expenses, decimal Fte);

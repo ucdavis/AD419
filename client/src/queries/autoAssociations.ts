@@ -31,7 +31,9 @@ export interface AssociatedProject {
 
 export type UnassociatedReason =
   | 'Misclassified204'
+  | 'NoAeProject'
   | 'NoEmployee'
+  | 'NoFteLine'
   | 'NoProject'
   | 'NoRuleMatched'
   | 'ProjectExcluded';

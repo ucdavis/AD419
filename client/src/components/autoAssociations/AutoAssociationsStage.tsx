@@ -116,10 +116,12 @@ export function AutoAssociationsStage({ status }: { status: WorkflowStageStatus 
       ) : null}
 
       <div className="flex items-center justify-between border-t pt-4">
-        <span className={gateOpen ? 'text-success' : 'text-warning'}>
-          {gateOpen
-            ? 'A build exists for this cycle.'
-            : 'Auto-associations must be built before continuing.'}
+        <span className={buildIsError ? 'text-warning' : gateOpen ? 'text-success' : 'text-warning'}>
+          {buildIsError
+            ? 'The build status could not be loaded.'
+            : gateOpen
+              ? 'A build exists for this cycle.'
+              : 'Auto-associations must be built before continuing.'}
         </span>
         {isComplete ? null : (
           <button

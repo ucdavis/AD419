@@ -29,7 +29,7 @@ export const AUTO_ASSOCIATIONS_TABS: AutoAssociationsTab[] = [
   {
     id: 'rule-220',
     label: '220',
-    note: 'State Appropriations (13U02) payroll with FTE line 241 is prorated across all of the PI’s projects.',
+    note: 'State Appropriations (13U02) payroll with FTE line 241 is prorated across all of the PI’s projects. Other 13U02 spending is listed below for manual association.',
   },
   {
     id: 'excluded',

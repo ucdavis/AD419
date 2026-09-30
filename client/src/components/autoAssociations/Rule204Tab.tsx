@@ -26,9 +26,9 @@ export function Rule204Tab() {
       <ReportSection
         columns={unassociatedColumns}
         csv={unassociatedCsv}
-        data={data.unassociated}
+        data={data.unassociated.filter((row) => row.reason !== 'Misclassified204')}
         filename="auto-associations-204-unassociated.csv"
-        title="Not associated"
+        title="Not associated (misclassified rows are listed separately)"
       />
       <ReportSection
         columns={unassociatedColumns}

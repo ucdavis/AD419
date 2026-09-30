@@ -64,21 +64,25 @@ public sealed class AutoAssociationReportService(
 
         var projects = (await connection.QueryAsync<AssociatedProjectDto>(Command(
             ProjectInfoCte + """
+            , AeProjects AS
+            (
+                SELECT d.[AccessionNumber], STRING_AGG(d.[AeProject], ', ') WITHIN GROUP (ORDER BY d.[AeProject]) AS [AeProjects]
+                FROM (SELECT DISTINCT [AccessionNumber], [AeProject] FROM [data].[StagedAssociations] WHERE [Rule] = N'204') d
+                GROUP BY d.[AccessionNumber]
+            )
             SELECT
                 s.[AccessionNumber],
                 p.[NifaProjectNumber],
                 p.[Title],
                 p.[ProjectDirector],
-                (
-                    SELECT STRING_AGG(ae.[AeProject], ', ') WITHIN GROUP (ORDER BY ae.[AeProject])
-                    FROM (SELECT DISTINCT [AeProject] FROM [data].[StagedAssociations] WHERE [Rule] = N'204' AND [AccessionNumber] = s.[AccessionNumber]) ae
-                ) AS [AeProjects],
+                ae.[AeProjects],
                 SUM(s.[Expenses]) AS [Expenses],
                 SUM(s.[Fte]) AS [Fte]
             FROM [data].[StagedAssociations] s
             LEFT JOIN ProjectInfo p ON p.[AccessionNumber] = s.[AccessionNumber]
+            LEFT JOIN AeProjects ae ON ae.[AccessionNumber] = s.[AccessionNumber]
             WHERE s.[Rule] = N'204'
-            GROUP BY s.[AccessionNumber], p.[NifaProjectNumber], p.[Title], p.[ProjectDirector]
+            GROUP BY s.[AccessionNumber], p.[NifaProjectNumber], p.[Title], p.[ProjectDirector], ae.[AeProjects]
             ORDER BY s.[AccessionNumber]
             """, cancellationToken))).ToList();
 
@@ -92,6 +96,7 @@ public sealed class AutoAssociationReportService(
                 e.[EmployeeId], e.[EmployeeName], e.[ExpenseSfn], e.[Expenses], e.[Fte],
                 CASE
                     WHEN e.[RuleExclusion] = N'Misclassified204' THEN N'Misclassified204'
+                    WHEN e.[Project] IS NULL THEN N'NoAeProject'
                     WHEN EXISTS
                     (
                         SELECT 1 FROM [data].[Projects] p
@@ -211,16 +216,18 @@ public sealed class AutoAssociationReportService(
             ORDER BY s.[AccessionNumber]
             """, cancellationToken))).ToList();
 
-        // Rule 220 follows the employee across all their projects; a 13U02 row
-        // with FTE line 241 stays unassociated when the employee owns no
-        // project, when every project they own is an excluded 204 project, or
-        // when an earlier rule took the expense.
+        // Every included SFN 220 expense that rule 220 did not take: AE rows
+        // (no employee), payroll on an FTE line other than 241, employees
+        // with no project or only excluded 204 projects. They all wait for
+        // manual association.
         var unassociated = (await connection.QueryAsync<UnassociatedExpenseDto>(Command(
             """
             SELECT
                 e.[ExpenseId], e.[Source], e.[Project], e.[Fund], e.[FinancialDepartment], e.[OrgR],
                 e.[EmployeeId], e.[EmployeeName], e.[ExpenseSfn], e.[Expenses], e.[Fte],
                 CASE
+                    WHEN e.[EmployeeId] IS NULL THEN N'NoEmployee'
+                    WHEN e.[FteSfn] IS NULL OR e.[FteSfn] <> '241' THEN N'NoFteLine'
                     WHEN NOT EXISTS (SELECT 1 FROM [data].[Projects] p WHERE p.[UcpEmployeeId] = e.[EmployeeId]) THEN N'NoProject'
                     WHEN NOT EXISTS
                     (
@@ -231,9 +238,7 @@ public sealed class AutoAssociationReportService(
                     ELSE N'NoRuleMatched'
                 END AS [Reason]
             FROM [data].[ExpenseSummary] e
-            WHERE e.[Source] = N'UCPath' AND e.[Fund] = '13U02' AND e.[FteSfn] = '241'
-              AND e.[RuleExclusion] IS NULL
-              AND NOT EXISTS (SELECT 1 FROM [data].[StagedAssociations] s WHERE s.[ExpenseId] = e.[ExpenseId])
+            WHERE e.[ExpenseSfn] = '220' AND NOT EXISTS (SELECT 1 FROM [data].[StagedAssociations] s WHERE s.[ExpenseId] = e.[ExpenseId])
             ORDER BY e.[EmployeeId], e.[ExpenseId]
             """, cancellationToken))).ToList();
 

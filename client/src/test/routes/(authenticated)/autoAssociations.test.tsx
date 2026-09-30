@@ -39,7 +39,7 @@ const build = {
   summaryRows: 9,
 };
 
-function mockApi(options: { completeFails?: boolean; hasBuild: boolean; }) {
+function mockApi(options: { completeFails?: boolean; failingReport?: boolean; hasBuild: boolean; }) {
   server.use(
     http.get('/api/user/me', () => HttpResponse.json(mockUser)),
     http.get('/api/workflow/snapshot', () =>
@@ -83,10 +83,43 @@ function mockApi(options: { completeFails?: boolean; hasBuild: boolean; }) {
       )
     ),
     http.get('/api/autoassociations/rule-20x', () =>
-      HttpResponse.json(envelope({ sfns: [], unassociated: [] }))
+      HttpResponse.json(
+        envelope({
+          sfns: [
+            {
+              expenses: 660,
+              fte: 0.66,
+              label: 'Hatch',
+              pis: [{ employeeId: 'E1', employeeName: 'PI One', expenses: 600, fte: 0.6, projectCount: 2 }],
+              projectCount: 3,
+              sfn: '201',
+            },
+            { expenses: 0, fte: 0, label: null, pis: [], projectCount: 0, sfn: '202' },
+            { expenses: 0, fte: 0, label: null, pis: [], projectCount: 0, sfn: '205' },
+          ],
+          unassociated: [],
+        })
+      )
     ),
     http.get('/api/autoassociations/rule-220', () =>
-      HttpResponse.json(envelope({ projects: [], unassociated: [] }))
+      options.failingReport
+        ? HttpResponse.text('boom', { status: 500 })
+        : HttpResponse.json(
+            envelope({
+              projects: [
+                {
+                  accessionNumber: '1000003',
+                  aeProjects: null,
+                  expenses: 135,
+                  fte: 0.125,
+                  nifaProjectNumber: 'CA-D-ABC-1003-H',
+                  projectDirector: 'PI One',
+                  title: 'Hatch one',
+                },
+              ],
+              unassociated: [],
+            })
+          )
     ),
     http.get('/api/autoassociations/excluded-projects', () =>
       HttpResponse.json(
@@ -103,17 +136,42 @@ function mockApi(options: { completeFails?: boolean; hasBuild: boolean; }) {
       )
     ),
     http.get('/api/autoassociations/fte-over-one', () =>
-      HttpResponse.json(envelope([]))
+      HttpResponse.json(
+        envelope([{ employeeId: 'E1', employeeName: 'PI One', fte: 1.3, rowCount: 3 }])
+      )
     ),
     http.get('/api/autoassociations/pre-association-totals', () =>
-      HttpResponse.json(envelope([]))
+      HttpResponse.json(
+        envelope([
+          {
+            expenses: 1457,
+            expenseSfn: '204',
+            financialDepartment: 'D1',
+            financialDepartmentName: 'Dept One',
+            fte: 0,
+            orgR: 'AAAA',
+            sfnLabel: 'Grants',
+          },
+        ])
+      )
     ),
     http.get('/api/ExpenseReview/unmatched-job-codes', () =>
       HttpResponse.json({
         cycleEnd: '2025-09-30',
         cycleStart: '2024-10-01',
         fiscalYear: 'FY25',
-        rows: [],
+        rows: [
+          {
+            amount: 12.5,
+            employeeCount: 1,
+            fte: 0.05,
+            jobCode: '9999',
+            reason: 'noTitle',
+            rowCount: 1,
+            staffTypeCode: null,
+            titleName: null,
+          },
+        ],
       })
     ),
     http.put('/api/workflow/stages/auto-associations', () =>
@@ -179,9 +237,55 @@ describe('Auto-Associations stage', () => {
     try {
       await screen.findByRole('tab', { name: /204/ });
       await user.click(screen.getByRole('button', { name: /Continue to Manual Associations/ }));
-      expect(await screen.findByRole('alert')).toHaveTextContent(
-        'The workflow stage cannot be updated in its current state.'
-      );
+      const alerts = await screen.findAllByRole('alert');
+      expect(
+        alerts.some((el) => el.textContent?.includes('The workflow stage cannot be updated in its current state.'))
+      ).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('loads each report tab', async () => {
+    mockApi({ hasBuild: true });
+    const user = userEvent.setup();
+    const { cleanup } = renderRoute({ initialPath: '/workflow/auto-associations' });
+
+    try {
+      await screen.findByRole('tab', { name: /204/ });
+
+      await user.click(screen.getByRole('tab', { name: '201 / 202 / 205' }));
+      expect(await screen.findByText('PI One')).toBeInTheDocument();
+      expect(
+        (await screen.findAllByRole('heading')).some((el) => el.textContent?.includes('$660.00'))
+      ).toBe(true);
+
+      await user.click(screen.getByRole('tab', { name: '220' }));
+      expect(await screen.findByText('Hatch one')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('tab', { name: 'FTE over 1.0' }));
+      expect(await screen.findByText('1.300')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('tab', { name: 'Pre-association totals' }));
+      expect(await screen.findByText('Dept One')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('tab', { name: 'Unmatched job codes' }));
+      expect(await screen.findByText('9999')).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('shows a report error inside the tab', async () => {
+    mockApi({ failingReport: true, hasBuild: true });
+    const user = userEvent.setup();
+    const { cleanup } = renderRoute({ initialPath: '/workflow/auto-associations' });
+
+    try {
+      await screen.findByRole('tab', { name: /204/ });
+      await user.click(screen.getByRole('tab', { name: '220' }));
+      const alerts = await screen.findAllByRole('alert');
+      expect(alerts.some((el) => el.textContent?.includes('boom'))).toBe(true);
     } finally {
       cleanup();
     }
