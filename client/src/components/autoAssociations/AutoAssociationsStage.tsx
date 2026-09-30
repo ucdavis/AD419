@@ -4,6 +4,13 @@ import {
   type AutoAssociationsTabId,
   buildExists,
 } from './autoAssociationsTabs.ts';
+import { ExcludedProjectsTab } from './ExcludedProjectsTab.tsx';
+import { FteOverOneTab } from './FteOverOneTab.tsx';
+import { PreAssociationTotalsTab } from './PreAssociationTotalsTab.tsx';
+import { Rule20xTab } from './Rule20xTab.tsx';
+import { Rule204Tab } from './Rule204Tab.tsx';
+import { Rule220Tab } from './Rule220Tab.tsx';
+import { UnmatchedJobCodesTab } from './UnmatchedJobCodesTab.tsx';
 import { autoAssociationBuildQueryOptions } from '@/queries/autoAssociations.ts';
 import { apiErrorMessage } from '@/queries/orgr.ts';
 import { WORKFLOW_SNAPSHOT_KEY, updateWorkflowStageStatus } from '@/queries.ts';
@@ -90,8 +97,21 @@ export function AutoAssociationsStage({ status }: { status: WorkflowStageStatus 
             <span>{activeTab.note}</span>
           </div>
 
-          {/* Task 5 replaces this block with one component per tab. */}
-          <p role="status">Report coming in the next task: {activeTab.label}</p>
+          {activeId === 'rule-204' ? (
+            <Rule204Tab />
+          ) : activeId === 'rule-20x' ? (
+            <Rule20xTab />
+          ) : activeId === 'rule-220' ? (
+            <Rule220Tab />
+          ) : activeId === 'excluded' ? (
+            <ExcludedProjectsTab />
+          ) : activeId === 'fte' ? (
+            <FteOverOneTab />
+          ) : activeId === 'totals' ? (
+            <PreAssociationTotalsTab />
+          ) : (
+            <UnmatchedJobCodesTab />
+          )}
         </>
       ) : null}
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { http, HttpResponse } from 'msw';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { createWorkflowSnapshot, server } from '@/test/mswUtils.ts';
 import { renderRoute } from '@/test/routerUtils.tsx';
@@ -141,6 +141,31 @@ describe('Auto-Associations stage', () => {
         screen.getByRole('button', { name: /Continue to Manual Associations/ })
       ).toBeDisabled();
       expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('renders the report tabs from a build and continues to Manual Associations', async () => {
+    mockApi({ hasBuild: true });
+    const user = userEvent.setup();
+    const { cleanup, router } = renderRoute({ initialPath: '/workflow/auto-associations' });
+
+    try {
+      expect(await screen.findByRole('tab', { name: /204/ })).toHaveAttribute('aria-selected', 'true');
+      expect(await screen.findByText('Shared grant A')).toBeInTheDocument();
+      expect(screen.getByText('AE-S')).toBeInTheDocument();
+      expect(screen.getByText('ProjectExcluded')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('tab', { name: /Under \$100/ }));
+      expect(await screen.findByText('Small grant')).toBeInTheDocument();
+
+      const continueButton = screen.getByRole('button', { name: /Continue to Manual Associations/ });
+      expect(continueButton).toBeEnabled();
+      await user.click(continueButton);
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe('/workflow/manual-associations')
+      );
     } finally {
       cleanup();
     }
