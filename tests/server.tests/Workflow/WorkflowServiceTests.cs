@@ -556,6 +556,35 @@ public class WorkflowServiceTests
         builder.Clears.Should().Be(1);
     }
 
+    [Fact]
+    public async Task Auto_associations_cannot_complete_without_a_build()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var builder = new FakeAutoAssociationBuilder { BuildExists = false };
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder(), builder);
+        await CompleteThrough(service, WorkflowStageIds.OrgRReview);
+
+        var result = await service.SetStageStatusAsync(WorkflowStageIds.AutoAssociations, WorkflowStageStatus.Complete, User, CancellationToken.None);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Auto_associations_completes_when_a_build_exists()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        var builder = new FakeAutoAssociationBuilder { BuildExists = true };
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder(), builder);
+        await CompleteThrough(service, WorkflowStageIds.OrgRReview);
+
+        var result = await service.SetStageStatusAsync(WorkflowStageIds.AutoAssociations, WorkflowStageStatus.Complete, User, CancellationToken.None);
+
+        result.Should().NotBeNull();
+        result!.Stages.Single(stage => stage.Id == WorkflowStageIds.AutoAssociations).Status.Should().Be(WorkflowStageStatus.Complete);
+    }
+
     // Completes every required stage from Project Identification through `lastStageId` in order.
     private static async Task CompleteThrough(WorkflowService service, string lastStageId)
     {

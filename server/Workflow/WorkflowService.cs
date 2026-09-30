@@ -319,6 +319,10 @@ public sealed class WorkflowService(
                 var unmappedNifa = await dataDbContext.OrgRNifaDepartments
                     .AnyAsync(mapping => mapping.OrgR == null, cancellationToken);
                 return !unmappedDepartment && !unmappedNifa;
+            case WorkflowStageIds.AutoAssociations:
+                // The review tabs and the write-back read the staging tables,
+                // which only exist after OrgR Review completion ran the build.
+                return await autoAssociationBuilder.BuildExistsAsync(cancellationToken);
             default:
                 return true;
         }
