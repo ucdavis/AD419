@@ -58,14 +58,193 @@ public sealed class AutoAssociationReportService(
 
     private sealed record AutoAssociationBuildRow(int BuildId, DateTime CycleStart, DateTime CycleEnd, DateTime BuiltAt, int SummaryRows, int AssociationRows, int ExcludedProjects, int Misclassified204Rows);
 
-    public Task<Rule204ReportDto> GetRule204Async(CancellationToken cancellationToken) =>
-        throw new NotImplementedException();
+    public async Task<Rule204ReportDto> GetRule204Async(CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
 
-    public Task<Rule20xReportDto> GetRule20xAsync(CancellationToken cancellationToken) =>
-        throw new NotImplementedException();
+        var projects = (await connection.QueryAsync<AssociatedProjectDto>(Command(
+            ProjectInfoCte + """
+            SELECT
+                s.[AccessionNumber],
+                p.[NifaProjectNumber],
+                p.[Title],
+                p.[ProjectDirector],
+                (
+                    SELECT STRING_AGG(ae.[AeProject], ', ') WITHIN GROUP (ORDER BY ae.[AeProject])
+                    FROM (SELECT DISTINCT [AeProject] FROM [data].[StagedAssociations] WHERE [Rule] = N'204' AND [AccessionNumber] = s.[AccessionNumber]) ae
+                ) AS [AeProjects],
+                SUM(s.[Expenses]) AS [Expenses],
+                SUM(s.[Fte]) AS [Fte]
+            FROM [data].[StagedAssociations] s
+            LEFT JOIN ProjectInfo p ON p.[AccessionNumber] = s.[AccessionNumber]
+            WHERE s.[Rule] = N'204'
+            GROUP BY s.[AccessionNumber], p.[NifaProjectNumber], p.[Title], p.[ProjectDirector]
+            ORDER BY s.[AccessionNumber]
+            """, cancellationToken))).ToList();
 
-    public Task<Rule220ReportDto> GetRule220Async(CancellationToken cancellationToken) =>
-        throw new NotImplementedException();
+        // A 204 expense stays unassociated when it is misclassified (no 204
+        // project owns its AE project), when every 204 project owning its AE
+        // project is excluded under $100, or otherwise.
+        var unassociated = (await connection.QueryAsync<UnassociatedExpenseDto>(Command(
+            """
+            SELECT
+                e.[ExpenseId], e.[Source], e.[Project], e.[Fund], e.[FinancialDepartment], e.[OrgR],
+                e.[EmployeeId], e.[EmployeeName], e.[ExpenseSfn], e.[Expenses], e.[Fte],
+                CASE
+                    WHEN e.[RuleExclusion] = N'Misclassified204' THEN N'Misclassified204'
+                    WHEN EXISTS
+                    (
+                        SELECT 1 FROM [data].[Projects] p
+                        WHERE p.[Sfn] = '204' AND p.[AEProjectNumber] = e.[Project]
+                    )
+                    AND NOT EXISTS
+                    (
+                        SELECT 1 FROM [data].[Projects] p
+                        WHERE p.[Sfn] = '204' AND p.[AEProjectNumber] = e.[Project]
+                          AND NOT EXISTS (SELECT 1 FROM [data].[AutoAssociationExcludedProjects] x WHERE x.[AccessionNumber] = p.[AccessionNumber])
+                    ) THEN N'ProjectExcluded'
+                    ELSE N'NoRuleMatched'
+                END AS [Reason]
+            FROM [data].[ExpenseSummary] e
+            WHERE e.[ExpenseSfn] = '204'
+              AND NOT EXISTS (SELECT 1 FROM [data].[StagedAssociations] s WHERE s.[ExpenseId] = e.[ExpenseId])
+            ORDER BY e.[Project], e.[ExpenseId]
+            """, cancellationToken))).ToList();
+
+        var misclassified = unassociated.Where(row => row.Reason == "Misclassified204").ToList();
+        return new Rule204ReportDto(projects, unassociated, misclassified);
+    }
+
+    public async Task<Rule20xReportDto> GetRule20xAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+
+        var pis = (await connection.QueryAsync<Rule20xPiRow>(Command(
+            """
+            SELECT
+                s.[ExpenseSfn] AS [Sfn],
+                e.[EmployeeId],
+                MAX(e.[EmployeeName]) AS [EmployeeName],
+                COUNT(DISTINCT s.[AccessionNumber]) AS [ProjectCount],
+                SUM(s.[Expenses]) AS [Expenses],
+                SUM(s.[Fte]) AS [Fte]
+            FROM [data].[StagedAssociations] s
+            JOIN [data].[ExpenseSummary] e ON e.[ExpenseId] = s.[ExpenseId]
+            WHERE s.[Rule] = N'20x'
+            GROUP BY s.[ExpenseSfn], e.[EmployeeId]
+            ORDER BY s.[ExpenseSfn], e.[EmployeeId]
+            """, cancellationToken))).ToList();
+
+        var projectCounts = (await connection.QueryAsync<SfnCountRow>(Command(
+            """
+            SELECT [ExpenseSfn] AS [Sfn], COUNT(DISTINCT [AccessionNumber]) AS [ProjectCount]
+            FROM [data].[StagedAssociations]
+            WHERE [Rule] = N'20x'
+            GROUP BY [ExpenseSfn]
+            """, cancellationToken))).ToDictionary(row => row.Sfn, row => row.ProjectCount);
+
+        var labels = (await connection.QueryAsync<SfnLabelRow>(Command(
+            "SELECT [Sfn], [Label] FROM [data].[Sfns] WHERE [Sfn] IN ('201', '202', '205')", cancellationToken)))
+            .ToDictionary(row => row.Sfn, row => row.Label);
+
+        var sfns = new List<Rule20xSfnDto>();
+        foreach (var sfn in new[] { "201", "202", "205" })
+        {
+            var sfnPis = pis
+                .Where(row => row.Sfn == sfn)
+                .Select(row => new Rule20xPiDto(row.EmployeeId, row.EmployeeName, row.ProjectCount, row.Expenses, row.Fte))
+                .ToList();
+            sfns.Add(new Rule20xSfnDto(
+                sfn,
+                labels.GetValueOrDefault(sfn),
+                sfnPis.Sum(row => row.Expenses),
+                sfnPis.Sum(row => row.Fte),
+                projectCounts.GetValueOrDefault(sfn),
+                sfnPis));
+        }
+
+        // Rule 20x follows the employee; a 201/202/205 expense stays
+        // unassociated when the summary row has no employee (AE rows never
+        // do) or the employee owns no project of that SFN.
+        var unassociated = (await connection.QueryAsync<UnassociatedExpenseDto>(Command(
+            """
+            SELECT
+                e.[ExpenseId], e.[Source], e.[Project], e.[Fund], e.[FinancialDepartment], e.[OrgR],
+                e.[EmployeeId], e.[EmployeeName], e.[ExpenseSfn], e.[Expenses], e.[Fte],
+                CASE
+                    WHEN e.[EmployeeId] IS NULL THEN N'NoEmployee'
+                    WHEN NOT EXISTS
+                    (
+                        SELECT 1 FROM [data].[Projects] p
+                        WHERE p.[UcpEmployeeId] = e.[EmployeeId] AND p.[Sfn] = e.[ExpenseSfn]
+                    ) THEN N'NoProject'
+                    ELSE N'NoRuleMatched'
+                END AS [Reason]
+            FROM [data].[ExpenseSummary] e
+            WHERE e.[ExpenseSfn] IN ('201', '202', '205')
+              AND e.[RuleExclusion] IS NULL
+              AND NOT EXISTS (SELECT 1 FROM [data].[StagedAssociations] s WHERE s.[ExpenseId] = e.[ExpenseId])
+            ORDER BY e.[ExpenseSfn], e.[EmployeeId], e.[ExpenseId]
+            """, cancellationToken))).ToList();
+
+        return new Rule20xReportDto(sfns, unassociated);
+    }
+
+    public async Task<Rule220ReportDto> GetRule220Async(CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+
+        var projects = (await connection.QueryAsync<AssociatedProjectDto>(Command(
+            ProjectInfoCte + """
+            SELECT
+                s.[AccessionNumber],
+                p.[NifaProjectNumber],
+                p.[Title],
+                p.[ProjectDirector],
+                CAST(NULL AS NVARCHAR(MAX)) AS [AeProjects],
+                SUM(s.[Expenses]) AS [Expenses],
+                SUM(s.[Fte]) AS [Fte]
+            FROM [data].[StagedAssociations] s
+            LEFT JOIN ProjectInfo p ON p.[AccessionNumber] = s.[AccessionNumber]
+            WHERE s.[Rule] = N'220'
+            GROUP BY s.[AccessionNumber], p.[NifaProjectNumber], p.[Title], p.[ProjectDirector]
+            ORDER BY s.[AccessionNumber]
+            """, cancellationToken))).ToList();
+
+        // Rule 220 follows the employee across all their projects; a 13U02 row
+        // with FTE line 241 stays unassociated when the employee owns no
+        // project, when every project they own is an excluded 204 project, or
+        // when an earlier rule took the expense.
+        var unassociated = (await connection.QueryAsync<UnassociatedExpenseDto>(Command(
+            """
+            SELECT
+                e.[ExpenseId], e.[Source], e.[Project], e.[Fund], e.[FinancialDepartment], e.[OrgR],
+                e.[EmployeeId], e.[EmployeeName], e.[ExpenseSfn], e.[Expenses], e.[Fte],
+                CASE
+                    WHEN NOT EXISTS (SELECT 1 FROM [data].[Projects] p WHERE p.[UcpEmployeeId] = e.[EmployeeId]) THEN N'NoProject'
+                    WHEN NOT EXISTS
+                    (
+                        SELECT 1 FROM [data].[Projects] p
+                        WHERE p.[UcpEmployeeId] = e.[EmployeeId]
+                          AND NOT EXISTS (SELECT 1 FROM [data].[AutoAssociationExcludedProjects] x WHERE x.[AccessionNumber] = p.[AccessionNumber])
+                    ) THEN N'ProjectExcluded'
+                    ELSE N'NoRuleMatched'
+                END AS [Reason]
+            FROM [data].[ExpenseSummary] e
+            WHERE e.[Source] = N'UCPath' AND e.[Fund] = '13U02' AND e.[FteSfn] = '241'
+              AND e.[RuleExclusion] IS NULL
+              AND NOT EXISTS (SELECT 1 FROM [data].[StagedAssociations] s WHERE s.[ExpenseId] = e.[ExpenseId])
+            ORDER BY e.[EmployeeId], e.[ExpenseId]
+            """, cancellationToken))).ToList();
+
+        return new Rule220ReportDto(projects, unassociated);
+    }
+
+    private sealed record Rule20xPiRow(string Sfn, string EmployeeId, string? EmployeeName, int ProjectCount, decimal Expenses, decimal Fte);
+
+    private sealed record SfnCountRow(string Sfn, int ProjectCount);
+
+    private sealed record SfnLabelRow(string Sfn, string? Label);
 
     public async Task<IReadOnlyList<ExcludedProjectDto>> GetExcludedProjectsAsync(CancellationToken cancellationToken)
     {

@@ -81,7 +81,100 @@ public sealed class AutoAssociationReportServiceSqlIntegrationTests(SqlServerDat
         rows[0].FinancialDepartmentName.Should().Be("Dept One");
     }
 
-    // Reports for the three rules are asserted in Task 2's tests below this line.
+    [Fact]
+    public async Task Rule_204_report_lists_associated_projects_and_the_unassociated_remainder_with_reasons()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedAndBuildAsync();
+
+        var report = await CreateService().GetRule204Async(CancellationToken.None);
+
+        report.Projects.Select(p => (p.AccessionNumber, p.AeProjects, p.Expenses, p.Fte)).Should().Equal(
+            ("1000001", "AE-A", 500m, 0m),
+            ("1000002", "AE-A", 500m, 0m),
+            ("1000007", "AE-B", 300m, 0m));
+        report.Projects[0].Title.Should().Be("Shared grant A");
+        report.Projects[0].ProjectDirector.Should().Be("PI One");
+
+        report.Unassociated.Select(u => (u.Project, u.Expenses, u.Reason)).Should().BeEquivalentTo(new[]
+        {
+            ("AE-ZZ", 77m, "Misclassified204"),
+            ("AE-S", 80m, "ProjectExcluded"),
+        });
+        report.Unassociated.Should().OnlyContain(u => u.Source == "AE" && u.OrgR == "AAAA" && u.ExpenseSfn == "204");
+        report.Misclassified.Select(u => u.Project).Should().Equal("AE-ZZ");
+    }
+
+    [Fact]
+    public async Task Rule_20x_report_groups_by_sfn_with_a_pi_breakdown_and_lists_the_remainder()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedAndBuildAsync();
+
+        var report = await CreateService().GetRule20xAsync(CancellationToken.None);
+
+        report.Sfns.Select(s => (s.Sfn, s.Label, s.Expenses, s.Fte, s.ProjectCount)).Should().Equal(
+            ("201", "Hatch", 660m, 0.660000m, 3),
+            ("202", "Multi-State", 200m, 0.200000m, 1),
+            ("205", null, 0m, 0m, 0));
+        report.Sfns[0].Pis.Select(p => (p.EmployeeId, p.EmployeeName, p.ProjectCount, p.Expenses, p.Fte)).Should().Equal(
+            ("E1", "PI One", 2, 600m, 0.600000m),
+            ("E2", "PI Two", 1, 60m, 0.060000m));
+        report.Sfns[1].Pis.Should().ContainSingle().Which.EmployeeId.Should().Be("E1");
+        report.Sfns[2].Pis.Should().BeEmpty();
+
+        var remainder = report.Unassociated.Should().ContainSingle().Subject;
+        remainder.Project.Should().Be("AE-C");
+        remainder.ExpenseSfn.Should().Be("201");
+        remainder.Expenses.Should().Be(90m);
+        remainder.Reason.Should().Be("NoEmployee");
+    }
+
+    [Fact]
+    public async Task Rule_220_report_lists_prorated_projects_and_an_empty_remainder()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedAndBuildAsync();
+
+        var report = await CreateService().GetRule220Async(CancellationToken.None);
+
+        report.Projects.Select(p => (p.AccessionNumber, p.Expenses, p.Fte)).Should().Equal(
+            ("1000001", 135m, 0.125000m),
+            ("1000003", 135m, 0.125000m),
+            ("1000004", 135m, 0.125000m),
+            ("1000005", 135m, 0.125000m));
+        report.Projects[1].Title.Should().Be("Hatch one");
+        report.Unassociated.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Rule_220_remainder_explains_an_employee_with_no_projects()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedAndBuildAsync();
+
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [EmployeeName], [PositionNumber], [JobCode],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
+            VALUES
+                ('ucp-13u02-nobody', '3310', '13U02', 'D1', 'D1', 'A1', 'P1', NULL, 'AE-C', 'AC1', 'REG', 'E8', 'No Projects', 'POS8', '1234', 10, 100, 0.100000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0);
+            EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd;
+            """,
+            new { cycleStart = CycleStart, cycleEnd = CycleEnd });
+
+        var report = await CreateService().GetRule220Async(CancellationToken.None);
+
+        var remainder = report.Unassociated.Should().ContainSingle().Subject;
+        remainder.EmployeeId.Should().Be("E8");
+        remainder.Expenses.Should().Be(100m);
+        remainder.Reason.Should().Be("NoProject");
+    }
 
     internal AutoAssociationReportService CreateService()
     {
