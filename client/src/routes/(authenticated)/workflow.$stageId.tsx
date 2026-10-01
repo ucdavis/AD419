@@ -4,6 +4,7 @@ import {
   updateWorkflowStageStatus,
   workflowSnapshotQueryOptions,
 } from '@/queries.ts';
+import { AutoAssociationsStage } from '@/components/autoAssociations/AutoAssociationsStage.tsx';
 import { DataClassificationStage } from '@/components/dataClassification/DataClassificationStage.tsx';
 import { DataImportStage } from '@/components/dataImport/DataImportStage.tsx';
 import { ExpenseReviewStage } from '@/components/expenseReview/ExpenseReviewStage.tsx';
@@ -71,6 +72,8 @@ function WorkflowStageRoute() {
           <StationSpecialistImportStage />
         ) : workflowStageId === 'orgr-review' ? (
           <OrgRReviewStage status={stage.status} />
+        ) : workflowStageId === 'auto-associations' ? (
+          <AutoAssociationsStage status={stage.status} />
         ) : (
           <PlaceholderWorkflowStage
             snapshot={snapshot}
