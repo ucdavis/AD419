@@ -67,6 +67,10 @@ public sealed class SqlServerDataDbFixture : IAsyncLifetime
 
         await connection.ExecuteAsync(
             """
+            DELETE FROM [data].[StagedAssociations];
+            DELETE FROM [data].[AutoAssociationExcludedProjects];
+            DELETE FROM [data].[ExpenseSummary];
+            DELETE FROM [data].[AutoAssociationBuilds];
             DELETE FROM [data].[ad419_CESpecialists];
             DELETE FROM [data].[ad419_FieldStationExpenses];
             DELETE FROM [data].[Titles];
@@ -81,6 +85,10 @@ public sealed class SqlServerDataDbFixture : IAsyncLifetime
             DELETE FROM [data].[AllProjects];
             DELETE FROM [data].[AssistanceListingNumbers];
             DELETE FROM [data].[Sfns];
+            DELETE FROM [data].[OrgRProjectAdditions];
+            DELETE FROM [data].[OrgRNifaDepartments];
+            DELETE FROM [data].[OrgRFinancialDepartments];
+            DELETE FROM [data].[OrgRs] WHERE [Code] <> N'ADNO';
             """);
     }
 

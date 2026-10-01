@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Server.AutoAssociations;
 using Server.Authorization;
 using Server.Core.Data;
 using Server.Core.Domain;
@@ -13,7 +14,8 @@ namespace Server.Workflow;
 public sealed class WorkflowService(
     AppDbContext dbContext,
     DataDbContext dataDbContext,
-    IOrgRReviewSeeder orgRReviewSeeder) : IWorkflowService
+    IOrgRReviewSeeder orgRReviewSeeder,
+    IAutoAssociationBuilder autoAssociationBuilder) : IWorkflowService
 {
     public async Task<WorkflowRun> GetOrCreateCurrentRunAsync(
         ClaimsPrincipal user,
@@ -124,11 +126,23 @@ public sealed class WorkflowService(
                 // department and NIFA department that still needs an OrgR.
                 await orgRReviewSeeder.SeedReviewRowsAsync(cancellationToken);
             }
+
+            if (definition.Id == WorkflowStageIds.OrgRReview)
+            {
+                // Auto-associations are built from the expense summary, which
+                // needs every included row's OrgR, so the build runs here rather
+                // than on Expense Review completion. A failing build throws
+                // before the stage state is saved, so OrgR Review stays open.
+                await autoAssociationBuilder.BuildAsync(
+                    new FiscalYearCycle(run.FiscalYear, run.CycleStart, run.CycleEnd),
+                    cancellationToken);
+            }
         }
         else
         {
             StartStageIfNeeded(state, user, now);
             ClearCompleted(state);
+            await ClearAutoAssociationsIfUpstreamAsync(definition, cancellationToken);
             ClearDownstream(states, definition.Number);
         }
 
@@ -156,6 +170,7 @@ public sealed class WorkflowService(
         var state = states[definition.Id];
         StartStageIfNeeded(state, user, now);
         ClearCompleted(state);
+        await ClearAutoAssociationsIfUpstreamAsync(definition, cancellationToken);
         ClearDownstream(states, definition.Number);
 
         Touch(run, user, now);
@@ -361,6 +376,19 @@ public sealed class WorkflowService(
                      stage.IsRequired && stage.Number > stageNumber))
         {
             ClearStage(states[definition.Id]);
+        }
+    }
+
+    private async Task ClearAutoAssociationsIfUpstreamAsync(
+        WorkflowStageDefinition definition,
+        CancellationToken cancellationToken)
+    {
+        // Reopening anything up to and including OrgR Review invalidates the
+        // staging data; reopening Auto-Associations or later does not.
+        var orgRReview = WorkflowStages.Find(WorkflowStageIds.OrgRReview)!;
+        if (definition.Number <= orgRReview.Number)
+        {
+            await autoAssociationBuilder.ClearAsync(cancellationToken);
         }
     }
 

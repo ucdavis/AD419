@@ -8,9 +8,13 @@ AS
 -- it feeds the admin proration at final report time. Everything else uses the
 -- financial department mapping. AE has no title code and uses the mapping
 -- only. Unmapped departments yield NULL.
+--
+-- LaborTransactionId and AeTransactionId carry the native keys so consumers
+-- can join on an indexed column; TransactionId is the text form.
 SELECT
     N'UCPath' AS [Source],
     CAST(u.[LaborTransactionId] AS NVARCHAR(125)) AS [TransactionId],
+    u.[LaborTransactionId] AS [LaborTransactionId], CAST(NULL AS BIGINT) AS [AeTransactionId],
     u.[FinancialDepartment],
     u.[JobCode],
     CASE WHEN u.[JobCode] = '1010' THEN N'ADNO' ELSE f.[OrgR] END AS [OrgR]
@@ -23,6 +27,7 @@ UNION ALL
 SELECT
     N'AE' AS [Source],
     CAST(a.[Id] AS NVARCHAR(125)) AS [TransactionId],
+    CAST(NULL AS NVARCHAR(125)) AS [LaborTransactionId], a.[Id] AS [AeTransactionId],
     a.[FinancialDepartment],
     CAST(NULL AS NVARCHAR(4)) AS [JobCode],
     f.[OrgR]
