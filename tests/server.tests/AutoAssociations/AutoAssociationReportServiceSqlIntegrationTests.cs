@@ -28,6 +28,8 @@ public sealed class AutoAssociationReportServiceSqlIntegrationTests(SqlServerDat
         build.Should().NotBeNull();
         build!.CycleStart.Should().Be(new DateOnly(2024, 10, 1));
         build.CycleEnd.Should().Be(new DateOnly(2025, 9, 30));
+        build.BuiltAt.Offset.Should().Be(TimeSpan.Zero);
+        build.BuiltAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(5));
         build.SummaryRows.Should().Be(9);
         build.AssociationRows.Should().Be(11);
         build.ExcludedProjects.Should().Be(2);

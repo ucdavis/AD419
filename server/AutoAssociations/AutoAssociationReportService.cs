@@ -49,7 +49,8 @@ public sealed class AutoAssociationReportService(
             row.BuildId,
             DateOnly.FromDateTime(row.CycleStart),
             DateOnly.FromDateTime(row.CycleEnd),
-            row.BuiltAt,
+            // BuiltAt is stored as UTC (SYSUTCDATETIME), but Dapper reads it back with an unspecified kind.
+            new DateTimeOffset(DateTime.SpecifyKind(row.BuiltAt, DateTimeKind.Utc)),
             row.SummaryRows,
             row.AssociationRows,
             row.ExcludedProjects,
