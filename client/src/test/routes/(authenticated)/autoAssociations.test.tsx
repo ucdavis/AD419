@@ -192,7 +192,7 @@ describe('Auto-Associations stage', () => {
     try {
       expect(
         await screen.findByText(
-          'No auto-association build exists for this cycle. Reopen OrgR Review and mark it complete to build.'
+          'Auto-associations have not run yet. Reopen OrgR Review and mark it complete to run them.'
         )
       ).toBeInTheDocument();
       expect(

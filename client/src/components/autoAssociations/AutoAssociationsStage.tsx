@@ -19,7 +19,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export const EMPTY_STATE_TEXT =
-  'No auto-association build exists for this cycle. Reopen OrgR Review and mark it complete to build.';
+  'Auto-associations have not run yet. Reopen OrgR Review and mark it complete to run them.';
 
 export function AutoAssociationsStage({ status }: { status: WorkflowStageStatus }) {
   const {
@@ -118,10 +118,12 @@ export function AutoAssociationsStage({ status }: { status: WorkflowStageStatus 
       <div className="flex items-center justify-between border-t pt-4">
         <span className={buildIsError ? 'text-warning' : gateOpen ? 'text-success' : 'text-warning'}>
           {buildIsError
-            ? 'The build status could not be loaded.'
+            ? 'The auto-associations status could not be loaded.'
             : gateOpen
-              ? 'A build exists for this cycle.'
-              : 'Auto-associations must be built before continuing.'}
+              ? isComplete
+                ? 'Auto-associations completed.'
+                : 'Auto-associations completed. Click Continue after review.'
+              : 'Auto-associations must run before continuing.'}
         </span>
         {isComplete ? null : (
           <button
