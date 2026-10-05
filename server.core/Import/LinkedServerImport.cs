@@ -1,4 +1,5 @@
 using System.Data.Common;
+using Microsoft.Extensions.Logging;
 using Microsoft.Data.SqlClient;
 using Server.Core.Data;
 
@@ -16,7 +17,7 @@ public interface ILinkedServerQueryExecutor
         CancellationToken cancellationToken);
 }
 
-public sealed class LinkedServerQueryExecutor : ILinkedServerQueryExecutor
+public sealed class LinkedServerQueryExecutor(ILogger<LinkedServerQueryExecutor> logger) : ILinkedServerQueryExecutor
 {
     public async Task<TResult> ExecuteReaderAsync<TResult>(
         string connectionString,
@@ -26,7 +27,11 @@ public sealed class LinkedServerQueryExecutor : ILinkedServerQueryExecutor
         CancellationToken cancellationToken)
     {
         await using var connection = new SqlConnection(connectionString);
-        await connection.OpenAsync(cancellationToken);
+        await ImportDiagnostics.PhaseAsync(logger, "Source connection", async () =>
+        {
+            await connection.OpenAsync(cancellationToken);
+            return true;
+        });
 
         await using var command = new SqlCommand(commandText, connection)
         {
@@ -38,7 +43,8 @@ public sealed class LinkedServerQueryExecutor : ILinkedServerQueryExecutor
             command.Parameters.Add(parameter);
         }
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        await using var reader = await ImportDiagnostics.PhaseAsync(logger, "Source reader",
+            () => command.ExecuteReaderAsync(cancellationToken));
         return await readAsync(reader, cancellationToken);
     }
 }
@@ -54,7 +60,7 @@ public interface ISqlBulkCopyWriter
         CancellationToken cancellationToken);
 }
 
-public sealed class SqlBulkCopyWriter : ISqlBulkCopyWriter
+public sealed class SqlBulkCopyWriter(ILogger<SqlBulkCopyWriter> logger) : ISqlBulkCopyWriter
 {
     public async Task<long> WriteToServerAsync(
         SqlConnection destination,
@@ -64,19 +70,23 @@ public sealed class SqlBulkCopyWriter : ISqlBulkCopyWriter
         DbDataReader reader,
         CancellationToken cancellationToken)
     {
-        using var bulkCopy = transaction is null
-            ? new SqlBulkCopy(destination)
-            : new SqlBulkCopy(destination, SqlBulkCopyOptions.Default, transaction);
-
-        bulkCopy.DestinationTableName = destinationTableName;
-        bulkCopy.BulkCopyTimeout = DataDbConnection.ImportCommandTimeoutSeconds;
-
-        foreach (var mapping in mappings)
+        using var scope = logger.BeginScope(new Dictionary<string, object?> { ["DestinationTable"] = destinationTableName });
+        return await ImportDiagnostics.PhaseAsync(logger, "Bulk copy", async () =>
         {
-            bulkCopy.ColumnMappings.Add(mapping.Source, mapping.Destination);
-        }
+            using var bulkCopy = transaction is null
+                ? new SqlBulkCopy(destination)
+                : new SqlBulkCopy(destination, SqlBulkCopyOptions.Default, transaction);
 
-        await bulkCopy.WriteToServerAsync(reader, cancellationToken);
-        return bulkCopy.RowsCopied64;
+            bulkCopy.DestinationTableName = destinationTableName;
+            bulkCopy.BulkCopyTimeout = DataDbConnection.ImportCommandTimeoutSeconds;
+
+            foreach (var mapping in mappings)
+            {
+                bulkCopy.ColumnMappings.Add(mapping.Source, mapping.Destination);
+            }
+
+            await bulkCopy.WriteToServerAsync(reader, cancellationToken);
+            return bulkCopy.RowsCopied64;
+        });
     }
 }

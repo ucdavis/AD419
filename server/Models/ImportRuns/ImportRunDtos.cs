@@ -40,6 +40,8 @@ public sealed record ImportRunDto(
                 stage.Detail,
                 stage.StartedAt,
                 stage.CompletedAt,
-                stage.ErrorDetail))
+                stage.Status == ImportStageStatus.Failed
+                    ? "This import step could not be completed. Contact support if the problem continues."
+                    : null))
             .ToList());
 }

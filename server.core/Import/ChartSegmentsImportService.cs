@@ -74,24 +74,26 @@ public sealed class ChartSegmentsImportService
     {
         var (_, sourceTable) = Segments.Single(s => s.SegmentName == segmentName);
 
+        using var diagnostics = new ImportDiagnostics(_logger, "Chart segments", null, segmentName);
         var sourceConnectionString = DatamartConnection.Resolve(_configuration);
         var destinationConnectionString = DataDbConnection.Resolve(
             _configuration,
             _dataDbContext.Database.GetConnectionString());
 
         await using var destination = new SqlConnection(destinationConnectionString);
-        await destination.OpenAsync(cancellationToken);
-        await using var transaction = (SqlTransaction)await destination.BeginTransactionAsync(cancellationToken);
+        await diagnostics.RunAsync("Destination connection", () => destination.OpenAsync(cancellationToken));
+        await using var transaction = (SqlTransaction)await diagnostics.RunAsync("Begin transaction",
+            () => destination.BeginTransactionAsync(cancellationToken).AsTask());
 
         await using (var delete = new SqlCommand(
             $"DELETE FROM {DestinationTable} WHERE [SegmentName] = @segmentName;", destination, transaction))
         {
             delete.CommandTimeout = CommandTimeoutSeconds;
             delete.Parameters.Add(new SqlParameter("@segmentName", SqlDbType.NVarChar, 30) { Value = segmentName });
-            await delete.ExecuteNonQueryAsync(cancellationToken);
+            await diagnostics.RunAsync("Destination deletion", () => delete.ExecuteNonQueryAsync(cancellationToken));
         }
 
-        var rowsCopied = await _linkedServer.ExecuteReaderAsync(
+        var rowsCopied = await diagnostics.RunAsync("Source transfer", () => _linkedServer.ExecuteReaderAsync(
             sourceConnectionString,
             $"EXEC (@remoteQuery) AT [{RemoteLinkedServer}];",
             [new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = BuildRemoteQuery(segmentName, sourceTable) }],
@@ -102,12 +104,12 @@ public sealed class ChartSegmentsImportService
                 ColumnMappings,
                 reader,
                 ct),
-            cancellationToken);
+            cancellationToken));
 
         var rowsImported = (int)rowsCopied;
-        await transaction.CommitAsync(cancellationToken);
+        await diagnostics.CommitAsync(() => transaction.CommitAsync(cancellationToken));
 
-        _logger.LogInformation("Imported {RowCount} {Segment} chart segments", rowsImported, segmentName);
+        diagnostics.Complete(rowsImported);
         return rowsImported;
     }
 

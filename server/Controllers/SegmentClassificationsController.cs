@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Server.Core.Data;
 using Server.Core.Domain;
+using Server.Helpers;
 using Server.Models.SegmentClassifications;
 
 namespace Server.Controllers;
@@ -65,6 +66,9 @@ public class SegmentClassificationsController : ApiControllerBase
         [FromBody] UpdateClassificationRequest request,
         CancellationToken cancellationToken)
     {
+        ApiOperationContext.Set(HttpContext, nameof(UpdateClassification),
+            ("SegmentType", request.SegmentType), ("Code", request.Code));
+
         if (!Enum.TryParse<SegmentType>(request.SegmentType, out var segmentType))
         {
             return BadRequest($"Unknown segment type '{request.SegmentType}'.");
