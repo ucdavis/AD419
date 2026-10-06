@@ -76,15 +76,18 @@ public sealed class ImportDiagnosticsTests
         logger.Entries.Should().NotContain(e => e.Message.Contains("sensitive-query"));
     }
 
-    [Fact]
-    public void Historical_stage_exceptions_are_not_returned_to_client()
+    [Theory]
+    [InlineData("SqlException: secret SQL\n at SomeMethod()", "This import step could not be completed. Contact support if the problem continues.")]
+    [InlineData("Interrupted by application restart.", "Interrupted by application restart.")]
+    [InlineData("Interrupted by application restart.\nSqlException: secret SQL", "This import step could not be completed. Contact support if the problem continues.")]
+    public void Stage_error_mapping_only_returns_known_safe_details(string errorDetail, string expectedErrorDetail)
     {
         var run = new ImportRun
         {
-            Stages = [new ImportRunStage { Name = "AE", Status = ImportStageStatus.Failed, ErrorDetail = "SqlException: secret SQL\n at SomeMethod()" }],
+            Stages = [new ImportRunStage { Name = "AE", Status = ImportStageStatus.Failed, ErrorDetail = errorDetail }],
         };
         var dto = ImportRunDto.From(run);
-        dto.Stages.Single().ErrorDetail.Should().Be("This import step could not be completed. Contact support if the problem continues.");
-        run.Stages.Single().ErrorDetail.Should().Contain("SqlException");
+        dto.Stages.Single().ErrorDetail.Should().Be(expectedErrorDetail);
+        run.Stages.Single().ErrorDetail.Should().Be(errorDetail);
     }
 }

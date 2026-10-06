@@ -81,7 +81,7 @@ public sealed class ImportRunOrchestrator
             foreach (var stage in run.Stages.Where(s => s.Status == ImportStageStatus.Running))
             {
                 stage.Status = ImportStageStatus.Failed;
-                stage.ErrorDetail = "Interrupted by application restart.";
+                stage.ErrorDetail = ImportStageErrorMessages.InterruptedByApplicationRestart;
                 stage.CompletedAt = DateTimeOffset.UtcNow;
             }
         }
