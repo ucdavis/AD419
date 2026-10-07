@@ -300,11 +300,14 @@ public sealed class ExpenseReviewService(
                 SUM(CASE WHEN u.[Sfn] IS NULL THEN COALESCE(u.[Amount], 0) ELSE 0 END) AS [ExpenseSfnUnresolvedAmount],
                 SUM(CASE WHEN u.[Source] = N'UCP' AND u.[Account531010OnHatchFund] = 1 THEN 1 ELSE 0 END) AS [Account531010RowCount],
                 SUM(CASE WHEN u.[Source] = N'UCP' AND u.[Account531010OnHatchFund] = 1 THEN COALESCE(u.[Amount], 0) ELSE 0 END) AS [Account531010Amount],
+                SUM(CASE WHEN u.[Sfn204NotOnProjectList] = 1 THEN 1 ELSE 0 END) AS [Sfn204NotOnProjectListRowCount],
+                SUM(CASE WHEN u.[Sfn204NotOnProjectList] = 1 THEN COALESCE(u.[Amount], 0) ELSE 0 END) AS [Sfn204NotOnProjectListAmount],
                 MAX(CONVERT(TINYINT, u.[FinancialDeptIncludeInReport])) AS [FinancialDeptIncludeInReport],
                 MAX(CONVERT(TINYINT, u.[FundIncludeInReport])) AS [FundIncludeInReport],
                 MAX(CONVERT(TINYINT, u.[AccountIncludeInReport])) AS [AccountIncludeInReport],
                 MAX(CONVERT(TINYINT, u.[ActivityIncludeInReport])) AS [ActivityIncludeInReport],
-                MAX(CONVERT(TINYINT, u.[PurposeIncludeInReport])) AS [PurposeIncludeInReport]
+                MAX(CONVERT(TINYINT, u.[PurposeIncludeInReport])) AS [PurposeIncludeInReport],
+                MAX(CONVERT(TINYINT, u.[PurposeExempt])) AS [PurposeExempt]
             INTO #Grouped
             FROM Unified u
             WHERE {{filterClause}}
@@ -597,7 +600,9 @@ public sealed class ExpenseReviewService(
                 incl.[AccountIncludeInReport],
                 incl.[ActivityIncludeInReport],
                 incl.[PurposeIncludeInReport],
+                incl.[PurposeExempt],
                 incl.[Account531010OnHatchFund] AS [Account531010OnHatchFund],
+                incl.[Sfn204NotOnProjectList] AS [Sfn204NotOnProjectList],
                 incl.[Included] AS [Included]
             FROM [data].[AETransactions] a
             LEFT JOIN [data].[v_TransactionInclusion] incl
@@ -643,7 +648,9 @@ public sealed class ExpenseReviewService(
                 incl.[AccountIncludeInReport],
                 incl.[ActivityIncludeInReport],
                 incl.[PurposeIncludeInReport],
+                incl.[PurposeExempt],
                 incl.[Account531010OnHatchFund] AS [Account531010OnHatchFund],
+                incl.[Sfn204NotOnProjectList] AS [Sfn204NotOnProjectList],
                 incl.[Included] AS [Included]
             FROM [data].[UcPathTransactions] u
             CROSS APPLY
@@ -939,6 +946,10 @@ public sealed class ExpenseReviewService(
                      CAST(N'UCPath account 531010 on a Hatch fund' AS NVARCHAR(500)),
                      {{alias}}.[Account531010RowCount],
                      {{alias}}.[Account531010Amount]),
+                    (CAST(N'sfn:204NotOnProjectList' AS NVARCHAR(220)),
+                     CAST(N'SFN 204 project not on the project list' AS NVARCHAR(500)),
+                     {{alias}}.[Sfn204NotOnProjectListRowCount],
+                     {{alias}}.[Sfn204NotOnProjectListAmount]),
                     (CAST(N'financialDept:excluded' AS NVARCHAR(220)),
                      CAST(N'Excluded by financial department' AS NVARCHAR(500)),
                      CASE WHEN {{alias}}.[FinancialDeptIncludeInReport] = 0 THEN {{alias}}.[GroupReasonRowCount] ELSE 0 END,
@@ -973,12 +984,12 @@ public sealed class ExpenseReviewService(
                      CASE WHEN {{alias}}.[ActivityIncludeInReport] IS NULL THEN {{alias}}.[GroupReasonAmount] ELSE 0 END),
                     (CAST(N'purpose:excluded' AS NVARCHAR(220)),
                      CAST(N'Excluded by purpose' AS NVARCHAR(500)),
-                     CASE WHEN COALESCE({{alias}}.[FundCode], N'') <> N'13U02' AND {{alias}}.[PurposeIncludeInReport] = 0 THEN {{alias}}.[GroupReasonRowCount] ELSE 0 END,
-                     CASE WHEN COALESCE({{alias}}.[FundCode], N'') <> N'13U02' AND {{alias}}.[PurposeIncludeInReport] = 0 THEN {{alias}}.[GroupReasonAmount] ELSE 0 END),
+                     CASE WHEN COALESCE({{alias}}.[PurposeExempt], 0) = 0 AND {{alias}}.[PurposeIncludeInReport] = 0 THEN {{alias}}.[GroupReasonRowCount] ELSE 0 END,
+                     CASE WHEN COALESCE({{alias}}.[PurposeExempt], 0) = 0 AND {{alias}}.[PurposeIncludeInReport] = 0 THEN {{alias}}.[GroupReasonAmount] ELSE 0 END),
                     (CAST(N'purpose:unclassified' AS NVARCHAR(220)),
                      CAST(N'Unclassified purpose' AS NVARCHAR(500)),
-                     CASE WHEN COALESCE({{alias}}.[FundCode], N'') <> N'13U02' AND {{alias}}.[PurposeIncludeInReport] IS NULL THEN {{alias}}.[GroupReasonRowCount] ELSE 0 END,
-                     CASE WHEN COALESCE({{alias}}.[FundCode], N'') <> N'13U02' AND {{alias}}.[PurposeIncludeInReport] IS NULL THEN {{alias}}.[GroupReasonAmount] ELSE 0 END)
+                     CASE WHEN COALESCE({{alias}}.[PurposeExempt], 0) = 0 AND {{alias}}.[PurposeIncludeInReport] IS NULL THEN {{alias}}.[GroupReasonRowCount] ELSE 0 END,
+                     CASE WHEN COALESCE({{alias}}.[PurposeExempt], 0) = 0 AND {{alias}}.[PurposeIncludeInReport] IS NULL THEN {{alias}}.[GroupReasonAmount] ELSE 0 END)
             """;
 
     private static string ReasonValuesSql(string alias) =>
@@ -993,6 +1004,8 @@ public sealed class ExpenseReviewService(
                      CASE WHEN {{alias}}.[Sfn] IS NULL THEN CAST(N'No SFN derived for this transaction' AS NVARCHAR(500)) END),
                     (CASE WHEN {{alias}}.[Source] = N'UCP' AND {{alias}}.[Account531010OnHatchFund] = 1 THEN CAST(N'account:531010' AS NVARCHAR(220)) END,
                      CASE WHEN {{alias}}.[Source] = N'UCP' AND {{alias}}.[Account531010OnHatchFund] = 1 THEN CAST(N'UCPath account 531010 on a Hatch fund' AS NVARCHAR(500)) END),
+                    (CASE WHEN {{alias}}.[Sfn204NotOnProjectList] = 1 THEN CAST(N'sfn:204NotOnProjectList' AS NVARCHAR(220)) END,
+                     CASE WHEN {{alias}}.[Sfn204NotOnProjectList] = 1 THEN CAST(N'SFN 204 project not on the project list' AS NVARCHAR(500)) END),
                     (CASE WHEN {{alias}}.[FinancialDeptIncludeInReport] = 0 THEN CAST(N'financialDept:excluded' AS NVARCHAR(220)) END,
                      CASE WHEN {{alias}}.[FinancialDeptIncludeInReport] = 0 THEN CAST(N'Excluded by financial department' AS NVARCHAR(500)) END),
                     (CASE WHEN {{alias}}.[FinancialDeptIncludeInReport] IS NULL THEN CAST(N'financialDept:unclassified' AS NVARCHAR(220)) END,
@@ -1009,10 +1022,10 @@ public sealed class ExpenseReviewService(
                      CASE WHEN {{alias}}.[ActivityIncludeInReport] = 0 THEN CAST(N'Excluded by activity' AS NVARCHAR(500)) END),
                     (CASE WHEN {{alias}}.[ActivityIncludeInReport] IS NULL THEN CAST(N'activity:unclassified' AS NVARCHAR(220)) END,
                      CASE WHEN {{alias}}.[ActivityIncludeInReport] IS NULL THEN CAST(N'Unclassified activity' AS NVARCHAR(500)) END),
-                    (CASE WHEN COALESCE({{alias}}.[FundCode], N'') <> N'13U02' AND {{alias}}.[PurposeIncludeInReport] = 0 THEN CAST(N'purpose:excluded' AS NVARCHAR(220)) END,
-                     CASE WHEN COALESCE({{alias}}.[FundCode], N'') <> N'13U02' AND {{alias}}.[PurposeIncludeInReport] = 0 THEN CAST(N'Excluded by purpose' AS NVARCHAR(500)) END),
-                    (CASE WHEN COALESCE({{alias}}.[FundCode], N'') <> N'13U02' AND {{alias}}.[PurposeIncludeInReport] IS NULL THEN CAST(N'purpose:unclassified' AS NVARCHAR(220)) END,
-                     CASE WHEN COALESCE({{alias}}.[FundCode], N'') <> N'13U02' AND {{alias}}.[PurposeIncludeInReport] IS NULL THEN CAST(N'Unclassified purpose' AS NVARCHAR(500)) END)
+                    (CASE WHEN COALESCE({{alias}}.[PurposeExempt], 0) = 0 AND {{alias}}.[PurposeIncludeInReport] = 0 THEN CAST(N'purpose:excluded' AS NVARCHAR(220)) END,
+                     CASE WHEN COALESCE({{alias}}.[PurposeExempt], 0) = 0 AND {{alias}}.[PurposeIncludeInReport] = 0 THEN CAST(N'Excluded by purpose' AS NVARCHAR(500)) END),
+                    (CASE WHEN COALESCE({{alias}}.[PurposeExempt], 0) = 0 AND {{alias}}.[PurposeIncludeInReport] IS NULL THEN CAST(N'purpose:unclassified' AS NVARCHAR(220)) END,
+                     CASE WHEN COALESCE({{alias}}.[PurposeExempt], 0) = 0 AND {{alias}}.[PurposeIncludeInReport] IS NULL THEN CAST(N'Unclassified purpose' AS NVARCHAR(500)) END)
             """;
 
     private sealed record ExpenseReviewTransactionRow(
