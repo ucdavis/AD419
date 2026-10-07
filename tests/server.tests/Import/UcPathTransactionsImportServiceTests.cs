@@ -6,11 +6,12 @@ namespace Server.Tests.Import;
 public class UcPathTransactionsImportServiceTests
 {
     private static readonly string[] Projects = ["K30V4ALIUR", "SP1A242572"];
+    private static readonly string[] Bcbs = ["BEVE003", "BGEN003"];
 
     [Fact]
     public void BuildSalaryQuery_applies_the_2025_source_filter_with_204_arm()
     {
-        var query = UcPathTransactionsImportService.BuildSalaryQuery(Projects, 2088);
+        var query = UcPathTransactionsImportService.BuildSalaryQuery(Projects, Bcbs, 2088);
 
         query.Should().Contain("FROM CAES_HCMODS.PS_UC_LL_SAL_DTL_V");
         query.Should().Contain("BUSINESS_UNIT IN ('DVCMP','UCANR')");
@@ -23,9 +24,19 @@ public class UcPathTransactionsImportServiceTests
     }
 
     [Fact]
+    public void Queries_limit_accounting_period_to_1_through_13()
+    {
+        // a few source rows carry a year (e.g. 2025) in ACCOUNTING_PERIOD
+        UcPathTransactionsImportService.BuildSalaryQuery(Projects, Bcbs, 2088)
+            .Should().Contain("ACCOUNTING_PERIOD BETWEEN 1 AND 13");
+        UcPathTransactionsImportService.BuildFringeQuery(Projects, Bcbs)
+            .Should().Contain("ACCOUNTING_PERIOD BETWEEN 1 AND 13");
+    }
+
+    [Fact]
     public void BuildSalaryQuery_computes_fte_payrate_and_salary_marker_in_source_sql()
     {
-        var query = UcPathTransactionsImportService.BuildSalaryQuery(Projects, 2096);
+        var query = UcPathTransactionsImportService.BuildSalaryQuery(Projects, Bcbs, 2096);
 
         query.Should().Contain("HOURS1 / 2096");    // CalculatedFte denominator
         query.Should().Contain("'S' AS fringe_benefit_salary_cd");
@@ -35,7 +46,7 @@ public class UcPathTransactionsImportServiceTests
     [Fact]
     public void BuildSalaryQuery_uses_the_verified_view_column_names()
     {
-        var query = UcPathTransactionsImportService.BuildSalaryQuery(Projects, 2088);
+        var query = UcPathTransactionsImportService.BuildSalaryQuery(Projects, Bcbs, 2088);
 
         query.Should().Contain("JOURNAL_ID || '_' || JOURNAL_LINE || '_' || UC_ADDL_SEQ");
         query.Should().Contain("HOURS1 AS hours");
@@ -54,7 +65,7 @@ public class UcPathTransactionsImportServiceTests
     [Fact]
     public void BuildFringeQuery_marks_fringe_rows_with_placeholder_ern()
     {
-        var query = UcPathTransactionsImportService.BuildFringeQuery(Projects);
+        var query = UcPathTransactionsImportService.BuildFringeQuery(Projects, Bcbs);
 
         query.Should().Contain("FROM CAES_HCMODS.PS_UC_LL_FRNG_DTL_V");
         query.Should().Contain("'XXX' AS erncd");
@@ -65,7 +76,7 @@ public class UcPathTransactionsImportServiceTests
     [Fact]
     public void BuildFringeQuery_uses_the_verified_view_column_names()
     {
-        var query = UcPathTransactionsImportService.BuildFringeQuery(Projects);
+        var query = UcPathTransactionsImportService.BuildFringeQuery(Projects, Bcbs);
 
         query.Should().Contain("JOURNAL_ID || '_' || JOURNAL_LINE || '_' || UC_ADDL_SEQ");
         query.Should().Contain("MONETARY_AMOUNT AS amount");
@@ -79,8 +90,35 @@ public class UcPathTransactionsImportServiceTests
     [Fact]
     public void Queries_omit_the_204_arm_when_no_projects_exist()
     {
-        UcPathTransactionsImportService.BuildSalaryQuery([], 2088).Should().NotContain("PROJECT_ID IN");
-        UcPathTransactionsImportService.BuildFringeQuery([]).Should().NotContain("PROJECT_ID IN");
+        UcPathTransactionsImportService.BuildSalaryQuery([], [], 2088).Should().NotContain("PROJECT_ID IN");
+        UcPathTransactionsImportService.BuildFringeQuery([], []).Should().NotContain("PROJECT_ID IN");
+    }
+
+    [Fact]
+    public void Queries_keep_bcbs_rows_only_on_13u02_or_204_projects()
+    {
+        // Matches the AE import and last year's step 7: BCBS department rows
+        // are dropped unless the fund is 13U02 or the project is a 204 project.
+        const string clause =
+            "AND (TRIM(DEPTID_CF) NOT IN ('BEVE003','BGEN003') OR DEPTID_CF IS NULL OR FUND_CODE = '13U02' OR PROJECT_ID IN ('K30V4ALIUR','SP1A242572'))";
+
+        UcPathTransactionsImportService.BuildSalaryQuery(Projects, Bcbs, 2088).Should().Contain(clause);
+        UcPathTransactionsImportService.BuildFringeQuery(Projects, Bcbs).Should().Contain(clause);
+    }
+
+    [Fact]
+    public void Queries_omit_the_bcbs_filter_when_no_bcbs_departments_exist()
+    {
+        UcPathTransactionsImportService.BuildSalaryQuery(Projects, [], 2088).Should().NotContain("DEPTID_CF) NOT IN");
+        UcPathTransactionsImportService.BuildFringeQuery(Projects, []).Should().NotContain("DEPTID_CF) NOT IN");
+    }
+
+    [Fact]
+    public void Bcbs_filter_has_no_204_arm_when_no_projects_exist()
+    {
+        UcPathTransactionsImportService.BuildSalaryQuery([], Bcbs, 2088)
+            .Should().Contain("AND (TRIM(DEPTID_CF) NOT IN ('BEVE003','BGEN003') OR DEPTID_CF IS NULL OR FUND_CODE = '13U02')")
+            .And.NotContain("PROJECT_ID IN");
     }
 
     [Fact]
