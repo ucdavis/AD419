@@ -18,7 +18,14 @@ USING
         (N'220', N'State Appropriations'),
         (N'221', N'Self-Generated Funds'),
         (N'222', N'Industry Grants and Agreements'),
-        (N'223', N'Other Non-Federal Funds')
+        (N'223', N'Other Non-Federal Funds'),
+        (N'308', N'Agency for International Development'),
+        (N'310', N'Department of Energy'),
+        (N'311', N'Department of Defense'),
+        (N'313', N'Health and Human Services'),
+        (N'314', N'National Aeronautics and Space Admin'),
+        (N'316', N'National Institutes of Health'),
+        (N'318', N'Other Federal Funds')
 ) AS source ([Sfn], [Label])
     ON target.[Sfn] = source.[Sfn]
 WHEN MATCHED AND target.[Label] <> source.[Label] THEN

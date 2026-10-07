@@ -6,6 +6,17 @@ namespace Server.Tests.Import;
 public class PgmProjectsImportServiceTests
 {
     [Fact]
+    public void BuildRemoteQuery_selects_flow_through_and_description_fields()
+    {
+        var query = PgmProjectsImportService.BuildRemoteQuery();
+
+        query.Should().Contain("r.award_description");
+        query.Should().Contain("NULLIF(TRIM(r.flow_through_funds_primary_sponsor), '') AS flow_through_funds_primary_sponsor");
+        query.Should().Contain("NULLIF(TRIM(r.flow_through_funds_federal_agency), '') AS flow_through_funds_federal_agency");
+        query.Should().Contain("NULLIF(TRIM(r.flow_through_funds_reference_award_name), '') AS flow_through_funds_reference_award_name");
+    }
+
+    [Fact]
     public void BuildSourceCommandText_runs_a_parameterized_exec_at_against_redshift()
     {
         var command = PgmProjectsImportService.BuildSourceCommandText();
