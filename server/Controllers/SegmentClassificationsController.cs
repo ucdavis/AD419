@@ -19,7 +19,16 @@ public class SegmentClassificationsController : ApiControllerBase
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<SegmentClassificationDto>>> Get(CancellationToken cancellationToken)
     {
-        var segments = await _db.SegmentClassifications.ToListAsync(cancellationToken);
+        // Only codes that can still change the report; see v_ClassificationCandidates.
+        // The view is read on its own: joined into a larger query, SQL Server
+        // can inline it into a far slower plan.
+        var candidates = await _db.ClassificationCandidates
+            .Select(candidate => new { candidate.SegmentType, candidate.Code })
+            .ToListAsync(cancellationToken);
+        var candidateKeys = candidates.Select(candidate => (candidate.SegmentType, candidate.Code)).ToHashSet();
+        var segments = (await _db.SegmentClassifications.ToListAsync(cancellationToken))
+            .Where(segment => candidateKeys.Contains((segment.SegmentType, segment.Code)))
+            .ToList();
 
         var departments = await _db.DepartmentHierarchies.ToDictionaryAsync(h => h.Code, cancellationToken);
         var accounts = await _db.AccountHierarchies.ToDictionaryAsync(h => h.Code, cancellationToken);

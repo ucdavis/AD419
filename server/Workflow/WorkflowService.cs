@@ -301,8 +301,23 @@ public sealed class WorkflowService(
         switch (stageId)
         {
             case WorkflowStageIds.DataClassification:
-                return !await dataDbContext.SegmentClassifications
-                    .AnyAsync(segment => segment.IncludeInReport == null, cancellationToken);
+                // Blank codes that are not candidates cannot change the report.
+                // The candidates view is read on its own; see
+                // SegmentClassificationsController.Get.
+                var blank = await dataDbContext.SegmentClassifications
+                    .Where(segment => segment.IncludeInReport == null)
+                    .Select(segment => new { segment.SegmentType, segment.Code })
+                    .ToListAsync(cancellationToken);
+                if (blank.Count == 0)
+                {
+                    return true;
+                }
+
+                var candidates = await dataDbContext.ClassificationCandidates
+                    .Select(candidate => new { candidate.SegmentType, candidate.Code })
+                    .ToListAsync(cancellationToken);
+                var candidateKeys = candidates.Select(candidate => (candidate.SegmentType, candidate.Code)).ToHashSet();
+                return !blank.Any(segment => candidateKeys.Contains((segment.SegmentType, segment.Code)));
             case WorkflowStageIds.OrgRReview:
                 // Only departments classified as included in this cycle's
                 // report count, matching the seed and the OrgR Review grid.

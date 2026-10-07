@@ -15,6 +15,9 @@ public class SegmentClassificationsControllerTests
         db.SegmentClassifications.AddRange(
             new SegmentClassification { SegmentType = SegmentType.Fund, Code = "45530", Description = "AES", IncludeInReport = true, Sfn = "220" },
             new SegmentClassification { SegmentType = SegmentType.Account, Code = "500000", Description = "S and E", IncludeInReport = null });
+        db.ClassificationCandidates.AddRange(
+            new ClassificationCandidate { SegmentType = SegmentType.Fund, Code = "45530" },
+            new ClassificationCandidate { SegmentType = SegmentType.Account, Code = "500000" });
         await db.SaveChangesAsync();
         var controller = new SegmentClassificationsController(db);
 
@@ -26,10 +29,32 @@ public class SegmentClassificationsControllerTests
     }
 
     [Fact]
+    public async Task Get_leaves_out_segments_that_are_not_classification_candidates()
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        db.SegmentClassifications.AddRange(
+            new SegmentClassification { SegmentType = SegmentType.Fund, Code = "45530", IncludeInReport = true, Sfn = "220" },
+            new SegmentClassification { SegmentType = SegmentType.Fund, Code = "70575", IncludeInReport = null },
+            new SegmentClassification { SegmentType = SegmentType.Account, Code = "45530", IncludeInReport = null });
+        // Same code under another type is not a match.
+        db.ClassificationCandidates.Add(new ClassificationCandidate { SegmentType = SegmentType.Fund, Code = "45530" });
+        await db.SaveChangesAsync();
+        var controller = new SegmentClassificationsController(db);
+
+        var result = await controller.Get(CancellationToken.None);
+
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        ok.Value.Should().BeAssignableTo<IEnumerable<SegmentClassificationDto>>()
+            .Which.Should().ContainSingle()
+            .Which.Code.Should().Be("45530");
+    }
+
+    [Fact]
     public async Task Get_includes_hierarchy_for_segment_with_matching_code()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
         db.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.Fund, Code = "45530", IncludeInReport = true, Sfn = "220" });
+        db.ClassificationCandidates.Add(new ClassificationCandidate { SegmentType = SegmentType.Fund, Code = "45530" });
         db.FundHierarchies.Add(new FundHierarchy
         {
             Code = "45530",
@@ -60,6 +85,7 @@ public class SegmentClassificationsControllerTests
         using var db = TestDbContextFactory.CreateDataInMemory();
         const string code = "12345";
         db.SegmentClassifications.Add(new SegmentClassification { SegmentType = segmentType, Code = code, IncludeInReport = null });
+        db.ClassificationCandidates.Add(new ClassificationCandidate { SegmentType = segmentType, Code = code });
 
         switch (segmentType)
         {
@@ -110,6 +136,7 @@ public class SegmentClassificationsControllerTests
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
         db.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.Account, Code = "500000", IncludeInReport = null });
+        db.ClassificationCandidates.Add(new ClassificationCandidate { SegmentType = SegmentType.Account, Code = "500000" });
         await db.SaveChangesAsync();
         var controller = new SegmentClassificationsController(db);
 
