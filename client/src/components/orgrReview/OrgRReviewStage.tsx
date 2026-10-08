@@ -42,6 +42,8 @@ export function OrgRReviewStage({ status }: { status: WorkflowStageStatus }) {
     mutationKey: ORGR_MUTATION_KEY,
     onSuccess: (snapshot) => {
       queryClient.setQueryData(WORKFLOW_SNAPSHOT_KEY, snapshot);
+      // Completing OrgR Review rebuilds the staging tables; drop any cached reports.
+      void queryClient.invalidateQueries({ queryKey: ['autoAssociations'] });
       void navigate({
         params: { stageId: 'auto-associations' },
         to: '/workflow/$stageId',

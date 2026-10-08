@@ -55,4 +55,12 @@ public sealed class AutoAssociationBuilder(DataDbContext db, ILogger<AutoAssocia
             """,
             cancellationToken);
     }
+
+    public async Task<bool> BuildExistsAsync(CancellationToken cancellationToken)
+    {
+        var count = await db.Database
+            .SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM [data].[AutoAssociationBuilds]")
+            .SingleAsync(cancellationToken);
+        return count > 0;
+    }
 }

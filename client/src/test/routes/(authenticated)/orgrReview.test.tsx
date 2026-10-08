@@ -54,6 +54,14 @@ function mockApi(options: { completed?: boolean; unmappedDepartment: boolean; })
       HttpResponse.json(
         createWorkflowSnapshot({ ...completedUpstream, 'orgr-review': 'Complete' })
       )
+    ),
+    http.get('/api/autoassociations/build', () =>
+      HttpResponse.json({
+        cycleEnd: '2025-09-30',
+        cycleStart: '2024-10-01',
+        data: null,
+        fiscalYear: 'FY25',
+      })
     )
   );
 }

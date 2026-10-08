@@ -1248,7 +1248,32 @@ describe('AD419 workflow routes', () => {
             'project-identification': 'Complete',
           })
         );
-      })
+      }),
+      http.get('/api/autoassociations/build', () =>
+        HttpResponse.json({
+          cycleEnd: '2025-09-30',
+          cycleStart: '2024-10-01',
+          data: {
+            associationRows: 11,
+            buildId: 1,
+            builtAt: '2026-07-07T12:00:00Z',
+            cycleEnd: '2025-09-30',
+            cycleStart: '2024-10-01',
+            excludedProjects: 2,
+            misclassified204Rows: 1,
+            summaryRows: 9,
+          },
+          fiscalYear: 'FY25',
+        })
+      ),
+      http.get('/api/autoassociations/rule-204', () =>
+        HttpResponse.json({
+          cycleEnd: '2025-09-30',
+          cycleStart: '2024-10-01',
+          data: { misclassified: [], projects: [], unassociated: [] },
+          fiscalYear: 'FY25',
+        })
+      )
     );
 
     const { cleanup, router } = renderRoute({
@@ -1259,6 +1284,7 @@ describe('AD419 workflow routes', () => {
       expect(
         await screen.findByRole('heading', { level: 1, name: 'Auto-Associations' })
       ).toBeInTheDocument();
+      await screen.findByRole('tab', { name: '204' });
 
       await user.click(
         await screen.findByRole('button', {
