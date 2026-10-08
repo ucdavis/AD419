@@ -100,10 +100,23 @@ public class UcPathTransactionsImportServiceTests
         // Matches the AE import and last year's step 7: BCBS department rows
         // are dropped unless the fund is 13U02 or the project is a 204 project.
         const string clause =
-            "AND (TRIM(DEPTID_CF) NOT IN ('BEVE003','BGEN003') OR DEPTID_CF IS NULL OR FUND_CODE = '13U02' OR PROJECT_ID IN ('K30V4ALIUR','SP1A242572'))";
+            "AND (TRIM(DEPTID_CF) NOT IN ('BEVE003','BGEN003') OR TRIM(DEPTID_CF) IS NULL OR FUND_CODE = '13U02' OR PROJECT_ID IN ('K30V4ALIUR','SP1A242572'))";
 
         UcPathTransactionsImportService.BuildSalaryQuery(Projects, Bcbs, 2088).Should().Contain(clause);
         UcPathTransactionsImportService.BuildFringeQuery(Projects, Bcbs).Should().Contain(clause);
+    }
+
+    [Fact]
+    public void Bcbs_filter_keeps_blank_departments_by_checking_the_trimmed_value()
+    {
+        // Oracle treats '' as NULL, so a space-only DEPTID_CF trims to NULL while
+        // DEPTID_CF IS NULL stays false. Only the trimmed check keeps that row.
+        UcPathTransactionsImportService.BuildSalaryQuery(Projects, Bcbs, 2088)
+            .Should().Contain("OR TRIM(DEPTID_CF) IS NULL OR")
+            .And.NotContain("OR DEPTID_CF IS NULL");
+        UcPathTransactionsImportService.BuildFringeQuery(Projects, Bcbs)
+            .Should().Contain("OR TRIM(DEPTID_CF) IS NULL OR")
+            .And.NotContain("OR DEPTID_CF IS NULL");
     }
 
     [Fact]
@@ -117,7 +130,7 @@ public class UcPathTransactionsImportServiceTests
     public void Bcbs_filter_has_no_204_arm_when_no_projects_exist()
     {
         UcPathTransactionsImportService.BuildSalaryQuery([], Bcbs, 2088)
-            .Should().Contain("AND (TRIM(DEPTID_CF) NOT IN ('BEVE003','BGEN003') OR DEPTID_CF IS NULL OR FUND_CODE = '13U02')")
+            .Should().Contain("AND (TRIM(DEPTID_CF) NOT IN ('BEVE003','BGEN003') OR TRIM(DEPTID_CF) IS NULL OR FUND_CODE = '13U02')")
             .And.NotContain("PROJECT_ID IN");
     }
 

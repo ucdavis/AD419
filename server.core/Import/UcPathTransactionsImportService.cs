@@ -384,9 +384,10 @@ public sealed class UcPathTransactionsImportService
     // BCBS department rows are only reportable on fund 13U02 or a 204 project,
     // the same rule as the AE import (and the 2025 step 7 delete). The IS NULL
     // arm keeps rows with no department: NOT IN against NULL is unknown in
-    // Oracle and would otherwise drop them.
+    // Oracle and would otherwise drop them. It checks the trimmed value because
+    // Oracle treats '' as NULL, so a space-only DEPTID_CF trims to NULL.
     private static string BcbsFilter(IReadOnlyList<string> projects204, IReadOnlyList<string> bcbsDepartments) =>
         bcbsDepartments.Count > 0
-            ? $"\n          AND (TRIM(DEPTID_CF) NOT IN ({ImportSql.QuoteList(bcbsDepartments)}) OR DEPTID_CF IS NULL OR FUND_CODE = '13U02'{Source204Arm(projects204)})"
+            ? $"\n          AND (TRIM(DEPTID_CF) NOT IN ({ImportSql.QuoteList(bcbsDepartments)}) OR TRIM(DEPTID_CF) IS NULL OR FUND_CODE = '13U02'{Source204Arm(projects204)})"
             : string.Empty;
 }
