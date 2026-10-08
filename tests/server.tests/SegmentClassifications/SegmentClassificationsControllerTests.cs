@@ -50,6 +50,26 @@ public class SegmentClassificationsControllerTests
     }
 
     [Fact]
+    public async Task Get_matches_candidates_to_segments_ignoring_code_case()
+    {
+        // SQL Server compares codes case-insensitively, so the view can return a
+        // casing that differs from the seeded segment row.
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        db.SegmentClassifications.Add(
+            new SegmentClassification { SegmentType = SegmentType.FinancialDepartment, Code = "D1", IncludeInReport = null });
+        db.ClassificationCandidates.Add(new ClassificationCandidate { SegmentType = SegmentType.FinancialDepartment, Code = "d1" });
+        await db.SaveChangesAsync();
+        var controller = new SegmentClassificationsController(db);
+
+        var result = await controller.Get(CancellationToken.None);
+
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        ok.Value.Should().BeAssignableTo<IEnumerable<SegmentClassificationDto>>()
+            .Which.Should().ContainSingle()
+            .Which.Code.Should().Be("D1");
+    }
+
+    [Fact]
     public async Task Get_includes_hierarchy_for_segment_with_matching_code()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();

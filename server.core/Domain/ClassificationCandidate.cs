@@ -10,4 +10,12 @@ public class ClassificationCandidate
     public SegmentType SegmentType { get; set; }
 
     public string Code { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Key for matching candidates to SegmentClassifications rows in memory.
+    /// Codes are uppercased because SQL Server compares them case-insensitively,
+    /// so the view can return a casing that differs from the seeded row.
+    /// </summary>
+    public static (SegmentType SegmentType, string Code) Key(SegmentType segmentType, string code) =>
+        (segmentType, code.ToUpperInvariant());
 }

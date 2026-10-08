@@ -25,9 +25,9 @@ public class SegmentClassificationsController : ApiControllerBase
         var candidates = await _db.ClassificationCandidates
             .Select(candidate => new { candidate.SegmentType, candidate.Code })
             .ToListAsync(cancellationToken);
-        var candidateKeys = candidates.Select(candidate => (candidate.SegmentType, candidate.Code)).ToHashSet();
+        var candidateKeys = candidates.Select(candidate => ClassificationCandidate.Key(candidate.SegmentType, candidate.Code)).ToHashSet();
         var segments = (await _db.SegmentClassifications.ToListAsync(cancellationToken))
-            .Where(segment => candidateKeys.Contains((segment.SegmentType, segment.Code)))
+            .Where(segment => candidateKeys.Contains(ClassificationCandidate.Key(segment.SegmentType, segment.Code)))
             .ToList();
 
         var departments = await _db.DepartmentHierarchies.ToDictionaryAsync(h => h.Code, cancellationToken);

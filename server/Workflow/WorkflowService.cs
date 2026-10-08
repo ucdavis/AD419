@@ -316,8 +316,8 @@ public sealed class WorkflowService(
                 var candidates = await dataDbContext.ClassificationCandidates
                     .Select(candidate => new { candidate.SegmentType, candidate.Code })
                     .ToListAsync(cancellationToken);
-                var candidateKeys = candidates.Select(candidate => (candidate.SegmentType, candidate.Code)).ToHashSet();
-                return !blank.Any(segment => candidateKeys.Contains((segment.SegmentType, segment.Code)));
+                var candidateKeys = candidates.Select(candidate => ClassificationCandidate.Key(candidate.SegmentType, candidate.Code)).ToHashSet();
+                return !blank.Any(segment => candidateKeys.Contains(ClassificationCandidate.Key(segment.SegmentType, segment.Code)));
             case WorkflowStageIds.OrgRReview:
                 // Only departments classified as included in this cycle's
                 // report count, matching the seed and the OrgR Review grid.
