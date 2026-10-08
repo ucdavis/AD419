@@ -12,9 +12,11 @@ AS
 --   every row: ExcludedByDate = 0, and AccountInUcPath = 0 (AE) or
 --   AccountNotInAE = 0 (UCPath);
 --   SFN: ExpenseSfn is set, and neither the 531010 carve-out nor the
---   off-list 204 rule (Sfn204NotOnProjectList) applies. Skipped
---   for Fund codes, because a fund's own classification is what sets its
---   SFN;
+--   off-list 204 rule (Sfn204NotOnProjectList) applies. An unclassified
+--   fund passes: only a classification of "no" hides other codes, and
+--   otherwise an excluded department on a blank fund would hide both, with
+--   neither reachable from the grid. Skipped for Fund codes, because a
+--   fund's own classification is what sets its SFN;
 --   gates: financial department, account and purpose are not classified
 --   excluded (blank passes, so the gates can be classified in any order);
 --   purpose passes on PurposeExempt rows (13U02, 204 projects), and purpose
@@ -32,7 +34,11 @@ WITH Rows AS
         i.[Purpose],
         i.[ErnCode],
         i.[PurposeExempt],
-        CASE WHEN i.[ExpenseSfn] IS NOT NULL AND i.[Account531010OnHatchFund] = 0 AND i.[Sfn204NotOnProjectList] = 0 THEN 1 ELSE 0 END AS [SfnOk],
+        CASE
+            WHEN i.[FundIncludeInReport] IS NULL THEN 1
+            WHEN i.[ExpenseSfn] IS NOT NULL AND i.[Account531010OnHatchFund] = 0 AND i.[Sfn204NotOnProjectList] = 0 THEN 1
+            ELSE 0
+        END AS [SfnOk],
         CASE WHEN COALESCE(i.[FinancialDeptIncludeInReport], 1) = 1 THEN 1 ELSE 0 END AS [DeptOk],
         CASE WHEN COALESCE(i.[AccountIncludeInReport], 1) = 1 THEN 1 ELSE 0 END AS [AccountOk],
         CASE WHEN i.[PurposeExempt] = 1 OR COALESCE(i.[PurposeIncludeInReport], 1) = 1 THEN 1 ELSE 0 END AS [PurposeOk]

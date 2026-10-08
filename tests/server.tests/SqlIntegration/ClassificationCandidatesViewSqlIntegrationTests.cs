@@ -22,8 +22,10 @@ public sealed class ClassificationCandidatesViewSqlIntegrationTests(SqlServerDat
             VALUES
                 ('FinancialDepartment', 'D1', 'Dept',          1, NULL),
                 ('FinancialDepartment', 'DX', 'Excluded dept', 0, NULL),
+                ('FinancialDepartment', 'DX-FUND-B', 'Excluded dept on a blank fund', 0, NULL),
                 ('Fund',    'F201',  'Hatch fund', 1, '201'),
                 ('Fund',    '13U02', 'State',      1, '220'),
+                ('Fund',    'F-EXCL', 'Excluded fund', 0, NULL),
                 ('Account', 'A1', 'Account',          1, NULL),
                 ('Account', 'AX', 'Excluded account', 0, NULL),
                 ('Purpose', 'P1', 'Purpose',          1, NULL),
@@ -47,7 +49,9 @@ public sealed class ClassificationCandidatesViewSqlIntegrationTests(SqlServerDat
                 ('date-excluded',     'F201',  'D1',      'A1',      'AC-DATE',     'P1',      1, 1, 0, NULL),
                 ('account-in-ucpath', 'F201',  'D1',      'A1',      'AC-INUCP',    'P1',      1, 0, 1, NULL),
                 ('fund-blank',        'F-NEW', 'D1',      'A1',      'AC-FUND-B',   'P1',      1, 0, 0, NULL),
-                ('fund-excl-dept',    'F-DX',  'DX',      'A1',      'AC-FUND-DX',  'P1',      1, 0, 0, NULL);
+                ('fund-excl-dept',    'F-DX',  'DX',      'A1',      'AC-FUND-DX',  'P1',      1, 0, 0, NULL),
+                ('fund-blank-dept-x', 'F-NEW', 'DX-FUND-B', 'A1',    'AC-FB-DX',    'P1',      1, 0, 0, NULL),
+                ('fund-excluded',     'F-EXCL','D-FEXCL', 'A1',      'AC-FUND-X',   'P1',      1, 0, 0, NULL);
 
             INSERT INTO [data].[UcPathTransactions]
                 ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
@@ -76,12 +80,15 @@ public sealed class ClassificationCandidatesViewSqlIntegrationTests(SqlServerDat
         Has("Activity", "AC-PURP-X").Should().BeFalse();
         Has("Activity", "AC-DATE").Should().BeFalse();
         Has("Activity", "AC-INUCP").Should().BeFalse();
-        Has("Activity", "AC-FUND-B").Should().BeFalse("an unclassified fund leaves no expense SFN");
+        Has("Activity", "AC-FUND-B").Should().BeTrue("an unclassified fund does not hide");
+        Has("Activity", "AC-FUND-X").Should().BeFalse("an excluded fund leaves no expense SFN");
 
         // A code's own classification never hides it.
         Has("FinancialDepartment", "DX").Should().BeTrue("an excluded department stays visible");
         Has("FinancialDepartment", "D-BLANK").Should().BeTrue();
         Has("FinancialDepartment", "D-ACCT").Should().BeFalse("its only row has an excluded account");
+        Has("FinancialDepartment", "DX-FUND-B").Should().BeTrue("an unclassified fund on its only row does not hide it");
+        Has("FinancialDepartment", "D-FEXCL").Should().BeFalse("its only row has an excluded fund");
         Has("Account", "AX").Should().BeTrue("an excluded account stays visible");
         Has("Purpose", "PX").Should().BeTrue("its non-exempt row passes the other rules");
 
