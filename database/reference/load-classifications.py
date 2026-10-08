@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """Load SegmentClassifications.csv into [data].[SegmentClassifications].
 
-Validates the CSV, then prints (or runs with --run) a MERGE that:
-  - updates the listed codes' classification, keeping an existing
-    classification when the CSV leaves IncludeInReport blank;
-  - inserts listed codes that are missing;
-  - leaves every code not in the CSV alone (the seed's unclassified rows stay
-    in the Data Classification work list).
+Validates the CSV, then prints (or runs with --run) an INSERT of every listed
+code. It only loads into an empty table and stops with an error otherwise, so
+it can never change a classification made in the app. Run it before the first
+import; the seed then adds any code the CSV does not list as unclassified.
 
 Usage:
   ./load-classifications.py > merge.sql
@@ -102,7 +100,7 @@ def sql_flag(value):
     return "NULL" if value is None else ("1" if value else "0")
 
 
-def build_merge(rows):
+def build_insert(rows):
     values = ",\n".join(
         f"    ({sql_text(t)}, {sql_text(c)}, {sql_text(d)}, {sql_flag(i)}, {sql_text(s)})"
         for t, c, d, i, s in rows
@@ -128,36 +126,24 @@ FROM (VALUES
 
 BEGIN TRANSACTION;
 
-DECLARE @changes TABLE ([Action] NVARCHAR(10) NOT NULL);
+-- Only load into an empty table, so a classification made in the app is
+-- never overwritten.
+IF EXISTS (SELECT 1 FROM [data].[SegmentClassifications] WITH (UPDLOCK, HOLDLOCK))
+    THROW 50000, 'SegmentClassifications already has rows. The loader only loads into an empty table.', 1;
 
--- A blank IncludeInReport keeps the existing classification, so reloading
--- never undoes a classification made in the app. Sfn follows the row's final
--- IncludeInReport: kept only on included funds.
-MERGE [data].[SegmentClassifications] AS target
-USING #Source AS source
-    ON target.[SegmentType] = source.[SegmentType] AND target.[Code] = source.[Code]
-WHEN MATCHED THEN
-    UPDATE SET
-        [Description] = COALESCE(target.[Description], source.[Description]),
-        [IncludeInReport] = COALESCE(source.[IncludeInReport], target.[IncludeInReport]),
-        [Sfn] = CASE
-            WHEN COALESCE(source.[IncludeInReport], target.[IncludeInReport]) = 1
-                THEN COALESCE(CASE WHEN source.[IncludeInReport] IS NOT NULL THEN source.[Sfn] END, target.[Sfn])
-        END
-WHEN NOT MATCHED BY TARGET THEN
-    INSERT ([SegmentType], [Code], [Description], [IncludeInReport], [Sfn])
-    VALUES (source.[SegmentType], source.[Code], source.[Description], source.[IncludeInReport], source.[Sfn])
-OUTPUT $action INTO @changes ([Action]);
+INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description], [IncludeInReport], [Sfn])
+SELECT [SegmentType], [Code], [Description], [IncludeInReport], [Sfn]
+FROM #Source;
+
+SELECT @@ROWCOUNT AS [Inserted];
 
 COMMIT TRANSACTION;
-
-SELECT [Action], COUNT(*) AS [Rows] FROM @changes GROUP BY [Action];
 """
 
 
 def main():
     rows = read_rows()
-    sql = build_merge(rows)
+    sql = build_insert(rows)
 
     if len(sys.argv) == 1:
         sys.stdout.write(sql)
