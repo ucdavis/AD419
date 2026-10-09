@@ -239,9 +239,23 @@ The VS Code flow intentionally uses the `http-cli` launch profile instead of the
 
 ### Server tests
 
-- Run `dotnet test` from the repository root to execute the .NET test project included in `app.sln`.
-- Alternatively, target the project directly with `dotnet test tests/server.tests/server.tests.csproj`.
-- The tests use EF Core's in-memory provider (see `tests/server.tests/TestDbContextFactory.cs`) so no SQL Server instance is required.
+Some server tests use EF Core's in-memory provider, while SQL integration tests use Testcontainers to start a temporary SQL Server and publish the data DACPAC. The full suite requires Docker to be running and SQLPackage to be available. Set `SQLPACKAGE` to its executable path if it is not at `/usr/local/sqlpackage/sqlpackage` or on `PATH`.
+
+Build the solution before running the tests from the repository root so the DACPAC matches the current SQL source:
+
+```bash
+dotnet build app.sln -c Debug /m:1
+dotnet test app.sln -c Debug --no-build
+```
+
+When targeting the test project directly, rebuild the database project first after SQL changes or merges; the test project does not build it automatically:
+
+```bash
+dotnet build database/data/data.sqlproj -c Debug
+dotnet test tests/server.tests/server.tests.csproj -c Debug
+```
+
+Use the same configuration for both commands (`Debug` above, or `Release` for both). If `BUILD_CONFIGURATION` is set, it must match because the integration fixture uses it to select the DACPAC. An outdated DACPAC can cause missing-column errors and incorrect results even when the test project builds successfully.
 
 ## Updating Dependencies
 
