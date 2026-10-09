@@ -223,9 +223,13 @@ describe('Expense Review stage', () => {
       expect(screen.getByText('AE')).toBeInTheDocument();
       expect(screen.getByText('UCP')).toBeInTheDocument();
       expect(screen.getByText('$3,600.50')).toBeInTheDocument();
+      // Reason chips show only the label, without amount or row count.
       expect(
-        screen.getByText('Excluded by fund · $2,400.00 · 2 rows')
-      ).toBeInTheDocument();
+        screen
+          .getAllByText('Excluded by fund')
+          .some((element) => element.classList.contains('badge'))
+      ).toBe(true);
+      expect(screen.queryByText(/Excluded by fund ·/)).not.toBeInTheDocument();
 
       expect(screen.getAllByText('3310')[0]).toHaveAttribute(
         'data-tip',
