@@ -10,11 +10,16 @@ AS
 --   AE: AccountInUcPath = 0; UCPath: AccountNotInAE = 0 (NULL fails closed);
 --   the financial department, fund, account and activity are classified
 --   included (unclassified fails closed);
---   the purpose is classified included, or the fund is 13U02 (State
---   Appropriations are reported regardless of purpose);
+--   the purpose is classified included, or PurposeExempt: the fund is 13U02
+--   (State Appropriations) or the AE project is on a 204 project in the cycle
+--   project list. Both are reported regardless of purpose;
 --   an ExpenseSfn was derived (v_TransactionSfn);
 --   not a UCPath row on account 531010 whose derived ExpenseSfn is 201, 202
---   or 205 (last year's summary carve-out).
+--   or 205 (last year's summary carve-out);
+--   not an ExpenseSfn 204 row whose AE project is not a 204 project on the
+--   cycle project list (Sfn204NotOnProjectList). Only active 204 projects are
+--   reported; last year's step 9 deleted these rows. A 204 row with no AE
+--   project is left alone, as last year's delete did.
 --
 -- ErnIncludeInReport is exposed but is not part of Included: an excluded ERN
 -- code removes a UCPath row's FTE from totals, never its dollars.
@@ -30,6 +35,7 @@ WITH Transactions AS
         u.[Account],
         u.[Activity],
         u.[Purpose],
+        u.[Project],
         u.[ErnCode],
         u.[ExcludedByDate],
         CAST(NULL AS BIT)                              AS [AccountInUcPath],
@@ -53,6 +59,7 @@ WITH Transactions AS
         a.[Account],
         a.[Activity],
         a.[Purpose],
+        a.[Project],
         CAST(NULL AS NVARCHAR(3))                      AS [ErnCode],
         a.[ExcludedByDate],
         a.[AccountInUcPath],
@@ -79,8 +86,23 @@ Classified AS
              AND t.[Account] = '531010'
              AND t.[ExpenseSfn] IN ('201', '202', '205')
             THEN 1 ELSE 0
-        END AS BIT) AS [Account531010OnHatchFund]
+        END AS BIT) AS [Account531010OnHatchFund],
+        CAST(CASE
+            WHEN t.[Fund] = '13U02' THEN 1
+            WHEN p204.[AEProjectNumber] IS NOT NULL THEN 1
+            ELSE 0
+        END AS BIT) AS [PurposeExempt],
+        CAST(CASE
+            WHEN t.[ExpenseSfn] = '204' AND t.[Project] IS NOT NULL AND p204.[AEProjectNumber] IS NULL THEN 1
+            ELSE 0
+        END AS BIT) AS [Sfn204NotOnProjectList]
     FROM Transactions t
+    OUTER APPLY
+    (
+        SELECT TOP (1) p.[AEProjectNumber]
+        FROM [data].[Projects] p
+        WHERE p.[Is204] = 1 AND p.[AEProjectNumber] = t.[Project]
+    ) p204
     LEFT JOIN [data].[SegmentClassifications] fd
         ON fd.[SegmentType] = 'FinancialDepartment' AND fd.[Code] = t.[FinancialDepartment]
     LEFT JOIN [data].[SegmentClassifications] fu
@@ -112,6 +134,8 @@ SELECT
     c.[ExpenseSfnSource],
     c.[FteSfn],
     c.[Account531010OnHatchFund],
+    c.[PurposeExempt],
+    c.[Sfn204NotOnProjectList],
     CAST(CASE
         WHEN c.[ExcludedByDate] = 0
          AND ((c.[Source] = N'AE' AND c.[AccountInUcPath] = 0)
@@ -122,8 +146,9 @@ SELECT
          AND COALESCE(c.[FundIncludeInReport], 0) = 1
          AND COALESCE(c.[AccountIncludeInReport], 0) = 1
          AND COALESCE(c.[ActivityIncludeInReport], 0) = 1
-         AND (c.[Fund] = '13U02' OR COALESCE(c.[PurposeIncludeInReport], 0) = 1)
+         AND (c.[PurposeExempt] = 1 OR COALESCE(c.[PurposeIncludeInReport], 0) = 1)
          AND c.[Account531010OnHatchFund] = 0
+         AND c.[Sfn204NotOnProjectList] = 0
         THEN 1 ELSE 0
     END AS BIT) AS [Included]
 FROM Classified c;
