@@ -11,6 +11,11 @@ public static class ImportStageStatus
     public const string Failed = "Failed";
 }
 
+public static class ImportStageErrorMessages
+{
+    public const string InterruptedByApplicationRestart = "Interrupted by application restart.";
+}
+
 public class ImportRunStage
 {
     [Key]

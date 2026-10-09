@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Server.Core.Data;
 using Server.Core.Domain;
 using Server.Core.Import;
@@ -14,7 +16,7 @@ using Server.Workflow;
 
 namespace Server.Tests.ProjectIdentification;
 
-public class ProjectIdentificationServiceTests
+public partial class ProjectIdentificationServiceTests
 {
     private static readonly ClaimsPrincipal User = new(new ClaimsIdentity(
         [
@@ -303,12 +305,14 @@ public class ProjectIdentificationServiceTests
     private static ProjectIdentificationService CreateService(
         AppDbContext db,
         DataDbContext dataDb,
-        StubProjectListService? projectListService = null) =>
+        StubProjectListService? projectListService = null,
+        ILogger<ProjectIdentificationService>? logger = null) =>
         new(
             db,
             new FlatFileImportRegistry(),
             projectListService ?? new StubProjectListService(),
-            new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder()));
+            new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder()),
+            logger ?? NullLogger<ProjectIdentificationService>.Instance);
 
     private static void AddImport(
         AppDbContext db,
@@ -335,6 +339,7 @@ public class ProjectIdentificationServiceTests
     {
         public int IssuesToResolve { get; set; }
         public int RowsBuilt { get; set; } = 12;
+        public Func<CancellationToken, Task<int>>? BuildHandler { get; set; }
         public int BuildProjectsCalls { get; private set; }
         public FiscalYearCycle? ReceivedBuildCycle { get; private set; }
 
@@ -410,7 +415,7 @@ public class ProjectIdentificationServiceTests
         {
             BuildProjectsCalls += 1;
             ReceivedBuildCycle = cycle;
-            return Task.FromResult(RowsBuilt);
+            return BuildHandler?.Invoke(cancellationToken) ?? Task.FromResult(RowsBuilt);
         }
     }
 }

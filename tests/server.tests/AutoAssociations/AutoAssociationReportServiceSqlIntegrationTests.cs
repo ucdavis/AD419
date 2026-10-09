@@ -30,10 +30,10 @@ public sealed class AutoAssociationReportServiceSqlIntegrationTests(SqlServerDat
         build.CycleEnd.Should().Be(new DateOnly(2025, 9, 30));
         build.BuiltAt.Offset.Should().Be(TimeSpan.Zero);
         build.BuiltAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(5));
-        build.SummaryRows.Should().Be(9);
+        build.SummaryRows.Should().Be(8);
         build.AssociationRows.Should().Be(11);
         build.ExcludedProjects.Should().Be(2);
-        build.Misclassified204Rows.Should().Be(1);
+        build.Misclassified204Rows.Should().Be(0);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed class AutoAssociationReportServiceSqlIntegrationTests(SqlServerDat
         rows.Select(row => (row.OrgR, row.FinancialDepartment, row.ExpenseSfn, row.Expenses, row.Fte)).Should().Equal(
             ("AAAA", "D1", "201", 750m, 0.660000m),
             ("AAAA", "D1", "202", 200m, 0.200000m),
-            ("AAAA", "D1", "204", 1457m, 0m),
+            ("AAAA", "D1", "204", 1380m, 0m),
             ("AAAA", "D1", "220", 540m, 0.500000m));
         rows[0].SfnLabel.Should().Be("Hatch");
         rows[0].FinancialDepartmentName.Should().Be("Dept One");
@@ -100,11 +100,11 @@ public sealed class AutoAssociationReportServiceSqlIntegrationTests(SqlServerDat
 
         report.Unassociated.Select(u => (u.Project, u.Expenses, u.Reason)).Should().BeEquivalentTo(new[]
         {
-            ("AE-ZZ", 77m, "Misclassified204"),
             ("AE-S", 80m, "ProjectExcluded"),
         });
         report.Unassociated.Should().OnlyContain(u => u.Source == "AE" && u.OrgR == "AAAA" && u.ExpenseSfn == "204");
-        report.Misclassified.Select(u => u.Project).Should().Equal("AE-ZZ");
+        report.Unassociated.Should().NotContain(u => u.Project == "AE-ZZ");
+        report.Misclassified.Should().BeEmpty();
     }
 
     [Fact]
@@ -273,6 +273,7 @@ public sealed class AutoAssociationReportServiceSqlIntegrationTests(SqlServerDat
             VALUES
                 ('ae-204-shared',        '3310', 'F204', 'D1', 'A1', 'AC1', 'P1', 'AE-A',  'Oct-24', 1000, 0, 0),
                 ('ae-204-single',        '3310', 'F204', 'D1', 'A1', 'AC1', 'P1', 'AE-B',  'Nov-24', 300,  0, 0),
+                -- AE-ZZ is off the 204 project list, so its $77 is excluded before the summary and reports.
                 ('ae-204-misclassified', '3310', 'F204', 'D1', 'A1', 'AC1', 'P1', 'AE-ZZ', 'Nov-24', 77,   0, 0),
                 ('ae-201-e1',            '3310', 'F201', 'D1', 'A1', 'AC1', 'P1', 'AE-C',  'Dec-24', 90,   0, 0),
                 ('ae-zero-a',            '3310', 'F201', 'D1', 'A1', 'AC1', 'P1', 'AE-A',  'Dec-24', 10,   0, 0),

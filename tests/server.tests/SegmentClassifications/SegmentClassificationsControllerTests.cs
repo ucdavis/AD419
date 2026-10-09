@@ -1,13 +1,81 @@
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Server.Controllers;
+using Server.Core.Data;
 using Server.Core.Domain;
+using Server.Helpers;
 using Server.Models.SegmentClassifications;
+using Server.Tests.Helpers;
 
 namespace Server.Tests.SegmentClassifications;
 
 public class SegmentClassificationsControllerTests
 {
+    private static SegmentClassificationsController CreateController(DataDbContext db) => new(db)
+    {
+        ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
+    };
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Failure_logs_submitted_identifiers_without_leaking_to_next_request(bool exception)
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        var controller = CreateController(db);
+        var context = controller.HttpContext;
+        context.Request.Path = "/api/segmentclassifications";
+        context.Request.Method = "PATCH";
+        context.Request.RouteValues["controller"] = "SegmentClassifications";
+        context.Request.RouteValues["action"] = "UpdateClassification";
+        var request = new UpdateClassificationRequest(exception ? "Fund" : "Unknown", "45530", true, "220");
+        if (exception)
+        {
+            db.Dispose();
+        }
+        var logger = new RecordingLogger<ApiFailureLoggingMiddleware>();
+        var middleware = new ApiFailureLoggingMiddleware(async ctx =>
+        {
+            if (ctx == context)
+            {
+                using var inner = logger.BeginScope(new Dictionary<string, object?> { ["InnerScope"] = true });
+                var result = await controller.UpdateClassification(request, CancellationToken.None);
+                ctx.Response.StatusCode = ((BadRequestObjectResult)result).StatusCode!.Value;
+            }
+            else
+            {
+                ctx.Response.StatusCode = 403;
+            }
+        }, logger);
+
+        if (exception)
+        {
+            await FluentActions.Awaiting(() => middleware.InvokeAsync(context)).Should().ThrowAsync<ObjectDisposedException>();
+        }
+        else
+        {
+            await middleware.InvokeAsync(context);
+        }
+
+        var entry = logger.Entries.Should().ContainSingle().Subject;
+        entry.Fields["action"].Should().Be("UpdateClassification");
+        entry.Fields["SegmentType"].Should().Be(request.SegmentType);
+        entry.Fields["Code"].Should().Be("45530");
+        entry.Fields.Should().NotContainKey("InnerScope");
+        entry.Fields.Should().NotContainKey("Sfn");
+        entry.Fields.Should().NotContainKey("IncludeInReport");
+
+        var nextContext = new DefaultHttpContext();
+        nextContext.Request.Path = "/api/segmentclassifications";
+        nextContext.Request.Method = "PATCH";
+        await middleware.InvokeAsync(nextContext);
+        logger.Entries.Should().HaveCount(2);
+        logger.Entries.Last().Fields.Should().NotContainKey("Operation");
+        logger.Entries.Last().Fields.Should().NotContainKey("SegmentType");
+        logger.Entries.Last().Fields.Should().NotContainKey("Code");
+    }
+
     [Fact]
     public async Task Get_returns_all_segments()
     {
@@ -16,7 +84,7 @@ public class SegmentClassificationsControllerTests
             new SegmentClassification { SegmentType = SegmentType.Fund, Code = "45530", Description = "AES", IncludeInReport = true, Sfn = "220" },
             new SegmentClassification { SegmentType = SegmentType.Account, Code = "500000", Description = "S and E", IncludeInReport = null });
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.Get(CancellationToken.None);
 
@@ -37,7 +105,7 @@ public class SegmentClassificationsControllerTests
             ParentLevel1Code = "APPROP", ParentLevel1Name = "Appropriations",
         });
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.Get(CancellationToken.None);
 
@@ -96,7 +164,7 @@ public class SegmentClassificationsControllerTests
         }
 
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.Get(CancellationToken.None);
 
@@ -111,7 +179,7 @@ public class SegmentClassificationsControllerTests
         using var db = TestDbContextFactory.CreateDataInMemory();
         db.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.Account, Code = "500000", IncludeInReport = null });
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.Get(CancellationToken.None);
 
@@ -126,7 +194,7 @@ public class SegmentClassificationsControllerTests
         using var db = TestDbContextFactory.CreateDataInMemory();
         db.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.Fund, Code = "70575", IncludeInReport = null, Sfn = "219" });
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.UpdateClassification(
             new UpdateClassificationRequest("Fund", "70575", true, "201"), CancellationToken.None);
@@ -141,7 +209,7 @@ public class SegmentClassificationsControllerTests
     public async Task Patch_returns_not_found_for_missing_segment()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.UpdateClassification(
             new UpdateClassificationRequest("Fund", "00000", false, null), CancellationToken.None);
@@ -153,7 +221,7 @@ public class SegmentClassificationsControllerTests
     public async Task Patch_returns_bad_request_for_unknown_segment_type()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.UpdateClassification(
             new UpdateClassificationRequest("Nonsense", "00000", false, null), CancellationToken.None);
@@ -167,7 +235,7 @@ public class SegmentClassificationsControllerTests
         using var db = TestDbContextFactory.CreateDataInMemory();
         db.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.Fund, Code = "70575", IncludeInReport = null });
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.UpdateClassification(
             new UpdateClassificationRequest("Fund", "70575", true, "220"), CancellationToken.None);
@@ -184,7 +252,7 @@ public class SegmentClassificationsControllerTests
         using var db = TestDbContextFactory.CreateDataInMemory();
         db.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.Fund, Code = "45530", IncludeInReport = true, Sfn = "220" });
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.UpdateClassification(
             new UpdateClassificationRequest("Fund", "45530", false, null), CancellationToken.None);
@@ -201,7 +269,7 @@ public class SegmentClassificationsControllerTests
         using var db = TestDbContextFactory.CreateDataInMemory();
         db.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.Fund, Code = "70575", IncludeInReport = null });
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.UpdateClassification(
             new UpdateClassificationRequest("Fund", "70575", true, "999"), CancellationToken.None);
@@ -215,7 +283,7 @@ public class SegmentClassificationsControllerTests
         using var db = TestDbContextFactory.CreateDataInMemory();
         db.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.Account, Code = "500000", IncludeInReport = null });
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.UpdateClassification(
             new UpdateClassificationRequest("Account", "500000", true, "201"), CancellationToken.None);
@@ -229,7 +297,7 @@ public class SegmentClassificationsControllerTests
         using var db = TestDbContextFactory.CreateDataInMemory();
         db.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.Fund, Code = "70575", IncludeInReport = null });
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.UpdateClassification(
             new UpdateClassificationRequest("Fund", "70575", true, "Multiple"), CancellationToken.None);

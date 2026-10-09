@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Server.Core.Data;
 using Server.Core.Domain;
+using Server.Helpers;
 using Server.Models.OrgR;
 using Server.Models.SegmentClassifications;
 using Server.OrgRReview;
@@ -211,6 +212,9 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
         [FromBody] SetOrgRRequest request,
         CancellationToken cancellationToken)
     {
+        ApiOperationContext.Set(HttpContext,
+            ("OrgR", request.OrgR));
+
         // Mapping keys are data-derived codes the client echoes back from the GET payload, so no normalization is applied.
         var mapping = await db.OrgRFinancialDepartments.FindAsync([code], cancellationToken);
         if (mapping is null)
@@ -276,6 +280,9 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
         [FromBody] SetOrgRRequest request,
         CancellationToken cancellationToken)
     {
+        ApiOperationContext.Set(HttpContext,
+            ("OrgR", request.OrgR));
+
         // Mapping keys are data-derived codes the client echoes back from the GET payload, so no normalization is applied.
         var mapping = await db.OrgRNifaDepartments.FindAsync([code], cancellationToken);
         if (mapping is null)
@@ -348,6 +355,9 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
         [FromBody] AddProjectOrgRRequest request,
         CancellationToken cancellationToken)
     {
+        ApiOperationContext.Set(HttpContext,
+            ("AccessionNumber", request.AccessionNumber), ("OrgR", request.OrgR));
+
         var accession = request.AccessionNumber?.Trim();
         if (string.IsNullOrEmpty(accession)
             || !await db.Projects.AnyAsync(p => p.AccessionNumber == accession, cancellationToken))
