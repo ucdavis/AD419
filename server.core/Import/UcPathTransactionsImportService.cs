@@ -88,35 +88,33 @@ public sealed class UcPathTransactionsImportService
 
     public async Task<int> ImportAsync(DateOnly cycleStart, DateOnly cycleEnd, CancellationToken cancellationToken = default)
     {
-        using var diagnostics = new ImportDiagnostics(_logger, "UCPath", $"{cycleStart:yyyy-MM-dd}/{cycleEnd:yyyy-MM-dd}");
         var sourceConnectionString = DatamartConnection.Resolve(_configuration);
         var destinationConnectionString = DataDbConnection.Resolve(
             _configuration,
             _dataDbContext.Database.GetConnectionString());
 
         await using var destination = new SqlConnection(destinationConnectionString);
-        await diagnostics.RunAsync("Destination connection", () => destination.OpenAsync(cancellationToken));
+        await destination.OpenAsync(cancellationToken);
 
-        var projects204 = await diagnostics.RunAsync("Preparation lookups", () => ImportSql.ReadListAsync(destination, ImportSql.Projects204Sql, cancellationToken));
+        var projects204 = await ImportSql.ReadListAsync(destination, ImportSql.Projects204Sql, cancellationToken);
         var (windowStart, windowEnd) = ImportSql.BufferedWindow(cycleStart, cycleEnd);
         var fteDenominatorHours = ImportSql.HoursInFederalFiscalYear(cycleEnd.Year);
 
         var salarySql = BuildSalaryQuery(projects204, fteDenominatorHours);
         var fringSql = BuildFringeQuery(projects204);
 
-        await using var transaction = (SqlTransaction)await diagnostics.RunAsync("Begin transaction",
-            () => destination.BeginTransactionAsync(cancellationToken).AsTask());
+        await using var transaction = (SqlTransaction)await destination.BeginTransactionAsync(cancellationToken);
 
         await using (var delete = new SqlCommand(
             $"DELETE FROM {DestinationTable};", destination, transaction))
         {
             delete.CommandTimeout = CommandTimeoutSeconds;
-            await diagnostics.RunAsync("Destination deletion", () => delete.ExecuteNonQueryAsync(cancellationToken));
+            await delete.ExecuteNonQueryAsync(cancellationToken);
         }
 
         var commandText = $"EXEC (@remoteQuery, @windowStart, @windowEnd) AT [{HcmLinkedServer}];";
         var totalRowsCopied =
-            await diagnostics.RunAsync("Salary transfer", () => BulkCopyLinkedQueryAsync(
+            await BulkCopyLinkedQueryAsync(
                 sourceConnectionString,
                 commandText,
                 [
@@ -126,8 +124,8 @@ public sealed class UcPathTransactionsImportService
                 ],
                 destination,
                 transaction,
-                cancellationToken))
-            + await diagnostics.RunAsync("Fringe transfer", () => BulkCopyLinkedQueryAsync(
+                cancellationToken)
+            + await BulkCopyLinkedQueryAsync(
                 sourceConnectionString,
                 commandText,
                 [
@@ -137,16 +135,16 @@ public sealed class UcPathTransactionsImportService
                 ],
                 destination,
                 transaction,
-                cancellationToken));
+                cancellationToken);
 
-        await diagnostics.CommitAsync(() => transaction.CommitAsync(cancellationToken));
+        await transaction.CommitAsync(cancellationToken);
 
         var rowsImported = (int)totalRowsCopied;
+        _logger.LogInformation("Imported {RowCount} UCPath transactions", rowsImported);
 
-        await diagnostics.RunAsync("Employee name enrichment", () => EnrichEmployeeNamesAsync(sourceConnectionString, destination, cancellationToken));
-        await diagnostics.RunAsync("Job code enrichment", () => EnrichJobCodesAsync(sourceConnectionString, destination, windowEnd, cancellationToken));
+        await EnrichEmployeeNamesAsync(sourceConnectionString, destination, cancellationToken);
+        await EnrichJobCodesAsync(sourceConnectionString, destination, windowEnd, cancellationToken);
 
-        diagnostics.Complete(rowsImported);
         return rowsImported;
     }
 

@@ -27,6 +27,8 @@ public class SegmentClassificationsControllerTests
         var context = controller.HttpContext;
         context.Request.Path = "/api/segmentclassifications";
         context.Request.Method = "PATCH";
+        context.Request.RouteValues["controller"] = "SegmentClassifications";
+        context.Request.RouteValues["action"] = "UpdateClassification";
         var request = new UpdateClassificationRequest(exception ? "Fund" : "Unknown", "45530", true, "220");
         if (exception)
         {
@@ -57,7 +59,7 @@ public class SegmentClassificationsControllerTests
         }
 
         var entry = logger.Entries.Should().ContainSingle().Subject;
-        entry.Fields["Operation"].Should().Be("UpdateClassification");
+        entry.Fields["action"].Should().Be("UpdateClassification");
         entry.Fields["SegmentType"].Should().Be(request.SegmentType);
         entry.Fields["Code"].Should().Be("45530");
         entry.Fields.Should().NotContainKey("InnerScope");

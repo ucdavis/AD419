@@ -3,7 +3,6 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Server.Authorization;
 using Server.Core.Data;
-using Server.Core.Diagnostics;
 using Server.Core.Domain;
 using Server.Core.Import;
 using Server.Import;
@@ -180,19 +179,11 @@ public sealed class ProjectIdentificationService(
         ClaimsPrincipal user,
         CancellationToken cancellationToken)
     {
-        using var diagnostics = new OperationDiagnostics(logger, "FinalizeProjects",
-            new Dictionary<string, object?>
-            {
-                // False means success has not been confirmed, not that changes were rolled back.
-                ["ProjectsCommitted"] = false,
-                ["WorkflowStateSaved"] = false,
-            });
-        await diagnostics.RunAsync("Wait for finalization gate", () => FinalizeProjectsGate.WaitAsync(cancellationToken));
+        await FinalizeProjectsGate.WaitAsync(cancellationToken);
 
         try
         {
-            var run = await diagnostics.RunAsync("Load workflow run",
-                () => workflowService.GetOrCreateCurrentRunAsync(user, cancellationToken));
+            var run = await workflowService.GetOrCreateCurrentRunAsync(user, cancellationToken);
             using var runScope = logger.BeginScope(new Dictionary<string, object?>
             {
                 ["WorkflowRunId"] = run.Id,
@@ -200,90 +191,58 @@ public sealed class ProjectIdentificationService(
                 ["CycleStart"] = run.CycleStart,
                 ["CycleEnd"] = run.CycleEnd,
             });
-            var cycle = await diagnostics.RunAsync("Validate readiness",
-                () => ValidateFinalizationReadinessAsync(run, cancellationToken));
-            if (cycle is null)
+            var latestImports = await GetLatestImportsAsync(cancellationToken);
+            var items = CreateChecklistItems(run, latestImports);
+            var finalizeItem = items.Single(item => item.Id == FinalizeProjectsItemId);
+
+            var previousComplete = items
+                .Where(item => item.Number < finalizeItem.Number)
+                .All(item => item.Completed);
+
+            if (!previousComplete || !finalizeItem.Ready)
             {
+                logger.LogInformation("Project finalization skipped: {Reason}", "Unmet prerequisites");
                 return null;
             }
 
-            var rowsBuilt = await diagnostics.RunAsync("Build projects",
-                () => projectListService.BuildProjectsAsync(cycle, cancellationToken));
-            using var committedScope = logger.BeginScope(new Dictionary<string, object?>
+            if (finalizeItem.Completed)
             {
-                ["ProjectsCommitted"] = true,
-                ["ProjectsBuilt"] = rowsBuilt,
-            });
-            logger.LogInformation("Projects committed. ElapsedMs={ElapsedMs}.", diagnostics.ElapsedMilliseconds);
+                logger.LogInformation("Project finalization skipped: {Reason}", "Already completed");
+                return null;
+            }
 
-            await diagnostics.RunAsync("Save workflow completion", async () =>
+            if (!FiscalYearCycle.TryParse(run.FiscalYear, out var cycle))
             {
-                var now = DateTimeOffset.UtcNow;
-                var state = GetOrCreateState(run, FinalizeProjectsItemId);
-                CompleteState(state, user, now);
-                state.SourceImportLogId = null;
-                state.SourceKey = $"build-projects:{now:O}";
-                state.SourceRows = rowsBuilt;
-                state.SourceCompletedAt = now;
+                logger.LogInformation("Project finalization skipped: {Reason}", "Invalid fiscal year");
+                return null;
+            }
 
-                Touch(run, user, now);
-                await dbContext.SaveChangesAsync(cancellationToken);
-            });
-            using var savedScope = logger.BeginScope(new Dictionary<string, object?> { ["WorkflowStateSaved"] = true });
-            logger.LogInformation("Workflow completion saved. ElapsedMs={ElapsedMs}.", diagnostics.ElapsedMilliseconds);
-
-            var response = await diagnostics.RunAsync("Refresh setup", async () =>
+            if (!await ProjectIssuesResolvedAsync(run, cancellationToken))
             {
-                var latestImports = await GetLatestImportsAsync(cancellationToken);
-                return CreateSetupResponse(run, latestImports);
-            });
-            diagnostics.Complete();
-            return response;
+                logger.LogInformation("Project finalization skipped: {Reason}", "Unresolved issues");
+                return null;
+            }
+
+            var rowsBuilt = await projectListService.BuildProjectsAsync(cycle, cancellationToken);
+            logger.LogInformation("Projects committed. ProjectsBuilt={ProjectsBuilt}.", rowsBuilt);
+            var now = DateTimeOffset.UtcNow;
+            var state = GetOrCreateState(run, FinalizeProjectsItemId);
+            CompleteState(state, user, now);
+            state.SourceImportLogId = null;
+            state.SourceKey = $"build-projects:{now:O}";
+            state.SourceRows = rowsBuilt;
+            state.SourceCompletedAt = now;
+
+            Touch(run, user, now);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            logger.LogInformation("Workflow completion saved.");
+
+            latestImports = await GetLatestImportsAsync(cancellationToken);
+            return CreateSetupResponse(run, latestImports);
         }
         finally
         {
             FinalizeProjectsGate.Release();
-        }
-    }
-
-    private async Task<FiscalYearCycle?> ValidateFinalizationReadinessAsync(
-        WorkflowRun run,
-        CancellationToken cancellationToken)
-    {
-        var latestImports = await GetLatestImportsAsync(cancellationToken);
-        var items = CreateChecklistItems(run, latestImports);
-        var finalizeItem = items.Single(item => item.Id == FinalizeProjectsItemId);
-        var previousComplete = items
-            .Where(item => item.Number < finalizeItem.Number)
-            .All(item => item.Completed);
-
-        if (!previousComplete || !finalizeItem.Ready)
-        {
-            return Skip("Unmet prerequisites");
-        }
-
-        if (finalizeItem.Completed)
-        {
-            return Skip("Already completed");
-        }
-
-        if (!await ProjectIssuesResolvedAsync(run, cancellationToken))
-        {
-            return Skip(FiscalYearCycle.TryParse(run.FiscalYear, out _)
-                ? "Unresolved issues" : "Invalid fiscal year");
-        }
-
-        if (!FiscalYearCycle.TryParse(run.FiscalYear, out var cycle))
-        {
-            return Skip("Invalid fiscal year");
-        }
-
-        return cycle;
-
-        FiscalYearCycle? Skip(string reason)
-        {
-            logger.LogInformation("Project finalization {Outcome}. Reason={Reason}.", "skipped", reason);
-            return null;
         }
     }
 

@@ -151,12 +151,12 @@ await StartupLogging.RunAsync(app, async cancellationToken =>
     }
 
 
-    app.UseApiFailureLogging();
     app.UseAuthentication();
-    app.UseAuthorization();
 
     // enrich every log with request context
     app.UseRequestContextLogging();
+    app.UseApiFailureLogging();
+    app.UseAuthorization();
 
     // app.UseHttpLogging(); // if you want extra logging. It's a little overkill though with the current logging setup
 

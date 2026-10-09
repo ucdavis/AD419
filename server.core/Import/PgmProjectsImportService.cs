@@ -97,7 +97,6 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
 
     public async Task<PgmProjectsImportResult> ImportAsync(DateOnly reportDate, CancellationToken cancellationToken = default)
     {
-        using var diagnostics = new ImportDiagnostics(_logger, "PGM", reportDate);
         var sourceConnectionString = DatamartConnection.Resolve(_configuration);
         var destinationConnectionString = DataDbConnection.Resolve(
             _configuration,
@@ -106,21 +105,20 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
         _logger.LogInformation("Importing PGM projects for report date {ReportDate}", reportDate);
 
         await using var destination = new SqlConnection(destinationConnectionString);
-        await diagnostics.RunAsync("Destination connection", () => destination.OpenAsync(cancellationToken));
-        await using var transaction = (SqlTransaction)await diagnostics.RunAsync("Begin transaction",
-            () => destination.BeginTransactionAsync(cancellationToken).AsTask());
+        await destination.OpenAsync(cancellationToken);
+        await using var transaction = (SqlTransaction)await destination.BeginTransactionAsync(cancellationToken);
 
         await using (var delete = new SqlCommand($"DELETE FROM {DestinationTable};", destination, transaction))
         {
             delete.CommandTimeout = CommandTimeoutSeconds;
-            await diagnostics.RunAsync("Destination deletion", () => delete.ExecuteNonQueryAsync(cancellationToken));
+            await delete.ExecuteNonQueryAsync(cancellationToken);
         }
 
         // The report date is a bound parameter, never concatenated into SQL: it is passed to
         // Redshift as the EXEC ... AT pass-through parameter, so the warehouse reuses one plan
         // across report dates. @remoteQuery carries the Redshift SQL; @reportDate binds to its
         // single ? placeholder.
-        var rowsCopied = await diagnostics.RunAsync("Source transfer", () => _linkedServer.ExecuteReaderAsync(
+        var rowsCopied = await _linkedServer.ExecuteReaderAsync(
             sourceConnectionString,
             BuildSourceCommandText(),
             [
@@ -134,15 +132,19 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
                 ColumnMappings,
                 reader,
                 ct),
-            cancellationToken));
+            cancellationToken);
 
         var rowsImported = (int)rowsCopied;
 
-        await diagnostics.CommitAsync(() => transaction.CommitAsync(cancellationToken));
+        await transaction.CommitAsync(cancellationToken);
 
-        await diagnostics.RunAsync("Aggregate checks", () => LogPeopleAggregateTruncationWarningsAsync(sourceConnectionString, destination, cancellationToken));
+        _logger.LogInformation(
+            "Imported {RowCount} PGM projects for report date {ReportDate}",
+            rowsImported,
+            reportDate);
 
-        diagnostics.Complete(rowsImported);
+        await LogPeopleAggregateTruncationWarningsAsync(sourceConnectionString, destination, cancellationToken);
+
         return new PgmProjectsImportResult(rowsImported, reportDate);
     }
 

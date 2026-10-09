@@ -11,8 +11,8 @@ public class ImportStageProviderTests
     {
         var db = TestDbContextFactory.CreateDataInMemory();
         var config = new ConfigurationBuilder().Build();
-        var linkedServer = new LinkedServerQueryExecutor(NullLogger<LinkedServerQueryExecutor>.Instance);
-        var bulkCopy = new SqlBulkCopyWriter(NullLogger<SqlBulkCopyWriter>.Instance);
+        var linkedServer = new LinkedServerQueryExecutor();
+        var bulkCopy = new SqlBulkCopyWriter();
         return new ImportStageProvider(
             new ChartSegmentsImportService(db, config, NullLogger<ChartSegmentsImportService>.Instance, linkedServer, bulkCopy),
             new AeTransactionsImportService(db, config, NullLogger<AeTransactionsImportService>.Instance, linkedServer, bulkCopy),

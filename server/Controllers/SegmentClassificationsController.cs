@@ -66,7 +66,7 @@ public class SegmentClassificationsController : ApiControllerBase
         [FromBody] UpdateClassificationRequest request,
         CancellationToken cancellationToken)
     {
-        ApiOperationContext.Set(HttpContext, nameof(UpdateClassification),
+        ApiOperationContext.Set(HttpContext,
             ("SegmentType", request.SegmentType), ("Code", request.Code));
 
         if (!Enum.TryParse<SegmentType>(request.SegmentType, out var segmentType))

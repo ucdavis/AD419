@@ -13,13 +13,6 @@ public sealed class ApiFailureLoggingMiddleware(RequestDelegate next, ILogger<Ap
         }
 
         var elapsed = Stopwatch.StartNew();
-        var traceId = Activity.Current?.TraceId.ToString();
-        using var scope = logger.BeginScope(new Dictionary<string, object?>
-        {
-            ["request.id"] = context.TraceIdentifier,
-            ["trace.id"] = traceId,
-        });
-
         try
         {
             await next(context);
@@ -43,14 +36,8 @@ public sealed class ApiFailureLoggingMiddleware(RequestDelegate next, ILogger<Ap
 
     private void LogFailure(HttpContext context, LogLevel level, Exception? exception, string outcome, Stopwatch elapsed)
     {
-        using var operationScope = logger.BeginScope(ApiOperationContext.Get(context));
-        // Read identity here: the inner request-context scope has already unwound.
-        using var scope = logger.BeginScope(new Dictionary<string, object?>
-        {
-            ["user.name"] = context.User.Identity?.IsAuthenticated == true
-                ? context.User.Identity.Name ?? "authenticated"
-                : "anonymous",
-        });
+        using var routeScope = logger.BeginScope(context.Request.RouteValues);
+        using var bodyScope = logger.BeginScope(ApiOperationContext.Get(context));
         logger.Log(level, exception,
             "{Outcome}: {Method} {Path}. ElapsedMs={ElapsedMs}, StatusCode={StatusCode}, RequestAborted={RequestAborted}, ContentLength={ContentLength}.",
             outcome, context.Request.Method, context.Request.Path, elapsed.ElapsedMilliseconds,

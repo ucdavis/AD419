@@ -5,10 +5,10 @@ internal static class ApiOperationContext
     private static readonly object Key = new();
     private static readonly IReadOnlyDictionary<string, object?> Empty = new Dictionary<string, object?>();
 
-    // Keep selected identifiers available after controller log scopes have unwound.
-    public static void Set(HttpContext context, string operation, params (string Name, object? Value)[] identifiers)
+    // Keep selected body identifiers available after controller log scopes have unwound.
+    public static void Set(HttpContext context, params (string Name, object? Value)[] identifiers)
     {
-        var fields = new Dictionary<string, object?> { ["Operation"] = operation };
+        var fields = new Dictionary<string, object?>();
         foreach (var (name, value) in identifiers)
         {
             fields[name] = value;

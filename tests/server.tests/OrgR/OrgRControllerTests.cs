@@ -22,12 +22,12 @@ namespace Server.Tests.OrgRReview;
 public class OrgRControllerTests : IDisposable
 {
     [Theory]
-    [InlineData("CreateOrgR", "OrgR", " bad! ", null)]
-    [InlineData("DeleteOrgR", "OrgR", " bad! ", null)]
-    [InlineData("SetFinancialDepartmentOrgR", "FinancialDepartment", "missing", "AARE")]
-    [InlineData("SetNifaDepartmentOrgR", "NifaDepartment", "missing", null)]
+    [InlineData("CreateOrgR", "code", " bad! ", null)]
+    [InlineData("DeleteOrgR", "code", " bad! ", null)]
+    [InlineData("SetFinancialDepartmentOrgR", "code", "missing", "AARE")]
+    [InlineData("SetNifaDepartmentOrgR", "code", "missing", null)]
     [InlineData("AddProject", "AccessionNumber", " missing ", "AARE")]
-    [InlineData("RemoveProject", "AccessionNumber", "missing", "AARE")]
+    [InlineData("RemoveProject", "accessionNumber", "missing", "AARE")]
     public async Task Rejected_mutation_logs_submitted_identifiers(
         string operation, string field, string identifier, string? orgR)
     {
@@ -36,6 +36,10 @@ public class OrgRControllerTests : IDisposable
         var context = controller.HttpContext;
         context.Request.Path = "/api/orgr";
         context.Request.Method = "POST";
+        context.Request.RouteValues["controller"] = "OrgR";
+        context.Request.RouteValues["action"] = operation;
+        if (operation != "AddProject") context.Request.RouteValues[field] = identifier;
+        if (operation == "RemoveProject") context.Request.RouteValues["orgR"] = orgR;
         var logger = new RecordingLogger<ApiFailureLoggingMiddleware>();
         var middleware = new ApiFailureLoggingMiddleware(async ctx =>
         {
@@ -55,11 +59,16 @@ public class OrgRControllerTests : IDisposable
         await middleware.InvokeAsync(context);
 
         var entry = logger.Entries.Should().ContainSingle().Subject;
-        entry.Fields["Operation"].Should().Be(operation);
+        entry.Fields["action"].Should().Be(operation);
+        entry.Fields["controller"].Should().Be("OrgR");
         entry.Fields[field].Should().Be(identifier);
-        if (field != "OrgR")
+        if (operation is "SetFinancialDepartmentOrgR" or "SetNifaDepartmentOrgR" or "AddProject")
         {
             entry.Fields["OrgR"].Should().Be(orgR);
+        }
+        else
+        {
+            context.Items.Should().BeEmpty();
         }
     }
 

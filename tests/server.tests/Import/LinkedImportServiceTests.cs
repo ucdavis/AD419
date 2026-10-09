@@ -31,7 +31,7 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
             Configuration(),
             NullLogger<PgmProjectsImportService>.Instance,
             linkedServer,
-            new SqlBulkCopyWriter(NullLogger<SqlBulkCopyWriter>.Instance));
+            new SqlBulkCopyWriter());
 
         var result = await service.ImportAsync(new DateOnly(2025, 6, 30), CancellationToken.None);
 
@@ -64,7 +64,7 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
             Configuration(),
             NullLogger<ChartSegmentsImportService>.Instance,
             linkedServer,
-            new SqlBulkCopyWriter(NullLogger<SqlBulkCopyWriter>.Instance));
+            new SqlBulkCopyWriter());
 
         var rowsImported = await service.ImportSegmentAsync("Fund", CancellationToken.None);
 
@@ -97,7 +97,7 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
             Configuration(),
             NullLogger<AeTransactionsImportService>.Instance,
             linkedServer,
-            new SqlBulkCopyWriter(NullLogger<SqlBulkCopyWriter>.Instance));
+            new SqlBulkCopyWriter());
 
         var rowsImported = await service.ImportAsync(new DateOnly(2024, 10, 1), new DateOnly(2025, 9, 30), CancellationToken.None);
 
@@ -136,7 +136,7 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
             Configuration(),
             NullLogger<UcPathTransactionsImportService>.Instance,
             linkedServer,
-            new SqlBulkCopyWriter(NullLogger<SqlBulkCopyWriter>.Instance));
+            new SqlBulkCopyWriter());
 
         var rowsImported = await service.ImportAsync(new DateOnly(2024, 10, 1), new DateOnly(2025, 9, 30), CancellationToken.None);
 
@@ -482,7 +482,7 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Pgm_transfer_failure_preserves_existing_rows_and_logs_phase(bool canceled)
+    public async Task Pgm_transfer_failure_preserves_existing_rows_without_import_success(bool canceled)
     {
         await fixture.ClearDataTablesAsync();
         await using var connection = await OpenConnectionAsync();
@@ -491,16 +491,15 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
         var logger = new RecordingLogger<PgmProjectsImportService>();
         Exception error = canceled ? new OperationCanceledException() : new InvalidOperationException("Source failed");
         var service = new PgmProjectsImportService(db, Configuration(), logger,
-            new FailingLinkedServerQueryExecutor(error), new SqlBulkCopyWriter(NullLogger<SqlBulkCopyWriter>.Instance));
-        await FluentActions.Awaiting(() => service.ImportAsync(new DateOnly(2025, 6, 30))).Should().ThrowAsync<Exception>();
+            new FailingLinkedServerQueryExecutor(error), new SqlBulkCopyWriter());
+        var actual = await Record.ExceptionAsync(() => service.ImportAsync(new DateOnly(2025, 6, 30)));
+        actual.Should().BeSameAs(error);
         (await connection.QuerySingleAsync<int>("SELECT [ProjectId] FROM [data].[PGMProjects];")).Should().Be(1);
-        logger.Entries.Should().Contain(e => Equals(e.Fields.GetValueOrDefault("Phase"), "Source transfer")
-            && Equals(e.Fields.GetValueOrDefault("DataCommitted"), false));
-        logger.Entries.Should().NotContain(e => e.Message.StartsWith("Data committed"));
+        logger.Entries.Should().NotContain(e => e.Message.StartsWith("Imported "));
     }
 
     [Fact]
-    public async Task Bulk_copy_logs_phase_and_leaves_commit_to_caller()
+    public async Task Bulk_copy_leaves_commit_to_caller()
     {
         await using var connection = await OpenConnectionAsync();
         await connection.ExecuteAsync("CREATE TABLE #ProgressRows ([Id] int NOT NULL);");
@@ -509,12 +508,9 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
         rows.Columns.Add("Id", typeof(int));
         for (var i = 0; i < 2; i++) rows.Rows.Add(i);
         using var reader = rows.CreateDataReader();
-        var logger = new RecordingLogger<SqlBulkCopyWriter>();
-        var writer = new SqlBulkCopyWriter(logger);
+        var writer = new SqlBulkCopyWriter();
         (await writer.WriteToServerAsync(connection, transaction, "#ProgressRows",
             [new ImportColumnMapping("Id", "Id")], reader, CancellationToken.None)).Should().Be(2);
-        logger.Entries.Should().ContainSingle(e => e.Message.StartsWith("Operation phase Bulk copy completed")
-            && Equals(e.Fields["DestinationTable"], "#ProgressRows"));
         await transaction.RollbackAsync();
         (await connection.QuerySingleAsync<int>("SELECT COUNT(*) FROM #ProgressRows;")).Should().Be(0);
     }
@@ -526,17 +522,17 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
         await using var db = fixture.CreateDataDbContext();
         var logger = new RecordingLogger<PgmProjectsImportService>();
         var service = new PgmProjectsImportService(db, Configuration(), logger,
-            new CancelSecondQueryExecutor(PgmProjectRows()), new SqlBulkCopyWriter(NullLogger<SqlBulkCopyWriter>.Instance));
+            new CancelSecondQueryExecutor(PgmProjectRows()), new SqlBulkCopyWriter());
         await FluentActions.Awaiting(() => service.ImportAsync(new DateOnly(2025, 6, 30)))
             .Should().ThrowAsync<OperationCanceledException>();
         await using var connection = await OpenConnectionAsync();
         (await connection.QuerySingleAsync<int>("SELECT [ProjectId] FROM [data].[PGMProjects];")).Should().Be(9001);
-        logger.Entries.Should().Contain(e => Equals(e.Fields.GetValueOrDefault("Phase"), "Aggregate checks")
-            && Equals(e.Fields.GetValueOrDefault("DataCommitted"), true));
+        var committed = logger.Entries.Should().ContainSingle(e => e.Message.StartsWith("Imported ")).Subject;
+        committed.Fields.Should().Contain("RowCount", 1).And.Contain("ReportDate", new DateOnly(2025, 6, 30));
     }
 
     [Fact]
-    public async Task Destination_failure_is_identified_and_rolls_back_the_replacement()
+    public async Task Destination_failure_rolls_back_the_replacement_without_import_success()
     {
         await fixture.ClearDataTablesAsync();
         await using var connection = await OpenConnectionAsync();
@@ -544,26 +540,12 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
         var rows = PgmProjectRows();
         rows.ImportRow(rows.Rows[0]); // A duplicate key must fail during the actual destination write.
         await using var db = fixture.CreateDataDbContext();
-        var bulkLogger = new RecordingLogger<SqlBulkCopyWriter>();
-        var service = new PgmProjectsImportService(db, Configuration(), NullLogger<PgmProjectsImportService>.Instance,
-            new FakeLinkedServerQueryExecutor(rows), new SqlBulkCopyWriter(bulkLogger));
+        var logger = new RecordingLogger<PgmProjectsImportService>();
+        var service = new PgmProjectsImportService(db, Configuration(), logger,
+            new FakeLinkedServerQueryExecutor(rows), new SqlBulkCopyWriter());
         await FluentActions.Awaiting(() => service.ImportAsync(new DateOnly(2025, 6, 30))).Should().ThrowAsync<SqlException>();
         (await connection.QuerySingleAsync<int>("SELECT [ProjectId] FROM [data].[PGMProjects];")).Should().Be(1);
-        bulkLogger.Entries.Should().Contain(e => Equals(e.Fields.GetValueOrDefault("Phase"), "Bulk copy")
-            && Equals(e.Fields.GetValueOrDefault("Outcome"), "failure"));
-    }
-
-    [Fact]
-    public async Task Source_reader_failure_is_distinct_from_connection_failure()
-    {
-        var logger = new RecordingLogger<LinkedServerQueryExecutor>();
-        var executor = new LinkedServerQueryExecutor(logger);
-        await FluentActions.Awaiting(() => executor.ExecuteReaderAsync(fixture.ConnectionString,
-            "SELECT * FROM [data].[MissingDiagnosticTestTable]", [], (_, _) => Task.FromResult(0), CancellationToken.None))
-            .Should().ThrowAsync<SqlException>();
-        logger.Entries.Should().Contain(e => e.Message.Contains("Source connection completed"));
-        logger.Entries.Should().Contain(e => Equals(e.Fields.GetValueOrDefault("Phase"), "Source reader")
-            && Equals(e.Fields.GetValueOrDefault("Outcome"), "failure"));
+        logger.Entries.Should().NotContain(e => e.Message.StartsWith("Imported "));
     }
 
     private sealed class FailingLinkedServerQueryExecutor(Exception error) : ILinkedServerQueryExecutor

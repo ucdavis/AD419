@@ -82,35 +82,33 @@ public sealed class AeTransactionsImportService
 
     public async Task<int> ImportAsync(DateOnly cycleStart, DateOnly cycleEnd, CancellationToken cancellationToken = default)
     {
-        using var diagnostics = new ImportDiagnostics(_logger, "AE", $"{cycleStart:yyyy-MM-dd}/{cycleEnd:yyyy-MM-dd}");
         var sourceConnectionString = DatamartConnection.Resolve(_configuration);
         var destinationConnectionString = DataDbConnection.Resolve(
             _configuration,
             _dataDbContext.Database.GetConnectionString());
 
         await using var destination = new SqlConnection(destinationConnectionString);
-        await diagnostics.RunAsync("Destination connection", () => destination.OpenAsync(cancellationToken));
+        await destination.OpenAsync(cancellationToken);
 
-        var caesAnrDepartments = await diagnostics.RunAsync("Preparation lookups", () => ImportSql.ReadListAsync(destination, CaesAnrDepartmentsSql, cancellationToken));
-        var bcbsDepartments = await diagnostics.RunAsync("Preparation lookups", () => ImportSql.ReadListAsync(destination, BcbsDepartmentsSql, cancellationToken));
-        var projects204 = await diagnostics.RunAsync("Preparation lookups", () => ImportSql.ReadListAsync(destination, ImportSql.Projects204Sql, cancellationToken));
+        var caesAnrDepartments = await ImportSql.ReadListAsync(destination, CaesAnrDepartmentsSql, cancellationToken);
+        var bcbsDepartments = await ImportSql.ReadListAsync(destination, BcbsDepartmentsSql, cancellationToken);
+        var projects204 = await ImportSql.ReadListAsync(destination, ImportSql.Projects204Sql, cancellationToken);
 
         var (windowStart, windowEnd) = ImportSql.BufferedWindow(cycleStart, cycleEnd);
         var periods = ImportSql.PeriodNames(windowStart, windowEnd);
 
         var remoteQuery = BuildRemoteQuery(periods, caesAnrDepartments, bcbsDepartments, projects204);
 
-        await using var transaction = (SqlTransaction)await diagnostics.RunAsync("Begin transaction",
-            () => destination.BeginTransactionAsync(cancellationToken).AsTask());
+        await using var transaction = (SqlTransaction)await destination.BeginTransactionAsync(cancellationToken);
 
         await using (var delete = new SqlCommand(
             $"DELETE FROM {DestinationTable};", destination, transaction))
         {
             delete.CommandTimeout = CommandTimeoutSeconds;
-            await diagnostics.RunAsync("Destination deletion", () => delete.ExecuteNonQueryAsync(cancellationToken));
+            await delete.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        var rowsCopied = await diagnostics.RunAsync("Source transfer", () => _linkedServer.ExecuteReaderAsync(
+        var rowsCopied = await _linkedServer.ExecuteReaderAsync(
             sourceConnectionString,
             $"EXEC (@remoteQuery) AT [{RemoteLinkedServer}];",
             [new SqlParameter("@remoteQuery", SqlDbType.NVarChar, -1) { Value = remoteQuery }],
@@ -121,12 +119,12 @@ public sealed class AeTransactionsImportService
                 ColumnMappings,
                 reader,
                 ct),
-            cancellationToken));
+            cancellationToken);
 
         var rowsImported = (int)rowsCopied;
-        await diagnostics.CommitAsync(() => transaction.CommitAsync(cancellationToken));
+        await transaction.CommitAsync(cancellationToken);
 
-        diagnostics.Complete(rowsImported);
+        _logger.LogInformation("Imported {RowCount} AE transactions", rowsImported);
         return rowsImported;
     }
 

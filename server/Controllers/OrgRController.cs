@@ -89,9 +89,6 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
     [HttpPut("orgrs/{code}")]
     public async Task<IActionResult> CreateOrgR(string code, CancellationToken cancellationToken)
     {
-        ApiOperationContext.Set(HttpContext, nameof(CreateOrgR),
-            ("OrgR", code));
-
         var normalized = NormalizeCode(code);
         if (normalized is null)
         {
@@ -111,9 +108,6 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
     [HttpDelete("orgrs/{code}")]
     public async Task<IActionResult> DeleteOrgR(string code, CancellationToken cancellationToken)
     {
-        ApiOperationContext.Set(HttpContext, nameof(DeleteOrgR),
-            ("OrgR", code));
-
         var normalized = NormalizeCode(code);
         if (normalized is null)
         {
@@ -218,8 +212,8 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
         [FromBody] SetOrgRRequest request,
         CancellationToken cancellationToken)
     {
-        ApiOperationContext.Set(HttpContext, nameof(SetFinancialDepartmentOrgR),
-            ("FinancialDepartment", code), ("OrgR", request.OrgR));
+        ApiOperationContext.Set(HttpContext,
+            ("OrgR", request.OrgR));
 
         // Mapping keys are data-derived codes the client echoes back from the GET payload, so no normalization is applied.
         var mapping = await db.OrgRFinancialDepartments.FindAsync([code], cancellationToken);
@@ -286,8 +280,8 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
         [FromBody] SetOrgRRequest request,
         CancellationToken cancellationToken)
     {
-        ApiOperationContext.Set(HttpContext, nameof(SetNifaDepartmentOrgR),
-            ("NifaDepartment", code), ("OrgR", request.OrgR));
+        ApiOperationContext.Set(HttpContext,
+            ("OrgR", request.OrgR));
 
         // Mapping keys are data-derived codes the client echoes back from the GET payload, so no normalization is applied.
         var mapping = await db.OrgRNifaDepartments.FindAsync([code], cancellationToken);
@@ -361,7 +355,7 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
         [FromBody] AddProjectOrgRRequest request,
         CancellationToken cancellationToken)
     {
-        ApiOperationContext.Set(HttpContext, nameof(AddProject),
+        ApiOperationContext.Set(HttpContext,
             ("AccessionNumber", request.AccessionNumber), ("OrgR", request.OrgR));
 
         var accession = request.AccessionNumber?.Trim();
@@ -391,9 +385,6 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
     [HttpDelete("projects/{accessionNumber}/{orgR}")]
     public async Task<IActionResult> RemoveProject(string accessionNumber, string orgR, CancellationToken cancellationToken)
     {
-        ApiOperationContext.Set(HttpContext, nameof(RemoveProject),
-            ("AccessionNumber", accessionNumber), ("OrgR", orgR));
-
         var normalized = NormalizeCode(orgR);
         var addition = normalized is null
             ? null

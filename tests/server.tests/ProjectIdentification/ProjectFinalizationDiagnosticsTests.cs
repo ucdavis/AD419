@@ -13,7 +13,7 @@ namespace Server.Tests.ProjectIdentification;
 public partial class ProjectIdentificationServiceTests
 {
     [Fact]
-    public async Task Finalization_logs_phases_context_and_separate_persistence_milestones()
+    public async Task Finalization_logs_context_and_separate_persistence_milestones()
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
@@ -25,24 +25,16 @@ public partial class ProjectIdentificationServiceTests
         var response = await service.FinalizeProjectsAsync(User, CancellationToken.None);
 
         response.Should().NotBeNull();
-        logger.Entries.Where(e => e.Message.StartsWith("Operation phase") && e.Message.EndsWith("started."))
-            .Select(e => e.Fields["Phase"]).Should().Equal(
-                "Wait for finalization gate", "Load workflow run", "Validate readiness",
-                "Build projects", "Save workflow completion", "Refresh setup");
-        var committed = logger.Entries.Single(e => e.Message.StartsWith("Projects committed."));
-        committed.Fields.Should().Contain("ProjectsCommitted", true).And.Contain("WorkflowStateSaved", false)
-            .And.Contain("ProjectsBuilt", 44);
-        var saved = logger.Entries.Single(e => e.Message.StartsWith("Workflow completion saved."));
-        saved.Fields.Should().Contain("ProjectsCommitted", true).And.Contain("WorkflowStateSaved", true);
-        var completion = logger.Entries.Last();
-        completion.Message.Should().StartWith("Operation FinalizeProjects completed.");
-        completion.Fields.Should().Contain("Operation", "FinalizeProjects")
-            .And.Contain("WorkflowRunId", response!.WorkflowRunId).And.Contain("FiscalYear", "FY26")
-            .And.Contain("CycleStart", new DateOnly(2025, 10, 1)).And.Contain("CycleEnd", new DateOnly(2026, 9, 30))
-            .And.Contain("ProjectsBuilt", 44).And.Contain("ProjectsCommitted", true).And.Contain("WorkflowStateSaved", true);
-        ((long)completion.Fields["ElapsedMs"]!).Should().BeGreaterThanOrEqualTo(0);
+        logger.Entries.Select(e => e.Message).Should().Equal(
+            "Projects committed. ProjectsBuilt=44.", "Workflow completion saved.");
+        logger.Entries[0].Fields.Should().Contain("ProjectsBuilt", 44);
+        foreach (var entry in logger.Entries)
+        {
+            entry.Fields.Should().Contain("WorkflowRunId", response!.WorkflowRunId).And.Contain("FiscalYear", "FY26")
+                .And.Contain("CycleStart", new DateOnly(2025, 10, 1)).And.Contain("CycleEnd", new DateOnly(2026, 9, 30));
+        }
         logger.LogInformation("After finalization");
-        logger.Entries.Last().Fields.Should().NotContainKey("Operation").And.NotContainKey("ProjectsCommitted");
+        logger.Entries.Last().Fields.Should().NotContainKey("WorkflowRunId").And.NotContainKey("FiscalYear");
     }
 
     [Theory]
@@ -72,10 +64,10 @@ public partial class ProjectIdentificationServiceTests
 
         response.Should().BeNull();
         projects.BuildProjectsCalls.Should().Be(buildsBefore);
-        var skipped = logger.Entries.Single(e => Equals(e.Fields.GetValueOrDefault("Outcome"), "skipped"));
+        var skipped = logger.Entries.Should().ContainSingle().Subject;
         skipped.Level.Should().Be(LogLevel.Information);
         skipped.Fields.Should().Contain("Reason", reason);
-        logger.Entries.Should().NotContain(e => e.Message.StartsWith("Operation FinalizeProjects completed."));
+        skipped.Message.Should().StartWith("Project finalization skipped:");
     }
 
     [Theory]
@@ -109,14 +101,8 @@ public partial class ProjectIdentificationServiceTests
         var actual = await Record.ExceptionAsync(() => service.FinalizeProjectsAsync(User, CancellationToken.None));
 
         actual.Should().BeSameAs(expected);
-        var failure = logger.Entries.Last();
-        failure.Fields.Should().Contain("Phase", phase).And.Contain("Operation", "FinalizeProjects")
-            .And.Contain("ProjectsCommitted", projectsCommitted).And.Contain("WorkflowStateSaved", workflowSaved)
-            .And.Contain("Outcome", canceled ? "cancellation" : "failure");
-        failure.Level.Should().Be(canceled ? LogLevel.Warning : LogLevel.Error);
-        failure.Exception.Should().BeNull();
-        if (projectsCommitted) failure.Fields.Should().Contain("ProjectsBuilt", 44);
-        logger.Entries.Should().NotContain(e => e.Message.StartsWith("Operation FinalizeProjects completed."));
+        logger.Entries.Should().HaveCount((projectsCommitted ? 1 : 0) + (workflowSaved ? 1 : 0));
+        if (projectsCommitted) logger.Entries[0].Fields.Should().Contain("ProjectsBuilt", 44);
         logger.Entries.Any(e => e.Message.StartsWith("Projects committed.")).Should().Be(projectsCommitted);
         logger.Entries.Any(e => e.Message.StartsWith("Workflow completion saved.")).Should().Be(workflowSaved);
 
@@ -163,14 +149,11 @@ public partial class ProjectIdentificationServiceTests
             var error = await Record.ExceptionAsync(() => waiting.WaitAsync(TimeSpan.FromSeconds(10)));
             error.Should().BeAssignableTo<OperationCanceledException>();
             ((OperationCanceledException)error!).CancellationToken.Should().Be(cancellation.Token);
-            var failure = logger.Entries.Last();
-            failure.Fields.Should().Contain("Phase", "Wait for finalization gate").And.Contain("Outcome", "cancellation");
 
             following = service.FinalizeProjectsAsync(User, CancellationToken.None);
             following.IsCompleted.Should().BeFalse();
             projects.BuildProjectsCalls.Should().Be(1);
-            logger.Entries.Count(e => Equals(e.Fields.GetValueOrDefault("Phase"), "Load workflow run")
-                && e.Message.EndsWith("started.")).Should().Be(1);
+            logger.Entries.Should().BeEmpty();
         }
         finally
         {

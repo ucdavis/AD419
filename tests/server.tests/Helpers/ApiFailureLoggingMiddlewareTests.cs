@@ -1,10 +1,15 @@
 using System.Diagnostics;
 using System.Security.Claims;
+using System.Text.Encodings.Web;
 using FluentAssertions;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Server.Helpers;
 
 namespace Server.Tests.Helpers;
@@ -26,28 +31,78 @@ public sealed class ApiFailureLoggingMiddlewareTests
         using var cancellation = new CancellationTokenSource();
         context.RequestAborted = cancellation.Token;
         var exception = new OperationCanceledException(cancellation.Token);
-        var middleware = new ApiFailureLoggingMiddleware(ctx =>
+        await using var app = CreatePipeline(logger, ctx =>
         {
             using var inner = logger.BeginScope(new Dictionary<string, object?> { ["InnerScope"] = true });
-            ctx.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "test-user")], "test"));
             cancellation.Cancel();
             return Task.FromException(exception);
-        }, logger);
+        });
+        context.RequestServices = app.Services;
+        context.Request.Headers["X-Test-User"] = "test-user";
+        context.Request.Headers["X-Test-Allowed"] = "true";
+        var pipeline = ((IApplicationBuilder)app).Build();
 
-        var act = () => middleware.InvokeAsync(context);
+        var act = () => pipeline(context);
         (await act.Should().ThrowAsync<OperationCanceledException>()).Which.Should().BeSameAs(exception);
-        var entry = logger.Entries.Should().ContainSingle().Subject;
+        var entry = logger.Entries.Should().ContainSingle(e => e.Message.StartsWith("API request")).Subject;
         entry.Level.Should().Be(level);
         entry.Fields["RequestAborted"].Should().Be(true);
         entry.Message.Should().Contain("API request aborted before completion").And.NotContain("by the client");
         entry.Fields["ElapsedMs"].Should().BeOfType<long>().Which.Should().BeGreaterThanOrEqualTo(0);
         entry.Fields["request.id"].Should().Be("request-123");
         entry.Fields["trace.id"].Should().Be(activity.TraceId.ToString());
+        entry.Fields["span.id"].Should().Be(activity.SpanId.ToString());
         entry.Fields.Should().NotContainKey("SupportReference");
         context.Response.Headers.Should().NotContainKey("X-Request-ID");
         entry.Fields["user.name"].Should().Be("test-user");
         entry.Fields.Should().NotContainKey("InnerScope");
         context.Response.Body.Length.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(false, false, false, 401)]
+    [InlineData(true, false, false, 403)]
+    [InlineData(true, true, false, 400)]
+    [InlineData(true, true, true, 200)]
+    public async Task Pipeline_logs_request_and_route_context_including_authorization_failures(
+        bool authenticated, bool allowed, bool throws, int statusCode)
+    {
+        using var activity = new Activity("request").SetIdFormat(ActivityIdFormat.W3C).Start();
+        var logger = new RecordingLogger<ApiFailureLoggingMiddleware>();
+        var reachedEndpoint = false;
+        var expected = new InvalidOperationException("Endpoint failed");
+        await using var app = CreatePipeline(logger, ctx =>
+        {
+            reachedEndpoint = true;
+            if (throws) throw expected;
+            ctx.Response.StatusCode = 400;
+            return Task.CompletedTask;
+        });
+        var context = Context("PUT");
+        context.RequestServices = app.Services;
+        if (authenticated) context.Request.Headers["X-Test-User"] = "test-user";
+        if (allowed) context.Request.Headers["X-Test-Allowed"] = "true";
+        context.SetEndpoint(new Endpoint(_ => Task.CompletedTask,
+            new EndpointMetadataCollection(new AuthorizeAttribute("Allowed")), "Protected action"));
+        context.Request.RouteValues["controller"] = "OrgR";
+        context.Request.RouteValues["action"] = "CreateOrgR";
+        context.Request.RouteValues["code"] = "AARE";
+
+        var pipeline = ((IApplicationBuilder)app).Build();
+        var error = await Record.ExceptionAsync(() => pipeline(context));
+
+        error.Should().BeSameAs(throws ? expected : null);
+        reachedEndpoint.Should().Be(allowed);
+        context.Response.StatusCode.Should().Be(statusCode);
+        var entry = logger.Entries.Should().ContainSingle(e => e.Message.StartsWith("API request")).Subject;
+        entry.Level.Should().Be(throws ? LogLevel.Error : LogLevel.Warning);
+        entry.Fields.Should().Contain("user.name", authenticated ? "test-user" : "anonymous")
+            .And.Contain("request.id", "request-123")
+            .And.Contain("trace.id", activity.TraceId.ToString())
+            .And.Contain("span.id", activity.SpanId.ToString())
+            .And.Contain("controller", "OrgR").And.Contain("action", "CreateOrgR").And.Contain("code", "AARE");
+        app.Logger.LogInformation("Outside request");
+        logger.Entries.Last().Fields.Should().NotContainKey("user.name").And.NotContainKey("code");
     }
 
     [Theory]
@@ -175,5 +230,46 @@ public sealed class ApiFailureLoggingMiddlewareTests
     private sealed class StartedResponseFeature : HttpResponseFeature
     {
         public override bool HasStarted => true;
+    }
+
+    private static WebApplication CreatePipeline(RecordingLogger<ApiFailureLoggingMiddleware> logger, RequestDelegate endpoint)
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Logging.ClearProviders();
+        builder.Logging.AddProvider(new TestLoggerProvider(logger));
+        builder.Services.AddAuthentication("Test")
+            .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>("Test", _ => { });
+        builder.Services.AddAuthorization(options =>
+            options.AddPolicy("Allowed", policy => policy.RequireAuthenticatedUser().RequireClaim("allowed", "true")));
+        var app = builder.Build();
+        app.UseAuthentication();
+        app.UseRequestContextLogging();
+        app.UseApiFailureLogging();
+        app.UseAuthorization();
+        app.Run(endpoint);
+        return app;
+    }
+
+    private sealed class TestLoggerProvider(RecordingLogger<ApiFailureLoggingMiddleware> logger) : ILoggerProvider
+    {
+        public ILogger CreateLogger(string categoryName) => logger;
+        public void Dispose() { }
+    }
+
+    private sealed class TestAuthenticationHandler(
+        IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
+        : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+    {
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+        {
+            var name = Request.Headers["X-Test-User"].ToString();
+            if (string.IsNullOrEmpty(name)) return Task.FromResult(AuthenticateResult.NoResult());
+            var identity = new ClaimsIdentity([
+                new Claim(ClaimTypes.Name, name),
+                new Claim("allowed", Request.Headers["X-Test-Allowed"].ToString()),
+            ], Scheme.Name);
+            return Task.FromResult(AuthenticateResult.Success(
+                new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name)));
+        }
     }
 }
