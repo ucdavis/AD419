@@ -123,17 +123,6 @@ function formatCurrency(value: number | null) {
   }).format(value);
 }
 
-function formatReasonCurrency(value: number) {
-  return new Intl.NumberFormat('en-US', {
-    currency: 'USD',
-    style: 'currency',
-  }).format(value);
-}
-
-function formatRowCount(rowCount: number) {
-  return rowCount === 1 ? '1 row' : `${rowCount} rows`;
-}
-
 function errorMessage(error: unknown, fallback: string) {
   if (error instanceof HttpError && error.body) {
     if (typeof error.body === 'string') {
@@ -212,8 +201,7 @@ function ExclusionReasonChips({
           className="badge badge-outline h-auto max-w-96 justify-start whitespace-normal py-1 text-left leading-tight"
           key={reason.code}
         >
-          {reason.label} · {formatReasonCurrency(reason.amount)} ·{' '}
-          {formatRowCount(reason.rowCount)}
+          {reason.label}
         </span>
       ))}
     </div>

@@ -1,0 +1,8 @@
+StaffTypeCode,FteSfn,Description
+1S,241,Scientist
+2P,242,Professional Support
+3T,243,Technical Support
+4C,244,"Clerical, Labor and Other"
+5D,245,Post Doctoral Student
+6G,246,Graduate Student
+7U,247,Undergraduate Student

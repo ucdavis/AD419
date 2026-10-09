@@ -80,9 +80,9 @@ BEGIN
     DROP TABLE #Summary;
 
     -- A 204 expense whose AE project is not on any 204 NIFA project cannot be
-    -- associated; it is kept for the read-only report and skipped by the rules.
-    -- A 204 row with no AE project at all is left unflagged: it cannot be
-    -- associated, and it is not a misclassification.
+    -- associated. v_TransactionInclusion already excludes these rows
+    -- (Sfn204NotOnProjectList), so this flag is a backstop that should match
+    -- nothing. A 204 row with no AE project at all is left unflagged.
     UPDATE s
     SET [RuleExclusion] = N'Misclassified204'
     FROM [data].[ExpenseSummary] s

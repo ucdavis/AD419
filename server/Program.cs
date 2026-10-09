@@ -70,6 +70,7 @@ builder.Services.AddScoped<IExpenseReviewService, ExpenseReviewService>();
 builder.Services.AddScoped<IWorkflowService, WorkflowService>();
 builder.Services.AddScoped<IOrgRReviewSeeder, OrgRReviewSeeder>();
 builder.Services.AddScoped<IAutoAssociationBuilder, AutoAssociationBuilder>();
+builder.Services.AddScoped<IAutoAssociationReportService, AutoAssociationReportService>();
 builder.Services.AddScoped<ImportRunOrchestrator>();
 builder.Services.AddSingleton<IImportRunStarter, ImportRunStarter>();
 builder.Services.AddScoped<ChartSegmentsImportService>();

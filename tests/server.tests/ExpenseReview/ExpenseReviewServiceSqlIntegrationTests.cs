@@ -337,7 +337,7 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
     }
 
     [Fact]
-    public async Task Transaction_queries_explain_missing_classifications_except_13u02_purpose()
+    public async Task Transaction_queries_explain_missing_classifications_except_exempt_purpose()
     {
         await fixture.ClearDataTablesAsync();
         await SeedExpenseReviewScenarioAsync();
@@ -370,6 +370,16 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
             row.Fund.Code == "13U02" &&
             row.Included &&
             row.ExclusionReasons.Count == 0);
+        all.Rows.Should().Contain(row =>
+            row.Purpose.Code == "P-MISSING" &&
+            row.AeProject.Code == "PR-204" &&
+            row.Included &&
+            row.ExclusionReasons.Count == 0);
+        all.Rows.Should().Contain(row =>
+            row.Purpose.Code == "P-MISSING" &&
+            row.Fund.Code == "F1" &&
+            row.AeProject.Code == "PR1" &&
+            !row.Included);
     }
 
     [Fact]
@@ -552,7 +562,7 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
             reason.RowCount == 1 &&
             reason.Amount == 61m);
 
-        var grantRow = all.Rows.Should().ContainSingle(row => row.Source == "UCP" && row.Account.Code == "531010" && row.Fund.Code == "F204").Subject;
+        var grantRow = all.Rows.Should().ContainSingle(row => row.Source == "UCP" && row.Account.Code == "531010" && row.Fund.Code == "F219").Subject;
         grantRow.Included.Should().BeTrue();
         grantRow.ExclusionReasons.Should().BeEmpty();
 
@@ -564,6 +574,50 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
             option.Value == "account:531010" && option.Label == "UCPath account 531010 on a Hatch fund");
     }
 
+    [Fact]
+    public async Task Transaction_queries_exclude_204_rows_off_the_project_list_with_a_reason()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+
+        await using (var connection = new SqlConnection(fixture.ConnectionString))
+        {
+            await connection.OpenAsync();
+            await connection.ExecuteAsync(
+                """
+                INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description], [IncludeInReport], [Sfn])
+                VALUES ('Fund', 'F204', 'Grant fund', 1, '204');
+
+                INSERT INTO [data].[AETransactions]
+                    ([Entity], [Fund], [FinancialDepartment], [Account], [Purpose], [Program], [Project], [Activity],
+                     [EntityDescription], [FundDescription], [FinancialDepartmentDescription], [AccountDescription],
+                     [PurposeDescription], [ProgramDescription], [ProjectDescription], [ActivityDescription],
+                     [PeriodName], [Amount], [ExcludedByDate], [AccountInUcPath])
+                VALUES
+                    ('3310', 'F204', 'D1', 'A1', 'P1', 'PG1', 'PR-OFF-LIST', 'AC1',
+                     'Entity One', 'Grant fund', 'Dept One', 'Account One', 'Purpose One', 'Program One', 'Off list', 'Activity One',
+                     'Oct-24', 64.00, 0, 0);
+                """);
+        }
+
+        await using var db = fixture.CreateDataDbContext();
+        var service = new ExpenseReviewService(db, Configuration());
+
+        var all = await service.GetTransactionsAsync(Cycle(), Request(), CancellationToken.None);
+
+        var offListRow = all.Rows.Should().ContainSingle(row => row.Source == "AE" && row.Fund.Code == "F204").Subject;
+        offListRow.Included.Should().BeFalse();
+        offListRow.ExclusionReasons.Should().ContainSingle(reason =>
+            reason.Code == "sfn:204NotOnProjectList" &&
+            reason.Label == "SFN 204 project not on the project list" &&
+            reason.RowCount == 1 &&
+            reason.Amount == 64m);
+
+        var filters = await service.GetFilterOptionsAsync(Cycle(), CancellationToken.None);
+        filters.ExclusionReasons.Should().Contain(option =>
+            option.Value == "sfn:204NotOnProjectList" && option.Label == "SFN 204 project not on the project list");
+    }
+
     private async Task SeedAccount531010RowsAsync()
     {
         await using var connection = new SqlConnection(fixture.ConnectionString);
@@ -573,7 +627,7 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
             """
             INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description], [IncludeInReport], [Sfn])
             VALUES
-                ('Fund', 'F204', 'Grant fund', 1, '204'),
+                ('Fund', 'F219', 'Grant fund', 1, '219'),
                 ('Account', '531010', 'Academic salary', 1, NULL);
 
             INSERT INTO [data].[UcPathTransactions]
@@ -584,7 +638,7 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
             VALUES
                 ('UCP-531010-HATCH', '3310', 'F1',   'D1', 'D1', '531010', 'P1', 'PG1', 'PR1', 'AC1', 'E01',
                  '20000011', 'POS00011', 10.000000, 61.00, 0.050000, '2024-11-30', 'S', 2025, '5', 0, 0, 0, 0),
-                ('UCP-531010-GRANT', '3310', 'F204', 'D1', 'D1', '531010', 'P1', 'PG1', 'PR1', 'AC1', 'E01',
+                ('UCP-531010-GRANT', '3310', 'F219', 'D1', 'D1', '531010', 'P1', 'PG1', 'PR1', 'AC1', 'E01',
                  '20000012', 'POS00012', 10.000000, 62.00, 0.050000, '2024-11-30', 'S', 2025, '5', 0, 0, 0, 0);
 
             INSERT INTO [data].[AETransactions]
@@ -851,6 +905,9 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
             INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description], [IncludeInReport], [Sfn])
             VALUES ('Fund', '13U02', 'UC ANR Federal Flowthrough', 1, '201');
 
+            INSERT INTO [data].[Projects] ([AccessionNumber], [NifaProjectNumber], [Is204], [Sfn], [AEProjectNumber])
+            VALUES ('1000204', 'CA-D-XYZ-0001-CG', 1, '204', 'PR-204');
+
             INSERT INTO [data].[AETransactions]
                 ([Entity], [Fund], [FinancialDepartment], [Account], [Purpose], [Program], [Project], [Activity],
                  [EntityDescription], [FundDescription], [FinancialDepartmentDescription], [AccountDescription],
@@ -871,7 +928,10 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
                  'Oct-24', 514.00, 0, 0),
                 ('3310', '13U02', 'D1', 'A1', 'P-MISSING', 'PG1', 'PR1', 'AC1',
                  'Entity One', 'UC ANR Federal Flowthrough', 'Dept One', 'Account One', 'Missing Purpose', 'Program One', 'Missing Purpose 13U02', 'Activity One',
-                 'Oct-24', 515.00, 0, 0);
+                 'Oct-24', 515.00, 0, 0),
+                ('3310', 'F1', 'D1', 'A1', 'P-MISSING', 'PG1', 'PR-204', 'AC1',
+                 'Entity One', 'Fund One', 'Dept One', 'Account One', 'Missing Purpose', 'Program One', 'Missing Purpose 204 Project', 'Activity One',
+                 'Oct-24', 516.00, 0, 0);
             """);
     }
 

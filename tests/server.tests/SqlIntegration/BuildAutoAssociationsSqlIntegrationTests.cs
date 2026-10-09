@@ -25,22 +25,21 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
             "EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd",
             new { cycleStart = CycleStart, cycleEnd = CycleEnd });
 
-        build.SummaryRows.Should().Be(9);
+        build.SummaryRows.Should().Be(8);
         build.AssociationRows.Should().Be(11);
         build.ExcludedProjects.Should().Be(2);
-        build.Misclassified204Rows.Should().Be(1);
+        build.Misclassified204Rows.Should().Be(0);
 
         var summary = (await connection.QueryAsync<SummaryRow>(
             "SELECT [ExpenseId], [Source], [OrgR], [Project], [Fund], [EmployeeId], [ExpenseSfn], [FteSfn], [Expenses], [Fte], [RuleExclusion] FROM [data].[ExpenseSummary]"))
             .ToList();
 
-        summary.Should().HaveCount(9);
+        summary.Should().HaveCount(8);
         summary.Should().OnlyContain(row => row.OrgR == "AAAA");
         summary.Single(row => row.Source == "AE" && row.Project == "AE-A" && row.Fund == "F204").Expenses.Should().Be(1000m);
         summary.Single(row => row.Source == "AE" && row.Project == "AE-B").Expenses.Should().Be(300m);
-        var misclassified = summary.Single(row => row.Source == "AE" && row.Project == "AE-ZZ");
-        misclassified.Expenses.Should().Be(77m);
-        misclassified.RuleExclusion.Should().Be("Misclassified204");
+        // a 204 row off the 204 project list is excluded before the summary
+        summary.Should().NotContain(row => row.Project == "AE-ZZ");
         summary.Should().NotContain(row => row.Source == "AE" && row.Fund == "F201" && row.Project == "AE-A");
         summary.Single(row => row.Source == "AE" && row.Project == "AE-S").Expenses.Should().Be(80m);
         var stateGroup = summary.Single(row => row.Source == "UCPath" && row.Fund == "13U02");
@@ -89,7 +88,7 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
         await connection.ExecuteAsync("EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd", new { cycleStart = CycleStart, cycleEnd = CycleEnd });
 
         (await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM [data].[AutoAssociationBuilds]")).Should().Be(1);
-        (await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM [data].[ExpenseSummary]")).Should().Be(9);
+        (await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM [data].[ExpenseSummary]")).Should().Be(8);
         (await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM [data].[StagedAssociations]")).Should().Be(11);
 
         await connection.ExecuteAsync("DELETE FROM [data].[Projects]");

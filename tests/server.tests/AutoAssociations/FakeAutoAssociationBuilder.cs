@@ -8,6 +8,7 @@ internal sealed class FakeAutoAssociationBuilder : IAutoAssociationBuilder
     public List<FiscalYearCycle> Builds { get; } = [];
     public int Clears { get; private set; }
     public Exception? BuildFailure { get; set; }
+    public bool BuildExists { get; set; } = true;
 
     public Task BuildAsync(FiscalYearCycle cycle, CancellationToken cancellationToken)
     {
@@ -25,4 +26,6 @@ internal sealed class FakeAutoAssociationBuilder : IAutoAssociationBuilder
         Clears++;
         return Task.CompletedTask;
     }
+
+    public Task<bool> BuildExistsAsync(CancellationToken cancellationToken) => Task.FromResult(BuildExists);
 }

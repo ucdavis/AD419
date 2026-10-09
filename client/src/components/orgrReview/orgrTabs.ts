@@ -29,7 +29,7 @@ export const ORGR_TABS: OrgRTab[] = [
   {
     id: 'projects',
     label: 'Project OrgRs',
-    note: 'Add a project to another OrgR when its PI holds appointments in more than one department.',
+    note: 'Optional. Each project already appears on its department’s OrgR, from the NIFA Departments tab. Add a second OrgR only when the project’s PI also holds an agronomist appointment in another department, so the project shows on both screens in associations.',
   },
 ];
 
