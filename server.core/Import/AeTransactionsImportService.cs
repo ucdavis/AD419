@@ -58,7 +58,6 @@ public sealed class AeTransactionsImportService
     // The department lists are DACPAC views so the display views built in the
     // Expense Review work can share them.
     private const string CaesAnrDepartmentsSql = "SELECT [Code] FROM [data].[v_CaesAnrDepartments]";
-    private const string BcbsDepartmentsSql = "SELECT [Code] FROM [data].[v_BcbsDepartments]";
 
     private readonly DataDbContext _dataDbContext;
     private readonly IConfiguration _configuration;
@@ -91,7 +90,7 @@ public sealed class AeTransactionsImportService
         await destination.OpenAsync(cancellationToken);
 
         var caesAnrDepartments = await ImportSql.ReadListAsync(destination, CaesAnrDepartmentsSql, cancellationToken);
-        var bcbsDepartments = await ImportSql.ReadListAsync(destination, BcbsDepartmentsSql, cancellationToken);
+        var bcbsDepartments = await ImportSql.ReadListAsync(destination, ImportSql.BcbsDepartmentsSql, cancellationToken);
         var projects204 = await ImportSql.ReadListAsync(destination, ImportSql.Projects204Sql, cancellationToken);
 
         var (windowStart, windowEnd) = ImportSql.BufferedWindow(cycleStart, cycleEnd);

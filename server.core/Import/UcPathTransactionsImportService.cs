@@ -97,11 +97,12 @@ public sealed class UcPathTransactionsImportService
         await destination.OpenAsync(cancellationToken);
 
         var projects204 = await ImportSql.ReadListAsync(destination, ImportSql.Projects204Sql, cancellationToken);
+        var bcbsDepartments = await ImportSql.ReadListAsync(destination, ImportSql.BcbsDepartmentsSql, cancellationToken);
         var (windowStart, windowEnd) = ImportSql.BufferedWindow(cycleStart, cycleEnd);
         var fteDenominatorHours = ImportSql.HoursInFederalFiscalYear(cycleEnd.Year);
 
-        var salarySql = BuildSalaryQuery(projects204, fteDenominatorHours);
-        var fringSql = BuildFringeQuery(projects204);
+        var salarySql = BuildSalaryQuery(projects204, bcbsDepartments, fteDenominatorHours);
+        var fringSql = BuildFringeQuery(projects204, bcbsDepartments);
 
         await using var transaction = (SqlTransaction)await destination.BeginTransactionAsync(cancellationToken);
 
@@ -285,7 +286,12 @@ public sealed class UcPathTransactionsImportService
     // Column names verified against the warehouse 2026-07-30 (ALL_TAB_COLUMNS for
     // both labor views). PAY_END_DT is the pay period end date used for the window
     // filter; UC_EARN_END_DT also exists but the 2025 notes say not to use it.
-    public static string BuildSalaryQuery(IReadOnlyList<string> projects204, int fteDenominatorHours) =>
+    // ACCOUNTING_PERIOD is limited to 1-13 like the 2025 process, which drops
+    // the few source rows that carry a year (e.g. 2025) in that column.
+    public static string BuildSalaryQuery(
+        IReadOnlyList<string> projects204,
+        IReadOnlyList<string> bcbsDepartments,
+        int fteDenominatorHours) =>
         $"""
         SELECT
             JOURNAL_ID || '_' || JOURNAL_LINE || '_' || UC_ADDL_SEQ || '_' || EMPLID || '_' || EMPL_RCD || '_' || ERNCD || '_' || RUN_ID AS labor_transaction_id,
@@ -320,15 +326,18 @@ public sealed class UcPathTransactionsImportService
         WHERE BUSINESS_UNIT IN ('DVCMP','UCANR')
           AND OPERATING_UNIT IN ('3310','3110')
           AND DML_IND <> 'D'
+          AND ACCOUNTING_PERIOD BETWEEN 1 AND 13
           AND PAY_END_DT BETWEEN ? AND ?
           AND NULLIF(TRIM(POSITION_NBR), '') IS NOT NULL
-          AND (FUND_CODE = '13U02' OR CLASS_FLD IN ('44','45','78'){Source204Arm(projects204)})
+          AND (FUND_CODE = '13U02' OR CLASS_FLD IN ('44','45','78'){Source204Arm(projects204)}){BcbsFilter(projects204, bcbsDepartments)}
         """;
 
     // Column names verified against the warehouse 2026-07-30. The fringe view has
     // no JOBCODE, hours, or percent columns; job_code is backfilled by the title
     // code enrichment step.
-    public static string BuildFringeQuery(IReadOnlyList<string> projects204) =>
+    public static string BuildFringeQuery(
+        IReadOnlyList<string> projects204,
+        IReadOnlyList<string> bcbsDepartments) =>
         $"""
         SELECT
             JOURNAL_ID || '_' || JOURNAL_LINE || '_' || UC_ADDL_SEQ || '_' || EMPLID || '_' || EMPL_RCD || '_' || 'XXX' || '_' || RUN_ID AS labor_transaction_id,
@@ -363,11 +372,22 @@ public sealed class UcPathTransactionsImportService
         WHERE BUSINESS_UNIT IN ('DVCMP','UCANR')
           AND OPERATING_UNIT IN ('3310','3110')
           AND DML_IND <> 'D'
+          AND ACCOUNTING_PERIOD BETWEEN 1 AND 13
           AND PAY_END_DT BETWEEN ? AND ?
           AND NULLIF(TRIM(POSITION_NBR), '') IS NOT NULL
-          AND (FUND_CODE = '13U02' OR CLASS_FLD IN ('44','45','78'){Source204Arm(projects204)})
+          AND (FUND_CODE = '13U02' OR CLASS_FLD IN ('44','45','78'){Source204Arm(projects204)}){BcbsFilter(projects204, bcbsDepartments)}
         """;
 
     private static string Source204Arm(IReadOnlyList<string> projects204) =>
         projects204.Count > 0 ? $" OR PROJECT_ID IN ({ImportSql.QuoteList(projects204)})" : string.Empty;
+
+    // BCBS department rows are only reportable on fund 13U02 or a 204 project,
+    // the same rule as the AE import (and the 2025 step 7 delete). The IS NULL
+    // arm keeps rows with no department: NOT IN against NULL is unknown in
+    // Oracle and would otherwise drop them. It checks the trimmed value because
+    // Oracle treats '' as NULL, so a space-only DEPTID_CF trims to NULL.
+    private static string BcbsFilter(IReadOnlyList<string> projects204, IReadOnlyList<string> bcbsDepartments) =>
+        bcbsDepartments.Count > 0
+            ? $"\n          AND (TRIM(DEPTID_CF) NOT IN ({ImportSql.QuoteList(bcbsDepartments)}) OR TRIM(DEPTID_CF) IS NULL OR FUND_CODE = '13U02'{Source204Arm(projects204)})"
+            : string.Empty;
 }
