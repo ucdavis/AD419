@@ -36,6 +36,8 @@ public sealed class ApiFailureLoggingMiddleware(RequestDelegate next, ILogger<Ap
 
     private void LogFailure(HttpContext context, LogLevel level, Exception? exception, string outcome, Stopwatch elapsed)
     {
+        // The downstream request scope has unwound, or authentication failed before it began.
+        using var requestScope = logger.BeginScope(RequestLogContext.Create(context));
         using var routeScope = logger.BeginScope(context.Request.RouteValues);
         using var bodyScope = logger.BeginScope(ApiOperationContext.Get(context));
         logger.Log(level, exception,

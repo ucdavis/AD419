@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using FluentAssertions;
@@ -74,12 +75,16 @@ public sealed class ApiFailureLoggingMiddlewareTests
         await using var app = CreatePipeline(logger, ctx =>
         {
             reachedEndpoint = true;
+            ctx.RequestServices.GetRequiredService<ILogger<ApiFailureLoggingMiddleware>>()
+                .LogInformation("Inside endpoint");
             if (throws) throw expected;
             ctx.Response.StatusCode = 400;
             return Task.CompletedTask;
         });
         var context = Context("PUT");
         context.RequestServices = app.Services;
+        context.Connection.RemoteIpAddress = IPAddress.Loopback;
+        context.Request.Headers.UserAgent = "Logging test";
         if (authenticated) context.Request.Headers["X-Test-User"] = "test-user";
         if (allowed) context.Request.Headers["X-Test-Allowed"] = "true";
         context.SetEndpoint(new Endpoint(_ => Task.CompletedTask,
@@ -100,9 +105,92 @@ public sealed class ApiFailureLoggingMiddlewareTests
             .And.Contain("request.id", "request-123")
             .And.Contain("trace.id", activity.TraceId.ToString())
             .And.Contain("span.id", activity.SpanId.ToString())
+            .And.Contain("client.ip", "127.0.0.1").And.Contain("user_agent.original", "Logging test")
             .And.Contain("controller", "OrgR").And.Contain("action", "CreateOrgR").And.Contain("code", "AARE");
+        if (reachedEndpoint)
+        {
+            var downstream = logger.Entries.Should().ContainSingle(e => e.Message == "Inside endpoint").Subject;
+            foreach (var field in new[] { "user.name", "request.id", "trace.id", "span.id", "client.ip", "user_agent.original" })
+            {
+                downstream.Fields[field].Should().Be(entry.Fields[field]);
+            }
+        }
         app.Logger.LogInformation("Outside request");
         logger.Entries.Last().Fields.Should().NotContainKey("user.name").And.NotContainKey("code");
+    }
+
+    [Fact]
+    public async Task Cookie_unprotect_exception_is_logged_before_request_context_middleware_runs()
+    {
+        using var activity = new Activity("request").SetIdFormat(ActivityIdFormat.W3C).Start();
+        var logger = new RecordingLogger<ApiFailureLoggingMiddleware>();
+        var expected = new InvalidOperationException("Ticket unprotect failed");
+        var ticketFormat = new ThrowingTicketFormat(expected);
+        var reachedEndpoint = false;
+        await using var app = CreatePipeline(logger, _ =>
+        {
+            reachedEndpoint = true;
+            return Task.CompletedTask;
+        }, ticketFormat);
+        var context = Context("GET");
+        context.RequestServices = app.Services;
+        context.Request.Headers.Cookie = "test-auth=nonempty-ticket";
+        context.Request.Headers.UserAgent = "Cookie regression test";
+        context.Connection.RemoteIpAddress = IPAddress.Loopback;
+        context.Response.StatusCode = 202;
+        context.Response.Headers["X-Existing"] = "preserved";
+        await context.Response.WriteAsync("existing body");
+        var originalHeaders = context.Response.Headers.ToDictionary(header => header.Key, header => header.Value);
+        var pipeline = ((IApplicationBuilder)app).Build();
+
+        var actual = await Record.ExceptionAsync(() => pipeline(context));
+
+        actual.Should().BeSameAs(expected);
+        ticketFormat.UnprotectCalls.Should().Be(1);
+        reachedEndpoint.Should().BeFalse();
+        var entry = logger.Entries.Should().ContainSingle(e => e.Message.StartsWith("API request")).Subject;
+        entry.Level.Should().Be(LogLevel.Error);
+        entry.Exception.Should().BeSameAs(expected);
+        entry.Fields.Should().Contain("user.name", "anonymous").And.Contain("request.id", "request-123")
+            .And.Contain("trace.id", activity.TraceId.ToString()).And.Contain("span.id", activity.SpanId.ToString())
+            .And.Contain("client.ip", "127.0.0.1").And.Contain("user_agent.original", "Cookie regression test");
+        context.Response.StatusCode.Should().Be(202);
+        context.Response.Headers.Should().BeEquivalentTo(originalHeaders);
+        context.Response.Body.Position = 0;
+        (await new StreamReader(context.Response.Body).ReadToEndAsync()).Should().Be("existing body");
+        app.Logger.LogInformation("Outside authentication failure");
+        logger.Entries.Last().Fields.Should().NotContainKey("user.name").And.NotContainKey("request.id");
+    }
+
+    [Theory]
+    [InlineData(false, "anonymous")]
+    [InlineData(true, "authenticated")]
+    public async Task Request_context_preserves_fallbacks_when_optional_values_are_absent(bool authenticated, string userName)
+    {
+        var previousActivity = Activity.Current;
+        Activity.Current = null;
+        try
+        {
+            var context = Context("GET");
+            if (authenticated) context.User = new ClaimsPrincipal(new ClaimsIdentity([], "Test"));
+            var logger = new RecordingLogger<ApiFailureLoggingMiddleware>();
+            var middleware = new ApiFailureLoggingMiddleware(ctx =>
+            {
+                ctx.Response.StatusCode = 400;
+                return Task.CompletedTask;
+            }, logger);
+
+            await middleware.InvokeAsync(context);
+
+            var entry = logger.Entries.Should().ContainSingle().Subject;
+            entry.Fields.Should().Contain("user.name", userName).And.Contain("request.id", "request-123")
+                .And.Contain("trace.id", null).And.Contain("span.id", null)
+                .And.Contain("client.ip", null).And.Contain("user_agent.original", "");
+        }
+        finally
+        {
+            Activity.Current = previousActivity;
+        }
     }
 
     [Theory]
@@ -232,19 +320,31 @@ public sealed class ApiFailureLoggingMiddlewareTests
         public override bool HasStarted => true;
     }
 
-    private static WebApplication CreatePipeline(RecordingLogger<ApiFailureLoggingMiddleware> logger, RequestDelegate endpoint)
+    private static WebApplication CreatePipeline(RecordingLogger<ApiFailureLoggingMiddleware> logger, RequestDelegate endpoint,
+        ISecureDataFormat<AuthenticationTicket>? ticketFormat = null)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
         builder.Logging.AddProvider(new TestLoggerProvider(logger));
-        builder.Services.AddAuthentication("Test")
-            .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>("Test", _ => { });
+        var authentication = builder.Services.AddAuthentication("Test");
+        if (ticketFormat is null)
+        {
+            authentication.AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>("Test", _ => { });
+        }
+        else
+        {
+            authentication.AddCookie("Test", options =>
+            {
+                options.Cookie.Name = "test-auth";
+                options.TicketDataFormat = ticketFormat;
+            });
+        }
         builder.Services.AddAuthorization(options =>
             options.AddPolicy("Allowed", policy => policy.RequireAuthenticatedUser().RequireClaim("allowed", "true")));
         var app = builder.Build();
+        app.UseApiFailureLogging();
         app.UseAuthentication();
         app.UseRequestContextLogging();
-        app.UseApiFailureLogging();
         app.UseAuthorization();
         app.Run(endpoint);
         return app;
@@ -254,6 +354,19 @@ public sealed class ApiFailureLoggingMiddlewareTests
     {
         public ILogger CreateLogger(string categoryName) => logger;
         public void Dispose() { }
+    }
+
+    private sealed class ThrowingTicketFormat(Exception exception) : ISecureDataFormat<AuthenticationTicket>
+    {
+        public int UnprotectCalls { get; private set; }
+        public string Protect(AuthenticationTicket data) => throw new NotSupportedException();
+        public string Protect(AuthenticationTicket data, string? purpose) => throw new NotSupportedException();
+        public AuthenticationTicket? Unprotect(string? protectedText) => Unprotect(protectedText, null);
+        public AuthenticationTicket? Unprotect(string? protectedText, string? purpose)
+        {
+            UnprotectCalls++;
+            throw exception;
+        }
     }
 
     private sealed class TestAuthenticationHandler(
