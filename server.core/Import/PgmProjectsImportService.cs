@@ -142,12 +142,12 @@ public sealed class PgmProjectsImportService : IPgmProjectsImportService
 
         await transaction.CommitAsync(cancellationToken);
 
-        await LogPeopleAggregateTruncationWarningsAsync(sourceConnectionString, destination, cancellationToken);
-
         _logger.LogInformation(
             "Imported {RowCount} PGM projects for report date {ReportDate}",
             rowsImported,
             reportDate);
+
+        await LogPeopleAggregateTruncationWarningsAsync(sourceConnectionString, destination, cancellationToken);
 
         return new PgmProjectsImportResult(rowsImported, reportDate);
     }

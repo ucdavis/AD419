@@ -2,22 +2,76 @@ using System.Security.Claims;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Storage;
 using Server.Controllers;
 using Server.Core.Data;
 using Server.Core.Domain;
+using Server.Helpers;
 using Server.Models.OrgR;
 using Server.Models.SegmentClassifications;
 using Server.Models.Workflow;
 using Server.Tests.AutoAssociations;
+using Server.Tests.Helpers;
 using Server.Workflow;
 
 namespace Server.Tests.OrgRReview;
 
 public class OrgRControllerTests : IDisposable
 {
+    [Theory]
+    [InlineData("CreateOrgR", "code", " bad! ", null)]
+    [InlineData("DeleteOrgR", "code", " bad! ", null)]
+    [InlineData("SetFinancialDepartmentOrgR", "code", "missing", "AARE")]
+    [InlineData("SetNifaDepartmentOrgR", "code", "missing", null)]
+    [InlineData("AddProject", "AccessionNumber", " missing ", "AARE")]
+    [InlineData("RemoveProject", "accessionNumber", "missing", "AARE")]
+    public async Task Rejected_mutation_logs_submitted_identifiers(
+        string operation, string field, string identifier, string? orgR)
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        var controller = CreateController(db);
+        var context = controller.HttpContext;
+        context.Request.Path = "/api/orgr";
+        context.Request.Method = "POST";
+        context.Request.RouteValues["controller"] = "OrgR";
+        context.Request.RouteValues["action"] = operation;
+        if (operation != "AddProject") context.Request.RouteValues[field] = identifier;
+        if (operation == "RemoveProject") context.Request.RouteValues["orgR"] = orgR;
+        var logger = new RecordingLogger<ApiFailureLoggingMiddleware>();
+        var middleware = new ApiFailureLoggingMiddleware(async ctx =>
+        {
+            var result = operation switch
+            {
+                "CreateOrgR" => await controller.CreateOrgR(identifier, CancellationToken.None),
+                "DeleteOrgR" => await controller.DeleteOrgR(identifier, CancellationToken.None),
+                "SetFinancialDepartmentOrgR" => await controller.SetFinancialDepartmentOrgR(identifier, new SetOrgRRequest(orgR), CancellationToken.None),
+                "SetNifaDepartmentOrgR" => await controller.SetNifaDepartmentOrgR(identifier, new SetOrgRRequest(orgR), CancellationToken.None),
+                "AddProject" => await controller.AddProject(new AddProjectOrgRRequest(identifier, orgR!), CancellationToken.None),
+                "RemoveProject" => await controller.RemoveProject(identifier, orgR!, CancellationToken.None),
+                _ => throw new InvalidOperationException("Unknown test operation"),
+            };
+            ctx.Response.StatusCode = ((IStatusCodeActionResult)result).StatusCode!.Value;
+        }, logger);
+
+        await middleware.InvokeAsync(context);
+
+        var entry = logger.Entries.Should().ContainSingle().Subject;
+        entry.Fields["action"].Should().Be(operation);
+        entry.Fields["controller"].Should().Be("OrgR");
+        entry.Fields[field].Should().Be(identifier);
+        if (operation is "SetFinancialDepartmentOrgR" or "SetNifaDepartmentOrgR" or "AddProject")
+        {
+            entry.Fields["OrgR"].Should().Be(orgR);
+        }
+        else
+        {
+            context.Items.Should().BeEmpty();
+        }
+    }
+
     private readonly AppDbContext appDb = TestDbContextFactory.CreateInMemory();
     private static readonly ClaimsPrincipal TestUser = new(new ClaimsIdentity(
         [new Claim("name", "OrgR Reviewer")], "Test"));

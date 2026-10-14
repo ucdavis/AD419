@@ -23,6 +23,7 @@ public sealed class ImportRunOrchestrator
 
     public async Task RunAsync(int runId, CancellationToken cancellationToken = default)
     {
+        using var runScope = _logger.BeginScope(new Dictionary<string, object?> { ["RunId"] = runId });
         var run = await _appDb.ImportRuns
             .Include(r => r.Stages)
             .SingleAsync(r => r.Id == runId, cancellationToken);
@@ -32,6 +33,7 @@ public sealed class ImportRunOrchestrator
 
         foreach (var stage in _stageProvider.BuildStages(context))
         {
+            using var stageScope = _logger.BeginScope(new Dictionary<string, object?> { ["Stage"] = stage.Name });
             var record = stagesByName[stage.Name];
             record.Status = ImportStageStatus.Running;
             record.StartedAt = DateTimeOffset.UtcNow;
@@ -79,7 +81,7 @@ public sealed class ImportRunOrchestrator
             foreach (var stage in run.Stages.Where(s => s.Status == ImportStageStatus.Running))
             {
                 stage.Status = ImportStageStatus.Failed;
-                stage.ErrorDetail = "Interrupted by application restart.";
+                stage.ErrorDetail = ImportStageErrorMessages.InterruptedByApplicationRestart;
                 stage.CompletedAt = DateTimeOffset.UtcNow;
             }
         }

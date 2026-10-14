@@ -18,7 +18,8 @@ public sealed class ProjectIdentificationService(
     AppDbContext dbContext,
     IFlatFileImportRegistry importRegistry,
     IProjectListService projectListService,
-    IWorkflowService workflowService) : IProjectIdentificationService
+    IWorkflowService workflowService,
+    ILogger<ProjectIdentificationService> logger) : IProjectIdentificationService
 {
     private const string FiscalPeriodItemId = "fiscal-period";
     private const string PgmItemId = "pgm-master-data";
@@ -183,6 +184,13 @@ public sealed class ProjectIdentificationService(
         try
         {
             var run = await workflowService.GetOrCreateCurrentRunAsync(user, cancellationToken);
+            using var runScope = logger.BeginScope(new Dictionary<string, object?>
+            {
+                ["WorkflowRunId"] = run.Id,
+                ["FiscalYear"] = run.FiscalYear,
+                ["CycleStart"] = run.CycleStart,
+                ["CycleEnd"] = run.CycleEnd,
+            });
             var latestImports = await GetLatestImportsAsync(cancellationToken);
             var items = CreateChecklistItems(run, latestImports);
             var finalizeItem = items.Single(item => item.Id == FinalizeProjectsItemId);
@@ -193,25 +201,30 @@ public sealed class ProjectIdentificationService(
 
             if (!previousComplete || !finalizeItem.Ready)
             {
+                logger.LogInformation("Project finalization skipped: {Reason}", "Unmet prerequisites");
                 return null;
             }
 
             if (finalizeItem.Completed)
             {
-                return null;
-            }
-
-            if (!await ProjectIssuesResolvedAsync(run, cancellationToken))
-            {
+                logger.LogInformation("Project finalization skipped: {Reason}", "Already completed");
                 return null;
             }
 
             if (!FiscalYearCycle.TryParse(run.FiscalYear, out var cycle))
             {
+                logger.LogInformation("Project finalization skipped: {Reason}", "Invalid fiscal year");
+                return null;
+            }
+
+            if (!await ProjectIssuesResolvedAsync(run, cancellationToken))
+            {
+                logger.LogInformation("Project finalization skipped: {Reason}", "Unresolved issues");
                 return null;
             }
 
             var rowsBuilt = await projectListService.BuildProjectsAsync(cycle, cancellationToken);
+            logger.LogInformation("Projects committed. ProjectsBuilt={ProjectsBuilt}.", rowsBuilt);
             var now = DateTimeOffset.UtcNow;
             var state = GetOrCreateState(run, FinalizeProjectsItemId);
             CompleteState(state, user, now);
@@ -222,6 +235,7 @@ public sealed class ProjectIdentificationService(
 
             Touch(run, user, now);
             await dbContext.SaveChangesAsync(cancellationToken);
+            logger.LogInformation("Workflow completion saved.");
 
             latestImports = await GetLatestImportsAsync(cancellationToken);
             return CreateSetupResponse(run, latestImports);

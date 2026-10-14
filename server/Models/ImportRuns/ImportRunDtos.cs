@@ -40,6 +40,21 @@ public sealed record ImportRunDto(
                 stage.Detail,
                 stage.StartedAt,
                 stage.CompletedAt,
-                stage.ErrorDetail))
+                GetErrorDetail(stage)))
             .ToList());
+
+    private static string? GetErrorDetail(ImportRunStage stage)
+    {
+        if (stage.Status != ImportStageStatus.Failed)
+        {
+            return null;
+        }
+
+        if (stage.ErrorDetail == ImportStageErrorMessages.InterruptedByApplicationRestart)
+        {
+            return ImportStageErrorMessages.InterruptedByApplicationRestart;
+        }
+
+        return "This import step could not be completed. Contact support if the problem continues.";
+    }
 }

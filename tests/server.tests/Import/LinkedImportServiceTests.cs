@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Server.Core.Import;
 using Server.Tests.SqlIntegration;
+using Server.Tests.Helpers;
 
 namespace Server.Tests.Import;
 
@@ -484,6 +485,96 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
         }
 
         return table;
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Pgm_transfer_failure_preserves_existing_rows_without_import_success(bool canceled)
+    {
+        await fixture.ClearDataTablesAsync();
+        await using var connection = await OpenConnectionAsync();
+        await connection.ExecuteAsync("INSERT INTO [data].[PGMProjects] ([ProjectId]) VALUES (1);");
+        await using var db = fixture.CreateDataDbContext();
+        var logger = new RecordingLogger<PgmProjectsImportService>();
+        Exception error = canceled ? new OperationCanceledException() : new InvalidOperationException("Source failed");
+        var service = new PgmProjectsImportService(db, Configuration(), logger,
+            new FailingLinkedServerQueryExecutor(error), new SqlBulkCopyWriter());
+        var actual = await Record.ExceptionAsync(() => service.ImportAsync(new DateOnly(2025, 6, 30)));
+        actual.Should().BeSameAs(error);
+        (await connection.QuerySingleAsync<int>("SELECT [ProjectId] FROM [data].[PGMProjects];")).Should().Be(1);
+        logger.Entries.Should().NotContain(e => e.Message.StartsWith("Imported "));
+    }
+
+    [Fact]
+    public async Task Bulk_copy_leaves_commit_to_caller()
+    {
+        await using var connection = await OpenConnectionAsync();
+        await connection.ExecuteAsync("CREATE TABLE #ProgressRows ([Id] int NOT NULL);");
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync();
+        var rows = new DataTable();
+        rows.Columns.Add("Id", typeof(int));
+        for (var i = 0; i < 2; i++) rows.Rows.Add(i);
+        using var reader = rows.CreateDataReader();
+        var writer = new SqlBulkCopyWriter();
+        (await writer.WriteToServerAsync(connection, transaction, "#ProgressRows",
+            [new ImportColumnMapping("Id", "Id")], reader, CancellationToken.None)).Should().Be(2);
+        await transaction.RollbackAsync();
+        (await connection.QuerySingleAsync<int>("SELECT COUNT(*) FROM #ProgressRows;")).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Pgm_post_commit_cancellation_keeps_imported_rows_and_reports_committed_state()
+    {
+        await fixture.ClearDataTablesAsync();
+        await using var db = fixture.CreateDataDbContext();
+        var logger = new RecordingLogger<PgmProjectsImportService>();
+        var service = new PgmProjectsImportService(db, Configuration(), logger,
+            new CancelSecondQueryExecutor(PgmProjectRows()), new SqlBulkCopyWriter());
+        await FluentActions.Awaiting(() => service.ImportAsync(new DateOnly(2025, 6, 30)))
+            .Should().ThrowAsync<OperationCanceledException>();
+        await using var connection = await OpenConnectionAsync();
+        (await connection.QuerySingleAsync<int>("SELECT [ProjectId] FROM [data].[PGMProjects];")).Should().Be(9001);
+        var committed = logger.Entries.Should().ContainSingle(e => e.Message.StartsWith("Imported ")).Subject;
+        committed.Fields.Should().Contain("RowCount", 1).And.Contain("ReportDate", new DateOnly(2025, 6, 30));
+    }
+
+    [Fact]
+    public async Task Destination_failure_rolls_back_the_replacement_without_import_success()
+    {
+        await fixture.ClearDataTablesAsync();
+        await using var connection = await OpenConnectionAsync();
+        await connection.ExecuteAsync("INSERT INTO [data].[PGMProjects] ([ProjectId]) VALUES (1);");
+        var rows = PgmProjectRows();
+        rows.ImportRow(rows.Rows[0]); // A duplicate key must fail during the actual destination write.
+        await using var db = fixture.CreateDataDbContext();
+        var logger = new RecordingLogger<PgmProjectsImportService>();
+        var service = new PgmProjectsImportService(db, Configuration(), logger,
+            new FakeLinkedServerQueryExecutor(rows), new SqlBulkCopyWriter());
+        await FluentActions.Awaiting(() => service.ImportAsync(new DateOnly(2025, 6, 30))).Should().ThrowAsync<SqlException>();
+        (await connection.QuerySingleAsync<int>("SELECT [ProjectId] FROM [data].[PGMProjects];")).Should().Be(1);
+        logger.Entries.Should().NotContain(e => e.Message.StartsWith("Imported "));
+    }
+
+    private sealed class FailingLinkedServerQueryExecutor(Exception error) : ILinkedServerQueryExecutor
+    {
+        public Task<TResult> ExecuteReaderAsync<TResult>(string connectionString, string commandText,
+            IReadOnlyList<SqlParameter> parameters, Func<DbDataReader, CancellationToken, Task<TResult>> readAsync,
+            CancellationToken cancellationToken) => Task.FromException<TResult>(error);
+    }
+
+    private sealed class CancelSecondQueryExecutor(DataTable rows) : ILinkedServerQueryExecutor
+    {
+        private bool _called;
+        public async Task<TResult> ExecuteReaderAsync<TResult>(string connectionString, string commandText,
+            IReadOnlyList<SqlParameter> parameters, Func<DbDataReader, CancellationToken, Task<TResult>> readAsync,
+            CancellationToken cancellationToken)
+        {
+            if (_called) throw new OperationCanceledException();
+            _called = true;
+            using var reader = rows.CreateDataReader();
+            return await readAsync(reader, cancellationToken);
+        }
     }
 
     private sealed class FakeLinkedServerQueryExecutor(params DataTable[] responses) : ILinkedServerQueryExecutor
