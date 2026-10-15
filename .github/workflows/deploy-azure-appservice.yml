@@ -27,6 +27,8 @@ jobs:
       EXPECTED_SUBSCRIPTION_ID: ${{ inputs.environment_name == 'prod' && vars.PROD_AZURE_SUBSCRIPTION_ID || vars.TEST_AZURE_SUBSCRIPTION_ID }}
       LOCATION: ${{ vars.LOCATION || 'westus2' }}
       RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+      WEB_PLAN_NAME: ${{ vars.WEB_PLAN_NAME }}
+      WEB_PLAN_RESOURCE_GROUP: ${{ vars.WEB_PLAN_RESOURCE_GROUP }}
       SQL_ADMIN_LOGIN: ${{ vars.SQL_ADMIN_LOGIN || 'ad419' }}
       SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
       NOTIFICATION_BASE_URL: ${{ vars.Notification__BaseUrl }}
@@ -89,6 +91,14 @@ jobs:
           if [[ "$RESOURCE_GROUP" != *"$expected_resource_group_suffix" ]]; then
             echo "RESOURCE_GROUP '$RESOURCE_GROUP' must end with '$expected_resource_group_suffix'." >&2
             exit 1
+          fi
+
+          if [[ "$DEPLOY_INFRA" != "false" ]]; then
+            if [[ -n "$WEB_PLAN_NAME" && -z "$WEB_PLAN_RESOURCE_GROUP" ]] ||
+               [[ -z "$WEB_PLAN_NAME" && -n "$WEB_PLAN_RESOURCE_GROUP" ]]; then
+              echo "WEB_PLAN_NAME and WEB_PLAN_RESOURCE_GROUP must either both be set or both be unset." >&2
+              exit 1
+            fi
           fi
 
       - name: Azure login

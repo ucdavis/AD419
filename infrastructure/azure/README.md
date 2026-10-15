@@ -40,6 +40,7 @@ Required environment secrets:
 Optional environment variables and secrets:
 
 - `DEPLOY_INFRA`
+- `WEB_PLAN_NAME` and `WEB_PLAN_RESOURCE_GROUP` (set both or neither)
 - `Notification__BaseUrl`
 - `Smtp__Host`
 - `Smtp__Port`
@@ -68,21 +69,23 @@ The Bicep deployment creates an application database and a separate data databas
 
 `github-oidc.bicep` bootstraps one environment in the active Azure subscription. Run it once against the test subscription and once against the prod subscription. This prevents a `-prod` resource group from being created in the test subscription, or a `-test` resource group from being created in the prod subscription.
 
-For each environment, the bootstrap creates a Microsoft Entra app registration and service principal:
+For each environment, the bootstrap creates a user-assigned managed identity in the application resource group:
 
-- `test` -> `ad419-github-test-deploy`
-- `prod` -> `ad419-github-prod-deploy`
+- `test` -> `id-ad419-test-deploy`
+- `prod` -> `id-ad419-prod-deploy`
 
 It also creates a federated credential for the corresponding GitHub Environment subject:
 
 - `test` -> `repo:ucdavis/AD419:environment:test`
 - `prod` -> `repo:ucdavis/AD419:environment:prod`
 
-The service principal receives `Contributor` scoped only to its own resource group when `assignRbac` is `true`. The bootstrap ensures that environment's resource group exists. Resource group names default to `rg-ad419-test` and `rg-ad419-prod`.
+With `assignRbac=true`, the identity receives `Contributor` on its application resource group and `Website Contributor` on the exact shared App Service plan. The bootstrap creates `rg-ad419-test` or `rg-ad419-prod` by default.
 
-The `deploymentGuardPassed` output must be `true`. If it is `false`, the active subscription, expected subscription, or resource group suffix did not match, and no environment resources were created.
+Both bootstrap and app infrastructure use existing plans: test uses `DefaultPlan2` in `Default-Web-WestUS`; prod uses `Nibbler` in `service-plans-linux`. To override, pass `webPlanName` and `webPlanResourceGroup` to the bootstrap and set matching `WEB_PLAN_NAME` and `WEB_PLAN_RESOURCE_GROUP` deployment variables. The web app uses the plan's region; SQL and monitoring use `LOCATION`.
 
-Run the test bootstrap from a principal that can create Microsoft Entra applications and service principals and can assign Azure RBAC roles at the test resource group:
+The `deploymentGuardPassed` output must be `true`. Otherwise, check the repository, expected subscription, active subscription, and resource group suffix; no environment resources were created.
+
+Run the test bootstrap from a principal that can create resource groups and managed identities and assign Azure RBAC roles on the application resource group and shared plan:
 
 ```bash
 az account set --subscription "$TEST_AZURE_SUBSCRIPTION_ID"
@@ -102,7 +105,7 @@ az deployment sub create \
   --parameters location=westus2 env=prod expectedSubscriptionId="$PROD_AZURE_SUBSCRIPTION_ID"
 ```
 
-If you can create Entra applications but cannot assign Azure RBAC roles, run the identity/OIDC bootstrap first with `assignRbac=false`. Then have an Azure subscription Owner or User Access Administrator assign `Contributor` to the emitted `principalId` on that environment's resource group, or rerun the bootstrap with `assignRbac=true` from an account with those permissions.
+If you cannot assign RBAC roles, use `assignRbac=false`, then have an authorized administrator grant the emitted `principalId` both roles at the scopes above or rerun with `assignRbac=true`.
 
 If the resource groups use non-default names:
 
@@ -118,9 +121,7 @@ Use the deployment outputs to populate `AZURE_CLIENT_ID` in the corresponding Gi
 - test bootstrap `clientId` -> `test` environment `AZURE_CLIENT_ID`
 - prod bootstrap `clientId` -> `prod` environment `AZURE_CLIENT_ID`
 
-Set `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID` in both environments. Set repository variables `TEST_AZURE_SUBSCRIPTION_ID` and `PROD_AZURE_SUBSCRIPTION_ID` so the deploy workflow can reject a mismatched environment/subscription pairing. `principalId` is output for auditing and troubleshooting RBAC.
-
-The bootstrap uses the Microsoft Graph Bicep extension configured in `bicepconfig.json`. The first build or deployment may restore the extension from Microsoft Container Registry.
+Use the `tenantId` and `subscriptionId` outputs for `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID`. Keep repository variables `TEST_AZURE_SUBSCRIPTION_ID` and `PROD_AZURE_SUBSCRIPTION_ID` for independent subscription checks. Identity name, principal ID, federation subject, and role-assignment IDs are also output for auditing.
 
 ## Local infra deployment
 
@@ -142,7 +143,7 @@ export PROD_AZURE_SUBSCRIPTION_ID='00000000-0000-0000-0000-000000000000'
 ./infrastructure/azure/scripts/deploy_prod.sh
 ```
 
-You can override defaults by exporting `SUBSCRIPTION_ID`, `SUBSCRIPTION_NAME`, `RESOURCE_GROUP`, `LOCATION`, `SQL_ADMIN_LOGIN`, or `NOTIFICATION_BASE_URL` before running either wrapper. The scripts still require the matching `TEST_AZURE_SUBSCRIPTION_ID` or `PROD_AZURE_SUBSCRIPTION_ID` value and reject mismatched `RESOURCE_GROUP`, `ENVIRONMENT`, and active subscription combinations before creating a resource group.
+You can override defaults by exporting `SUBSCRIPTION_ID`, `SUBSCRIPTION_NAME`, `RESOURCE_GROUP`, `LOCATION`, `SQL_ADMIN_LOGIN`, `NOTIFICATION_BASE_URL`, or both shared-plan variables before running either wrapper. The scripts still require the matching `TEST_AZURE_SUBSCRIPTION_ID` or `PROD_AZURE_SUBSCRIPTION_ID` value and reject mismatched `RESOURCE_GROUP`, `ENVIRONMENT`, and active subscription combinations before creating a resource group.
 
 ## Validation
 

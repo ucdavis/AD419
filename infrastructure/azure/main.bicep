@@ -14,8 +14,14 @@ param env string = 'dev'
 @description('Expected Azure subscription ID for non-dev deployments. Required for test and prod deployments.')
 param expectedSubscriptionId string = ''
 
-@description('Azure region for all resources.')
+@description('Azure region for resources other than the web app, which uses the existing App Service plan location.')
 param location string = resourceGroup().location
+
+@description('Existing App Service plan name.')
+param webPlanName string = env == 'prod' ? 'Nibbler' : 'DefaultPlan2'
+
+@description('Resource group containing the existing App Service plan.')
+param webPlanResourceGroup string = env == 'prod' ? 'service-plans-linux' : 'Default-Web-WestUS'
 
 @description('SQL admin login for SQL authentication.')
 param sqlAdminLogin string
@@ -49,19 +55,21 @@ var normalizedCurrentSubscriptionId = toLower(subscription().subscriptionId)
 var deploymentGuardPassed = env == 'dev' || (!empty(expectedSubscriptionId) && normalizedCurrentSubscriptionId == normalizedExpectedSubscriptionId && endsWith(resourceGroup().name, expectedResourceGroupSuffix))
 
 var sqlServerName = toLower('sql-${appNameSafe}-${env}-${nameToken}')
-var webPlanName = toLower('asp-${appNameSafe}-${env}-${nameToken}')
 var webAppName = toLower('web-${appNameSafe}-${env}-${nameToken}')
 var appInsightsName = toLower('appi-${appNameSafe}-${env}-${nameToken}')
 var logAnalyticsWorkspaceName = toLower('log-${appNameSafe}-${env}-${nameToken}')
 var sqlSkuName = env == 'prod' ? 'S0' : 'Basic'
 var sqlSkuTier = env == 'prod' ? 'Standard' : 'Basic'
-var webSkuName = env == 'prod' ? 'B1' : 'B1'
-var webSkuTier = env == 'prod' ? 'Basic' : 'Basic'
 
 var resourceTags = union(tags, {
   environment: env
   application: appName
 })
+
+resource webPlan 'Microsoft.Web/serverfarms@2023-12-01' existing = {
+  name: webPlanName
+  scope: resourceGroup(webPlanResourceGroup)
+}
 
 resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = if (deploymentGuardPassed) {
   name: logAnalyticsWorkspaceName
@@ -109,12 +117,10 @@ var dataSqlConnectionString = 'Server=tcp:${sqlServerFqdn},1433;Initial Catalog=
 module compute 'modules/compute.bicep' = if (deploymentGuardPassed) {
   name: 'compute'
   params: {
-    location: location
+    webAppLocation: webPlan.location
     tags: resourceTags
-    webPlanName: webPlanName
+    webPlanId: webPlan.id
     webAppName: webAppName
-    webSkuName: webSkuName
-    webSkuTier: webSkuTier
     sqlConnectionString: sqlConnectionString
     dataSqlConnectionString: dataSqlConnectionString
     environmentName: env
