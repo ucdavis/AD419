@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.44.1.10279",
-      "templateHash": "7302112755775116805"
+      "templateHash": "14489257787418834030"
     }
   },
   "parameters": {
@@ -358,9 +358,7 @@
         },
         "mode": "Incremental",
         "parameters": {
-          "webAppLocation": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('webPlanResourceGroup')), 'Microsoft.Web/serverfarms', parameters('webPlanName')), '2023-12-01', 'full').location]"
-          },
+          "webAppLocation": "[if(variables('deploymentGuardPassed'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('webPlanResourceGroup')), 'Microsoft.Web/serverfarms', parameters('webPlanName')), '2023-12-01', 'full').location), createObject('value', parameters('location')))]",
           "tags": {
             "value": "[variables('resourceTags')]"
           },

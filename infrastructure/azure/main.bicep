@@ -117,7 +117,7 @@ var dataSqlConnectionString = 'Server=tcp:${sqlServerFqdn},1433;Initial Catalog=
 module compute 'modules/compute.bicep' = if (deploymentGuardPassed) {
   name: 'compute'
   params: {
-    webAppLocation: webPlan.location
+    webAppLocation: deploymentGuardPassed ? webPlan.location : location
     tags: resourceTags
     webPlanId: webPlan.id
     webAppName: webAppName
