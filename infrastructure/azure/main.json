@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.41.2.15936",
-      "templateHash": "3063510071914971109"
+      "version": "0.44.1.10279",
+      "templateHash": "14489257787418834030"
     }
   },
   "parameters": {
@@ -39,7 +39,21 @@
       "type": "string",
       "defaultValue": "[resourceGroup().location]",
       "metadata": {
-        "description": "Azure region for all resources."
+        "description": "Azure region for resources other than the web app, which uses the existing App Service plan location."
+      }
+    },
+    "webPlanName": {
+      "type": "string",
+      "defaultValue": "[if(equals(parameters('env'), 'prod'), 'Nibbler', 'DefaultPlan2')]",
+      "metadata": {
+        "description": "Existing App Service plan name."
+      }
+    },
+    "webPlanResourceGroup": {
+      "type": "string",
+      "defaultValue": "[if(equals(parameters('env'), 'prod'), 'service-plans-linux', 'Default-Web-WestUS')]",
+      "metadata": {
+        "description": "Resource group containing the existing App Service plan."
       }
     },
     "sqlAdminLogin": {
@@ -100,14 +114,11 @@
     "normalizedCurrentSubscriptionId": "[toLower(subscription().subscriptionId)]",
     "deploymentGuardPassed": "[or(equals(parameters('env'), 'dev'), and(and(not(empty(parameters('expectedSubscriptionId'))), equals(variables('normalizedCurrentSubscriptionId'), variables('normalizedExpectedSubscriptionId'))), endsWith(resourceGroup().name, variables('expectedResourceGroupSuffix'))))]",
     "sqlServerName": "[toLower(format('sql-{0}-{1}-{2}', variables('appNameSafe'), parameters('env'), variables('nameToken')))]",
-    "webPlanName": "[toLower(format('asp-{0}-{1}-{2}', variables('appNameSafe'), parameters('env'), variables('nameToken')))]",
     "webAppName": "[toLower(format('web-{0}-{1}-{2}', variables('appNameSafe'), parameters('env'), variables('nameToken')))]",
     "appInsightsName": "[toLower(format('appi-{0}-{1}-{2}', variables('appNameSafe'), parameters('env'), variables('nameToken')))]",
     "logAnalyticsWorkspaceName": "[toLower(format('log-{0}-{1}-{2}', variables('appNameSafe'), parameters('env'), variables('nameToken')))]",
     "sqlSkuName": "[if(equals(parameters('env'), 'prod'), 'S0', 'Basic')]",
     "sqlSkuTier": "[if(equals(parameters('env'), 'prod'), 'Standard', 'Basic')]",
-    "webSkuName": "[if(equals(parameters('env'), 'prod'), 'B1', 'B1')]",
-    "webSkuTier": "[if(equals(parameters('env'), 'prod'), 'Basic', 'Basic')]",
     "resourceTags": "[union(parameters('tags'), createObject('environment', parameters('env'), 'application', parameters('appName')))]",
     "sqlServerHostnameSuffix": "[environment().suffixes.sqlServerHostname]",
     "sqlServerFqdn": "[format('{0}{1}{2}', variables('sqlServerName'), if(startsWith(variables('sqlServerHostnameSuffix'), '.'), '', '.'), variables('sqlServerHostnameSuffix'))]",
@@ -190,8 +201,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "12215806794789433436"
+              "version": "0.44.1.10279",
+              "templateHash": "18016950282575166961"
             }
           },
           "parameters": {
@@ -347,23 +358,15 @@
         },
         "mode": "Incremental",
         "parameters": {
-          "location": {
-            "value": "[parameters('location')]"
-          },
+          "webAppLocation": "[if(variables('deploymentGuardPassed'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('webPlanResourceGroup')), 'Microsoft.Web/serverfarms', parameters('webPlanName')), '2023-12-01', 'full').location), createObject('value', parameters('location')))]",
           "tags": {
             "value": "[variables('resourceTags')]"
           },
-          "webPlanName": {
-            "value": "[variables('webPlanName')]"
+          "webPlanId": {
+            "value": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('webPlanResourceGroup')), 'Microsoft.Web/serverfarms', parameters('webPlanName'))]"
           },
           "webAppName": {
             "value": "[variables('webAppName')]"
-          },
-          "webSkuName": {
-            "value": "[variables('webSkuName')]"
-          },
-          "webSkuTier": {
-            "value": "[variables('webSkuTier')]"
           },
           "sqlConnectionString": {
             "value": "[variables('sqlConnectionString')]"
@@ -388,15 +391,15 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "104107724659722524"
+              "version": "0.44.1.10279",
+              "templateHash": "2049129915914504107"
             }
           },
           "parameters": {
-            "location": {
+            "webAppLocation": {
               "type": "string",
               "metadata": {
-                "description": "Azure region for compute resources."
+                "description": "App Service plan region used by the web app."
               }
             },
             "tags": {
@@ -405,30 +408,16 @@
                 "description": "Tags to apply to compute resources."
               }
             },
-            "webPlanName": {
+            "webPlanId": {
               "type": "string",
               "metadata": {
-                "description": "App Service plan name for the web app."
+                "description": "Resource ID of the existing App Service plan."
               }
             },
             "webAppName": {
               "type": "string",
               "metadata": {
                 "description": "Web App name for the web app."
-              }
-            },
-            "webSkuName": {
-              "type": "string",
-              "defaultValue": "B1",
-              "metadata": {
-                "description": "App Service plan SKU name."
-              }
-            },
-            "webSkuTier": {
-              "type": "string",
-              "defaultValue": "Basic",
-              "metadata": {
-                "description": "App Service plan SKU tier."
               }
             },
             "linuxFxVersion": {
@@ -477,34 +466,17 @@
           },
           "resources": [
             {
-              "type": "Microsoft.Web/serverfarms",
-              "apiVersion": "2023-12-01",
-              "name": "[parameters('webPlanName')]",
-              "location": "[parameters('location')]",
-              "kind": "linux",
-              "sku": {
-                "name": "[parameters('webSkuName')]",
-                "tier": "[parameters('webSkuTier')]",
-                "size": "[parameters('webSkuName')]",
-                "capacity": 1
-              },
-              "tags": "[parameters('tags')]",
-              "properties": {
-                "reserved": true
-              }
-            },
-            {
               "type": "Microsoft.Web/sites",
               "apiVersion": "2023-12-01",
               "name": "[parameters('webAppName')]",
-              "location": "[parameters('location')]",
+              "location": "[parameters('webAppLocation')]",
               "kind": "app,linux",
               "identity": {
                 "type": "SystemAssigned"
               },
               "tags": "[parameters('tags')]",
               "properties": {
-                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('webPlanName'))]",
+                "serverFarmId": "[parameters('webPlanId')]",
                 "httpsOnly": true,
                 "siteConfig": {
                   "alwaysOn": true,
@@ -548,10 +520,7 @@
                     }
                   ]
                 }
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.Web/serverfarms', parameters('webPlanName'))]"
-              ]
+              }
             }
           ],
           "outputs": {

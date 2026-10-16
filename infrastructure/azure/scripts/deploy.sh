@@ -57,6 +57,12 @@ if [[ -z "${EXPECTED_SUBSCRIPTION_ID:-}" ]]; then
   exit 1
 fi
 
+if [[ -n "${WEB_PLAN_NAME:-}" && -z "${WEB_PLAN_RESOURCE_GROUP:-}" ]] ||
+   [[ -z "${WEB_PLAN_NAME:-}" && -n "${WEB_PLAN_RESOURCE_GROUP:-}" ]]; then
+  echo "WEB_PLAN_NAME and WEB_PLAN_RESOURCE_GROUP must either both be set or both be unset." >&2
+  exit 1
+fi
+
 subscription_value=""
 subscription_label=""
 
@@ -86,14 +92,25 @@ echo "Ensuring resource group $RESOURCE_GROUP exists in $LOCATION..."
 az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --output none
 
 echo "Deploying AD419 resources in $RESOURCE_GROUP..."
+parameters=(
+  "appName=$APP_NAME"
+  "env=$ENVIRONMENT"
+  "location=$LOCATION"
+  "expectedSubscriptionId=$EXPECTED_SUBSCRIPTION_ID"
+  "sqlAdminLogin=$SQL_ADMIN_LOGIN"
+  "sqlAdminPassword=$SQL_ADMIN_PASSWORD"
+  "notificationBaseUrl=${NOTIFICATION_BASE_URL:-}"
+)
+
+if [[ -n "${WEB_PLAN_NAME:-}" ]]; then
+  parameters+=("webPlanName=$WEB_PLAN_NAME" "webPlanResourceGroup=$WEB_PLAN_RESOURCE_GROUP")
+fi
+
 az deployment group create \
   --resource-group "$RESOURCE_GROUP" \
   --name "$DEPLOYMENT_NAME" \
   --template-file "$BICEP_FILE" \
-  --parameters appName="$APP_NAME" env="$ENVIRONMENT" location="$LOCATION" \
-  --parameters expectedSubscriptionId="$EXPECTED_SUBSCRIPTION_ID" \
-  --parameters sqlAdminLogin="$SQL_ADMIN_LOGIN" sqlAdminPassword="$SQL_ADMIN_PASSWORD" \
-  --parameters notificationBaseUrl="${NOTIFICATION_BASE_URL:-}" \
+  --parameters "${parameters[@]}" \
   --output table
 
 echo "Deployment complete."

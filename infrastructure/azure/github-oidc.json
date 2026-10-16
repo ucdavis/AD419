@@ -1,15 +1,21 @@
 {
   "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
-  "languageVersion": "2.0",
   "contentVersion": "1.0.0.0",
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.41.2.15936",
-      "templateHash": "8923115736600038750"
+      "version": "0.44.1.10279",
+      "templateHash": "17709514555294865738"
     }
   },
   "parameters": {
+    "appName": {
+      "type": "string",
+      "defaultValue": "ad419",
+      "metadata": {
+        "description": "Base application name used for generated Azure resource names."
+      }
+    },
     "repository": {
       "type": "string",
       "defaultValue": "ucdavis/AD419",
@@ -21,7 +27,7 @@
       "type": "string",
       "defaultValue": "[deployment().location]",
       "metadata": {
-        "description": "Azure region for the deployment resource groups."
+        "description": "Azure region for the environment resource group."
       }
     },
     "env": {
@@ -31,7 +37,7 @@
         "prod"
       ],
       "metadata": {
-        "description": "GitHub/Azure deployment environment to bootstrap in the current subscription."
+        "description": "GitHub Environment and Azure deployment environment to bootstrap."
       }
     },
     "expectedSubscriptionId": {
@@ -42,23 +48,37 @@
     },
     "resourceGroupName": {
       "type": "string",
-      "defaultValue": "[format('rg-ad419-{0}', parameters('env'))]",
+      "defaultValue": "[format('rg-{0}-{1}', parameters('appName'), parameters('env'))]",
       "metadata": {
         "description": "Azure resource group assigned to this deployment identity."
       }
     },
-    "applicationName": {
+    "deploymentIdentityName": {
       "type": "string",
-      "defaultValue": "[format('ad419-github-{0}-deploy', parameters('env'))]",
+      "defaultValue": "[format('id-{0}-{1}-deploy', toLower(replace(replace(parameters('appName'), ' ', ''), '_', '')), parameters('env'))]",
       "metadata": {
-        "description": "Display name for this deployment app registration."
+        "description": "Name of the user-assigned managed identity used by GitHub Actions."
+      }
+    },
+    "webPlanName": {
+      "type": "string",
+      "defaultValue": "[if(equals(parameters('env'), 'prod'), 'Nibbler', 'DefaultPlan2')]",
+      "metadata": {
+        "description": "Existing App Service plan name that deployment may join."
+      }
+    },
+    "webPlanResourceGroup": {
+      "type": "string",
+      "defaultValue": "[if(equals(parameters('env'), 'prod'), 'service-plans-linux', 'Default-Web-WestUS')]",
+      "metadata": {
+        "description": "Resource group containing the existing App Service plan that deployment may join."
       }
     },
     "assignRbac": {
       "type": "bool",
       "defaultValue": true,
       "metadata": {
-        "description": "Assign Contributor on each target resource group. Requires Owner or User Access Administrator at the target scopes."
+        "description": "Assign deployment RBAC on the target resource group and existing App Service plan. Requires permission to create the resource group and role assignments at both target scopes."
       }
     }
   },
@@ -66,63 +86,151 @@
     "githubIssuer": "https://token.actions.githubusercontent.com",
     "azureTokenExchangeAudience": "api://AzureADTokenExchange",
     "contributorRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
+    "websiteContributorRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'de139f84-1756-47ae-9be6-808fbbe84772')]",
+    "appNameSafe": "[toLower(replace(replace(parameters('appName'), ' ', ''), '_', ''))]",
+    "webPlanRoleAssignmentDeploymentToken": "[substring(uniqueString(parameters('repository'), parameters('deploymentIdentityName')), 0, 8)]",
+    "webPlanRoleAssignmentDeploymentName": "[format('{0}-{1}-web-plan-{2}', take(variables('appNameSafe'), 32), parameters('env'), variables('webPlanRoleAssignmentDeploymentToken'))]",
     "normalizedExpectedSubscriptionId": "[toLower(parameters('expectedSubscriptionId'))]",
     "normalizedCurrentSubscriptionId": "[toLower(subscription().subscriptionId)]",
     "expectedResourceGroupSuffix": "[format('-{0}', parameters('env'))]",
-    "deploymentGuardPassed": "[and(equals(variables('normalizedCurrentSubscriptionId'), variables('normalizedExpectedSubscriptionId')), endsWith(parameters('resourceGroupName'), variables('expectedResourceGroupSuffix')))]"
+    "normalizedResourceGroupName": "[toLower(parameters('resourceGroupName'))]",
+    "repositoryParts": "[split(parameters('repository'), '/')]",
+    "repositoryIsConfigured": "[and(and(and(equals(length(variables('repositoryParts')), 2), not(empty(variables('repositoryParts')[0]))), not(empty(variables('repositoryParts')[1]))), not(equals(parameters('repository'), 'owner/repository')))]",
+    "deploymentGuardPassed": "[and(and(and(not(empty(parameters('expectedSubscriptionId'))), variables('repositoryIsConfigured')), equals(variables('normalizedCurrentSubscriptionId'), variables('normalizedExpectedSubscriptionId'))), endsWith(variables('normalizedResourceGroupName'), variables('expectedResourceGroupSuffix')))]",
+    "federatedCredentialName": "[format('github-environment-{0}', parameters('env'))]",
+    "federatedCredentialSubject": "[format('repo:{0}:environment:{1}', parameters('repository'), parameters('env'))]"
   },
-  "imports": {
-    "microsoftGraphV1_0": {
-      "provider": "MicrosoftGraph",
-      "version": "1.0.0"
-    }
-  },
-  "resources": {
-    "application::federatedCredential": {
-      "condition": "[variables('deploymentGuardPassed')]",
-      "import": "microsoftGraphV1_0",
-      "type": "Microsoft.Graph/applications/federatedIdentityCredentials@v1.0",
-      "properties": {
-        "name": "[format('{0}/github-environment-{1}', parameters('applicationName'), parameters('env'))]",
-        "issuer": "[variables('githubIssuer')]",
-        "subject": "[format('repo:{0}:environment:{1}', parameters('repository'), parameters('env'))]",
-        "audiences": [
-          "[variables('azureTokenExchangeAudience')]"
-        ]
-      },
-      "dependsOn": [
-        "application"
-      ]
-    },
-    "environmentResourceGroup": {
+  "resources": [
+    {
       "condition": "[variables('deploymentGuardPassed')]",
       "type": "Microsoft.Resources/resourceGroups",
       "apiVersion": "2024-03-01",
       "name": "[parameters('resourceGroupName')]",
       "location": "[parameters('location')]"
     },
-    "application": {
+    {
       "condition": "[variables('deploymentGuardPassed')]",
-      "import": "microsoftGraphV1_0",
-      "type": "Microsoft.Graph/applications@v1.0",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('{0}-deployment-identity', parameters('env'))]",
+      "resourceGroup": "[parameters('resourceGroupName')]",
       "properties": {
-        "uniqueName": "[parameters('applicationName')]",
-        "displayName": "[parameters('applicationName')]",
-        "signInAudience": "AzureADMyOrg"
-      }
-    },
-    "servicePrincipal": {
-      "condition": "[variables('deploymentGuardPassed')]",
-      "import": "microsoftGraphV1_0",
-      "type": "Microsoft.Graph/servicePrincipals@v1.0",
-      "properties": {
-        "appId": "[reference('application').appId]"
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "deploymentIdentityName": {
+            "value": "[parameters('deploymentIdentityName')]"
+          },
+          "federatedCredentialAudience": {
+            "value": "[variables('azureTokenExchangeAudience')]"
+          },
+          "federatedCredentialIssuer": {
+            "value": "[variables('githubIssuer')]"
+          },
+          "federatedCredentialName": {
+            "value": "[variables('federatedCredentialName')]"
+          },
+          "federatedCredentialSubject": {
+            "value": "[variables('federatedCredentialSubject')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.44.1.10279",
+              "templateHash": "9851113257403142420"
+            }
+          },
+          "parameters": {
+            "deploymentIdentityName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the user-assigned managed identity used by GitHub Actions."
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for the deployment identity."
+              }
+            },
+            "federatedCredentialName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the federated credential on the deployment identity."
+              }
+            },
+            "federatedCredentialSubject": {
+              "type": "string",
+              "metadata": {
+                "description": "Exact GitHub Actions OIDC subject trusted by Azure."
+              }
+            },
+            "federatedCredentialIssuer": {
+              "type": "string",
+              "metadata": {
+                "description": "OIDC token issuer trusted by the federated credential."
+              }
+            },
+            "federatedCredentialAudience": {
+              "type": "string",
+              "metadata": {
+                "description": "OIDC token audience trusted by the federated credential."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+              "apiVersion": "2023-01-31",
+              "name": "[parameters('deploymentIdentityName')]",
+              "location": "[parameters('location')]"
+            },
+            {
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials",
+              "apiVersion": "2023-01-31",
+              "name": "[format('{0}/{1}', parameters('deploymentIdentityName'), parameters('federatedCredentialName'))]",
+              "properties": {
+                "audiences": [
+                  "[parameters('federatedCredentialAudience')]"
+                ],
+                "issuer": "[parameters('federatedCredentialIssuer')]",
+                "subject": "[parameters('federatedCredentialSubject')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('deploymentIdentityName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "clientId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('deploymentIdentityName')), '2023-01-31').clientId]"
+            },
+            "deploymentIdentityName": {
+              "type": "string",
+              "value": "[parameters('deploymentIdentityName')]"
+            },
+            "principalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('deploymentIdentityName')), '2023-01-31').principalId]"
+            }
+          }
+        }
       },
       "dependsOn": [
-        "application"
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
       ]
     },
-    "contributorAssignment": {
+    {
       "condition": "[and(variables('deploymentGuardPassed'), parameters('assignRbac'))]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
@@ -135,7 +243,7 @@
         "mode": "Incremental",
         "parameters": {
           "principalId": {
-            "value": "[reference('servicePrincipal').id]"
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('{0}-deployment-identity', parameters('env'))), '2025-04-01').outputs.principalId.value]"
           },
           "roleDefinitionId": {
             "value": "[variables('contributorRoleDefinitionId')]"
@@ -147,8 +255,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "8900335686163139842"
+              "version": "0.44.1.10279",
+              "templateHash": "17826060203930340615"
             }
           },
           "parameters": {
@@ -176,31 +284,138 @@
                 "principalType": "ServicePrincipal"
               }
             }
-          ]
+          ],
+          "outputs": {
+            "roleAssignmentId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Authorization/roleAssignments', guid(resourceGroup().id, parameters('principalId'), parameters('roleDefinitionId')))]"
+            }
+          }
         }
       },
       "dependsOn": [
-        "environmentResourceGroup",
-        "servicePrincipal"
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('{0}-deployment-identity', parameters('env')))]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ]
+    },
+    {
+      "condition": "[and(variables('deploymentGuardPassed'), parameters('assignRbac'))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[variables('webPlanRoleAssignmentDeploymentName')]",
+      "resourceGroup": "[parameters('webPlanResourceGroup')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "principalId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('{0}-deployment-identity', parameters('env'))), '2025-04-01').outputs.principalId.value]"
+          },
+          "roleDefinitionId": {
+            "value": "[variables('websiteContributorRoleDefinitionId')]"
+          },
+          "webPlanName": {
+            "value": "[parameters('webPlanName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.44.1.10279",
+              "templateHash": "11103766387712141136"
+            }
+          },
+          "parameters": {
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Object ID of the principal receiving the App Service plan role assignment."
+              }
+            },
+            "roleDefinitionId": {
+              "type": "string",
+              "metadata": {
+                "description": "Fully qualified Azure RBAC role definition ID."
+              }
+            },
+            "webPlanName": {
+              "type": "string",
+              "metadata": {
+                "description": "Existing App Service plan name receiving the role assignment."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Web/serverfarms', parameters('webPlanName'))]",
+              "name": "[guid(resourceId('Microsoft.Web/serverfarms', parameters('webPlanName')), parameters('principalId'), parameters('roleDefinitionId'))]",
+              "properties": {
+                "roleDefinitionId": "[parameters('roleDefinitionId')]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ],
+          "outputs": {
+            "roleAssignmentId": {
+              "type": "string",
+              "value": "[extensionResourceId(resourceId('Microsoft.Web/serverfarms', parameters('webPlanName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.Web/serverfarms', parameters('webPlanName')), parameters('principalId'), parameters('roleDefinitionId')))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('{0}-deployment-identity', parameters('env')))]"
       ]
     }
-  },
+  ],
   "outputs": {
+    "clientId": {
+      "type": "string",
+      "value": "[if(variables('deploymentGuardPassed'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('{0}-deployment-identity', parameters('env'))), '2025-04-01').outputs.clientId.value, '')]"
+    },
+    "deploymentIdentityName": {
+      "type": "string",
+      "value": "[if(variables('deploymentGuardPassed'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('{0}-deployment-identity', parameters('env'))), '2025-04-01').outputs.deploymentIdentityName.value, '')]"
+    },
     "deploymentGuardPassed": {
       "type": "bool",
       "value": "[variables('deploymentGuardPassed')]"
     },
-    "clientId": {
+    "federatedCredentialSubject": {
       "type": "string",
-      "value": "[if(variables('deploymentGuardPassed'), reference('application').appId, '')]"
+      "value": "[if(variables('deploymentGuardPassed'), variables('federatedCredentialSubject'), '')]"
     },
     "principalId": {
       "type": "string",
-      "value": "[if(variables('deploymentGuardPassed'), reference('servicePrincipal').id, '')]"
+      "value": "[if(variables('deploymentGuardPassed'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('{0}-deployment-identity', parameters('env'))), '2025-04-01').outputs.principalId.value, '')]"
     },
     "resourceGroupName": {
       "type": "string",
       "value": "[if(variables('deploymentGuardPassed'), parameters('resourceGroupName'), '')]"
+    },
+    "roleAssignmentId": {
+      "type": "string",
+      "value": "[if(and(variables('deploymentGuardPassed'), parameters('assignRbac')), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('{0}-contributor-assignment', parameters('env'))), '2025-04-01').outputs.roleAssignmentId.value, '')]"
+    },
+    "subscriptionId": {
+      "type": "string",
+      "value": "[if(variables('deploymentGuardPassed'), subscription().subscriptionId, '')]"
+    },
+    "tenantId": {
+      "type": "string",
+      "value": "[if(variables('deploymentGuardPassed'), tenant().tenantId, '')]"
+    },
+    "webPlanRoleAssignmentId": {
+      "type": "string",
+      "value": "[if(and(variables('deploymentGuardPassed'), parameters('assignRbac')), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('webPlanResourceGroup')), 'Microsoft.Resources/deployments', variables('webPlanRoleAssignmentDeploymentName')), '2025-04-01').outputs.roleAssignmentId.value, '')]"
     }
   }
 }
