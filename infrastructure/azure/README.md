@@ -89,7 +89,7 @@ Both bootstrap and app infrastructure use existing plans: test uses `DefaultPlan
 
 The `deploymentGuardPassed` output must be `true`. Otherwise, check the repository, expected subscription, active subscription, and resource group suffix; no environment resources were created.
 
-Run the test bootstrap from a principal that can create resource groups and managed identities, assign Azure RBAC roles on the application resource group and shared plan, and deploy into the existing relay resource group. It also needs `Microsoft.Authorization/roleDefinitions/write` in the relay resource group and `Microsoft.Authorization/roleAssignments/write` at the Hybrid Connection and sender-rule scopes. The GitHub deployment identity does not grant these permissions to itself.
+Run the test bootstrap from a principal that can create resource groups and managed identities, assign Azure RBAC roles on the application resource group and shared plan, and deploy into the existing relay resource group. It also needs `Microsoft.Authorization/roleAssignments/write` at the Hybrid Connection and sender-rule scopes. The GitHub deployment identity does not grant these permissions to itself.
 
 ```bash
 az account set --subscription "$TEST_AZURE_SUBSCRIPTION_ID"
@@ -109,7 +109,7 @@ az deployment sub create \
   --parameters location=westus2 env=prod expectedSubscriptionId="$PROD_AZURE_SUBSCRIPTION_ID"
 ```
 
-If you cannot provision RBAC, use `assignRbac=false`, then have an authorized administrator rerun with `assignRbac=true` before application deployment. With `assignRbac=false`, the bootstrap creates neither role assignments nor the custom relay key-reader role; existing assignments are not revoked.
+With `assignRbac=false`, the bootstrap skips role assignments; existing assignments are not revoked.
 
 If the resource groups use non-default names:
 
@@ -145,31 +145,18 @@ Bicep configures the Hybrid Connection attachment and retrieves its relay Send k
 The bootstrap grants the deployment identity:
 
 - Built-in `Reader` on the exact Hybrid Connection.
-- A custom Send Key Reader role on only its `defaultSender` authorization rule. Its sole action is `Microsoft.Relay/namespaces/HybridConnections/authorizationRules/listkeys/action`; the role's assignable scope is limited to the relay resource group. It does not grant access to listener keys or permission to change the relay, authorization rules, or keys.
+- Built-in `Azure Relay Owner` on only its `defaultSender` authorization rule. This permits reading the rule's keys, modifying its permissions, deleting the rule, and rotating its keys. The Owner assignment does not extend to the parent Hybrid Connection, namespace, or sibling authorization rules.
 
-The custom role and both assignments use deterministic names. Bootstrap outputs include `relayReaderRoleAssignmentId` and `relaySenderKeyReaderRoleAssignmentId` for auditing, with empty values when RBAC is skipped.
+Both assignments use deterministic names derived from their scope, principal, and built-in role ID. Bootstrap outputs include `relayReaderRoleAssignmentId` and `relaySenderRuleOwnerRoleAssignmentId` for auditing, with empty values when RBAC is skipped.
 
-The app deployment calls `listKeys().primaryKey` directly for the existing sender rule and supplies it to the App Service attachment's `sendKeyValue`. It never emits the key as an output or stores it in GitHub secrets. The App Service managed identity does not need these bootstrap permissions. After an externally managed sender-key rotation, rerun the infrastructure deployment to refresh the attachment; `DEPLOY_INFRA=false` will not refresh it. Coordinate any shared key rotation with the other applications using that rule.
+The app deployment calls `listKeys().primaryKey` directly for the existing sender rule and supplies it to the App Service attachment's `sendKeyValue`. It never emits the key as an output or stores it in GitHub secrets. The App Service managed identity does not need these bootstrap permissions.
 
-### Rollout and verification
+### Troubleshooting
 
-These are operator-run steps requiring separate authorization; compiling templates does not deploy them.
-
-1. Start with test. Review the bootstrap with `az deployment sub what-if` using the same location and parameters as the bootstrap command above. Review the application with `az deployment group what-if` using the parameters from `scripts/deploy.sh`, including the existing SQL configuration. Use an operator with relay-key read permission for that initial preview. Keep secrets out of captured output and use `--result-format ResourceIdOnly` when sharing the preview.
-2. Apply the test bootstrap with `assignRbac=true`. This must precede the first application deployment using the attachment. If Azure reports an authorization propagation error, verify the assignment and retry after it becomes effective; do not broaden the role to work around it.
-3. Deploy through the normal test workflow with infrastructure enabled. The new resources should be the app attachment and bootstrap RBAC resources; the shared relays, authorization rules, and HCM remain unchanged. Review any unrelated what-if differences before applying.
-4. Confirm the App Service attachment shows **Connected**. From the application environment, verify SQL authentication to `master` and run a small read-only query through `AE_Redshift_PROD` before retrying the PGM import. A connected listener alone does not prove SQL reachability, credentials, or linked-server permissions.
-5. Run an authorized PGM import in test and verify completion and imported data. Repeat the reviewed bootstrap and deployment process for production, with read-only connectivity checks before an explicitly authorized production import retry.
-6. Redeploy to verify the same attachment and assignments are reused without creating duplicates.
-
-### Troubleshooting and rollback
-
-- `AuthorizationFailed` on `listKeys`: verify the GitHub deployment identity has the custom role on the environment's exact `defaultSender` rule, and that the bootstrap ran with `assignRbac=true` in the correct subscription.
+- `AuthorizationFailed` on `listKeys`: verify the GitHub deployment identity has `Azure Relay Owner` on the environment's exact `defaultSender` rule, and that the bootstrap ran with `assignRbac=true` in the correct subscription.
 - Attachment disconnected or no listeners: have the HCM operator check the existing listener service, its outbound Azure Relay connectivity, and its ability to resolve and reach `caes-roberto:1433`. Do not recreate the shared relay.
 - DNS failure persists: verify infrastructure deployment was enabled, the attachment exists on this App Service, and `DATAMART_CONNECTION` uses the matching short hostname and port.
 - Attachment connected but SQL fails: investigate SQL reachability from HCM, authentication, and then the linked-server query separately.
-
-Rollback requires explicitly detaching only AD419's App Service attachment and reverting the attachment template change before the next deployment. Removing a Bicep declaration does not delete the resource during incremental deployment. Preserve the shared relay, sender/listener rules, and on-premises listener. If access is no longer needed, separately review removal of AD419's scoped relay role assignments; do not delete a custom role while other assignments use it.
 
 ## Local infra deployment
 

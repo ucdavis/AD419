@@ -31,7 +31,7 @@ param webPlanName string = env == 'prod' ? 'Nibbler' : 'DefaultPlan2'
 @description('Resource group containing the existing App Service plan that deployment may join.')
 param webPlanResourceGroup string = env == 'prod' ? 'service-plans-linux' : 'Default-Web-WestUS'
 
-@description('Assign deployment RBAC on the app resource group, shared App Service plan, and datamart relay. Requires role assignment permissions at those scopes and custom role creation permissions in the relay resource group.')
+@description('Assign deployment RBAC on the app resource group, shared App Service plan, datamart Hybrid Connection, and sender rule. Requires role assignment permissions at those scopes.')
 param assignRbac bool = true
 
 var githubIssuer = 'https://token.actions.githubusercontent.com'
@@ -113,4 +113,4 @@ output subscriptionId string = deploymentGuardPassed ? subscription().subscripti
 output tenantId string = deploymentGuardPassed ? tenant().tenantId : ''
 output webPlanRoleAssignmentId string = deploymentGuardPassed && assignRbac ? webPlanRoleAssignment!.outputs.roleAssignmentId : ''
 output relayReaderRoleAssignmentId string = deploymentGuardPassed && assignRbac ? relayRoleAssignments!.outputs.relayReaderRoleAssignmentId : ''
-output relaySenderKeyReaderRoleAssignmentId string = deploymentGuardPassed && assignRbac ? relayRoleAssignments!.outputs.senderKeyReaderRoleAssignmentId : ''
+output relaySenderRuleOwnerRoleAssignmentId string = deploymentGuardPassed && assignRbac ? relayRoleAssignments!.outputs.senderRuleOwnerRoleAssignmentId : ''

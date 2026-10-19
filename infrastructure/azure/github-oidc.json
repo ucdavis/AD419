@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.44.1.10279",
-      "templateHash": "2637335530752905614"
+      "templateHash": "7914210380277203401"
     }
   },
   "parameters": {
@@ -78,7 +78,7 @@
       "type": "bool",
       "defaultValue": true,
       "metadata": {
-        "description": "Assign deployment RBAC on the app resource group, shared App Service plan, and datamart relay. Requires role assignment permissions at those scopes and custom role creation permissions in the relay resource group."
+        "description": "Assign deployment RBAC on the app resource group, shared App Service plan, datamart Hybrid Connection, and sender rule. Requires role assignment permissions at those scopes."
       }
     }
   },
@@ -428,7 +428,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.44.1.10279",
-              "templateHash": "1951144209435704198"
+              "templateHash": "5997947578844923157"
             }
           },
           "parameters": {
@@ -453,37 +453,15 @@
             "relaySenderRuleName": {
               "type": "string",
               "metadata": {
-                "description": "Existing Send-only authorization rule whose keys deployment may read."
+                "description": "Existing sender authorization rule on which deployment receives Azure Relay Owner."
               }
             }
           },
           "variables": {
-            "readerRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')]"
+            "readerRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')]",
+            "relayOwnerRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '2787bf04-f1f5-4bfe-8383-c8a24483ee38')]"
           },
           "resources": [
-            {
-              "type": "Microsoft.Authorization/roleDefinitions",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(resourceGroup().id, 'ad419-hybrid-connection-send-key-reader')]",
-              "properties": {
-                "roleName": "[format('AD419 Hybrid Connection Send Key Reader {0}', uniqueString(resourceGroup().id))]",
-                "description": "Allows deployment to retrieve keys for an existing Hybrid Connection authorization rule. Assign only on the Send-only rule.",
-                "type": "CustomRole",
-                "assignableScopes": [
-                  "[resourceGroup().id]"
-                ],
-                "permissions": [
-                  {
-                    "actions": [
-                      "Microsoft.Relay/namespaces/HybridConnections/authorizationRules/listkeys/action"
-                    ],
-                    "notActions": [],
-                    "dataActions": [],
-                    "notDataActions": []
-                  }
-                ]
-              }
-            },
             {
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
@@ -499,15 +477,12 @@
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
               "scope": "[resourceId('Microsoft.Relay/namespaces/hybridConnections/authorizationRules', parameters('relayNamespaceName'), parameters('relayConnectionName'), parameters('relaySenderRuleName'))]",
-              "name": "[guid(resourceId('Microsoft.Relay/namespaces/hybridConnections/authorizationRules', parameters('relayNamespaceName'), parameters('relayConnectionName'), parameters('relaySenderRuleName')), parameters('principalId'), resourceId('Microsoft.Authorization/roleDefinitions', guid(resourceGroup().id, 'ad419-hybrid-connection-send-key-reader')))]",
+              "name": "[guid(resourceId('Microsoft.Relay/namespaces/hybridConnections/authorizationRules', parameters('relayNamespaceName'), parameters('relayConnectionName'), parameters('relaySenderRuleName')), parameters('principalId'), variables('relayOwnerRoleDefinitionId'))]",
               "properties": {
-                "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', guid(resourceGroup().id, 'ad419-hybrid-connection-send-key-reader'))]",
+                "roleDefinitionId": "[variables('relayOwnerRoleDefinitionId')]",
                 "principalId": "[parameters('principalId')]",
                 "principalType": "ServicePrincipal"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.Authorization/roleDefinitions', guid(resourceGroup().id, 'ad419-hybrid-connection-send-key-reader'))]"
-              ]
+              }
             }
           ],
           "outputs": {
@@ -515,9 +490,9 @@
               "type": "string",
               "value": "[extensionResourceId(resourceId('Microsoft.Relay/namespaces/hybridConnections', parameters('relayNamespaceName'), parameters('relayConnectionName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.Relay/namespaces/hybridConnections', parameters('relayNamespaceName'), parameters('relayConnectionName')), parameters('principalId'), variables('readerRoleDefinitionId')))]"
             },
-            "senderKeyReaderRoleAssignmentId": {
+            "senderRuleOwnerRoleAssignmentId": {
               "type": "string",
-              "value": "[extensionResourceId(resourceId('Microsoft.Relay/namespaces/hybridConnections/authorizationRules', parameters('relayNamespaceName'), parameters('relayConnectionName'), parameters('relaySenderRuleName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.Relay/namespaces/hybridConnections/authorizationRules', parameters('relayNamespaceName'), parameters('relayConnectionName'), parameters('relaySenderRuleName')), parameters('principalId'), resourceId('Microsoft.Authorization/roleDefinitions', guid(resourceGroup().id, 'ad419-hybrid-connection-send-key-reader'))))]"
+              "value": "[extensionResourceId(resourceId('Microsoft.Relay/namespaces/hybridConnections/authorizationRules', parameters('relayNamespaceName'), parameters('relayConnectionName'), parameters('relaySenderRuleName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.Relay/namespaces/hybridConnections/authorizationRules', parameters('relayNamespaceName'), parameters('relayConnectionName'), parameters('relaySenderRuleName')), parameters('principalId'), variables('relayOwnerRoleDefinitionId')))]"
             }
           }
         }
@@ -572,9 +547,9 @@
       "type": "string",
       "value": "[if(and(variables('deploymentGuardPassed'), parameters('assignRbac')), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('datamartRelay').resourceGroup), 'Microsoft.Resources/deployments', variables('relayRoleAssignmentDeploymentName')), '2025-04-01').outputs.relayReaderRoleAssignmentId.value, '')]"
     },
-    "relaySenderKeyReaderRoleAssignmentId": {
+    "relaySenderRuleOwnerRoleAssignmentId": {
       "type": "string",
-      "value": "[if(and(variables('deploymentGuardPassed'), parameters('assignRbac')), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('datamartRelay').resourceGroup), 'Microsoft.Resources/deployments', variables('relayRoleAssignmentDeploymentName')), '2025-04-01').outputs.senderKeyReaderRoleAssignmentId.value, '')]"
+      "value": "[if(and(variables('deploymentGuardPassed'), parameters('assignRbac')), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('datamartRelay').resourceGroup), 'Microsoft.Resources/deployments', variables('relayRoleAssignmentDeploymentName')), '2025-04-01').outputs.senderRuleOwnerRoleAssignmentId.value, '')]"
     }
   }
 }

@@ -9,10 +9,11 @@ param relayNamespaceName string
 @description('Existing datamart Hybrid Connection.')
 param relayConnectionName string
 
-@description('Existing Send-only authorization rule whose keys deployment may read.')
+@description('Existing sender authorization rule on which deployment receives Azure Relay Owner.')
 param relaySenderRuleName string
 
 var readerRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')
+var relayOwnerRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '2787bf04-f1f5-4bfe-8383-c8a24483ee38')
 
 resource relayNamespace 'Microsoft.Relay/namespaces@2024-01-01' existing = {
   name: relayNamespaceName
@@ -28,28 +29,6 @@ resource relaySenderRule 'Microsoft.Relay/namespaces/hybridConnections/authoriza
   name: relaySenderRuleName
 }
 
-resource senderKeyReaderRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
-  name: guid(resourceGroup().id, 'ad419-hybrid-connection-send-key-reader')
-  properties: {
-    roleName: 'AD419 Hybrid Connection Send Key Reader ${uniqueString(resourceGroup().id)}'
-    description: 'Allows deployment to retrieve keys for an existing Hybrid Connection authorization rule. Assign only on the Send-only rule.'
-    type: 'CustomRole'
-    assignableScopes: [
-      resourceGroup().id
-    ]
-    permissions: [
-      {
-        actions: [
-          'Microsoft.Relay/namespaces/HybridConnections/authorizationRules/listkeys/action'
-        ]
-        notActions: []
-        dataActions: []
-        notDataActions: []
-      }
-    ]
-  }
-}
-
 resource relayReaderAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(relayConnection.id, principalId, readerRoleDefinitionId)
   scope: relayConnection
@@ -60,15 +39,15 @@ resource relayReaderAssignment 'Microsoft.Authorization/roleAssignments@2022-04-
   }
 }
 
-resource senderKeyReaderAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(relaySenderRule.id, principalId, senderKeyReaderRole.id)
+resource senderRuleOwnerAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(relaySenderRule.id, principalId, relayOwnerRoleDefinitionId)
   scope: relaySenderRule
   properties: {
-    roleDefinitionId: senderKeyReaderRole.id
+    roleDefinitionId: relayOwnerRoleDefinitionId
     principalId: principalId
     principalType: 'ServicePrincipal'
   }
 }
 
 output relayReaderRoleAssignmentId string = relayReaderAssignment.id
-output senderKeyReaderRoleAssignmentId string = senderKeyReaderAssignment.id
+output senderRuleOwnerRoleAssignmentId string = senderRuleOwnerAssignment.id
