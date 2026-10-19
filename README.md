@@ -180,7 +180,7 @@ The Expense Review stage embeds a chat assistant backed by the shared [CAES AI](
 - `CaesAi__ApplicationApiKey` — printed once when the application is registered.
 - `CaesAi__ContextSigningKey` — any secret of at least 32 characters, generated locally with `openssl rand -base64 48`.
 
-The server refuses to start without them. See `docs/expense-review-assistant.md` for the local tunnel and registration steps.
+The assistant is turned on only when `CaesAi__ServerUrl` is set. Without it the server still starts, and the assistant's session endpoint returns 503. See `docs/expense-review-assistant.md` for the local tunnel and registration steps.
 
 ### Google Analytics (GA4)
 
