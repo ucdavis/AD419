@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+MANAGE_DATAMART_RELAY="${MANAGE_DATAMART_RELAY-false}"
+if [[ "$MANAGE_DATAMART_RELAY" != "true" && "$MANAGE_DATAMART_RELAY" != "false" ]]; then
+  echo "MANAGE_DATAMART_RELAY must be 'true' or 'false'." >&2
+  exit 1
+fi
+
 if ! command -v az >/dev/null 2>&1; then
   echo "Azure CLI (az) is required but was not found on PATH." >&2
   exit 1
@@ -100,6 +106,7 @@ parameters=(
   "sqlAdminLogin=$SQL_ADMIN_LOGIN"
   "sqlAdminPassword=$SQL_ADMIN_PASSWORD"
   "notificationBaseUrl=${NOTIFICATION_BASE_URL:-}"
+  "manageDatamartRelay=$MANAGE_DATAMART_RELAY"
 )
 
 if [[ -n "${WEB_PLAN_NAME:-}" ]]; then
@@ -107,6 +114,7 @@ if [[ -n "${WEB_PLAN_NAME:-}" ]]; then
 fi
 
 az deployment group create \
+  --mode Incremental \
   --resource-group "$RESOURCE_GROUP" \
   --name "$DEPLOYMENT_NAME" \
   --template-file "$BICEP_FILE" \
