@@ -1,0 +1,18 @@
+{
+  "test": {
+    "resourceGroup": "Default-Web-WestUS",
+    "namespaceName": "testserver-tsql",
+    "connectionName": "caes-roberto-test",
+    "senderRuleName": "defaultSender",
+    "hostname": "caes-roberto",
+    "port": 1433
+  },
+  "prod": {
+    "resourceGroup": "Default-Web-WestUS",
+    "namespaceName": "prodserver-tsql",
+    "connectionName": "caes-roberto",
+    "senderRuleName": "defaultSender",
+    "hostname": "caes-roberto",
+    "port": 1433
+  }
+}

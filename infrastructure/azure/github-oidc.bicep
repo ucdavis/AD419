@@ -31,7 +31,7 @@ param webPlanName string = env == 'prod' ? 'Nibbler' : 'DefaultPlan2'
 @description('Resource group containing the existing App Service plan that deployment may join.')
 param webPlanResourceGroup string = env == 'prod' ? 'service-plans-linux' : 'Default-Web-WestUS'
 
-@description('Assign deployment RBAC on the target resource group and existing App Service plan. Requires permission to create the resource group and role assignments at both target scopes.')
+@description('Assign deployment RBAC on the app resource group, shared App Service plan, datamart Hybrid Connection, and sender rule. Requires role assignment permissions at those scopes.')
 param assignRbac bool = true
 
 var githubIssuer = 'https://token.actions.githubusercontent.com'
@@ -41,6 +41,9 @@ var websiteContributorRoleDefinitionId = subscriptionResourceId('Microsoft.Autho
 var appNameSafe = toLower(replace(replace(appName, ' ', ''), '_', ''))
 var webPlanRoleAssignmentDeploymentToken = substring(uniqueString(repository, deploymentIdentityName), 0, 8)
 var webPlanRoleAssignmentDeploymentName = '${take(appNameSafe, 32)}-${env}-web-plan-${webPlanRoleAssignmentDeploymentToken}'
+var relayRoleAssignmentDeploymentName = '${take(appNameSafe, 32)}-${env}-relay-${webPlanRoleAssignmentDeploymentToken}'
+var hybridConnections = loadJsonContent('hybrid-connections.json')
+var datamartRelay = hybridConnections[env]
 var normalizedExpectedSubscriptionId = toLower(expectedSubscriptionId)
 var normalizedCurrentSubscriptionId = toLower(subscription().subscriptionId)
 var expectedResourceGroupSuffix = '-${env}'
@@ -88,6 +91,17 @@ module webPlanRoleAssignment 'modules/web-plan-role-assignment.bicep' = if (depl
   }
 }
 
+module relayRoleAssignments 'modules/relay-role-assignments.bicep' = if (deploymentGuardPassed && assignRbac) {
+  name: relayRoleAssignmentDeploymentName
+  scope: resourceGroup(datamartRelay.resourceGroup)
+  params: {
+    principalId: deploymentIdentity!.outputs.principalId
+    relayNamespaceName: datamartRelay.namespaceName
+    relayConnectionName: datamartRelay.connectionName
+    relaySenderRuleName: datamartRelay.senderRuleName
+  }
+}
+
 output clientId string = deploymentGuardPassed ? deploymentIdentity!.outputs.clientId : ''
 output deploymentIdentityName string = deploymentGuardPassed ? deploymentIdentity!.outputs.deploymentIdentityName : ''
 output deploymentGuardPassed bool = deploymentGuardPassed
@@ -98,3 +112,5 @@ output roleAssignmentId string = deploymentGuardPassed && assignRbac ? contribut
 output subscriptionId string = deploymentGuardPassed ? subscription().subscriptionId : ''
 output tenantId string = deploymentGuardPassed ? tenant().tenantId : ''
 output webPlanRoleAssignmentId string = deploymentGuardPassed && assignRbac ? webPlanRoleAssignment!.outputs.roleAssignmentId : ''
+output relayReaderRoleAssignmentId string = deploymentGuardPassed && assignRbac ? relayRoleAssignments!.outputs.relayReaderRoleAssignmentId : ''
+output relaySenderRuleOwnerRoleAssignmentId string = deploymentGuardPassed && assignRbac ? relayRoleAssignments!.outputs.senderRuleOwnerRoleAssignmentId : ''
