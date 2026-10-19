@@ -68,6 +68,7 @@ builder.Services.AddSingleton<IFlatFileImportRegistry, FlatFileImportRegistry>()
 builder.Services.AddScoped<IFlatFileImportService, FlatFileImportService>();
 builder.Services.AddScoped<IProjectIdentificationService, ProjectIdentificationService>();
 builder.Services.AddScoped<IProjectListService, ProjectListService>();
+builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IExpenseReviewService, ExpenseReviewService>();
 builder.Services.AddScoped<IConfirmedCycleProvider, ConfirmedCycleProvider>();
 var caesAiSection = builder.Configuration.GetSection(CaesAiAppOptions.SectionName);

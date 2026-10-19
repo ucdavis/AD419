@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Server.Core.Data;
 using Server.Models;
 using Server.Models.ExpenseReview;
@@ -10,8 +11,13 @@ namespace Server.ExpenseReview;
 
 public sealed class ExpenseReviewService(
     DataDbContext dataDbContext,
-    IConfiguration configuration) : IExpenseReviewService
+    IConfiguration configuration,
+    IMemoryCache? filterOptionsCache = null) : IExpenseReviewService
 {
+    // Filter options only change when transactions are imported or reclassified,
+    // so a few minutes of staleness is fine for dropdowns and the assistant.
+    private static readonly TimeSpan FilterOptionsCacheDuration = TimeSpan.FromMinutes(10);
+
     private static readonly IReadOnlyDictionary<string, string> SortExpressions =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -77,7 +83,36 @@ public sealed class ExpenseReviewService(
             ToDtos(rows, reasons));
     }
 
-    public async Task<ExpenseReviewFilterOptionsResponse> GetFilterOptionsAsync(
+    public Task<ExpenseReviewFilterOptionsResponse> GetFilterOptionsAsync(
+        FiscalYearCycle cycle,
+        CancellationToken cancellationToken)
+    {
+        if (filterOptionsCache == null)
+        {
+            return LoadFilterOptionsAsync(cycle, cancellationToken);
+        }
+
+        // The options query scans every transaction in the cycle and can take longer than the
+        // assistant's tool timeout. Callers share one in-flight load per cycle, and the load runs
+        // without the caller's token so a canceled request does not fail it for everyone else.
+        var cacheKey = (nameof(GetFilterOptionsAsync), cycle);
+        var load = filterOptionsCache.GetOrCreate(cacheKey, entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = FilterOptionsCacheDuration;
+            return LoadFilterOptionsAsync(cycle, CancellationToken.None);
+        })!;
+
+        // Drop a failed load so the next caller retries instead of getting the cached failure.
+        load.ContinueWith(
+            _ => filterOptionsCache.Remove(cacheKey),
+            CancellationToken.None,
+            TaskContinuationOptions.NotOnRanToCompletion,
+            TaskScheduler.Default);
+
+        return load.WaitAsync(cancellationToken);
+    }
+
+    private async Task<ExpenseReviewFilterOptionsResponse> LoadFilterOptionsAsync(
         FiscalYearCycle cycle,
         CancellationToken cancellationToken)
     {

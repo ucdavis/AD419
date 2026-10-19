@@ -2,6 +2,7 @@ using System.Text;
 using Dapper;
 using FluentAssertions;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Server.ExpenseReview;
 using Server.Models;
@@ -743,6 +744,30 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
                  'Entity One', 'Grant Fund', 'Dept One', 'Account One', 'Purpose One', 'Program One', 'Unmapped Grant Project', 'Activity One',
                  'Oct-24', 77.00, 0, 0);
             """);
+    }
+
+    [Fact]
+    public async Task GetFilterOptionsAsync_with_a_cache_reuses_the_first_load_for_the_cycle()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+
+        await using var firstDb = fixture.CreateDataDbContext();
+        var first = await new ExpenseReviewService(firstDb, Configuration(), cache)
+            .GetFilterOptionsAsync(Cycle(), CancellationToken.None);
+
+        await fixture.ClearDataTablesAsync();
+
+        await using var secondDb = fixture.CreateDataDbContext();
+        var cached = await new ExpenseReviewService(secondDb, Configuration(), cache)
+            .GetFilterOptionsAsync(Cycle(), CancellationToken.None);
+        var uncached = await new ExpenseReviewService(secondDb, Configuration())
+            .GetFilterOptionsAsync(Cycle(), CancellationToken.None);
+
+        first.Funds.Should().NotBeEmpty();
+        cached.Should().BeSameAs(first);
+        uncached.Funds.Should().BeEmpty();
     }
 
     [Fact]
