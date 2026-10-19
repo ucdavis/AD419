@@ -39,7 +39,7 @@ public sealed class ExpenseReviewToolDispatcher(
         {
             return request.ToolName switch
             {
-                ExpenseReviewToolManifest.FilterOptions => await FilterOptionsAsync(cycle, cancellationToken),
+                ExpenseReviewToolManifest.FilterOptions => await FilterOptionsAsync(cycle, request.Arguments, cancellationToken),
                 ExpenseReviewToolManifest.QueryTransactions => await QueryAsync(cycle, request.Arguments, cancellationToken),
                 ExpenseReviewToolManifest.Summarize => await SummarizeAsync(cycle, request.Arguments, cancellationToken),
                 _ => ToolExecutionResponse.Failure("unknown_tool", "The requested tool is not available."),
@@ -60,9 +60,69 @@ public sealed class ExpenseReviewToolDispatcher(
         }
     }
 
-    private async Task<ToolExecutionResponse> FilterOptionsAsync(FiscalYearCycle cycle, CancellationToken cancellationToken)
+    private async Task<ToolExecutionResponse> FilterOptionsAsync(
+        FiscalYearCycle cycle,
+        JsonElement arguments,
+        CancellationToken cancellationToken)
     {
-        var options = await expenseReviewService.GetFilterOptionsAsync(cycle, cancellationToken);
+        var input = arguments.Deserialize<FilterOptionsArguments>(Json) ?? new FilterOptionsArguments();
+        var hasCodes = input.Codes?.Length > 0;
+        var hasSearch = !string.IsNullOrWhiteSpace(input.Search);
+
+        if (input.Filter == null && (hasCodes || hasSearch))
+        {
+            return ToolExecutionResponse.Failure("invalid_arguments", "filter is required when search or codes is given.");
+        }
+
+        if (input.Filter != null && !ExpenseReviewToolManifest.FilterNames.Contains(input.Filter))
+        {
+            return ToolExecutionResponse.Failure(
+                "invalid_arguments",
+                $"filter must be one of: {string.Join(", ", ExpenseReviewToolManifest.FilterNames)}.");
+        }
+
+        var options = OptionsByFilter(await expenseReviewService.GetFilterOptionsAsync(cycle, cancellationToken));
+        var display = new ToolDisplay("expense-review-filter-options", new { }, Visibility: CaesAiDisplayVisibility.Hidden);
+
+        if (input.Filter == null)
+        {
+            var overview = new Dictionary<string, object>
+            {
+                ["fiscalYear"] = cycle.FiscalYear,
+                ["cycleStart"] = cycle.CycleStart.ToString("yyyy-MM-dd"),
+                ["cycleEnd"] = cycle.CycleEnd.ToString("yyyy-MM-dd"),
+                ["searchOnlyCounts"] = ExpenseReviewToolManifest.SearchOnlyFilterNames
+                    .ToDictionary(name => name, name => options[name].Count),
+            };
+            foreach (var name in ExpenseReviewToolManifest.ListedFilterNames)
+            {
+                overview[name] = Codes(options[name]);
+            }
+
+            return ToolExecutionResponse.Success(overview, display);
+        }
+
+        var values = options[input.Filter];
+        string[] unknownCodes = [];
+        List<ExpenseReviewFilterOptionDto> matched;
+
+        if (hasCodes)
+        {
+            var requested = input.Codes!.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            var byCode = values.ToDictionary(option => option.Value, StringComparer.OrdinalIgnoreCase);
+            matched = requested.Where(byCode.ContainsKey).Select(code => byCode[code]).ToList();
+            unknownCodes = requested.Where(code => !byCode.ContainsKey(code)).ToArray();
+        }
+        else if (hasSearch)
+        {
+            matched = Search(values, input.Search!);
+        }
+        else
+        {
+            matched = values.ToList();
+        }
+
+        var limit = Math.Clamp(input.Limit ?? ExpenseReviewToolManifest.DefaultFilterOptionLimit, 1, ExpenseReviewToolManifest.MaxFilterOptionLimit);
 
         return ToolExecutionResponse.Success(
             new
@@ -70,24 +130,52 @@ public sealed class ExpenseReviewToolDispatcher(
                 fiscalYear = cycle.FiscalYear,
                 cycleStart = cycle.CycleStart.ToString("yyyy-MM-dd"),
                 cycleEnd = cycle.CycleEnd.ToString("yyyy-MM-dd"),
-                entity = Codes(options.Entities),
-                financialDept = Codes(options.FinancialDepts),
-                fund = Codes(options.Funds),
-                account = Codes(options.Accounts),
-                aeProject = Codes(options.AeProjects),
-                accountingPeriod = Codes(options.AccountingPeriods),
-                purpose = Codes(options.Purposes),
-                program = Codes(options.Programs),
-                activity = Codes(options.Activities),
-                sfn = Codes(options.Sfns),
-                source = Codes(options.Sources),
-                exclusionReason = Codes(options.ExclusionReasons),
+                filter = input.Filter,
+                totalMatches = matched.Count,
+                matches = Codes(matched.Take(limit).ToList()),
+                unknownCodes,
             },
-            new ToolDisplay("expense-review-filter-options", new { }, Visibility: CaesAiDisplayVisibility.Hidden));
+            display);
 
         static object[] Codes(IReadOnlyList<ExpenseReviewFilterOptionDto> items) =>
             items.Select(item => (object)new { code = item.Value, name = item.Label }).ToArray();
     }
+
+    // Every word must appear in the code or the name. Exact code matches come first, then codes
+    // that start with the search text, then everything else in the service's order.
+    private static List<ExpenseReviewFilterOptionDto> Search(
+        IReadOnlyList<ExpenseReviewFilterOptionDto> values,
+        string search)
+    {
+        var text = search.Trim();
+        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        return values
+            .Where(option => words.All(word =>
+                option.Value.Contains(word, StringComparison.OrdinalIgnoreCase) ||
+                option.Label.Contains(word, StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(option =>
+                option.Value.Equals(text, StringComparison.OrdinalIgnoreCase) ? 0 :
+                option.Value.StartsWith(text, StringComparison.OrdinalIgnoreCase) ? 1 : 2)
+            .ToList();
+    }
+
+    private static Dictionary<string, IReadOnlyList<ExpenseReviewFilterOptionDto>> OptionsByFilter(
+        ExpenseReviewFilterOptionsResponse options) => new()
+    {
+        ["entity"] = options.Entities,
+        ["financialDept"] = options.FinancialDepts,
+        ["fund"] = options.Funds,
+        ["account"] = options.Accounts,
+        ["aeProject"] = options.AeProjects,
+        ["accountingPeriod"] = options.AccountingPeriods,
+        ["purpose"] = options.Purposes,
+        ["program"] = options.Programs,
+        ["activity"] = options.Activities,
+        ["sfn"] = options.Sfns,
+        ["source"] = options.Sources,
+        ["exclusionReason"] = options.ExclusionReasons,
+    };
 
     private async Task<ToolExecutionResponse> QueryAsync(FiscalYearCycle cycle, JsonElement arguments, CancellationToken cancellationToken)
     {
@@ -224,6 +312,14 @@ public sealed class ExpenseReviewToolDispatcher(
         public string? SortDirection { get; init; }
         public int? Page { get; init; }
         public int? PageSize { get; init; }
+    }
+
+    private sealed record FilterOptionsArguments
+    {
+        public string? Filter { get; init; }
+        public string? Search { get; init; }
+        public string[]? Codes { get; init; }
+        public int? Limit { get; init; }
     }
 
     private sealed record SummaryArguments : FilterArguments

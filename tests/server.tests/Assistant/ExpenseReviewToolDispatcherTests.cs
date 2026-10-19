@@ -158,7 +158,7 @@ public class ExpenseReviewToolDispatcherTests
     }
 
     [Fact]
-    public async Task Filter_options_are_returned_as_code_name_pairs_and_hidden()
+    public async Task Filter_options_overview_lists_small_filters_and_only_counts_search_only_filters()
     {
         await using var db = await DbWithCycleAsync();
         var dispatcher = Dispatcher(db, new StubService());
@@ -168,11 +168,86 @@ public class ExpenseReviewToolDispatcherTests
 
         response.Ok.Should().BeTrue();
         response.Output!.Display!.Visibility.Should().Be(CaesAiDisplayVisibility.Hidden);
-        var data = JsonSerializer.SerializeToElement(response.Output.Data, new JsonSerializerOptions(JsonSerializerDefaults.Web));
-        data.GetProperty("fund")[0].GetProperty("code").GetString().Should().Be("12345");
-        data.GetProperty("fund")[0].GetProperty("name").GetString().Should().Be("12345 - Hatch");
+        var data = Data(response);
         data.GetProperty("fiscalYear").GetString().Should().Be("FY25");
+        data.GetProperty("sfn")[0].GetProperty("code").GetString().Should().Be("201");
+        data.GetProperty("sfn")[0].GetProperty("name").GetString().Should().Be("201 - Hatch");
+        data.GetProperty("searchOnlyCounts").GetProperty("aeProject").GetInt32().Should().Be(4);
+        data.GetProperty("searchOnlyCounts").GetProperty("fund").GetInt32().Should().Be(1);
+        data.TryGetProperty("aeProject", out _).Should().BeFalse();
+        data.TryGetProperty("fund", out _).Should().BeFalse();
     }
+
+    [Fact]
+    public async Task Filter_options_search_matches_every_word_and_ranks_code_prefixes_first()
+    {
+        await using var db = await DbWithCycleAsync();
+        var dispatcher = Dispatcher(db, new StubService());
+
+        var byName = Data(await dispatcher.ExecuteAsync(
+            Request(ExpenseReviewToolManifest.FilterOptions, """{"filter":"aeProject","search":"almond research"}"""),
+            UserId.ToString(), CancellationToken.None));
+        var byCode = Data(await dispatcher.ExecuteAsync(
+            Request(ExpenseReviewToolManifest.FilterOptions, """{"filter":"aeProject","search":"k302"}"""),
+            UserId.ToString(), CancellationToken.None));
+
+        byName.GetProperty("filter").GetString().Should().Be("aeProject");
+        byName.GetProperty("totalMatches").GetInt32().Should().Be(1);
+        byName.GetProperty("matches")[0].GetProperty("code").GetString().Should().Be("K302A12");
+
+        Codes(byCode.GetProperty("matches")).Should().Equal("K302A12", "K302B44", "XK302");
+    }
+
+    [Fact]
+    public async Task Filter_options_codes_translate_known_codes_and_report_unknown_ones()
+    {
+        await using var db = await DbWithCycleAsync();
+        var dispatcher = Dispatcher(db, new StubService());
+
+        var data = Data(await dispatcher.ExecuteAsync(
+            Request(ExpenseReviewToolManifest.FilterOptions, """{"filter":"aeProject","codes":["k302b44","NOPE"]}"""),
+            UserId.ToString(), CancellationToken.None));
+
+        data.GetProperty("totalMatches").GetInt32().Should().Be(1);
+        data.GetProperty("matches")[0].GetProperty("name").GetString().Should().Be("K302B44 - Almond pollination");
+        data.GetProperty("unknownCodes").EnumerateArray().Select(code => code.GetString()).Should().Equal("NOPE");
+    }
+
+    [Fact]
+    public async Task Filter_options_limit_caps_matches_but_not_total_matches()
+    {
+        await using var db = await DbWithCycleAsync();
+        var dispatcher = Dispatcher(db, new StubService());
+
+        var data = Data(await dispatcher.ExecuteAsync(
+            Request(ExpenseReviewToolManifest.FilterOptions, """{"filter":"aeProject","limit":2}"""),
+            UserId.ToString(), CancellationToken.None));
+
+        data.GetProperty("totalMatches").GetInt32().Should().Be(4);
+        data.GetProperty("matches").GetArrayLength().Should().Be(2);
+    }
+
+    [Theory]
+    [InlineData("""{"search":"almond"}""", "filter is required")]
+    [InlineData("""{"codes":["K302A12"]}""", "filter is required")]
+    [InlineData("""{"filter":"project","search":"almond"}""", "filter must be one of")]
+    public async Task Filter_options_reject_invalid_lookups(string argumentsJson, string message)
+    {
+        await using var db = await DbWithCycleAsync();
+        var dispatcher = Dispatcher(db, new StubService());
+
+        var response = await dispatcher.ExecuteAsync(
+            Request(ExpenseReviewToolManifest.FilterOptions, argumentsJson), UserId.ToString(), CancellationToken.None);
+
+        response.Error!.Code.Should().Be("invalid_arguments");
+        response.Error.Message.Should().Contain(message);
+    }
+
+    private static JsonElement Data(ToolExecutionResponse response) =>
+        JsonSerializer.SerializeToElement(response.Output!.Data, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+    private static IEnumerable<string?> Codes(JsonElement matches) =>
+        matches.EnumerateArray().Select(match => match.GetProperty("code").GetString());
 
     [Fact]
     public async Task Service_exceptions_become_a_fixed_failure()
@@ -283,9 +358,17 @@ public class ExpenseReviewToolDispatcherTests
             }
 
             IReadOnlyList<ExpenseReviewFilterOptionDto> fund = [new("12345", "12345 - Hatch")];
+            IReadOnlyList<ExpenseReviewFilterOptionDto> aeProjects =
+            [
+                new("K400001", "K400001 - Grape rootstock trial"),
+                new("XK302", "XK302 - Almond irrigation"),
+                new("K302A12", "K302A12 - Almond orchard research"),
+                new("K302B44", "K302B44 - Almond pollination"),
+            ];
+            IReadOnlyList<ExpenseReviewFilterOptionDto> sfn = [new("201", "201 - Hatch")];
             IReadOnlyList<ExpenseReviewFilterOptionDto> none = [];
             return Task.FromResult(new ExpenseReviewFilterOptionsResponse(
-                none, none, fund, none, none, none, none, none, none, none, none, none));
+                none, none, fund, none, aeProjects, none, none, none, none, sfn, none, none));
         }
 
         public Task<UnmatchedJobCodesResponse> GetUnmatchedJobCodesAsync(

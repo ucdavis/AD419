@@ -16,6 +16,8 @@ public static class ExpenseReviewToolManifest
     public const int DefaultPageSize = 25;
     public const int MaxSummaryLimit = 500;
     public const int DefaultSummaryLimit = 100;
+    public const int MaxFilterOptionLimit = 200;
+    public const int DefaultFilterOptionLimit = 50;
 
     public static readonly IReadOnlyList<string> FilterNames =
     [
@@ -33,6 +35,20 @@ public static class ExpenseReviewToolManifest
         "exclusionReason",
     ];
 
+    // Filters with thousands of values (AE projects alone are over 600 KB with names) are too large to
+    // return in full, so the overview only counts them and the model looks values up by search or code.
+    public static readonly IReadOnlyList<string> SearchOnlyFilterNames =
+    [
+        "financialDept",
+        "fund",
+        "account",
+        "aeProject",
+        "activity",
+    ];
+
+    public static readonly IReadOnlyList<string> ListedFilterNames =
+        FilterNames.Except(SearchOnlyFilterNames).ToArray();
+
     private static readonly string[] SortFields =
     [
         "accountingPeriod", "entity", "financialDept", "fund", "account", "aeProject",
@@ -43,19 +59,22 @@ public static class ExpenseReviewToolManifest
     [
         new(
             FilterOptions,
-            "Returns the confirmed fiscal cycle and every valid filter value for the Expense Review table: " +
-            "entity, financialDept, fund, account, aeProject, accountingPeriod, purpose, program, activity, sfn, source, and exclusionReason, " +
-            "each as {code, name}. Call this before filtering or summarizing so you use real codes, and to translate codes into names.",
+            "Looks up valid filter values for the Expense Review table as {code, name}. " +
+            "Called with no arguments, it returns the confirmed fiscal cycle, every value of entity, accountingPeriod, purpose, program, sfn, source, and exclusionReason, " +
+            "and only a count for financialDept, fund, account, aeProject, and activity, which are too large to list. " +
+            "To find values of any filter, pass filter with search (words matched against code and name, all words must match) " +
+            "or with codes (exact codes to translate into names); results are capped by limit and totalMatches says how many matched. " +
+            "Call this before filtering or summarizing so you use real codes, and to translate codes into names.",
             CaesAiToolExecution.Server,
             CaesAiToolRisk.Read,
             false,
-            CaesAiJsonSchema.Object(new JsonObject()),
+            FilterOptionsInputSchema(),
             FilterOptionsDataSchema(),
             new ToolPresentation("expense-review-filter-options", "Filter options")),
         new(
             QueryTransactions,
             "Returns one page of grouped Expense Review rows for a filter set as a columnar table, plus counts and the total amount of the whole filtered set. " +
-            "Rows contain codes only; use get_expense_review_filter_options to translate codes to names. " +
+            "Rows contain codes only; use get_expense_review_filter_options with filter and codes to translate codes to names. " +
             "Use this to show examples or a specific short list. For totals or comparisons across a dimension use summarize_expense_review_transactions instead of paging.",
             CaesAiToolExecution.Server,
             CaesAiToolRisk.Read,
@@ -186,25 +205,50 @@ public static class ExpenseReviewToolManifest
         },
     }, "fiscalYear", "groupBy", "totalCount", "totalAmount", "groupCount", "groups");
 
+    private static JsonObject FilterOptionsInputSchema() => CaesAiJsonSchema.Object(new JsonObject
+    {
+        ["filter"] = CaesAiJsonSchema.String(FilterNames.ToArray()),
+        ["search"] = CaesAiJsonSchema.String(),
+        ["codes"] = StringArray(),
+        ["limit"] = new JsonObject { ["type"] = "integer", ["minimum"] = 1, ["maximum"] = MaxFilterOptionLimit },
+    });
+
+    // One schema covers both responses: the overview (lists plus searchOnlyCounts) and a lookup
+    // (filter, totalMatches, matches, unknownCodes). Only the cycle fields are always present.
     private static JsonObject FilterOptionsDataSchema()
     {
-        var option = CaesAiJsonSchema.Object(new JsonObject
+        var options = new JsonObject
         {
-            ["code"] = CaesAiJsonSchema.String(),
-            ["name"] = CaesAiJsonSchema.String(),
-        }, "code", "name");
+            ["type"] = "array",
+            ["items"] = CaesAiJsonSchema.Object(new JsonObject
+            {
+                ["code"] = CaesAiJsonSchema.String(),
+                ["name"] = CaesAiJsonSchema.String(),
+            }, "code", "name"),
+        };
+        var counts = new JsonObject();
+        foreach (var name in SearchOnlyFilterNames)
+        {
+            counts[name] = CaesAiJsonSchema.Integer();
+        }
+
         var properties = new JsonObject
         {
             ["fiscalYear"] = CaesAiJsonSchema.String(),
             ["cycleStart"] = CaesAiJsonSchema.String(),
             ["cycleEnd"] = CaesAiJsonSchema.String(),
+            ["searchOnlyCounts"] = CaesAiJsonSchema.Object(counts),
+            ["filter"] = CaesAiJsonSchema.String(FilterNames.ToArray()),
+            ["totalMatches"] = CaesAiJsonSchema.Integer(),
+            ["matches"] = options.DeepClone(),
+            ["unknownCodes"] = StringArray(),
         };
-        foreach (var name in FilterNames)
+        foreach (var name in ListedFilterNames)
         {
-            properties[name] = new JsonObject { ["type"] = "array", ["items"] = option.DeepClone() };
+            properties[name] = options.DeepClone();
         }
 
-        return CaesAiJsonSchema.Object(properties, ["fiscalYear", "cycleStart", "cycleEnd", .. FilterNames]);
+        return CaesAiJsonSchema.Object(properties, "fiscalYear", "cycleStart", "cycleEnd");
     }
 
     private static JsonObject ViewDataSchema() => CaesAiJsonSchema.Object(new JsonObject

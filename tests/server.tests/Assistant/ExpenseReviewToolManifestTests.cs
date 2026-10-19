@@ -58,4 +58,24 @@ public class ExpenseReviewToolManifestTests
         tool.Presentation.Should().NotBeNull();
         tool.Presentation!.Kind.Should().Be("expense-review-filter-options");
     }
+
+    [Fact]
+    public void Filter_options_splits_every_filter_into_listed_or_search_only()
+    {
+        ExpenseReviewToolManifest.ListedFilterNames
+            .Concat(ExpenseReviewToolManifest.SearchOnlyFilterNames)
+            .Should().BeEquivalentTo(ExpenseReviewToolManifest.FilterNames);
+        ExpenseReviewToolManifest.ListedFilterNames
+            .Should().NotIntersectWith(ExpenseReviewToolManifest.SearchOnlyFilterNames);
+    }
+
+    [Fact]
+    public void Filter_options_lookup_accepts_any_filter_and_caps_limit_at_200()
+    {
+        var tool = ExpenseReviewToolManifest.Build().Single(t => t.Name == ExpenseReviewToolManifest.FilterOptions);
+
+        var allowed = tool.InputSchema["properties"]!["filter"]!["enum"]!.AsArray().Select(node => node!.GetValue<string>());
+        allowed.Should().BeEquivalentTo(ExpenseReviewToolManifest.FilterNames);
+        tool.InputSchema["properties"]!["limit"]!["maximum"]!.GetValue<int>().Should().Be(200);
+    }
 }
