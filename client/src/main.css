@@ -3,6 +3,13 @@
 @import '@ucdavis/gunrock-tailwind/imports.css';
 
 @layer components {
+  .expense-review-assistant {
+    --caes-ai-assistant-accent: var(--color-primary, #022851);
+    --caes-ai-assistant-surface: #ffffff;
+    --caes-ai-assistant-border: #e2e8f0;
+    --caes-ai-assistant-width: 28rem;
+  }
+
   .workflow-app {
     @apply min-h-screen bg-slate-100 text-slate-950;
   }

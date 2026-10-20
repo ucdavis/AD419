@@ -2,6 +2,7 @@ using System.Text;
 using Dapper;
 using FluentAssertions;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Server.ExpenseReview;
 using Server.Models;
@@ -119,6 +120,24 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
             .Should().Equal(("AE", "Aggie Enterprise"), ("UCP", "UCPath"));
         filters.ExclusionReasons.Should().ContainSingle(option =>
             option.Value == "fund:excluded" && option.Label == "Excluded by fund");
+    }
+
+    [Fact]
+    public async Task GetTransactionsAsync_total_amount_matches_the_filtered_rows()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+
+        await using var db = fixture.CreateDataDbContext();
+        var service = new ExpenseReviewService(db, Configuration());
+
+        var response = await service.GetTransactionsAsync(
+            Cycle(),
+            Request(includeState: ExpenseReviewIncludeState.Excluded, pageSize: 500),
+            CancellationToken.None);
+
+        response.TotalAmount.Should().Be(response.Rows.Sum(row => row.Amount ?? 0m));
+        response.Rows.Should().NotBeEmpty();
     }
 
     [Fact]
@@ -725,6 +744,105 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
                  'Entity One', 'Grant Fund', 'Dept One', 'Account One', 'Purpose One', 'Program One', 'Unmapped Grant Project', 'Activity One',
                  'Oct-24', 77.00, 0, 0);
             """);
+    }
+
+    [Fact]
+    public async Task GetFilterOptionsAsync_with_a_cache_reuses_the_first_load_for_the_cycle()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+
+        await using var firstDb = fixture.CreateDataDbContext();
+        var first = await new ExpenseReviewService(firstDb, Configuration(), cache)
+            .GetFilterOptionsAsync(Cycle(), CancellationToken.None);
+
+        await fixture.ClearDataTablesAsync();
+
+        await using var secondDb = fixture.CreateDataDbContext();
+        var cached = await new ExpenseReviewService(secondDb, Configuration(), cache)
+            .GetFilterOptionsAsync(Cycle(), CancellationToken.None);
+        var uncached = await new ExpenseReviewService(secondDb, Configuration())
+            .GetFilterOptionsAsync(Cycle(), CancellationToken.None);
+
+        first.Funds.Should().NotBeEmpty();
+        cached.Should().BeSameAs(first);
+        uncached.Funds.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetSummaryAsync_by_fund_matches_sums_of_the_grouped_rows()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        var service = new ExpenseReviewService(fixture.CreateDataDbContext(), Configuration());
+
+        var rows = await service.GetTransactionsAsync(Cycle(), Request(pageSize: 500), CancellationToken.None);
+        var summary = await service.GetSummaryAsync(
+            Cycle(),
+            new ExpenseReviewSummaryRequest(ExpenseReviewIncludeState.All, false, Filters(), "fund", 100, false),
+            CancellationToken.None);
+
+        var expected = rows.Rows
+            .GroupBy(row => row.Fund.Code)
+            .Select(group => new { Code = group.Key, RowCount = group.Count(), Amount = group.Sum(row => row.Amount ?? 0m) })
+            .ToList();
+
+        summary.TotalCount.Should().Be(rows.TotalCount);
+        summary.TotalAmount.Should().Be(rows.TotalAmount);
+        summary.GroupCount.Should().Be(expected.Count);
+        summary.Groups.Select(group => (group.Code, group.RowCount, group.Amount))
+            .Should().BeEquivalentTo(expected.Select(item => (item.Code, item.RowCount, item.Amount)));
+        summary.Groups.Should().BeInDescendingOrder(group => group.Amount);
+    }
+
+    [Fact]
+    public async Task GetSummaryAsync_limit_truncates_groups_but_reports_the_full_count()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        var service = new ExpenseReviewService(fixture.CreateDataDbContext(), Configuration());
+
+        var full = await service.GetSummaryAsync(
+            Cycle(),
+            new ExpenseReviewSummaryRequest(ExpenseReviewIncludeState.All, false, Filters(), "fund", 100, false),
+            CancellationToken.None);
+        var limited = await service.GetSummaryAsync(
+            Cycle(),
+            new ExpenseReviewSummaryRequest(ExpenseReviewIncludeState.All, false, Filters(), "fund", 1, false),
+            CancellationToken.None);
+
+        full.GroupCount.Should().BeGreaterThan(1);
+        limited.Groups.Should().HaveCount(1);
+        limited.GroupCount.Should().Be(full.GroupCount);
+        limited.Groups[0].Should().BeEquivalentTo(full.Groups[0]);
+    }
+
+    [Fact]
+    public async Task GetSummaryAsync_by_exclusion_reason_matches_the_row_reason_chips()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedMultiReasonTransactionAsync();
+        var service = new ExpenseReviewService(fixture.CreateDataDbContext(), Configuration());
+
+        var rows = await service.GetTransactionsAsync(
+            Cycle(),
+            Request(includeState: ExpenseReviewIncludeState.Excluded, pageSize: 500),
+            CancellationToken.None);
+        var summary = await service.GetSummaryAsync(
+            Cycle(),
+            new ExpenseReviewSummaryRequest(ExpenseReviewIncludeState.Excluded, false, Filters(), "exclusionReason", 100, false),
+            CancellationToken.None);
+
+        var expected = rows.Rows
+            .SelectMany(row => row.ExclusionReasons)
+            .GroupBy(reason => reason.Code)
+            .Select(group => (Code: group.Key, RowCount: group.Sum(r => r.RowCount), Amount: group.Sum(r => r.Amount)))
+            .ToList();
+
+        summary.Groups.Select(group => (group.Code, group.RowCount, group.Amount))
+            .Should().BeEquivalentTo(expected);
+        summary.GroupCount.Should().Be(expected.Count);
     }
 
     private async Task SeedExpenseReviewScenarioAsync()

@@ -171,6 +171,17 @@ You do not need to enable **Access tokens** for this app's current cookie-based 
 
 You might also want to set the publisher domain to ucdavis.edu and fill in the other general branding info.
 
+### CAES AI assistant
+
+The Expense Review stage embeds a chat assistant backed by the shared [CAES AI](https://github.com/ucdavis/caes-ai) service. The server needs four settings, usually in `.env`:
+
+- `CaesAi__ServerUrl` — the central service URL. Local development uses the Azure test instance, `https://web-caes-ai-test-xnwral.azurewebsites.net`.
+- `CaesAi__ApplicationId` — the registration name, `ad419-dev` for local development.
+- `CaesAi__ApplicationApiKey` — printed once when the application is registered.
+- `CaesAi__ContextSigningKey` — any secret of at least 32 characters, generated locally with `openssl rand -base64 48`.
+
+The assistant is turned on only when `CaesAi__ServerUrl` is set. Without it the server still starts, and the assistant's session endpoint returns 503. See `docs/expense-review-assistant.md` for the local tunnel and registration steps.
+
 ### Google Analytics (GA4)
 
 AD419 includes GA4 wiring:
