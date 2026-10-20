@@ -44,6 +44,7 @@ Required environment secrets:
 Optional environment variables and secrets:
 
 - `DEPLOY_INFRA`
+- `MANAGE_DATAMART_RELAY` (defaults to `false`; set to `true` to manage the Hybrid Connection attachment and retrieve its sender key)
 - `WEB_PLAN_NAME` and `WEB_PLAN_RESOURCE_GROUP` (set both or neither)
 - `Notification__BaseUrl`
 - `Smtp__Host`
@@ -138,7 +139,7 @@ Test and production attach their App Service to an existing Azure Relay Hybrid C
 
 The templates reference the namespace, connection, and authorization rule as existing resources. They do not create or change the shared relays, rotate keys, or configure the on-premises Hybrid Connection Manager (HCM). `dev` creates no attachment and does not evaluate `listKeys`; failed deployment guards skip the compute module entirely.
 
-Bicep configures the Hybrid Connection attachment and retrieves its relay Send key. It does not generate `DATAMART_CONNECTION` or the SQL credentials for Roberto. Keep `Server=caes-roberto,1433` in the repository-level `DATAMART_CONNECTION` secret (or an environment override, if configured). The workflow copies that existing secret into the App Service setting after infrastructure deployment. The hostname and port must match the relay endpoint exactly; switching to the FQDN would bypass these short-name attachments. The separate FQDN relay in test is not used. No VNet integration is required for this connection.
+Bicep configures the Hybrid Connection attachment and retrieves its relay Send key only when `manageDatamartRelay=true`. Otherwise, configure the attachment separately; existing attachments are preserved. It does not generate `DATAMART_CONNECTION` or the SQL credentials for Roberto. Keep `Server=caes-roberto,1433` in the repository-level `DATAMART_CONNECTION` secret (or an environment override, if configured). The workflow copies that existing secret into the App Service setting after infrastructure deployment. The hostname and port must match the relay endpoint exactly; switching to the FQDN would bypass these short-name attachments. The separate FQDN relay in test is not used. No VNet integration is required for this connection.
 
 ### Relay permissions and key handling
 
@@ -149,7 +150,7 @@ The bootstrap grants the deployment identity:
 
 Both assignments use deterministic names derived from their scope, principal, and built-in role ID. Bootstrap outputs include `relayReaderRoleAssignmentId` and `relaySenderRuleOwnerRoleAssignmentId` for auditing, with empty values when RBAC is skipped.
 
-The app deployment calls `listKeys().primaryKey` directly for the existing sender rule and supplies it to the App Service attachment's `sendKeyValue`. It never emits the key as an output or stores it in GitHub secrets. The App Service managed identity does not need these bootstrap permissions.
+When attachment management is enabled, the app deployment calls `listKeys().primaryKey` directly for the existing sender rule and supplies it to the App Service attachment's `sendKeyValue`. It never emits the key as an output or stores it in GitHub secrets. The App Service managed identity does not need these bootstrap permissions.
 
 ### Troubleshooting
 

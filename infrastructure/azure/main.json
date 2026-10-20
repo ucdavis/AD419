@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.44.1.10279",
-      "templateHash": "7703091771057963296"
+      "templateHash": "11560276034163096200"
     }
   },
   "parameters": {
@@ -103,6 +103,13 @@
       "defaultValue": "",
       "metadata": {
         "description": "Optional notification base URL. Defaults to the App Service hostname."
+      }
+    },
+    "manageDatamartRelay": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Manage the datamart Hybrid Connection attachment and retrieve its sender key. Disabled for dev."
       }
     }
   },
@@ -405,7 +412,7 @@
           },
           "notificationBaseUrl": "[if(empty(parameters('notificationBaseUrl')), createObject('value', format('https://{0}.azurewebsites.net', variables('webAppName'))), createObject('value', parameters('notificationBaseUrl')))]",
           "datamartRelayEnabled": {
-            "value": "[not(equals(parameters('env'), 'dev'))]"
+            "value": "[and(parameters('manageDatamartRelay'), not(equals(parameters('env'), 'dev')))]"
           },
           "relayResourceGroup": {
             "value": "[variables('datamartRelay').resourceGroup]"
