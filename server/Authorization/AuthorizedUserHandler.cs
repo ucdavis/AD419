@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore;
 using Server.Core.Data;
 
 namespace Server.Authorization;
@@ -22,7 +21,7 @@ public class AuthorizedUserHandler : AuthorizationHandler<AuthorizedUserRequirem
             return;
         }
 
-        if (await _dbContext.Users.AnyAsync(user => user.EntraId == entraId))
+        if (await AuthorizedUsers.IsAuthorizedAsync(_dbContext, entraId, CancellationToken.None))
         {
             context.Succeed(requirement);
         }

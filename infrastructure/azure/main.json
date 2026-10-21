@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.44.1.10279",
-      "templateHash": "14489257787418834030"
+      "templateHash": "11560276034163096200"
     }
   },
   "parameters": {
@@ -104,15 +104,42 @@
       "metadata": {
         "description": "Optional notification base URL. Defaults to the App Service hostname."
       }
+    },
+    "manageDatamartRelay": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Manage the datamart Hybrid Connection attachment and retrieve its sender key. Disabled for dev."
+      }
     }
   },
   "variables": {
+    "$fxv#0": {
+      "test": {
+        "resourceGroup": "Default-Web-WestUS",
+        "namespaceName": "testserver-tsql",
+        "connectionName": "caes-roberto-test",
+        "senderRuleName": "defaultSender",
+        "hostname": "caes-roberto",
+        "port": 1433
+      },
+      "prod": {
+        "resourceGroup": "Default-Web-WestUS",
+        "namespaceName": "prodserver-tsql",
+        "connectionName": "caes-roberto",
+        "senderRuleName": "defaultSender",
+        "hostname": "caes-roberto",
+        "port": 1433
+      }
+    },
     "appNameSafe": "[toLower(replace(replace(parameters('appName'), ' ', ''), '_', ''))]",
     "nameToken": "[substring(uniqueString(resourceGroup().id, parameters('appName'), parameters('env')), 0, 6)]",
     "expectedResourceGroupSuffix": "[format('-{0}', parameters('env'))]",
     "normalizedExpectedSubscriptionId": "[toLower(parameters('expectedSubscriptionId'))]",
     "normalizedCurrentSubscriptionId": "[toLower(subscription().subscriptionId)]",
     "deploymentGuardPassed": "[or(equals(parameters('env'), 'dev'), and(and(not(empty(parameters('expectedSubscriptionId'))), equals(variables('normalizedCurrentSubscriptionId'), variables('normalizedExpectedSubscriptionId'))), endsWith(resourceGroup().name, variables('expectedResourceGroupSuffix'))))]",
+    "hybridConnections": "[variables('$fxv#0')]",
+    "datamartRelay": "[if(equals(parameters('env'), 'prod'), variables('hybridConnections').prod, variables('hybridConnections').test)]",
     "sqlServerName": "[toLower(format('sql-{0}-{1}-{2}', variables('appNameSafe'), parameters('env'), variables('nameToken')))]",
     "webAppName": "[toLower(format('web-{0}-{1}-{2}', variables('appNameSafe'), parameters('env'), variables('nameToken')))]",
     "appInsightsName": "[toLower(format('appi-{0}-{1}-{2}', variables('appNameSafe'), parameters('env'), variables('nameToken')))]",
@@ -383,7 +410,28 @@
           "appInsightsInstrumentationKey": {
             "value": "[reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02').InstrumentationKey]"
           },
-          "notificationBaseUrl": "[if(empty(parameters('notificationBaseUrl')), createObject('value', format('https://{0}.azurewebsites.net', variables('webAppName'))), createObject('value', parameters('notificationBaseUrl')))]"
+          "notificationBaseUrl": "[if(empty(parameters('notificationBaseUrl')), createObject('value', format('https://{0}.azurewebsites.net', variables('webAppName'))), createObject('value', parameters('notificationBaseUrl')))]",
+          "datamartRelayEnabled": {
+            "value": "[and(parameters('manageDatamartRelay'), not(equals(parameters('env'), 'dev')))]"
+          },
+          "relayResourceGroup": {
+            "value": "[variables('datamartRelay').resourceGroup]"
+          },
+          "relayNamespaceName": {
+            "value": "[variables('datamartRelay').namespaceName]"
+          },
+          "relayConnectionName": {
+            "value": "[variables('datamartRelay').connectionName]"
+          },
+          "relaySenderRuleName": {
+            "value": "[variables('datamartRelay').senderRuleName]"
+          },
+          "relayHostname": {
+            "value": "[variables('datamartRelay').hostname]"
+          },
+          "relayPort": {
+            "value": "[variables('datamartRelay').port]"
+          }
         },
         "template": {
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
@@ -392,7 +440,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.44.1.10279",
-              "templateHash": "2049129915914504107"
+              "templateHash": "10824715954039036886"
             }
           },
           "parameters": {
@@ -462,6 +510,48 @@
               "metadata": {
                 "description": "Base URL used in generated notification emails."
               }
+            },
+            "datamartRelayEnabled": {
+              "type": "bool",
+              "metadata": {
+                "description": "Attach the existing datamart Hybrid Connection. Disabled for dev."
+              }
+            },
+            "relayResourceGroup": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource group containing the existing Relay namespace in this subscription."
+              }
+            },
+            "relayNamespaceName": {
+              "type": "string",
+              "metadata": {
+                "description": "Existing Relay namespace name."
+              }
+            },
+            "relayConnectionName": {
+              "type": "string",
+              "metadata": {
+                "description": "Existing datamart Hybrid Connection name."
+              }
+            },
+            "relaySenderRuleName": {
+              "type": "string",
+              "metadata": {
+                "description": "Existing Send-only authorization rule used by App Service."
+              }
+            },
+            "relayHostname": {
+              "type": "string",
+              "metadata": {
+                "description": "Hybrid Connection endpoint hostname; must match DATAMART_CONNECTION."
+              }
+            },
+            "relayPort": {
+              "type": "int",
+              "metadata": {
+                "description": "Hybrid Connection endpoint TCP port; must match DATAMART_CONNECTION."
+              }
             }
           },
           "resources": [
@@ -521,6 +611,24 @@
                   ]
                 }
               }
+            },
+            {
+              "condition": "[parameters('datamartRelayEnabled')]",
+              "type": "Microsoft.Web/sites/hybridConnectionNamespaces/relays",
+              "apiVersion": "2023-12-01",
+              "name": "[format('{0}/{1}/{2}', parameters('webAppName'), parameters('relayNamespaceName'), parameters('relayConnectionName'))]",
+              "properties": {
+                "hostname": "[parameters('relayHostname')]",
+                "port": "[parameters('relayPort')]",
+                "relayArmUri": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('relayResourceGroup')), 'Microsoft.Relay/namespaces/hybridConnections', parameters('relayNamespaceName'), parameters('relayConnectionName'))]",
+                "relayName": "[parameters('relayConnectionName')]",
+                "serviceBusNamespace": "[parameters('relayNamespaceName')]",
+                "sendKeyName": "[parameters('relaySenderRuleName')]",
+                "sendKeyValue": "[if(parameters('datamartRelayEnabled'), listKeys(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('relayResourceGroup')), 'Microsoft.Relay/namespaces/hybridConnections/authorizationRules', parameters('relayNamespaceName'), parameters('relayConnectionName'), parameters('relaySenderRuleName')), '2024-01-01').primaryKey, '')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', parameters('webAppName'))]"
+              ]
             }
           ],
           "outputs": {

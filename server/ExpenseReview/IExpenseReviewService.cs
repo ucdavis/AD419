@@ -18,6 +18,11 @@ public interface IExpenseReviewService
         FiscalYearCycle cycle,
         CancellationToken cancellationToken);
 
+    Task<ExpenseReviewSummaryResponse> GetSummaryAsync(
+        FiscalYearCycle cycle,
+        ExpenseReviewSummaryRequest request,
+        CancellationToken cancellationToken);
+
     Task WriteTransactionsCsvAsync(
         FiscalYearCycle cycle,
         ExpenseReviewTransactionsRequest request,

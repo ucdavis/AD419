@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Server.Assistant;
 using Server.AutoAssociations;
 using Server.Authorization;
 using Server.Controllers;
@@ -17,6 +18,7 @@ using Server.OrgRReview;
 using Server.ProjectIdentification;
 using Server.ProjectList;
 using Server.Workflow;
+using UCDavis.CaesAi.AppSdk;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -66,7 +68,16 @@ builder.Services.AddSingleton<IFlatFileImportRegistry, FlatFileImportRegistry>()
 builder.Services.AddScoped<IFlatFileImportService, FlatFileImportService>();
 builder.Services.AddScoped<IProjectIdentificationService, ProjectIdentificationService>();
 builder.Services.AddScoped<IProjectListService, ProjectListService>();
+builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IExpenseReviewService, ExpenseReviewService>();
+builder.Services.AddScoped<IConfirmedCycleProvider, ConfirmedCycleProvider>();
+var caesAiSection = builder.Configuration.GetSection(CaesAiAppOptions.SectionName);
+var caesAiConfigured = !string.IsNullOrWhiteSpace(caesAiSection["ServerUrl"]);
+if (caesAiConfigured)
+{
+    builder.Services.AddCaesAiAppSdk(caesAiSection);
+    builder.Services.AddScoped<ICaesAiToolDispatcher, ExpenseReviewToolDispatcher>();
+}
 builder.Services.AddScoped<IWorkflowService, WorkflowService>();
 builder.Services.AddScoped<IOrgRReviewSeeder, OrgRReviewSeeder>();
 builder.Services.AddScoped<IAutoAssociationBuilder, AutoAssociationBuilder>();
@@ -162,6 +173,14 @@ await StartupLogging.RunAsync(app, async cancellationToken =>
     // app.UseHttpLogging(); // if you want extra logging. It's a little overkill though with the current logging setup
 
     app.MapControllers();
+    if (caesAiConfigured)
+    {
+        app.MapCaesAiToolCallback();
+    }
+    else
+    {
+        app.Logger.LogWarning("CaesAi:ServerUrl is not configured; the expense review assistant is disabled.");
+    }
 
     var healthEndpoint = app.MapHealthChecks("/health");
 

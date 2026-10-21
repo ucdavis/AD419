@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.44.1.10279",
-      "templateHash": "17709514555294865738"
+      "templateHash": "7914210380277203401"
     }
   },
   "parameters": {
@@ -78,11 +78,29 @@
       "type": "bool",
       "defaultValue": true,
       "metadata": {
-        "description": "Assign deployment RBAC on the target resource group and existing App Service plan. Requires permission to create the resource group and role assignments at both target scopes."
+        "description": "Assign deployment RBAC on the app resource group, shared App Service plan, datamart Hybrid Connection, and sender rule. Requires role assignment permissions at those scopes."
       }
     }
   },
   "variables": {
+    "$fxv#0": {
+      "test": {
+        "resourceGroup": "Default-Web-WestUS",
+        "namespaceName": "testserver-tsql",
+        "connectionName": "caes-roberto-test",
+        "senderRuleName": "defaultSender",
+        "hostname": "caes-roberto",
+        "port": 1433
+      },
+      "prod": {
+        "resourceGroup": "Default-Web-WestUS",
+        "namespaceName": "prodserver-tsql",
+        "connectionName": "caes-roberto",
+        "senderRuleName": "defaultSender",
+        "hostname": "caes-roberto",
+        "port": 1433
+      }
+    },
     "githubIssuer": "https://token.actions.githubusercontent.com",
     "azureTokenExchangeAudience": "api://AzureADTokenExchange",
     "contributorRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
@@ -90,6 +108,9 @@
     "appNameSafe": "[toLower(replace(replace(parameters('appName'), ' ', ''), '_', ''))]",
     "webPlanRoleAssignmentDeploymentToken": "[substring(uniqueString(parameters('repository'), parameters('deploymentIdentityName')), 0, 8)]",
     "webPlanRoleAssignmentDeploymentName": "[format('{0}-{1}-web-plan-{2}', take(variables('appNameSafe'), 32), parameters('env'), variables('webPlanRoleAssignmentDeploymentToken'))]",
+    "relayRoleAssignmentDeploymentName": "[format('{0}-{1}-relay-{2}', take(variables('appNameSafe'), 32), parameters('env'), variables('webPlanRoleAssignmentDeploymentToken'))]",
+    "hybridConnections": "[variables('$fxv#0')]",
+    "datamartRelay": "[variables('hybridConnections')[parameters('env')]]",
     "normalizedExpectedSubscriptionId": "[toLower(parameters('expectedSubscriptionId'))]",
     "normalizedCurrentSubscriptionId": "[toLower(subscription().subscriptionId)]",
     "expectedResourceGroupSuffix": "[format('-{0}', parameters('env'))]",
@@ -374,6 +395,111 @@
       "dependsOn": [
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('{0}-deployment-identity', parameters('env')))]"
       ]
+    },
+    {
+      "condition": "[and(variables('deploymentGuardPassed'), parameters('assignRbac'))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[variables('relayRoleAssignmentDeploymentName')]",
+      "resourceGroup": "[variables('datamartRelay').resourceGroup]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "principalId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('{0}-deployment-identity', parameters('env'))), '2025-04-01').outputs.principalId.value]"
+          },
+          "relayNamespaceName": {
+            "value": "[variables('datamartRelay').namespaceName]"
+          },
+          "relayConnectionName": {
+            "value": "[variables('datamartRelay').connectionName]"
+          },
+          "relaySenderRuleName": {
+            "value": "[variables('datamartRelay').senderRuleName]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.44.1.10279",
+              "templateHash": "5997947578844923157"
+            }
+          },
+          "parameters": {
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Object ID of the GitHub deployment identity receiving relay access."
+              }
+            },
+            "relayNamespaceName": {
+              "type": "string",
+              "metadata": {
+                "description": "Existing Relay namespace in this resource group."
+              }
+            },
+            "relayConnectionName": {
+              "type": "string",
+              "metadata": {
+                "description": "Existing datamart Hybrid Connection."
+              }
+            },
+            "relaySenderRuleName": {
+              "type": "string",
+              "metadata": {
+                "description": "Existing sender authorization rule on which deployment receives Azure Relay Owner."
+              }
+            }
+          },
+          "variables": {
+            "readerRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')]",
+            "relayOwnerRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '2787bf04-f1f5-4bfe-8383-c8a24483ee38')]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Relay/namespaces/hybridConnections', parameters('relayNamespaceName'), parameters('relayConnectionName'))]",
+              "name": "[guid(resourceId('Microsoft.Relay/namespaces/hybridConnections', parameters('relayNamespaceName'), parameters('relayConnectionName')), parameters('principalId'), variables('readerRoleDefinitionId'))]",
+              "properties": {
+                "roleDefinitionId": "[variables('readerRoleDefinitionId')]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Relay/namespaces/hybridConnections/authorizationRules', parameters('relayNamespaceName'), parameters('relayConnectionName'), parameters('relaySenderRuleName'))]",
+              "name": "[guid(resourceId('Microsoft.Relay/namespaces/hybridConnections/authorizationRules', parameters('relayNamespaceName'), parameters('relayConnectionName'), parameters('relaySenderRuleName')), parameters('principalId'), variables('relayOwnerRoleDefinitionId'))]",
+              "properties": {
+                "roleDefinitionId": "[variables('relayOwnerRoleDefinitionId')]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ],
+          "outputs": {
+            "relayReaderRoleAssignmentId": {
+              "type": "string",
+              "value": "[extensionResourceId(resourceId('Microsoft.Relay/namespaces/hybridConnections', parameters('relayNamespaceName'), parameters('relayConnectionName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.Relay/namespaces/hybridConnections', parameters('relayNamespaceName'), parameters('relayConnectionName')), parameters('principalId'), variables('readerRoleDefinitionId')))]"
+            },
+            "senderRuleOwnerRoleAssignmentId": {
+              "type": "string",
+              "value": "[extensionResourceId(resourceId('Microsoft.Relay/namespaces/hybridConnections/authorizationRules', parameters('relayNamespaceName'), parameters('relayConnectionName'), parameters('relaySenderRuleName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.Relay/namespaces/hybridConnections/authorizationRules', parameters('relayNamespaceName'), parameters('relayConnectionName'), parameters('relaySenderRuleName')), parameters('principalId'), variables('relayOwnerRoleDefinitionId')))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('{0}-deployment-identity', parameters('env')))]"
+      ]
     }
   ],
   "outputs": {
@@ -416,6 +542,14 @@
     "webPlanRoleAssignmentId": {
       "type": "string",
       "value": "[if(and(variables('deploymentGuardPassed'), parameters('assignRbac')), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('webPlanResourceGroup')), 'Microsoft.Resources/deployments', variables('webPlanRoleAssignmentDeploymentName')), '2025-04-01').outputs.roleAssignmentId.value, '')]"
+    },
+    "relayReaderRoleAssignmentId": {
+      "type": "string",
+      "value": "[if(and(variables('deploymentGuardPassed'), parameters('assignRbac')), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('datamartRelay').resourceGroup), 'Microsoft.Resources/deployments', variables('relayRoleAssignmentDeploymentName')), '2025-04-01').outputs.relayReaderRoleAssignmentId.value, '')]"
+    },
+    "relaySenderRuleOwnerRoleAssignmentId": {
+      "type": "string",
+      "value": "[if(and(variables('deploymentGuardPassed'), parameters('assignRbac')), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('datamartRelay').resourceGroup), 'Microsoft.Resources/deployments', variables('relayRoleAssignmentDeploymentName')), '2025-04-01').outputs.senderRuleOwnerRoleAssignmentId.value, '')]"
     }
   }
 }

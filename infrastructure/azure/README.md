@@ -21,6 +21,10 @@ Required repository variables:
 - `TEST_AZURE_SUBSCRIPTION_ID`
 - `PROD_AZURE_SUBSCRIPTION_ID`
 
+Repository secret used by datamart imports:
+
+- `DATAMART_CONNECTION` contains the Roberto SQL connection string. Both deployment jobs inherit this repository-level secret through `secrets: inherit`, and the deployment workflow copies it to the App Service setting. An environment-level secret with the same name can override it, but separate test and prod secrets are not required.
+
 Required environment variables:
 
 - `AZURE_CLIENT_ID`
@@ -40,6 +44,7 @@ Required environment secrets:
 Optional environment variables and secrets:
 
 - `DEPLOY_INFRA`
+- `MANAGE_DATAMART_RELAY` (defaults to `false`; set to `true` to manage the Hybrid Connection attachment and retrieve its sender key)
 - `WEB_PLAN_NAME` and `WEB_PLAN_RESOURCE_GROUP` (set both or neither)
 - `Notification__BaseUrl`
 - `Smtp__Host`
@@ -79,13 +84,13 @@ It also creates a federated credential for the corresponding GitHub Environment 
 - `test` -> `repo:ucdavis/AD419:environment:test`
 - `prod` -> `repo:ucdavis/AD419:environment:prod`
 
-With `assignRbac=true`, the identity receives `Contributor` on its application resource group and `Website Contributor` on the exact shared App Service plan. The bootstrap creates `rg-ad419-test` or `rg-ad419-prod` by default.
+With `assignRbac=true`, the identity receives `Contributor` on its application resource group, `Website Contributor` on the exact shared App Service plan, and the scoped datamart relay permissions described below. The bootstrap creates `rg-ad419-test` or `rg-ad419-prod` by default.
 
 Both bootstrap and app infrastructure use existing plans: test uses `DefaultPlan2` in `Default-Web-WestUS`; prod uses `Nibbler` in `service-plans-linux`. To override, pass `webPlanName` and `webPlanResourceGroup` to the bootstrap and set matching `WEB_PLAN_NAME` and `WEB_PLAN_RESOURCE_GROUP` deployment variables. The web app uses the plan's region; SQL and monitoring use `LOCATION`.
 
 The `deploymentGuardPassed` output must be `true`. Otherwise, check the repository, expected subscription, active subscription, and resource group suffix; no environment resources were created.
 
-Run the test bootstrap from a principal that can create resource groups and managed identities and assign Azure RBAC roles on the application resource group and shared plan:
+Run the test bootstrap from a principal that can create resource groups and managed identities, assign Azure RBAC roles on the application resource group and shared plan, and deploy into the existing relay resource group. It also needs `Microsoft.Authorization/roleAssignments/write` at the Hybrid Connection and sender-rule scopes. The GitHub deployment identity does not grant these permissions to itself.
 
 ```bash
 az account set --subscription "$TEST_AZURE_SUBSCRIPTION_ID"
@@ -105,7 +110,7 @@ az deployment sub create \
   --parameters location=westus2 env=prod expectedSubscriptionId="$PROD_AZURE_SUBSCRIPTION_ID"
 ```
 
-If you cannot assign RBAC roles, use `assignRbac=false`, then have an authorized administrator grant the emitted `principalId` both roles at the scopes above or rerun with `assignRbac=true`.
+With `assignRbac=false`, the bootstrap skips role assignments; existing assignments are not revoked.
 
 If the resource groups use non-default names:
 
@@ -122,6 +127,37 @@ Use the deployment outputs to populate `AZURE_CLIENT_ID` in the corresponding Gi
 - prod bootstrap `clientId` -> `prod` environment `AZURE_CLIENT_ID`
 
 Use the `tenantId` and `subscriptionId` outputs for `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID`. Keep repository variables `TEST_AZURE_SUBSCRIPTION_ID` and `PROD_AZURE_SUBSCRIPTION_ID` for independent subscription checks. Identity name, principal ID, federation subject, and role-assignment IDs are also output for auditing.
+
+## Datamart Hybrid Connection
+
+Test and production attach their App Service to an existing Azure Relay Hybrid Connection. The shared mapping in `hybrid-connections.json` is loaded by both `main.bicep` and `github-oidc.bicep`, so the attachment and bootstrap permissions use the same resources. All relay resources are in the environment's subscription and resource group `Default-Web-WestUS`.
+
+| Environment | Namespace | Hybrid Connection | Sender rule | Endpoint |
+| --- | --- | --- | --- | --- |
+| `test` | `testserver-tsql` | `caes-roberto-test` | `defaultSender` | `caes-roberto:1433` |
+| `prod` | `prodserver-tsql` | `caes-roberto` | `defaultSender` | `caes-roberto:1433` |
+
+The templates reference the namespace, connection, and authorization rule as existing resources. They do not create or change the shared relays, rotate keys, or configure the on-premises Hybrid Connection Manager (HCM). `dev` creates no attachment and does not evaluate `listKeys`; failed deployment guards skip the compute module entirely.
+
+Bicep configures the Hybrid Connection attachment and retrieves its relay Send key only when `manageDatamartRelay=true`. Otherwise, configure the attachment separately; existing attachments are preserved. It does not generate `DATAMART_CONNECTION` or the SQL credentials for Roberto. Keep `Server=caes-roberto,1433` in the repository-level `DATAMART_CONNECTION` secret (or an environment override, if configured). The workflow copies that existing secret into the App Service setting after infrastructure deployment. The hostname and port must match the relay endpoint exactly; switching to the FQDN would bypass these short-name attachments. The separate FQDN relay in test is not used. No VNet integration is required for this connection.
+
+### Relay permissions and key handling
+
+The bootstrap grants the deployment identity:
+
+- Built-in `Reader` on the exact Hybrid Connection.
+- Built-in `Azure Relay Owner` on only its `defaultSender` authorization rule. This permits reading the rule's keys, modifying its permissions, deleting the rule, and rotating its keys. The Owner assignment does not extend to the parent Hybrid Connection, namespace, or sibling authorization rules.
+
+Both assignments use deterministic names derived from their scope, principal, and built-in role ID. Bootstrap outputs include `relayReaderRoleAssignmentId` and `relaySenderRuleOwnerRoleAssignmentId` for auditing, with empty values when RBAC is skipped.
+
+When attachment management is enabled, the app deployment calls `listKeys().primaryKey` directly for the existing sender rule and supplies it to the App Service attachment's `sendKeyValue`. It never emits the key as an output or stores it in GitHub secrets. The App Service managed identity does not need these bootstrap permissions.
+
+### Troubleshooting
+
+- `AuthorizationFailed` on `listKeys`: verify the GitHub deployment identity has `Azure Relay Owner` on the environment's exact `defaultSender` rule, and that the bootstrap ran with `assignRbac=true` in the correct subscription.
+- Attachment disconnected or no listeners: have the HCM operator check the existing listener service, its outbound Azure Relay connectivity, and its ability to resolve and reach `caes-roberto:1433`. Do not recreate the shared relay.
+- DNS failure persists: verify infrastructure deployment was enabled, the attachment exists on this App Service, and `DATAMART_CONNECTION` uses the matching short hostname and port.
+- Attachment connected but SQL fails: investigate SQL reachability from HCM, authentication, and then the linked-server query separately.
 
 ## Local infra deployment
 

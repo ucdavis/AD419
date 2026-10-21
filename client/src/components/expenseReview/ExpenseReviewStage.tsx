@@ -1,6 +1,7 @@
 import { FilterTypeahead } from '@/components/expenseReview/FilterTypeahead.tsx';
 import { HttpError } from '@/lib/api.ts';
 import {
+  EMPTY_EXPENSE_REVIEW_FILTERS,
   buildExpenseReviewTransactionsCsvUrl,
   expenseReviewFilterOptionsQueryOptions,
   expenseReviewTransactionsQueryOptions,
@@ -18,18 +19,23 @@ import {
 } from '@/queries.ts';
 import { DataTable } from '@/shared/dataTable.tsx';
 import { ExportEndpointButton } from '@/shared/exportDataButton.tsx';
-import { useNavigate } from '@tanstack/react-router';
+import {
+  DEFAULT_EXPENSE_REVIEW_PAGE_SIZE,
+  EXPENSE_REVIEW_PAGE_SIZES,
+  filtersToSearch,
+  resolveExpenseReviewView,
+  type ExpenseReviewSearch,
+} from './expenseReviewSearch.ts';
+import { getRouteApi, useNavigate } from '@tanstack/react-router';
 import {
   useMutation,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
 import type { ColumnDef, SortingState } from '@tanstack/react-table';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 
-const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
-const DEFAULT_PAGE_SIZE = 25;
-const DEFAULT_SORTING: SortingState = [{ desc: false, id: 'source' }];
+const routeApi = getRouteApi('/(authenticated)/workflow/$stageId');
 
 const filterControls: Array<{
   id: keyof ExpenseReviewFilters;
@@ -70,23 +76,6 @@ const filterControls: Array<{
   },
 ];
 
-function emptyFilters(): ExpenseReviewFilters {
-  return {
-    account: [],
-    accountingPeriod: [],
-    activity: [],
-    aeProject: [],
-    entity: [],
-    exclusionReason: [],
-    financialDept: [],
-    fund: [],
-    program: [],
-    purpose: [],
-    sfn: [],
-    source: [],
-  };
-}
-
 function filterCount(filters: ExpenseReviewFilters) {
   return Object.values(filters).reduce((sum, values) => sum + values.length, 0);
 }
@@ -96,14 +85,6 @@ function activeFilterCount(
   includeState: ExpenseReviewIncludeState
 ) {
   return filterCount(filters) + (includeState === 'all' ? 0 : 1);
-}
-
-function defaultSorting(): SortingState {
-  return [...DEFAULT_SORTING];
-}
-
-function normalizeSorting(sorting: SortingState) {
-  return sorting.length > 0 ? sorting : defaultSorting();
 }
 
 function sourceBadgeClass(source: ExpenseReviewTransaction['source']) {
@@ -328,6 +309,9 @@ function buildColumns(displayByPeriod: boolean): ColumnDef<ExpenseReviewTransact
   return columns;
 }
 
+const FLAT_COLUMNS = buildColumns(false);
+const PERIOD_COLUMNS = buildColumns(true);
+
 function IncludeStateSelect({
   counts,
   disabled,
@@ -478,31 +462,41 @@ function SelectedFilters({
 }
 
 export function ExpenseReviewStage() {
-  const [includeState, setIncludeState] =
-    useState<ExpenseReviewIncludeState>('all');
-  const [filters, setFilters] = useState<ExpenseReviewFilters>(() =>
-    emptyFilters()
-  );
-  const [pageIndex, setPageIndex] = useState(0);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [sorting, setSorting] = useState<SortingState>(() => defaultSorting());
-  const [displayByPeriod, setDisplayByPeriod] = useState(false);
-  const [includeZeroAmounts, setIncludeZeroAmounts] = useState(false);
+  const search = routeApi.useSearch();
+  const navigateSearch = routeApi.useNavigate();
+  const view = resolveExpenseReviewView(search);
+  const {
+    displayByPeriod,
+    filters,
+    includeState,
+    includeZeroAmounts,
+    page,
+    pageSize,
+    sortBy,
+    sortDirection,
+  } = view;
+  const sorting: SortingState = [{ desc: sortDirection === 'desc', id: sortBy }];
   const [exportError, setExportError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const filterOptionsQuery = useQuery(expenseReviewFilterOptionsQueryOptions());
-  const sort = sorting[0];
+  const setSearch = (patch: ExpenseReviewSearch) => {
+    void navigateSearch({
+      replace: true,
+      search: (previous: ExpenseReviewSearch) => ({ ...previous, ...patch }),
+      to: '.',
+    });
+  };
   const transactionsQuery = useQuery(
     expenseReviewTransactionsQueryOptions({
       displayByPeriod,
       filters,
       includeState,
       includeZeroAmounts,
-      page: pageIndex + 1,
+      page,
       pageSize,
-      sortBy: (sort?.id as ExpenseReviewSortBy | undefined) ?? 'source',
-      sortDirection: sort?.desc ? 'desc' : 'asc',
+      sortBy,
+      sortDirection,
     })
   );
   const continueMutation = useMutation({
@@ -515,61 +509,69 @@ export function ExpenseReviewStage() {
       });
     },
   });
-  const columns = useMemo(() => buildColumns(displayByPeriod), [displayByPeriod]);
+  const columns = displayByPeriod ? PERIOD_COLUMNS : FLAT_COLUMNS;
   const exportUrl = buildExpenseReviewTransactionsCsvUrl({
     displayByPeriod,
     filters,
     includeState,
     includeZeroAmounts,
-    sortBy: (sort?.id as ExpenseReviewSortBy | undefined) ?? 'source',
-    sortDirection: sort?.desc ? 'desc' : 'asc',
+    sortBy,
+    sortDirection,
   });
   const counts = transactionsQuery.data?.counts;
   const selectedFilterCount = activeFilterCount(filters, includeState);
   const filterOptions = filterOptionsQuery.data;
 
-  const resetToFirstPage = () => setPageIndex(0);
   const resetExportError = () => setExportError(null);
-  const addFilter = (filter: keyof ExpenseReviewFilters, value: string) => {
-    setFilters((current) => ({
-      ...current,
-      [filter]: current[filter].includes(value)
-        ? current[filter]
-        : [...current[filter], value],
-    }));
-    resetToFirstPage();
+  const applyFilters = (
+    update: (current: ExpenseReviewFilters) => ExpenseReviewFilters,
+    nextIncludeState: ExpenseReviewIncludeState
+  ) => {
+    void navigateSearch({
+      replace: true,
+      search: (previous: ExpenseReviewSearch) => ({
+        ...previous,
+        ...filtersToSearch(
+          update(resolveExpenseReviewView(previous).filters),
+          nextIncludeState
+        ),
+      }),
+    });
     resetExportError();
   };
-  const removeFilter = (filter: keyof ExpenseReviewFilters, value: string) => {
-    setFilters((current) => ({
-      ...current,
-      [filter]: current[filter].filter((candidate) => candidate !== value),
-    }));
-    resetToFirstPage();
-    resetExportError();
-  };
-  const clearFilters = () => {
-    setIncludeState('all');
-    setFilters(emptyFilters());
-    resetToFirstPage();
-    resetExportError();
-  };
-  const handleIncludeStateChange = (state: ExpenseReviewIncludeState) => {
-    setIncludeState(state);
-    resetToFirstPage();
-    resetExportError();
-  };
+  const addFilter = (filter: keyof ExpenseReviewFilters, value: string) =>
+    applyFilters(
+      (current) => ({
+        ...current,
+        [filter]: current[filter].includes(value)
+          ? current[filter]
+          : [...current[filter], value],
+      }),
+      includeState
+    );
+  const removeFilter = (filter: keyof ExpenseReviewFilters, value: string) =>
+    applyFilters(
+      (current) => ({
+        ...current,
+        [filter]: current[filter].filter((candidate) => candidate !== value),
+      }),
+      includeState
+    );
+  const clearFilters = () =>
+    applyFilters(() => EMPTY_EXPENSE_REVIEW_FILTERS, 'all');
+  const handleIncludeStateChange = (state: ExpenseReviewIncludeState) =>
+    applyFilters((current) => current, state);
   const handleDisplayByPeriodChange = (checked: boolean) => {
-    setDisplayByPeriod(checked);
-    if (!checked && sorting[0]?.id === 'accountingPeriod') {
-      setSorting(defaultSorting());
-    }
-    resetToFirstPage();
+    setSearch({
+      byPeriod: checked ? true : undefined,
+      dir: !checked && sortBy === 'accountingPeriod' ? undefined : search.dir,
+      page: undefined,
+      sort: !checked && sortBy === 'accountingPeriod' ? undefined : search.sort,
+    });
     resetExportError();
   };
   const handleIncludeZeroAmountsChange = (checked: boolean) => {
-    setIncludeZeroAmounts(checked);
-    resetToFirstPage();
+    setSearch({ page: undefined, zero: checked ? true : undefined });
     resetExportError();
   };
 
@@ -706,20 +708,31 @@ export function ExpenseReviewStage() {
         globalFilter="none"
         manualPagination
         manualSorting
-        onPageIndexChange={setPageIndex}
-        onPageSizeChange={(nextPageSize) => {
-          setPageSize(nextPageSize);
-          setPageIndex(0);
-        }}
+        onPageIndexChange={(pageIndex) =>
+          setSearch({ page: pageIndex === 0 ? undefined : pageIndex + 1 })
+        }
+        onPageSizeChange={(nextPageSize) =>
+          setSearch({
+            page: undefined,
+            size:
+              nextPageSize === DEFAULT_EXPENSE_REVIEW_PAGE_SIZE
+                ? undefined
+                : (nextPageSize as ExpenseReviewSearch['size']),
+          })
+        }
         onSortingChange={(nextSorting) => {
-          setSorting(normalizeSorting(nextSorting));
-          setPageIndex(0);
+          const next = nextSorting[0];
+          setSearch({
+            dir: next?.desc ? 'desc' : undefined,
+            page: undefined,
+            sort: next && next.id !== 'source' ? (next.id as ExpenseReviewSortBy) : undefined,
+          });
           resetExportError();
         }}
         pageCount={transactions.pageCount}
-        pageIndex={pageIndex}
+        pageIndex={page - 1}
         pageSize={pageSize}
-        pageSizeOptions={PAGE_SIZE_OPTIONS}
+        pageSizeOptions={[...EXPENSE_REVIEW_PAGE_SIZES]}
         rowCount={transactions.totalCount}
         sorting={sorting}
       />

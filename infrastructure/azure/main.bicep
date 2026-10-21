@@ -47,12 +47,19 @@ param appInsightsRetentionInDays int = 30
 @description('Optional notification base URL. Defaults to the App Service hostname.')
 param notificationBaseUrl string = ''
 
+@description('Manage the datamart Hybrid Connection attachment and retrieve its sender key. Disabled for dev.')
+param manageDatamartRelay bool = false
+
 var appNameSafe = toLower(replace(replace(appName, ' ', ''), '_', ''))
 var nameToken = substring(uniqueString(resourceGroup().id, appName, env), 0, 6)
 var expectedResourceGroupSuffix = '-${env}'
 var normalizedExpectedSubscriptionId = toLower(expectedSubscriptionId)
 var normalizedCurrentSubscriptionId = toLower(subscription().subscriptionId)
 var deploymentGuardPassed = env == 'dev' || (!empty(expectedSubscriptionId) && normalizedCurrentSubscriptionId == normalizedExpectedSubscriptionId && endsWith(resourceGroup().name, expectedResourceGroupSuffix))
+
+// Dev uses inert identifiers only; compute disables both the attachment and key lookup.
+var hybridConnections = loadJsonContent('hybrid-connections.json')
+var datamartRelay = env == 'prod' ? hybridConnections.prod : hybridConnections.test
 
 var sqlServerName = toLower('sql-${appNameSafe}-${env}-${nameToken}')
 var webAppName = toLower('web-${appNameSafe}-${env}-${nameToken}')
@@ -127,6 +134,13 @@ module compute 'modules/compute.bicep' = if (deploymentGuardPassed) {
     appInsightsConnectionString: appInsights!.properties.ConnectionString
     appInsightsInstrumentationKey: appInsights!.properties.InstrumentationKey
     notificationBaseUrl: empty(notificationBaseUrl) ? 'https://${webAppName}.azurewebsites.net' : notificationBaseUrl
+    datamartRelayEnabled: manageDatamartRelay && env != 'dev'
+    relayResourceGroup: datamartRelay.resourceGroup
+    relayNamespaceName: datamartRelay.namespaceName
+    relayConnectionName: datamartRelay.connectionName
+    relaySenderRuleName: datamartRelay.senderRuleName
+    relayHostname: datamartRelay.hostname
+    relayPort: datamartRelay.port
   }
   dependsOn: [
     sql

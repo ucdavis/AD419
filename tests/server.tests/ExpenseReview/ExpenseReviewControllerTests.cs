@@ -17,7 +17,7 @@ public class ExpenseReviewControllerTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         var service = new StubExpenseReviewService();
-        var controller = new ExpenseReviewController(service, db);
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db));
 
         var result = await controller.Transactions(new ExpenseReviewTransactionsQuery(), CancellationToken.None);
 
@@ -30,7 +30,7 @@ public class ExpenseReviewControllerTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         var service = new StubExpenseReviewService();
-        var controller = new ExpenseReviewController(service, db);
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db));
 
         var result = await controller.Filters(CancellationToken.None);
 
@@ -43,7 +43,7 @@ public class ExpenseReviewControllerTests
     {
         await using var db = await CreateDbWithConfirmedRunAsync();
         var service = new StubExpenseReviewService();
-        var controller = new ExpenseReviewController(service, db);
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db));
 
         var result = await controller.Transactions(
             new ExpenseReviewTransactionsQuery
@@ -86,7 +86,7 @@ public class ExpenseReviewControllerTests
     {
         await using var db = await CreateDbWithConfirmedRunAsync();
         var service = new StubExpenseReviewService();
-        var controller = new ExpenseReviewController(service, db)
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db))
         {
             ControllerContext = new ControllerContext
             {
@@ -141,7 +141,7 @@ public class ExpenseReviewControllerTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         var service = new StubExpenseReviewService();
-        var controller = new ExpenseReviewController(service, db);
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db));
 
         var result = await controller.TransactionsCsv(new ExpenseReviewTransactionsQuery(), CancellationToken.None);
 
@@ -154,7 +154,7 @@ public class ExpenseReviewControllerTests
     {
         await using var db = await CreateDbWithConfirmedRunAsync();
         var service = new StubExpenseReviewService();
-        var controller = new ExpenseReviewController(service, db);
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db));
 
         var result = await controller.Filters(CancellationToken.None);
 
@@ -170,7 +170,7 @@ public class ExpenseReviewControllerTests
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         var service = new StubExpenseReviewService();
-        var controller = new ExpenseReviewController(service, db);
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db));
 
         var result = await controller.UnmatchedJobCodes(CancellationToken.None);
 
@@ -183,7 +183,7 @@ public class ExpenseReviewControllerTests
     {
         await using var db = await CreateDbWithConfirmedRunAsync();
         var service = new StubExpenseReviewService();
-        var controller = new ExpenseReviewController(service, db);
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db));
 
         var result = await controller.UnmatchedJobCodes(CancellationToken.None);
 
@@ -202,7 +202,7 @@ public class ExpenseReviewControllerTests
     {
         await using var db = await CreateDbWithConfirmedRunAsync();
         var service = new StubExpenseReviewService();
-        var controller = new ExpenseReviewController(service, db);
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db));
 
         var result = await controller.Transactions(query, CancellationToken.None);
 
@@ -264,6 +264,7 @@ public class ExpenseReviewControllerTests
                 cycle.CycleEnd,
                 new ExpenseReviewCountsDto(0, 0, 0),
                 0,
+                0m,
                 request.Page,
                 request.PageSize,
                 0,
@@ -311,6 +312,12 @@ public class ExpenseReviewControllerTests
                 cycle.CycleEnd,
                 [new UnmatchedJobCodeDto("1234", "Professor", null, "titleHasNoStaffType", 2, 1, 100m, 0.25m)]));
         }
+
+        public Task<ExpenseReviewSummaryResponse> GetSummaryAsync(
+            FiscalYearCycle cycle,
+            ExpenseReviewSummaryRequest request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new ExpenseReviewSummaryResponse(cycle.FiscalYear, request.GroupBy, 0, 0m, 0, []));
 
         public async Task WriteTransactionsCsvAsync(
             FiscalYearCycle cycle,

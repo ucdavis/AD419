@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Net.Http.Headers;
-using Server.Core.Data;
 using Server.ExpenseReview;
 using Server.Models;
 using Server.Models.ExpenseReview;
@@ -12,7 +10,7 @@ namespace Server.Controllers;
 [Route("api/[controller]")]
 public sealed class ExpenseReviewController(
     IExpenseReviewService expenseReviewService,
-    AppDbContext appDb) : ApiControllerBase
+    IConfirmedCycleProvider confirmedCycles) : ApiControllerBase
 {
     [HttpGet("transactions")]
     public async Task<IActionResult> Transactions(
@@ -94,12 +92,9 @@ public sealed class ExpenseReviewController(
     private async Task<(FiscalYearCycle? Cycle, IActionResult? Error)> GetConfirmedCycleAsync(
         CancellationToken cancellationToken)
     {
-        var run = await appDb.WorkflowRuns.SingleOrDefaultAsync(r => r.IsCurrent, cancellationToken);
-        if (run is null || !FiscalYearCycle.TryParse(run.FiscalYear, out var parsedCycle))
-        {
-            return (null, Conflict("No fiscal period has been confirmed in Project Identification."));
-        }
-
-        return (new FiscalYearCycle(run.FiscalYear, run.CycleStart, run.CycleEnd), null);
+        var cycle = await confirmedCycles.GetAsync(cancellationToken);
+        return cycle is null
+            ? (null, Conflict("No fiscal period has been confirmed in Project Identification."))
+            : (cycle, null);
     }
 }

@@ -21,6 +21,7 @@ jobs:
     env:
       APP_NAME: ${{ vars.APP_NAME || 'ad419' }}
       DEPLOY_INFRA: ${{ vars.DEPLOY_INFRA || 'true' }}
+      MANAGE_DATAMART_RELAY: ${{ vars.MANAGE_DATAMART_RELAY || 'false' }}
       DEPLOYMENT_NAME: ${{ vars.DEPLOYMENT_NAME || format('ad419-{0}', inputs.environment_name) }}
       ENVIRONMENT: ${{ vars.ENVIRONMENT || inputs.environment_name }}
       EXPECTED_ENVIRONMENT: ${{ inputs.environment_name }}

@@ -66,6 +66,7 @@ export interface ExpenseReviewTransactionsResponse {
   pageCount: number;
   pageSize: number;
   rows: ExpenseReviewTransaction[];
+  totalAmount: number;
   totalCount: number;
 }
 
