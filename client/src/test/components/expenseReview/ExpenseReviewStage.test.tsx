@@ -591,7 +591,7 @@ describe('Expense Review stage', () => {
 
     try {
       await screen.findByRole('tab', { name: /grouped expenses/i });
-      await user.selectOptions(screen.getByLabelText('Fund filter'), ['13U02']);
+      await chooseFilterOption(user, 'Fund', '13U02 - Experiment Station');
 
       await waitFor(() => {
         expect(router.state.location.search).toEqual({ fund: ['13U02'] });
