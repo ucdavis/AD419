@@ -67,6 +67,9 @@ var appInsightsName = toLower('appi-${appNameSafe}-${env}-${nameToken}')
 var logAnalyticsWorkspaceName = toLower('log-${appNameSafe}-${env}-${nameToken}')
 var sqlSkuName = env == 'prod' ? 'S0' : 'Basic'
 var sqlSkuTier = env == 'prod' ? 'Standard' : 'Basic'
+// Test's data database outgrew Basic's 2 GB cap, and imports need S3 to finish.
+var dataSqlSkuName = env == 'prod' ? 'S0' : env == 'test' ? 'S3' : 'Basic'
+var dataSqlSkuTier = env == 'dev' ? 'Basic' : 'Standard'
 
 var resourceTags = union(tags, {
   environment: env
@@ -113,6 +116,8 @@ module sql 'modules/sql.bicep' = if (deploymentGuardPassed) {
     dataDatabaseName: dataSqlDatabaseName
     skuName: sqlSkuName
     skuTier: sqlSkuTier
+    dataSkuName: dataSqlSkuName
+    dataSkuTier: dataSqlSkuTier
   }
 }
 

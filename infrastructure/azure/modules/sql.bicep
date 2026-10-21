@@ -20,11 +20,17 @@ param appDatabaseName string
 @description('Data SQL database name.')
 param dataDatabaseName string
 
-@description('SQL database SKU name.')
+@description('Application SQL database SKU name.')
 param skuName string = 'S0'
 
-@description('SQL database SKU tier.')
+@description('Application SQL database SKU tier.')
 param skuTier string = 'Standard'
+
+@description('Data SQL database SKU name.')
+param dataSkuName string = skuName
+
+@description('Data SQL database SKU tier.')
+param dataSkuTier string = skuTier
 
 @description('Whether to allow Azure services/resources to access this SQL server.')
 param allowAzureServices bool = true
@@ -68,8 +74,8 @@ resource dataDatabase 'Microsoft.Sql/servers/databases@2023-08-01' = {
   parent: sqlServer
   location: location
   sku: {
-    name: skuName
-    tier: skuTier
+    name: dataSkuName
+    tier: dataSkuTier
   }
   properties: {
     collation: 'SQL_Latin1_General_CP1_CI_AS'

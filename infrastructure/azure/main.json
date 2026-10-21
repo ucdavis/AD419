@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.44.1.10279",
-      "templateHash": "11560276034163096200"
+      "version": "0.48.1.52935",
+      "templateHash": "5192468444792236323"
     }
   },
   "parameters": {
@@ -146,6 +146,8 @@
     "logAnalyticsWorkspaceName": "[toLower(format('log-{0}-{1}-{2}', variables('appNameSafe'), parameters('env'), variables('nameToken')))]",
     "sqlSkuName": "[if(equals(parameters('env'), 'prod'), 'S0', 'Basic')]",
     "sqlSkuTier": "[if(equals(parameters('env'), 'prod'), 'Standard', 'Basic')]",
+    "dataSqlSkuName": "[if(equals(parameters('env'), 'prod'), 'S0', if(equals(parameters('env'), 'test'), 'S3', 'Basic'))]",
+    "dataSqlSkuTier": "[if(equals(parameters('env'), 'dev'), 'Basic', 'Standard')]",
     "resourceTags": "[union(parameters('tags'), createObject('environment', parameters('env'), 'application', parameters('appName')))]",
     "sqlServerHostnameSuffix": "[environment().suffixes.sqlServerHostname]",
     "sqlServerFqdn": "[format('{0}{1}{2}', variables('sqlServerName'), if(startsWith(variables('sqlServerHostnameSuffix'), '.'), '', '.'), variables('sqlServerHostnameSuffix'))]",
@@ -220,6 +222,12 @@
           },
           "skuTier": {
             "value": "[variables('sqlSkuTier')]"
+          },
+          "dataSkuName": {
+            "value": "[variables('dataSqlSkuName')]"
+          },
+          "dataSkuTier": {
+            "value": "[variables('dataSqlSkuTier')]"
           }
         },
         "template": {
@@ -228,8 +236,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.44.1.10279",
-              "templateHash": "18016950282575166961"
+              "version": "0.48.1.52935",
+              "templateHash": "8222214850847051632"
             }
           },
           "parameters": {
@@ -279,14 +287,28 @@
               "type": "string",
               "defaultValue": "S0",
               "metadata": {
-                "description": "SQL database SKU name."
+                "description": "Application SQL database SKU name."
               }
             },
             "skuTier": {
               "type": "string",
               "defaultValue": "Standard",
               "metadata": {
-                "description": "SQL database SKU tier."
+                "description": "Application SQL database SKU tier."
+              }
+            },
+            "dataSkuName": {
+              "type": "string",
+              "defaultValue": "[parameters('skuName')]",
+              "metadata": {
+                "description": "Data SQL database SKU name."
+              }
+            },
+            "dataSkuTier": {
+              "type": "string",
+              "defaultValue": "[parameters('skuTier')]",
+              "metadata": {
+                "description": "Data SQL database SKU tier."
               }
             },
             "allowAzureServices": {
@@ -346,8 +368,8 @@
               "name": "[format('{0}/{1}', parameters('name'), parameters('dataDatabaseName'))]",
               "location": "[parameters('location')]",
               "sku": {
-                "name": "[parameters('skuName')]",
-                "tier": "[parameters('skuTier')]"
+                "name": "[parameters('dataSkuName')]",
+                "tier": "[parameters('dataSkuTier')]"
               },
               "properties": {
                 "collation": "SQL_Latin1_General_CP1_CI_AS"
@@ -439,8 +461,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.44.1.10279",
-              "templateHash": "10824715954039036886"
+              "version": "0.48.1.52935",
+              "templateHash": "4291104911884772655"
             }
           },
           "parameters": {
