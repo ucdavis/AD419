@@ -1,3 +1,4 @@
+import { FilterTypeahead } from '@/components/expenseReview/FilterTypeahead.tsx';
 import { HttpError } from '@/lib/api.ts';
 import {
   EMPTY_EXPENSE_REVIEW_FILTERS,
@@ -6,7 +7,6 @@ import {
   expenseReviewTransactionsQueryOptions,
   type ExpenseReviewCodeName,
   type ExpenseReviewExclusionReason,
-  type ExpenseReviewFilterOption,
   type ExpenseReviewFilterOptionsResponse,
   type ExpenseReviewFilters,
   type ExpenseReviewIncludeState,
@@ -399,49 +399,6 @@ function IncludeZeroAmountsToggle({
   );
 }
 
-function FilterSelect({
-  disabled,
-  label,
-  onAdd,
-  options,
-  selected,
-}: {
-  disabled: boolean;
-  label: string;
-  onAdd: (value: string) => void;
-  options: ExpenseReviewFilterOption[];
-  selected: string[];
-}) {
-  const availableOptions = options.filter(
-    (option) => !selected.includes(option.value)
-  );
-
-  return (
-    <label className="form-control w-full">
-      <span className="label-text">{label}</span>
-      <select
-        aria-label={`${label} filter`}
-        className="select select-bordered select-sm w-full"
-        disabled={disabled || availableOptions.length === 0}
-        onChange={(event) => {
-          if (event.target.value) {
-            onAdd(event.target.value);
-            event.target.value = '';
-          }
-        }}
-        value=""
-      >
-        <option value="">Any</option>
-        {availableOptions.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
 function SelectedFilters({
   filterOptions,
   filters,
@@ -713,7 +670,7 @@ export function ExpenseReviewStage() {
             onChange={handleIncludeZeroAmountsChange}
           />
           {filterControls.map((control) => (
-            <FilterSelect
+            <FilterTypeahead
               disabled={filterOptionsQuery.isFetching}
               key={control.id}
               label={control.label}

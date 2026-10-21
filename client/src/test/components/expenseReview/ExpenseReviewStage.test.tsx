@@ -133,6 +133,15 @@ function mockExpenseReviewApi(requests: URL[] = [], exportRequests: URL[] = []) 
   );
 }
 
+async function chooseFilterOption(
+  user: ReturnType<typeof userEvent.setup>,
+  label: string,
+  option: string
+) {
+  await user.click(screen.getByLabelText(`${label} filter`));
+  await user.click(screen.getByRole('option', { name: option }));
+}
+
 function mockCsvDownload() {
   const originalCreateObjectURL = URL.createObjectURL;
   const originalRevokeObjectURL = URL.revokeObjectURL;
@@ -266,7 +275,7 @@ describe('Expense Review stage', () => {
         );
       });
 
-      await user.selectOptions(screen.getByLabelText('Fund filter'), ['13U02']);
+      await chooseFilterOption(user, 'Fund', '13U02 - Experiment Station');
       await waitFor(() => {
         expect(requests.at(-1)?.searchParams.getAll('fund')).toEqual([
           '13U02',
@@ -278,23 +287,19 @@ describe('Expense Review stage', () => {
         })
       ).toBeInTheDocument();
 
-      await user.selectOptions(screen.getByLabelText('Source filter'), ['AE']);
+      await chooseFilterOption(user, 'Source', 'Aggie Enterprise');
       await waitFor(() => {
         expect(requests.at(-1)?.searchParams.getAll('source')).toEqual(['AE']);
       });
 
-      await user.selectOptions(screen.getByLabelText('Accounting Period filter'), [
-        'Oct-24',
-      ]);
+      await chooseFilterOption(user, 'Accounting Period', 'Oct-24');
       await waitFor(() => {
         expect(requests.at(-1)?.searchParams.getAll('accountingPeriod')).toEqual(
           ['Oct-24']
         );
       });
 
-      await user.selectOptions(screen.getByLabelText('Exclusion Reason filter'), [
-        'fund:excluded',
-      ]);
+      await chooseFilterOption(user, 'Exclusion Reason', 'Excluded by fund');
       await waitFor(() => {
         expect(
           requests.at(-1)?.searchParams.getAll('exclusionReason')
@@ -444,7 +449,7 @@ describe('Expense Review stage', () => {
       await user.selectOptions(screen.getByLabelText('Include State filter'), [
         'excluded',
       ]);
-      await user.selectOptions(screen.getByLabelText('Fund filter'), ['13U02']);
+      await chooseFilterOption(user, 'Fund', '13U02 - Experiment Station');
       await user.click(screen.getByLabelText('Display by period'));
       await user.click(screen.getByLabelText('Include $0 groups'));
       await user.click(
@@ -586,7 +591,7 @@ describe('Expense Review stage', () => {
 
     try {
       await screen.findByRole('tab', { name: /grouped expenses/i });
-      await user.selectOptions(screen.getByLabelText('Fund filter'), ['13U02']);
+      await chooseFilterOption(user, 'Fund', '13U02 - Experiment Station');
 
       await waitFor(() => {
         expect(router.state.location.search).toEqual({ fund: ['13U02'] });
