@@ -8,6 +8,7 @@ public class DataDbContext(DbContextOptions<DataDbContext> options) : DbContext(
     public const string DataSchema = "data";
 
     public DbSet<SegmentClassification> SegmentClassifications => Set<SegmentClassification>();
+    public DbSet<ClassificationCandidate> ClassificationCandidates => Set<ClassificationCandidate>();
 
     public DbSet<OrgR> OrgRs => Set<OrgR>();
     public DbSet<OrgRFinancialDepartment> OrgRFinancialDepartments => Set<OrgRFinancialDepartment>();
@@ -36,6 +37,14 @@ public class DataDbContext(DbContextOptions<DataDbContext> options) : DbContext(
             entity.Property(segment => segment.Code).HasMaxLength(50);
             entity.Property(segment => segment.Description).HasMaxLength(300);
             entity.Property(segment => segment.Sfn).HasMaxLength(10);
+        });
+
+        modelBuilder.Entity<ClassificationCandidate>(entity =>
+        {
+            entity.ToView("v_ClassificationCandidates", DataSchema);
+            entity.HasKey(candidate => new { candidate.SegmentType, candidate.Code });
+            entity.Property(candidate => candidate.SegmentType).HasConversion<string>().HasMaxLength(20);
+            entity.Property(candidate => candidate.Code).HasMaxLength(50);
         });
 
         modelBuilder.Entity<OrgR>(entity =>

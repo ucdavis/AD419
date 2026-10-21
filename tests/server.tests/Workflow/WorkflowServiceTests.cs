@@ -241,6 +241,7 @@ public class WorkflowServiceTests
             IncludeInReport = null,
             SegmentType = SegmentType.Fund,
         });
+        dataDb.ClassificationCandidates.Add(new ClassificationCandidate { SegmentType = SegmentType.Fund, Code = "70575" });
         await dataDb.SaveChangesAsync();
         var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder());
 
@@ -264,6 +265,64 @@ public class WorkflowServiceTests
         blocked.Should().BeNull();
         db.WorkflowStageStates.Single(state => state.StageId == WorkflowStageIds.DataClassification)
             .Status.Should().Be(WorkflowStageStatus.InProgress);
+    }
+
+    [Fact]
+    public async Task Candidates_block_data_classification_regardless_of_code_case()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        // SQL Server compares codes case-insensitively, so the view can return a
+        // casing that differs from the seeded segment row.
+        dataDb.SegmentClassifications.Add(new SegmentClassification
+        {
+            Code = "D1",
+            IncludeInReport = null,
+            SegmentType = SegmentType.FinancialDepartment,
+        });
+        dataDb.ClassificationCandidates.Add(new ClassificationCandidate { SegmentType = SegmentType.FinancialDepartment, Code = "d1" });
+        await dataDb.SaveChangesAsync();
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder());
+
+        await service.SetStageStatusAsync(WorkflowStageIds.ProjectIdentification, WorkflowStageStatus.Complete, User, CancellationToken.None);
+        await service.SetStageStatusAsync(WorkflowStageIds.DataImport, WorkflowStageStatus.Complete, User, CancellationToken.None);
+
+        var blocked = await service.SetStageStatusAsync(
+            WorkflowStageIds.DataClassification,
+            WorkflowStageStatus.Complete,
+            User,
+            CancellationToken.None);
+
+        blocked.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Unclassified_segments_that_are_not_candidates_do_not_block_data_classification()
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = TestDbContextFactory.CreateDataInMemory();
+        // Blank but not a candidate: every transaction carrying it is excluded anyway.
+        dataDb.SegmentClassifications.Add(new SegmentClassification
+        {
+            Code = "70575",
+            IncludeInReport = null,
+            SegmentType = SegmentType.Fund,
+        });
+        await dataDb.SaveChangesAsync();
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder());
+
+        await service.SetStageStatusAsync(WorkflowStageIds.ProjectIdentification, WorkflowStageStatus.Complete, User, CancellationToken.None);
+        await service.SetStageStatusAsync(WorkflowStageIds.DataImport, WorkflowStageStatus.Complete, User, CancellationToken.None);
+
+        var completed = await service.SetStageStatusAsync(
+            WorkflowStageIds.DataClassification,
+            WorkflowStageStatus.Complete,
+            User,
+            CancellationToken.None);
+
+        completed.Should().NotBeNull();
+        db.WorkflowStageStates.Single(state => state.StageId == WorkflowStageIds.DataClassification)
+            .Status.Should().Be(WorkflowStageStatus.Complete);
     }
 
     [Fact]
