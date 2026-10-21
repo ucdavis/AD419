@@ -138,17 +138,19 @@ public class SegmentClassificationsControllerTests
     }
 
     [Fact]
-    public async Task Get_includes_hierarchy_for_segment_with_matching_code()
+    public async Task Get_builds_hierarchy_from_chart_segments_with_parent_names()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
         db.SegmentClassifications.Add(new SegmentClassification { SegmentType = SegmentType.Fund, Code = "45530", IncludeInReport = true, Sfn = "220" });
         db.ClassificationCandidates.Add(new ClassificationCandidate { SegmentType = SegmentType.Fund, Code = "45530" });
-        db.FundHierarchies.Add(new FundHierarchy
-        {
-            Code = "45530",
-            ParentLevel0Code = "STATE", ParentLevel0Name = "State Funds",
-            ParentLevel1Code = "APPROP", ParentLevel1Name = "Appropriations",
-        });
+        db.ChartSegments.AddRange(
+            new ChartSegment
+            {
+                SegmentName = "Fund", Code = "45530", Description = "AES",
+                ParentLevel0Code = "STATE", ParentLevel1Code = "APPROP", ParentLevel2Code = "45530",
+            },
+            new ChartSegment { SegmentName = "Fund", Code = "STATE", Description = "State Funds" },
+            new ChartSegment { SegmentName = "Fund", Code = "APPROP", Description = "Appropriations" });
         await db.SaveChangesAsync();
         var controller = CreateController(db);
 
@@ -156,59 +158,32 @@ public class SegmentClassificationsControllerTests
 
         var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         var dto = ok.Value.Should().BeAssignableTo<IEnumerable<SegmentClassificationDto>>().Subject.Single();
+        // The warehouse repeats a code as its own level; that level is dropped.
         dto.Hierarchy.Should().Equal(
             new HierarchyLevelDto("A", "STATE", "State Funds"),
             new HierarchyLevelDto("B", "APPROP", "Appropriations"));
     }
 
     [Theory]
-    [InlineData(SegmentType.FinancialDepartment, "A")]
-    [InlineData(SegmentType.Account, "A")]
-    [InlineData(SegmentType.Fund, "A")]
-    [InlineData(SegmentType.Activity, "A")]
-    [InlineData(SegmentType.Purpose, "A")]
-    public async Task Get_reads_hierarchy_from_the_matching_segment_types_own_table(
-        SegmentType segmentType, string expectedLevel)
+    [InlineData(SegmentType.FinancialDepartment, "FinancialDepartment")]
+    [InlineData(SegmentType.Account, "Account")]
+    [InlineData(SegmentType.Fund, "Fund")]
+    [InlineData(SegmentType.Activity, "Activity")]
+    [InlineData(SegmentType.Purpose, "Purpose")]
+    public async Task Get_reads_hierarchy_from_the_matching_chart_segment(
+        SegmentType segmentType, string segmentName)
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
         const string code = "12345";
         db.SegmentClassifications.Add(new SegmentClassification { SegmentType = segmentType, Code = code, IncludeInReport = null });
         db.ClassificationCandidates.Add(new ClassificationCandidate { SegmentType = segmentType, Code = code });
-
-        switch (segmentType)
-        {
-            case SegmentType.FinancialDepartment:
-                db.DepartmentHierarchies.Add(new DepartmentHierarchy
-                {
-                    Code = code, ParentLevelACode = "X", ParentLevelAName = "XName",
-                });
-                break;
-            case SegmentType.Account:
-                db.AccountHierarchies.Add(new AccountHierarchy
-                {
-                    Code = code, ParentLevel0Code = "X", ParentLevel0Name = "XName",
-                });
-                break;
-            case SegmentType.Fund:
-                db.FundHierarchies.Add(new FundHierarchy
-                {
-                    Code = code, ParentLevel0Code = "X", ParentLevel0Name = "XName",
-                });
-                break;
-            case SegmentType.Activity:
-                db.ActivityHierarchies.Add(new ActivityHierarchy
-                {
-                    Code = code, ParentLevel0Code = "X", ParentLevel0Name = "XName",
-                });
-                break;
-            case SegmentType.Purpose:
-                db.PurposeHierarchies.Add(new PurposeHierarchy
-                {
-                    Code = code, ParentLevel0Code = "X", ParentLevel0Name = "XName",
-                });
-                break;
-        }
-
+        // The same codes under another segment must not be picked up.
+        var otherName = segmentName == "Fund" ? "Account" : "Fund";
+        db.ChartSegments.AddRange(
+            new ChartSegment { SegmentName = segmentName, Code = code, ParentLevel0Code = "X" },
+            new ChartSegment { SegmentName = segmentName, Code = "X", Description = "XName" },
+            new ChartSegment { SegmentName = otherName, Code = code, ParentLevel0Code = "Y" },
+            new ChartSegment { SegmentName = otherName, Code = "X", Description = "Wrong" });
         await db.SaveChangesAsync();
         var controller = CreateController(db);
 
@@ -216,7 +191,7 @@ public class SegmentClassificationsControllerTests
 
         var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         var dto = ok.Value.Should().BeAssignableTo<IEnumerable<SegmentClassificationDto>>().Subject.Single();
-        dto.Hierarchy.Should().Equal(new HierarchyLevelDto(expectedLevel, "X", "XName"));
+        dto.Hierarchy.Should().Equal(new HierarchyLevelDto("A", "X", "XName"));
     }
 
     [Fact]

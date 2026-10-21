@@ -29,4 +29,28 @@ public class ChartSegment
             }
         }
     }
+
+    /// <summary>
+    /// The breadcrumb, lettered A (root) downward by level. A level that repeats
+    /// this row's own code is a storage artifact of the warehouse's fixed-width
+    /// hierarchy format and is left out. Names come from <paramref name="segmentsByCode"/>,
+    /// the rows of this same segment.
+    /// </summary>
+    public IReadOnlyList<HierarchyLevel> Levels(IReadOnlyDictionary<string, ChartSegment> segmentsByCode)
+    {
+        var codes = new[] { ParentLevel0Code, ParentLevel1Code, ParentLevel2Code, ParentLevel3Code, ParentLevel4Code, ParentLevel5Code };
+        var levels = new List<HierarchyLevel>();
+        for (var i = 0; i < codes.Length; i++)
+        {
+            var code = codes[i];
+            if (string.IsNullOrWhiteSpace(code) || string.Equals(code, Code, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            levels.Add(new HierarchyLevel(((char)('A' + i)).ToString(), code, segmentsByCode.GetValueOrDefault(code)?.Description));
+        }
+
+        return levels;
+    }
 }
