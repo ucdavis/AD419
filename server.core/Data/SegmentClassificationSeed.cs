@@ -4,22 +4,14 @@ using Server.Core.Domain;
 namespace Server.Core.Data;
 
 /// <summary>
-/// Seeds the chart-string segments that need classifying, derived from the hierarchy
-/// tables so every segment has a matching breadcrumb. Runs after <see cref="HierarchySeed"/>.
-/// Segments start unclassified (IncludeInReport = null); a couple per type are
-/// pre-classified so the grid shows a mix of unset and classified rows.
+/// Seeds development classifications for ERN codes and the purposes the 2025
+/// processing rules decided. Every other code, and any purpose those rules leave
+/// open, is added unclassified by the import's SeedSegmentClassifications stage.
 /// </summary>
 public static class SegmentClassificationSeed
 {
-    // Leave roughly this many rows per segment type unclassified so there is still
-    // work to do; the rest are classified (include/exclude) below.
+    // Leave this many ERN codes unclassified so there is still work to do.
     private const int UnsetPerType = 10;
-
-    // Valid SFN values (mirrors the server's FundSfns / client FUND_SFNS list, plus the
-    // "Multiple" marker). Used to give seeded, included funds a real SFN so the Fund
-    // dropdown reflects a classified state rather than reading "Unset".
-    private static readonly string[] FundSfnPool =
-        ["201", "202", "203", "204", "205", "209", "219", "220", "221", "222", "223", "Multiple"];
 
     public static async Task EnsureSeededAsync(DataDbContext db, CancellationToken ct = default)
     {
@@ -29,10 +21,6 @@ public static class SegmentClassificationSeed
         }
 
         var segments = new List<SegmentClassification>();
-        segments.AddRange(await BuildAsync(db.AccountHierarchies, SegmentType.Account, ct));
-        segments.AddRange(await BuildAsync(db.FundHierarchies, SegmentType.Fund, ct));
-        segments.AddRange(await BuildAsync(db.ActivityHierarchies, SegmentType.Activity, ct));
-        segments.AddRange(await BuildAsync(db.DepartmentHierarchies, SegmentType.FinancialDepartment, ct));
         segments.AddRange(BuildErn());
         segments.AddRange(await BuildPurposeAsync(db, ct));
 
@@ -63,8 +51,9 @@ public static class SegmentClassificationSeed
     }
 
     // Purpose classification defaults follow the 2025 processing rules: the known
-    // exclusion list is excluded, research purposes are included, and codes the 2025
-    // process never ruled on stay unset so they surface for review (fail closed).
+    // exclusion list is excluded and research purposes are included. Codes the 2025
+    // process never ruled on are left to the import, which adds them unset so they
+    // surface for review (fail closed).
     private static readonly IReadOnlySet<string> ExcludedPurposes =
         new HashSet<string> { "00", "40", "43", "60", "61", "62", "72", "76", "78", "80" };
 
@@ -73,62 +62,20 @@ public static class SegmentClassificationSeed
 
     private static async Task<List<SegmentClassification>> BuildPurposeAsync(DataDbContext db, CancellationToken ct)
     {
-        var rows = await db.PurposeHierarchies.ToListAsync(ct);
-        return rows
-            .OrderBy(row => row.Code, StringComparer.Ordinal)
-            .Select(row => new SegmentClassification
+        var descriptions = await db.ChartSegments
+            .Where(segment => segment.SegmentName == nameof(SegmentType.Purpose))
+            .ToDictionaryAsync(segment => segment.Code, segment => segment.Description, ct);
+
+        return ExcludedPurposes.Select(code => (Code: code, Include: false))
+            .Concat(IncludedPurposes.Select(code => (Code: code, Include: true)))
+            .OrderBy(purpose => purpose.Code, StringComparer.Ordinal)
+            .Select(purpose => new SegmentClassification
             {
                 SegmentType = SegmentType.Purpose,
-                Code = row.Code,
-                Description = row.Description,
-                IncludeInReport = ExcludedPurposes.Contains(row.Code) ? false
-                    : IncludedPurposes.Contains(row.Code) ? true
-                    : null,
+                Code = purpose.Code,
+                Description = descriptions.GetValueOrDefault(purpose.Code),
+                IncludeInReport = purpose.Include,
             })
             .ToList();
-    }
-
-    private static async Task<List<SegmentClassification>> BuildAsync<T>(
-        DbSet<T> hierarchy,
-        SegmentType type,
-        CancellationToken ct)
-        where T : class, ISegmentHierarchy
-    {
-        var rows = await hierarchy.ToListAsync(ct);
-        return rows
-            .OrderBy(row => row.Code, StringComparer.Ordinal)
-            .Select((row, index) =>
-            {
-                // First few stay unset; the rest are classified include/exclude with a
-                // stable pseudo-random split so dev data looks partially worked.
-                bool? include = index < UnsetPerType ? null : (StableHash(row.Code) & 1) == 0;
-
-                // An included fund must carry a valid SFN, otherwise the Fund dropdown
-                // has no matching option and shows "Unset" despite being classified.
-                var sfn = type == SegmentType.Fund && include == true
-                    ? FundSfnPool[(StableHash(row.Code) & int.MaxValue) % FundSfnPool.Length]
-                    : null;
-
-                return new SegmentClassification
-                {
-                    SegmentType = type,
-                    Code = row.Code,
-                    Description = row.Description,
-                    IncludeInReport = include,
-                    Sfn = sfn,
-                };
-            })
-            .ToList();
-    }
-
-    private static int StableHash(string value)
-    {
-        var hash = 17;
-        foreach (var c in value)
-        {
-            hash = (hash * 31) + c;
-        }
-
-        return hash;
     }
 }

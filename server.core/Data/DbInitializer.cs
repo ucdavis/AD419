@@ -41,8 +41,6 @@ public class DbInitializer : IDbInitializer
 
     private async Task SeedDevelopmentAsync(CancellationToken ct)
     {
-        // Hierarchy first: chart-string segments are derived from the hierarchy tables.
-        await HierarchySeed.EnsureSeededAsync(_dataDb, ct);
         await SegmentClassificationSeed.EnsureSeededAsync(_dataDb, ct);
     }
 

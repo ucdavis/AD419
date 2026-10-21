@@ -17,11 +17,6 @@ public class DataDbContext(DbContextOptions<DataDbContext> options) : DbContext(
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<ChartSegment> ChartSegments => Set<ChartSegment>();
 
-    public DbSet<DepartmentHierarchy> DepartmentHierarchies => Set<DepartmentHierarchy>();
-    public DbSet<AccountHierarchy> AccountHierarchies => Set<AccountHierarchy>();
-    public DbSet<FundHierarchy> FundHierarchies => Set<FundHierarchy>();
-    public DbSet<ActivityHierarchy> ActivityHierarchies => Set<ActivityHierarchy>();
-    public DbSet<PurposeHierarchy> PurposeHierarchies => Set<PurposeHierarchy>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -103,36 +98,6 @@ public class DataDbContext(DbContextOptions<DataDbContext> options) : DbContext(
             entity.Property(p => p.AccessionNumber).HasMaxLength(7);
             entity.Property(p => p.NifaProjectNumber).HasMaxLength(20);
             entity.Property(p => p.ProjectDirector).HasMaxLength(200);
-        });
-
-        ConfigureHierarchy<DepartmentHierarchy>(modelBuilder, "DepartmentHierarchy");
-        ConfigureHierarchy<AccountHierarchy>(modelBuilder, "AccountHierarchy");
-        ConfigureHierarchy<FundHierarchy>(modelBuilder, "FundHierarchy");
-        ConfigureHierarchy<ActivityHierarchy>(modelBuilder, "ActivityHierarchy");
-        ConfigureHierarchy<PurposeHierarchy>(modelBuilder, "PurposeHierarchy");
-    }
-
-    private static void ConfigureHierarchy<T>(ModelBuilder modelBuilder, string table)
-        where T : class, ISegmentHierarchy
-    {
-        modelBuilder.Entity<T>(entity =>
-        {
-            entity.ToTable(table, DataSchema, mapping => mapping.ExcludeFromMigrations());
-            entity.HasKey(e => e.Code);
-
-            foreach (var property in entity.Metadata.GetProperties()
-                         .Where(p => p.ClrType == typeof(string)))
-            {
-                var maxLength = property.Name switch
-                {
-                    // Match SegmentClassification.Code so joins/lookups on Code stay aligned.
-                    nameof(ISegmentHierarchy.Code) => 50,
-                    "Description" => 1000,
-                    _ when property.Name.EndsWith("Name") => 1000,
-                    _ => 20,
-                };
-                property.SetMaxLength(maxLength);
-            }
         });
     }
 }

@@ -8,28 +8,9 @@ namespace Server.Tests.SegmentClassifications;
 public class SegmentClassificationSeedTests
 {
     [Fact]
-    public async Task EnsureSeeded_derives_one_segment_per_hierarchy_row()
-    {
-        using var db = TestDbContextFactory.CreateDataInMemory();
-        await HierarchySeed.EnsureSeededAsync(db);
-
-        await SegmentClassificationSeed.EnsureSeededAsync(db);
-
-        var expected =
-            await db.AccountHierarchies.CountAsync() +
-            await db.FundHierarchies.CountAsync() +
-            await db.ActivityHierarchies.CountAsync() +
-            await db.DepartmentHierarchies.CountAsync() +
-            await db.PurposeHierarchies.CountAsync() +
-            db.SegmentClassifications.Count(segment => segment.SegmentType == SegmentType.Ern);
-        (await db.SegmentClassifications.CountAsync()).Should().Be(expected);
-    }
-
-    [Fact]
     public async Task EnsureSeeded_loads_ern_codes_from_csv()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
-        await HierarchySeed.EnsureSeededAsync(db);
 
         await SegmentClassificationSeed.EnsureSeededAsync(db);
 
@@ -51,46 +32,44 @@ public class SegmentClassificationSeedTests
     }
 
     [Fact]
-    public async Task EnsureSeeded_maps_segment_types_to_their_hierarchy()
-    {
-        using var db = TestDbContextFactory.CreateDataInMemory();
-        await HierarchySeed.EnsureSeededAsync(db);
-
-        await SegmentClassificationSeed.EnsureSeededAsync(db);
-
-        // Account 500000 comes from AccountHierarchy, so it is an Account segment.
-        var account = await db.SegmentClassifications.FindAsync(SegmentType.Account, "500000");
-        account.Should().NotBeNull();
-        // Fund 71549 comes from FundHierarchy.
-        (await db.SegmentClassifications.FindAsync(SegmentType.Fund, "71549")).Should().NotBeNull();
-    }
-
-    [Fact]
     public async Task Seeds_purpose_classifications_with_2025_defaults()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
-        await HierarchySeed.EnsureSeededAsync(db);
+        db.ChartSegments.Add(new ChartSegment { SegmentName = "Purpose", Code = "44", Description = "Research" });
+        await db.SaveChangesAsync();
 
         await SegmentClassificationSeed.EnsureSeededAsync(db);
 
         var purposes = db.SegmentClassifications
             .Where(s => s.SegmentType == SegmentType.Purpose)
-            .ToDictionary(s => s.Code, s => s.IncludeInReport);
+            .ToDictionary(s => s.Code);
 
-        purposes.Should().HaveCount(18);
         string[] excluded = ["00", "40", "43", "60", "61", "62", "72", "76", "78", "80"];
         string[] included = ["44", "45"];
-        string[] unset = ["41", "42", "64", "65", "66", "68"];
-        excluded.Should().OnlyContain(code => purposes[code] == false);
-        included.Should().OnlyContain(code => purposes[code] == true);
-        unset.Should().OnlyContain(code => purposes[code] == null);
+        purposes.Keys.Should().BeEquivalentTo(excluded.Concat(included));
+        excluded.Should().OnlyContain(code => purposes[code].IncludeInReport == false);
+        included.Should().OnlyContain(code => purposes[code].IncludeInReport == true);
+        purposes["44"].Description.Should().Be("Research");
+    }
+
+    [Fact]
+    public async Task EnsureSeeded_leaves_other_segment_types_to_the_import()
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+
+        await SegmentClassificationSeed.EnsureSeededAsync(db);
+
+        db.SegmentClassifications
+            .Select(s => s.SegmentType)
+            .Distinct()
+            .ToList()
+            .Should().BeEquivalentTo([SegmentType.Ern, SegmentType.Purpose]);
     }
 
     [Fact]
     public async Task EnsureSeeded_is_idempotent()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
-        await HierarchySeed.EnsureSeededAsync(db);
 
         await SegmentClassificationSeed.EnsureSeededAsync(db);
         var count = await db.SegmentClassifications.CountAsync();

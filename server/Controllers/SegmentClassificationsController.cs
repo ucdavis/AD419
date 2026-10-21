@@ -31,27 +31,27 @@ public class SegmentClassificationsController : ApiControllerBase
             .Where(segment => candidateKeys.Contains(ClassificationCandidate.Key(segment.SegmentType, segment.Code)))
             .ToList();
 
-        var departments = await _db.DepartmentHierarchies.ToDictionaryAsync(h => h.Code, cancellationToken);
-        var accounts = await _db.AccountHierarchies.ToDictionaryAsync(h => h.Code, cancellationToken);
-        var funds = await _db.FundHierarchies.ToDictionaryAsync(h => h.Code, cancellationToken);
-        var activities = await _db.ActivityHierarchies.ToDictionaryAsync(h => h.Code, cancellationToken);
-        var purposes = await _db.PurposeHierarchies.ToDictionaryAsync(h => h.Code, cancellationToken);
+        // Hierarchy comes from the AE chart segment reference data. Segment types
+        // other than Ern share their name with a ChartSegments SegmentName, and
+        // parent codes are rows of the same segment, so their names resolve there too.
+        var segmentNames = segments.Select(segment => segment.SegmentType.ToString()).Distinct().ToList();
+        var chartSegments = (await _db.ChartSegments
+                .Where(chartSegment => segmentNames.Contains(chartSegment.SegmentName))
+                .ToListAsync(cancellationToken))
+            .GroupBy(chartSegment => chartSegment.SegmentName)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyDictionary<string, ChartSegment>)group.ToDictionary(
+                    chartSegment => chartSegment.Code, StringComparer.OrdinalIgnoreCase));
 
         IReadOnlyList<HierarchyLevelDto> HierarchyFor(SegmentType type, string code)
         {
-            ISegmentHierarchy? source = type switch
-            {
-                SegmentType.FinancialDepartment => departments.GetValueOrDefault(code),
-                SegmentType.Account => accounts.GetValueOrDefault(code),
-                SegmentType.Fund => funds.GetValueOrDefault(code),
-                SegmentType.Activity => activities.GetValueOrDefault(code),
-                SegmentType.Purpose => purposes.GetValueOrDefault(code),
-                _ => null,
-            };
+            var segmentsByCode = chartSegments.GetValueOrDefault(type.ToString());
+            var chartSegment = segmentsByCode?.GetValueOrDefault(code);
 
-            return source is null
+            return chartSegment is null
                 ? []
-                : source.Levels().Select(l => new HierarchyLevelDto(l.Level, l.Code, l.Name)).ToList();
+                : chartSegment.Levels(segmentsByCode!).Select(l => new HierarchyLevelDto(l.Level, l.Code, l.Name)).ToList();
         }
 
         var dtos = segments
