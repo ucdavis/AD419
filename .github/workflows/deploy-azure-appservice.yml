@@ -35,8 +35,6 @@ jobs:
       NOTIFICATION_BASE_URL: ${{ vars.Notification__BaseUrl }}
       CAES_AI_SERVER_URL: ${{ vars.CaesAi__ServerUrl }}
       CAES_AI_APPLICATION_ID: ${{ vars.CaesAi__ApplicationId }}
-      CAES_AI_APPLICATION_API_KEY: ${{ secrets.CaesAi__ApplicationApiKey }}
-      CAES_AI_CONTEXT_SIGNING_KEY: ${{ secrets.CaesAi__ContextSigningKey }}
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
@@ -58,6 +56,9 @@ jobs:
           path: packages/data
 
       - name: Validate required deployment settings
+        env:
+          CAES_AI_APPLICATION_API_KEY: ${{ secrets.CaesAi__ApplicationApiKey }}
+          CAES_AI_CONTEXT_SIGNING_KEY: ${{ secrets.CaesAi__ContextSigningKey }}
         run: |
           set -euo pipefail
 
@@ -221,6 +222,8 @@ jobs:
 
       - name: Set Web App runtime settings
         env:
+          CAES_AI_APPLICATION_API_KEY: ${{ secrets.CaesAi__ApplicationApiKey }}
+          CAES_AI_CONTEXT_SIGNING_KEY: ${{ secrets.CaesAi__ContextSigningKey }}
           ENVIRONMENT_NAME: ${{ env.ENVIRONMENT }}
           WEB_APP_NAME: ${{ steps.resolve.outputs.web_app_name }}
           SQL_SERVER_FQDN: ${{ steps.resolve.outputs.sql_server_fqdn }}
