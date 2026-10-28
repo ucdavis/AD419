@@ -173,14 +173,14 @@ You might also want to set the publisher domain to ucdavis.edu and fill in the o
 
 ### CAES AI assistant
 
-The Expense Review stage embeds a chat assistant backed by the shared [CAES AI](https://github.com/ucdavis/caes-ai) service. The server needs four settings, usually in `.env`:
+The Expense Review stage embeds a chat assistant backed by the shared [CAES AI](https://github.com/ucdavis/caes-ai) service. The server needs four settings; for local development, put them in `server/.env`:
 
 - `CaesAi__ServerUrl` — the central service URL. Local development uses the Azure test instance, `https://web-caes-ai-test-xnwral.azurewebsites.net`.
-- `CaesAi__ApplicationId` — the registration name, `ad419-dev` for local development.
+- `CaesAi__ApplicationId` — your personal CAES AI registration ID.
 - `CaesAi__ApplicationApiKey` — printed once when the application is registered.
 - `CaesAi__ContextSigningKey` — any secret of at least 32 characters, generated locally with `openssl rand -base64 48`.
 
-The assistant is turned on only when `CaesAi__ServerUrl` is set. Without it the server still starts, and the assistant's session endpoint returns 503. See `docs/expense-review-assistant.md` for the local tunnel and registration steps.
+The assistant is turned on only when `CaesAi__ServerUrl` is set. Without it the server still starts, and the assistant's session endpoint returns 503. See the [local assistant setup guide](docs/expense-review-assistant.md) for the local tunnel and registration steps.
 
 ### Google Analytics (GA4)
 

@@ -33,6 +33,8 @@ jobs:
       SQL_ADMIN_LOGIN: ${{ vars.SQL_ADMIN_LOGIN || 'ad419' }}
       SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
       NOTIFICATION_BASE_URL: ${{ vars.Notification__BaseUrl }}
+      CAES_AI_SERVER_URL: ${{ vars.CaesAi__ServerUrl }}
+      CAES_AI_APPLICATION_ID: ${{ vars.CaesAi__ApplicationId }}
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
@@ -54,6 +56,9 @@ jobs:
           path: packages/data
 
       - name: Validate required deployment settings
+        env:
+          CAES_AI_APPLICATION_API_KEY: ${{ secrets.CaesAi__ApplicationApiKey }}
+          CAES_AI_CONTEXT_SIGNING_KEY: ${{ secrets.CaesAi__ContextSigningKey }}
         run: |
           set -euo pipefail
 
@@ -80,6 +85,25 @@ jobs:
 
           if [[ "$ENVIRONMENT" != "$EXPECTED_ENVIRONMENT" ]]; then
             echo "ENVIRONMENT '$ENVIRONMENT' does not match GitHub Environment '$EXPECTED_ENVIRONMENT'." >&2
+            exit 1
+          fi
+
+          assistant_vars=(CAES_AI_SERVER_URL CAES_AI_APPLICATION_ID CAES_AI_APPLICATION_API_KEY CAES_AI_CONTEXT_SIGNING_KEY)
+          supplied=0
+          missing_assistant=()
+          for var in "${assistant_vars[@]}"; do
+            if [[ -n "${!var:-}" ]]; then
+              supplied=$((supplied + 1))
+            else
+              missing_assistant+=("$var")
+            fi
+          done
+          if (( supplied > 0 && supplied < 4 )); then
+            echo "Incomplete CAES AI configuration. Missing settings: ${missing_assistant[*]}" >&2
+            exit 1
+          fi
+          if (( supplied > 0 && ${#CAES_AI_CONTEXT_SIGNING_KEY} < 32 )); then
+            echo "CaesAi__ContextSigningKey must contain at least 32 characters." >&2
             exit 1
           fi
 
@@ -198,6 +222,8 @@ jobs:
 
       - name: Set Web App runtime settings
         env:
+          CAES_AI_APPLICATION_API_KEY: ${{ secrets.CaesAi__ApplicationApiKey }}
+          CAES_AI_CONTEXT_SIGNING_KEY: ${{ secrets.CaesAi__ContextSigningKey }}
           ENVIRONMENT_NAME: ${{ env.ENVIRONMENT }}
           WEB_APP_NAME: ${{ steps.resolve.outputs.web_app_name }}
           SQL_SERVER_FQDN: ${{ steps.resolve.outputs.sql_server_fqdn }}
@@ -220,6 +246,10 @@ jobs:
           set -euo pipefail
 
           settings=(
+            "CaesAi__ServerUrl=$CAES_AI_SERVER_URL"
+            "CaesAi__ApplicationId=$CAES_AI_APPLICATION_ID"
+            "CaesAi__ApplicationApiKey=$CAES_AI_APPLICATION_API_KEY"
+            "CaesAi__ContextSigningKey=$CAES_AI_CONTEXT_SIGNING_KEY"
             "ASPNETCORE_ENVIRONMENT=$ENVIRONMENT_NAME"
             "OTEL_SERVICE_NAME=ad419.web"
             "OTEL_RESOURCE_ATTRIBUTES=service.name=ad419.web,service.environment=$ENVIRONMENT_NAME,deployment.environment.name=$ENVIRONMENT_NAME"
