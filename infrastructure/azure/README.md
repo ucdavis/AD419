@@ -41,6 +41,8 @@ Required environment secrets:
 
 - `SQL_ADMIN_PASSWORD`
 
+CAES AI is optional; to enable it, supply all four settings. See [CAES AI configuration](#caes-ai-configuration).
+
 Optional environment variables and secrets:
 
 - `DEPLOY_INFRA`
@@ -69,6 +71,50 @@ Suggested values:
 | `prod` | same as `PROD_AZURE_SUBSCRIPTION_ID` | `rg-ad419-prod` | `prod` | `ad419-prod` |
 
 The Bicep deployment creates an application database and a separate data database on the same SQL server. It sets `DB_CONNECTION`, `DATA_DB_CONNECTION`, `WEBSITE_RUN_FROM_PACKAGE`, Application Insights settings, and a default `Notification__BaseUrl`. The workflow can override notification, SMTP, and OTLP settings from GitHub Environment configuration.
+
+## CAES AI configuration
+
+To enable the assistant in a `test` or `prod` GitHub Environment, supply all four settings before deployment. Leave all four absent to deploy with the assistant disabled:
+
+| GitHub Environment setting | Type | Purpose |
+| --- | --- | --- |
+| `CaesAi__ServerUrl` | Variable | Central CAES AI HTTPS service URL |
+| `CaesAi__ApplicationId` | Variable | Dedicated registration ID, such as `ad419-test` or `ad419-prod` |
+| `CaesAi__ApplicationApiKey` | Secret | API key issued for that registration |
+| `CaesAi__ContextSigningKey` | Secret | Application-owned random secret, at least 32 characters |
+
+Create separate registrations and keys for each deployed environment. For local development, see the [Expense Review assistant guide](../../docs/expense-review-assistant.md). The shared CAES AI service currently documents only test hosting; choose and authorize the appropriate central service before configuring production. Do not copy local developer keys into GitHub.
+
+Reuse the environment's existing registration and matching API key if already provisioned. Create a registration only when one does not exist. An administrator runs the following commands inside the chosen CAES AI service's App Service container:
+
+```bash
+cd /home/site/wwwroot/apps/ai-server
+node dist/cli.js app create ad419-test \
+  --display-name "AD419 test" \
+  --callback-url https://<ad419-test-host>/api/ai/tools/execute \
+  --origin https://<ad419-test-host> \
+  --model gpt-5.6-luna --max-reasoning none
+```
+
+For production, use its dedicated application ID and actual callback/browser origins. The CLI prints the API key once. Use `app update` only for the intended environment's registration, with that deployed AD419 application's callback URL and browser origin. If a key is lost, `app rotate-key` issues a replacement while leaving previous keys active. These CLI commands apply CAES AI's checked-in migrations as part of normal administration.
+
+From the local AD419 checkout, set the nonsecret values and pipe secrets through stdin so they do not appear in shell history or command arguments:
+
+```bash
+gh variable set CaesAi__ServerUrl --env test --body https://<central-service-host>
+gh variable set CaesAi__ApplicationId --env test --body ad419-test
+# Paste the issued API key into gh's hidden prompt:
+gh secret set CaesAi__ApplicationApiKey --env test
+openssl rand -base64 48 | gh secret set CaesAi__ContextSigningKey --env test
+```
+
+Repeat for `--env prod` with production's values. Generate the context-signing key once and preserve it; do not regenerate it on every deployment.
+
+Registration is a one-time administrative step per environment. Subsequent deployments reuse the saved credentials without registering applications or rotating keys.
+
+The workflow accepts all four settings absent, or validates that all four are supplied and the signing key contains at least 32 characters before deploying infrastructure. Errors identify setting names without printing values. It restores them with the other runtime settings after Bicep and before deploying the application package, including when `DEPLOY_INFRA=false`. Bicep's App Service settings collection replaces manual settings, so configuring them only in the Azure portal is insufficient. Partial configuration fails deployment. When all four are absent, the workflow explicitly writes empty values for all four runtime settings so stale Azure configuration cannot leave the assistant enabled.
+
+After provisioning both environments, verify the assistant before and after an infrastructure-enabled test deployment.
 
 ## OIDC bootstrap
 
