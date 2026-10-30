@@ -5,7 +5,7 @@ import {
   downloadExcelCsv,
   toExcelCsv,
 } from '@/lib/csv.ts';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface ExportDataButtonProps<T> {
   className?: string;
@@ -117,15 +117,31 @@ export function ExportEndpointButton({
   pendingLabel = 'Exporting...',
   url,
 }: ExportEndpointButtonProps) {
-  const [isPending, setIsPending] = useState(false);
+  const [pendingRequest, setPendingRequest] = useState<{
+    controller: AbortController;
+    url: string;
+  } | null>(null);
+  const isPending =
+    pendingRequest?.url === url && !pendingRequest.controller.signal.aborted;
 
+  const activeRequest = useRef<AbortController | null>(null);
+  useEffect(
+    () => () => {
+      activeRequest.current?.abort();
+      activeRequest.current = null;
+    },
+    [url]
+  );
   const handleExport = async () => {
-    setIsPending(true);
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    setPendingRequest({ controller, url });
 
     try {
       const response = await fetch(url, {
         credentials: 'same-origin',
         headers: { Accept: 'text/csv' },
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -137,6 +153,9 @@ export function ExportEndpointButton({
       }
 
       const blob = await response.blob();
+      if (controller.signal.aborted) {
+        return;
+      }
       downloadBlob(
         blob,
         filenameFromContentDisposition(
@@ -145,9 +164,14 @@ export function ExportEndpointButton({
       );
       onSuccess?.();
     } catch (error) {
-      onError?.(error);
+      if (!controller.signal.aborted) {
+        onError?.(error);
+      }
     } finally {
-      setIsPending(false);
+      if (activeRequest.current === controller) {
+        activeRequest.current = null;
+        setPendingRequest(null);
+      }
     }
   };
 

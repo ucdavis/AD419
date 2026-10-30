@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Dapper;
 using FluentAssertions;
 using Microsoft.Data.SqlClient;
@@ -843,6 +844,264 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         summary.Groups.Select(group => (group.Code, group.RowCount, group.Amount))
             .Should().BeEquivalentTo(expected);
         summary.GroupCount.Should().Be(expected.Count);
+    }
+
+    [Theory]
+    [InlineData("AE", false)]
+    [InlineData("AE", true)]
+    [InlineData("UCP", false)]
+    [InlineData("UCP", true)]
+    public async Task Group_details_preserve_membership_totals_and_parent_filters(string source, bool byPeriod)
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        await SeedPersistedExclusionFlagRowsAsync();
+        await SeedMultiReasonTransactionAsync();
+        await SeedZeroAmountGroupAsync();
+        await SeedNullAmountTransactionAsync();
+        var service = new ExpenseReviewService(fixture.CreateDataDbContext(), Configuration());
+        foreach (var filters in new[] { Filters(source: [source]), Filters(source: [source], accountingPeriod: ["Nov-24"]),
+                     Filters(source: [source], exclusionReason: [source == "AE" ? "excludedByDate" : "ucPathAccountNotInAE"]) })
+        {
+            var context = Request(displayByPeriod: byPeriod, includeZeroAmounts: true, filters: filters);
+            var groups = await service.GetTransactionsAsync(Cycle(), context, CancellationToken.None);
+            foreach (var group in groups.Rows)
+            {
+                var request = new ExpenseReviewGroupTransactionsRequest(group.Id, context, "transactionDate", false, null);
+                var detail = (await service.GetGroupTransactionsAsync(Cycle(), request, CancellationToken.None))!;
+                detail.Should().NotBeNull();
+                detail.Group.Should().BeEquivalentTo(group);
+                detail.Rows.Should().HaveCount(detail.TransactionCount);
+                detail.MatchingCount.Should().Be(detail.TransactionCount);
+                detail.Rows.Sum(row => row.Amount ?? 0m).Should().Be(group.Amount ?? 0m);
+                detail.MatchingAmount.Should().Be(group.Amount ?? 0m);
+                foreach (var reason in group.ExclusionReasons)
+                {
+                    var membersWithReason = detail.Rows.Where(row => row.ExclusionReasons.Any(r => r.Code == reason.Code)).ToArray();
+                    membersWithReason.Should().HaveCount(reason.RowCount);
+                    membersWithReason.Sum(row => row.Amount ?? 0m).Should().Be(reason.Amount);
+                    var reasonSearch = (await service.GetGroupTransactionsAsync(Cycle(), request with { Search = reason.Label }, CancellationToken.None))!;
+                    reasonSearch.MatchingCount.Should().Be(reason.RowCount);
+                }
+                if (group.Amount == 0m)
+                {
+                    var hidden = request with { Context = context with { IncludeZeroAmounts = false } };
+                    (await service.GetGroupTransactionsAsync(Cycle(), hidden, CancellationToken.None)).Should().BeNull();
+                }
+                if (byPeriod) detail.Rows.Should().OnlyContain(row => row.AccountingPeriod == group.AccountingPeriod);
+                if (filters.AccountingPeriod.Count > 0) detail.Rows.Should().OnlyContain(row => row.AccountingPeriod == "Nov-24");
+                if (filters.ExclusionReason.Count > 0) detail.Rows.Should().OnlyContain(row => row.ExclusionReasons.Any(reason => reason.Code == filters.ExclusionReason[0]));
+                var empty = (await service.GetGroupTransactionsAsync(Cycle(), request with { Search = "no-such-transaction" }, CancellationToken.None))!;
+                empty.TransactionCount.Should().Be(detail.TransactionCount);
+                empty.Group.Should().BeEquivalentTo(group);
+                empty.Rows.Should().BeEmpty();
+                empty.MatchingCount.Should().Be(0);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Details_search_sort_pagination_and_export_preserve_precision_and_all_matching_rows()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+        await connection.ExecuteAsync("""
+            UPDATE [data].[AETransactions] SET [JournalAcctDate] = '2024-10-15',
+                [AccountingSequenceNumber] = CASE WHEN [PeriodName] = 'Oct-24' THEN 10 ELSE 2 END,
+                [JournalName] = N'Journal, "quoted"', [JournalReference] = N'Hidden reference',
+                [JournalLineDescription] = N'Line' + CHAR(13) + CHAR(10) + N'two'
+            WHERE [Fund] = 'F1';
+            INSERT INTO [data].[AETransactions]
+                ([Entity], [Fund], [FinancialDepartment], [Account], [Purpose], [Program], [Project], [Activity],
+                 [PeriodName], [Amount], [ExcludedByDate], [AccountInUcPath], [JournalAcctDate], [AccountingSequenceNumber], [JournalReference])
+            SELECT TOP (30) '3310', 'F1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1',
+                'Oct-24', 0, 0, 0, '2024-10-15', 9007199254740993, N'Hidden reference'
+            FROM sys.all_objects;
+            UPDATE TOP (1) [data].[AETransactions] SET [Amount] = -1.2345 WHERE [Amount] = 0;
+            UPDATE TOP (1) [data].[AETransactions] SET [Amount] = NULL WHERE [Amount] = 0;
+            UPDATE [data].[UcPathTransactions] SET [EmployeeName] = 'Ada Lovelace', [ErnDescription] = 'Regular earnings',
+                [Hours] = 12.345678, [CalculatedFte] = 0.123456 WHERE [LaborTransactionId] = 'UCP-INCLUDED';
+            """);
+        var service = new ExpenseReviewService(fixture.CreateDataDbContext(), Configuration());
+        var context = Request(filters: Filters(source: ["AE"], fund: ["F1"]), pageSize: 10);
+        var group = (await service.GetTransactionsAsync(Cycle(), context, CancellationToken.None)).Rows.Single();
+        var request = new ExpenseReviewGroupTransactionsRequest(group.Id, context, "accountingSequenceNumber", false, null);
+        var first = (await service.GetGroupTransactionsAsync(Cycle(), request, CancellationToken.None))!;
+        first.TransactionCount.Should().Be(32);
+        first.MatchingAmount.Should().Be(123.7655m);
+        first.Rows.Take(2).Select(row => row.AccountingSequenceNumber).Should().Equal("2", "10");
+        first.Rows.Skip(2).Should().OnlyContain(row => row.AccountingSequenceNumber == "9007199254740993");
+        var next = (await service.GetGroupTransactionsAsync(Cycle(), request with { Context = context with { Page = 2 } }, CancellationToken.None))!;
+        first.Rows.Select(row => row.Id).Intersect(next.Rows.Select(row => row.Id)).Should().BeEmpty();
+        var stable = (await service.GetGroupTransactionsAsync(Cycle(), request, CancellationToken.None))!;
+        stable.Rows.Select(row => row.Id).Should().Equal(first.Rows.Select(row => row.Id));
+        var searched = (await service.GetGroupTransactionsAsync(Cycle(), request with { Search = "HIDDEN REFERENCE" }, CancellationToken.None))!;
+        searched.MatchingCount.Should().Be(32);
+        var literal = (await service.GetGroupTransactionsAsync(Cycle(), request with { Search = "%" }, CancellationToken.None))!;
+        literal.MatchingCount.Should().Be(0);
+        await using var output = new MemoryStream();
+        await service.WriteGroupTransactionsCsvAsync(Cycle(), request with { Search = "hidden reference" }, group, output, CancellationToken.None);
+        output.Position = 0;
+        using var csv = new CsvHelper.CsvReader(new StreamReader(output), System.Globalization.CultureInfo.InvariantCulture);
+        await csv.ReadAsync(); csv.ReadHeader();
+        csv.HeaderRecord.Should().Contain(["Document type", "Journal reference", "Transaction ID", "Fiscal Year", "Include State"]);
+        var count = 0;
+        while (await csv.ReadAsync())
+        {
+            count++;
+            if (count == 1) csv.GetField("Accounting sequence number").Should().Be("2");
+            if (count == 2) csv.GetField("Accounting sequence number").Should().Be("10");
+            csv.GetField("Journal reference").Should().Be("Hidden reference");
+            if (csv.GetField("Accounting sequence number") == "10")
+            {
+                csv.GetField("Journal name").Should().Be("Journal, \"quoted\"");
+                csv.GetField("Line description").Should().Be("Line\r\ntwo");
+            }
+        }
+        count.Should().Be(32);
+        await connection.ExecuteAsync("""
+            SET IDENTITY_INSERT [data].[AETransactions] ON;
+            INSERT INTO [data].[AETransactions]
+                ([Id], [Entity], [Fund], [FinancialDepartment], [Account], [Purpose], [Program], [Project], [Activity],
+                 [PeriodName], [Amount], [ExcludedByDate], [AccountInUcPath], [JournalAcctDate], [AccountingSequenceNumber], [JournalReference])
+            VALUES (9007199254740993, '3310', 'F1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1',
+                'Oct-24', 0, 0, 0, '2024-10-15', 9223372036854775806, N'Unique beyond page one');
+            SET IDENTITY_INSERT [data].[AETransactions] OFF;
+            """);
+        var beyond = (await service.GetGroupTransactionsAsync(Cycle(), request with { Search = "unique BEYOND page one" }, CancellationToken.None))!;
+        beyond.TransactionCount.Should().Be(33);
+        beyond.MatchingCount.Should().Be(1);
+        beyond.Rows.Single().Id.Should().Be("9007199254740993");
+        beyond.Rows.Single().AccountingSequenceNumber.Should().Be("9223372036854775806");
+        var payrollContext = Request(filters: Filters(source: ["UCP"]));
+        var payrollGroup = (await service.GetTransactionsAsync(Cycle(), payrollContext, CancellationToken.None)).Rows.Single();
+        var payrollRequest = new ExpenseReviewGroupTransactionsRequest(payrollGroup.Id, payrollContext, "transactionDate", false, "regular EARNINGS");
+        var payroll = (await service.GetGroupTransactionsAsync(Cycle(), payrollRequest, CancellationToken.None))!;
+        payroll.TransactionCount.Should().Be(2);
+        payroll.MatchingCount.Should().Be(1);
+        payroll.Rows.Single().EmployeeName.Should().Be("Ada Lovelace");
+        payroll.Rows.Single().Hours.Should().Be(12.345678m);
+        await using var payrollOutput = new MemoryStream();
+        await service.WriteGroupTransactionsCsvAsync(Cycle(), payrollRequest, payrollGroup, payrollOutput, CancellationToken.None);
+        var payrollCsv = Encoding.UTF8.GetString(payrollOutput.ToArray());
+        payrollCsv.Should().Contain("12.345678").And.Contain("0.123456").And.Contain("Labor transaction ID").And.NotContain("EmployeeId");
+        var wrongContext = request with { Context = context with { IncludeState = ExpenseReviewIncludeState.Excluded } };
+        (await service.GetGroupTransactionsAsync(Cycle(), wrongContext, CancellationToken.None)).Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("AE", "id", false)]
+    [InlineData("AE", "ID", true)]
+    [InlineData("UCP", "Id", false)]
+    [InlineData("UCP", "iD", true)]
+    public async Task Detail_id_sorting_preserves_native_order_exact_ids_and_joined_fields_across_pages_and_csv(
+        string source, string sortBy, bool descending)
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+        // Replace the baseline transactions, retaining its classifications and chart descriptions.
+        await connection.ExecuteAsync("DELETE FROM [data].[AETransactions]; DELETE FROM [data].[UcPathTransactions];");
+        long[] aeIds = [2, 10, 100, 9007199254740992, 9007199254740993, 10000000000000000];
+        await connection.ExecuteAsync("SET IDENTITY_INSERT [data].[AETransactions] ON;");
+        try
+        {
+            await connection.ExecuteAsync("""
+                INSERT INTO [data].[AETransactions]
+                    ([Id], [Entity], [Fund], [FinancialDepartment], [Account], [Purpose], [Program], [Project], [Activity],
+                     [PeriodName], [Amount], [ExcludedByDate], [AccountInUcPath], [JournalAcctDate], [JournalReference])
+                VALUES (@Id, '3310', 'F1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1',
+                    'Oct-24', 1, 0, 0, '2024-10-15', @Reference);
+                """, aeIds.Select(id => new { Id = id, Reference = $"Journal {id}" }));
+        }
+        finally
+        {
+            await connection.ExecuteAsync("SET IDENTITY_INSERT [data].[AETransactions] OFF;");
+        }
+        string[] laborIds = [
+            "JRN24|0|0|20000001|0|E01|RUN-2", "JRN24|0|0|20000001|0|E01|RUN-10",
+            "JRN24|0|0|20000001|0|E01|RUN-100", "JRN24|0|0|20000001|0|E01|RUN-A",
+            "JRN24|0|0|20000001|0|E01|RUN-AA", "JRN24|0|0|20000001|0|E01|RUN-Z",
+        ];
+        await connection.ExecuteAsync("""
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [EmployeeName], [PositionNumber],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
+            VALUES (@Id, '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01',
+                '20000001', @EmployeeName, 'POS00001', 1, 1, 0.5, '2024-10-15', 'S', 2025, '4', 0, 0, 0, 0);
+            """, laborIds.Select(id => new { Id = id, EmployeeName = $"Employee {id}" }));
+
+        string[] ascendingIds = source == "AE"
+            ? aeIds.Select(id => id.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray()
+            : [laborIds[1], laborIds[2], laborIds[0], laborIds[3], laborIds[4], laborIds[5]];
+        var expectedIds = descending ? ascendingIds.Reverse().ToArray() : ascendingIds;
+        await using var db = fixture.CreateDataDbContext();
+        var service = new ExpenseReviewService(db, Configuration());
+        var context = Request(filters: Filters(source: [source]), pageSize: 2);
+        var group = (await service.GetTransactionsAsync(Cycle(), context, CancellationToken.None)).Rows.Single();
+        var request = new ExpenseReviewGroupTransactionsRequest(group.Id, context, sortBy, descending, null);
+        List<string> pagedIds = [];
+        for (var page = 1; page <= 3; page++)
+        {
+            var response = (await service.GetGroupTransactionsAsync(Cycle(),
+                request with { Context = context with { Page = page } }, CancellationToken.None))!;
+            response.TransactionCount.Should().Be(expectedIds.Length);
+            response.MatchingCount.Should().Be(expectedIds.Length);
+            response.MatchingAmount.Should().Be(6m);
+            response.PageCount.Should().Be(3);
+            response.Rows.Select(row => row.Id).Should().Equal(expectedIds.Skip((page - 1) * 2).Take(2));
+            foreach (var row in response.Rows)
+            {
+                row.TransactionDate.Should().Be(new DateTime(2024, 10, 15));
+                if (source == "AE")
+                {
+                    row.JournalReference.Should().Be($"Journal {row.Id}");
+                    row.EmployeeName.Should().BeNull();
+                }
+                else
+                {
+                    row.EmployeeName.Should().Be($"Employee {row.Id}");
+                    row.JournalReference.Should().BeNull();
+                }
+            }
+            var json = JsonSerializer.SerializeToElement(response, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            foreach (var (row, expectedId) in json.GetProperty("rows").EnumerateArray().Zip(response.Rows.Select(row => row.Id)))
+            {
+                row.GetProperty("id").ValueKind.Should().Be(JsonValueKind.String);
+                row.GetProperty("id").GetString().Should().Be(expectedId);
+                row.EnumerateObject().Select(property => property.Name)
+                    .Should().NotContain(["aeTransactionId", "laborTransactionId"]);
+            }
+            pagedIds.AddRange(response.Rows.Select(row => row.Id));
+        }
+        pagedIds.Should().Equal(expectedIds).And.OnlyHaveUniqueItems();
+        var pastEnd = await service.GetGroupTransactionsAsync(Cycle(),
+            request with { Context = context with { Page = 4 } }, CancellationToken.None);
+        pastEnd!.Rows.Should().BeEmpty();
+
+        await using var output = new MemoryStream();
+        // Export must ignore pagination even when requested from a later page.
+        await service.WriteGroupTransactionsCsvAsync(Cycle(), request with { Context = context with { Page = 2 } },
+            group, output, CancellationToken.None);
+        output.Position = 0;
+        using var csv = new CsvHelper.CsvReader(new StreamReader(output), System.Globalization.CultureInfo.InvariantCulture);
+        await csv.ReadAsync();
+        csv.ReadHeader();
+        csv.HeaderRecord.Should().NotContain(["AeTransactionId", "LaborTransactionId"]);
+        List<string> csvIds = [];
+        while (await csv.ReadAsync())
+        {
+            var id = csv.GetField(source == "AE" ? "Transaction ID" : "Labor transaction ID")!;
+            csvIds.Add(id);
+            csv.GetField(source == "AE" ? "Journal reference" : "Employee name")
+                .Should().Be(source == "AE" ? $"Journal {id}" : $"Employee {id}");
+        }
+        csvIds.Should().Equal(pagedIds);
     }
 
     private async Task SeedExpenseReviewScenarioAsync()

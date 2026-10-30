@@ -1,3 +1,7 @@
+import {
+  ExpenseReviewTransactionDialog,
+  defaultDetailVisibility,
+} from './ExpenseReviewTransactionDialog.tsx';
 import { FilterTypeahead } from '@/components/expenseReview/FilterTypeahead.tsx';
 import { HttpError } from '@/lib/api.ts';
 import {
@@ -13,10 +17,7 @@ import {
   type ExpenseReviewSortBy,
   type ExpenseReviewTransaction,
 } from '@/queries/expenseReview.ts';
-import {
-  WORKFLOW_SNAPSHOT_KEY,
-  updateWorkflowStageStatus,
-} from '@/queries.ts';
+import { WORKFLOW_SNAPSHOT_KEY, updateWorkflowStageStatus } from '@/queries.ts';
 import { DataTable } from '@/shared/dataTable.tsx';
 import { ExportEndpointButton } from '@/shared/exportDataButton.tsx';
 import {
@@ -27,13 +28,38 @@ import {
   type ExpenseReviewSearch,
 } from './expenseReviewSearch.ts';
 import { getRouteApi, useNavigate } from '@tanstack/react-router';
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
-import type { ColumnDef, SortingState } from '@tanstack/react-table';
-import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type {
+  CellContext,
+  ColumnDef,
+  SortingState,
+  VisibilityState,
+} from '@tanstack/react-table';
+import { createContext, useContext, useState } from 'react';
+
+const TransactionDetailsOpenerContext = createContext<
+  (group: ExpenseReviewTransaction, opener: HTMLElement) => void
+>(() => {});
+function TransactionDetailsButton({
+  row,
+}: CellContext<ExpenseReviewTransaction, unknown>) {
+  const open = useContext(TransactionDetailsOpenerContext);
+  return (
+    <button
+      className="btn btn-ghost btn-xs"
+      onClick={(event) => open(row.original, event.currentTarget)}
+      type="button"
+    >
+      View transactions
+    </button>
+  );
+}
+const DETAILS_COLUMN: ColumnDef<ExpenseReviewTransaction> = {
+  cell: TransactionDetailsButton,
+  enableSorting: false,
+  header: 'Details',
+  id: 'details',
+};
 
 const routeApi = getRouteApi('/(authenticated)/workflow/$stageId');
 
@@ -57,7 +83,11 @@ const filterControls: Array<{
   { id: 'source', label: 'Source', optionsKey: 'sources' },
   { id: 'entity', label: 'Entity', optionsKey: 'entities' },
   { id: 'fund', label: 'Fund', optionsKey: 'funds' },
-  { id: 'financialDept', label: 'Financial Dept', optionsKey: 'financialDepts' },
+  {
+    id: 'financialDept',
+    label: 'Financial Dept',
+    optionsKey: 'financialDepts',
+  },
   { id: 'account', label: 'Account', optionsKey: 'accounts' },
   { id: 'purpose', label: 'Purpose', optionsKey: 'purposes' },
   { id: 'program', label: 'Program', optionsKey: 'programs' },
@@ -189,7 +219,9 @@ function ExclusionReasonChips({
   );
 }
 
-function buildColumns(displayByPeriod: boolean): ColumnDef<ExpenseReviewTransaction>[] {
+function buildColumns(
+  displayByPeriod: boolean
+): ColumnDef<ExpenseReviewTransaction>[] {
   const columns: ColumnDef<ExpenseReviewTransaction>[] = [
     {
       accessorKey: 'source',
@@ -303,7 +335,7 @@ function buildColumns(displayByPeriod: boolean): ColumnDef<ExpenseReviewTransact
       enableSorting: false,
       header: 'Exclusion Reasons',
       id: 'exclusionReason',
-    },
+    }
   );
 
   return columns;
@@ -454,7 +486,11 @@ function SelectedFilters({
           );
         })
       )}
-      <button className="btn btn-ghost btn-xs" onClick={onClearAll} type="button">
+      <button
+        className="btn btn-ghost btn-xs"
+        onClick={onClearAll}
+        type="button"
+      >
         Clear all
       </button>
     </div>
@@ -475,8 +511,34 @@ export function ExpenseReviewStage() {
     sortBy,
     sortDirection,
   } = view;
-  const sorting: SortingState = [{ desc: sortDirection === 'desc', id: sortBy }];
+  const sorting: SortingState = [
+    { desc: sortDirection === 'desc', id: sortBy },
+  ];
   const [exportError, setExportError] = useState<string | null>(null);
+  const detailContext = {
+    displayByPeriod,
+    filters,
+    includeState,
+    includeZeroAmounts,
+  };
+  const detailContextKey = JSON.stringify(detailContext);
+  const [selectedGroup, setSelectedGroup] = useState<{
+    contextKey: string;
+    group: ExpenseReviewTransaction;
+    opener: HTMLElement | null;
+  } | null>(null);
+  const [detailVisibility, setDetailVisibility] = useState<
+    Record<'AE' | 'UCP', VisibilityState>
+  >({ AE: defaultDetailVisibility('AE'), UCP: defaultDetailVisibility('UCP') });
+  if (selectedGroup && selectedGroup.contextKey !== detailContextKey) {
+    setSelectedGroup(null);
+  }
+  const openGroup = (
+    group: ExpenseReviewTransaction,
+    opener: HTMLElement | null
+  ) => {
+    setSelectedGroup({ contextKey: detailContextKey, group, opener });
+  };
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const filterOptionsQuery = useQuery(expenseReviewFilterOptionsQueryOptions());
@@ -509,7 +571,10 @@ export function ExpenseReviewStage() {
       });
     },
   });
-  const columns = displayByPeriod ? PERIOD_COLUMNS : FLAT_COLUMNS;
+  const columns = [
+    ...(displayByPeriod ? PERIOD_COLUMNS : FLAT_COLUMNS),
+    DETAILS_COLUMN,
+  ];
   const exportUrl = buildExpenseReviewTransactionsCsvUrl({
     displayByPeriod,
     filters,
@@ -594,7 +659,9 @@ export function ExpenseReviewStage() {
           </p>
           <button
             className="btn btn-sm mt-3"
-            disabled={filterOptionsQuery.isFetching || transactionsQuery.isFetching}
+            disabled={
+              filterOptionsQuery.isFetching || transactionsQuery.isFetching
+            }
             onClick={() => {
               void filterOptionsQuery.refetch();
               void transactionsQuery.refetch();
@@ -702,40 +769,65 @@ export function ExpenseReviewStage() {
         </div>
       ) : null}
 
-      <DataTable
-        columns={columns}
-        data={transactions.rows}
-        globalFilter="none"
-        manualPagination
-        manualSorting
-        onPageIndexChange={(pageIndex) =>
-          setSearch({ page: pageIndex === 0 ? undefined : pageIndex + 1 })
-        }
-        onPageSizeChange={(nextPageSize) =>
-          setSearch({
-            page: undefined,
-            size:
-              nextPageSize === DEFAULT_EXPENSE_REVIEW_PAGE_SIZE
-                ? undefined
-                : (nextPageSize as ExpenseReviewSearch['size']),
-          })
-        }
-        onSortingChange={(nextSorting) => {
-          const next = nextSorting[0];
-          setSearch({
-            dir: next?.desc ? 'desc' : undefined,
-            page: undefined,
-            sort: next && next.id !== 'source' ? (next.id as ExpenseReviewSortBy) : undefined,
-          });
-          resetExportError();
-        }}
-        pageCount={transactions.pageCount}
-        pageIndex={page - 1}
-        pageSize={pageSize}
-        pageSizeOptions={[...EXPENSE_REVIEW_PAGE_SIZES]}
-        rowCount={transactions.totalCount}
-        sorting={sorting}
-      />
+      <TransactionDetailsOpenerContext.Provider value={openGroup}>
+        <DataTable
+          columns={columns}
+          data={transactions.rows}
+          globalFilter="none"
+          manualPagination
+          manualSorting
+          onPageIndexChange={(pageIndex) =>
+            setSearch({ page: pageIndex === 0 ? undefined : pageIndex + 1 })
+          }
+          onPageSizeChange={(nextPageSize) =>
+            setSearch({
+              page: undefined,
+              size:
+                nextPageSize === DEFAULT_EXPENSE_REVIEW_PAGE_SIZE
+                  ? undefined
+                  : (nextPageSize as ExpenseReviewSearch['size']),
+            })
+          }
+          onRowClick={(row, event) =>
+            openGroup(row, event.currentTarget.querySelector('button'))
+          }
+          onSortingChange={(nextSorting) => {
+            const next = nextSorting[0];
+            setSearch({
+              dir: next?.desc ? 'desc' : undefined,
+              page: undefined,
+              sort:
+                next && next.id !== 'source'
+                  ? (next.id as ExpenseReviewSortBy)
+                  : undefined,
+            });
+            resetExportError();
+          }}
+          pageCount={transactions.pageCount}
+          pageIndex={page - 1}
+          pageSize={pageSize}
+          pageSizeOptions={[...EXPENSE_REVIEW_PAGE_SIZES]}
+          rowCount={transactions.totalCount}
+          sorting={sorting}
+        />
+      </TransactionDetailsOpenerContext.Provider>
+
+      {selectedGroup && selectedGroup.contextKey === detailContextKey ? (
+        <ExpenseReviewTransactionDialog
+          context={detailContext}
+          group={selectedGroup.group}
+          key={selectedGroup.group.id}
+          onClose={() => setSelectedGroup(null)}
+          onVisibilityChange={(value) =>
+            setDetailVisibility((current) => ({
+              ...current,
+              [selectedGroup.group.source]: value,
+            }))
+          }
+          opener={selectedGroup.opener}
+          visibility={detailVisibility[selectedGroup.group.source]}
+        />
+      ) : null}
 
       <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
         <span className="text-sm text-base-content/70">

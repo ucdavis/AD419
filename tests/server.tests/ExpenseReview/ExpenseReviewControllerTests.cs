@@ -220,6 +220,95 @@ public class ExpenseReviewControllerTests
         yield return [new ExpenseReviewTransactionsQuery { SortDirection = "sideways" }];
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Group_endpoints_validate_cycle_and_missing_groups(bool csv)
+    {
+        await using var db = TestDbContextFactory.CreateInMemory();
+        var service = new StubExpenseReviewService();
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db));
+        var query = new ExpenseReviewGroupTransactionsQuery();
+        async Task<IActionResult> Call(string id) => csv
+            ? await controller.GroupTransactionsCsv(id, query, CancellationToken.None)
+            : await controller.GroupTransactions(id, query, CancellationToken.None);
+        (await Call("invalid")).Should().BeOfType<BadRequestObjectResult>();
+        (await Call(new string('A', 64))).Should().BeOfType<ConflictObjectResult>();
+        await using var confirmedDb = await CreateDbWithConfirmedRunAsync();
+        controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(confirmedDb));
+        (await Call(new string('A', 64))).Should().BeOfType<NotFoundObjectResult>();
+    }
+
+    [Fact]
+    public async Task Group_endpoints_return_context_string_identifiers_and_complete_csv_headers()
+    {
+        await using var db = await CreateDbWithConfirmedRunAsync();
+        var service = new StubExpenseReviewService();
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db))
+        {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
+        };
+        var query = new ExpenseReviewGroupTransactionsQuery
+        {
+            Page = 2, PageSize = 10, IncludeState = "included", DisplayByPeriod = true,
+            FinancialDept = ["D0123"], DetailSortBy = "accountingSequenceNumber", DetailSortDirection = "desc", Search = "journal",
+        };
+        ExpenseReviewGroupTransactionsParser.TryParse(new string('A', 64), query, out var request, out _).Should().BeTrue();
+        var cycle = new FiscalYearCycle("FY25", new DateOnly(2024, 10, 1), new DateOnly(2025, 9, 30));
+        var group = (await service.GetTransactionsAsync(cycle, request.Context, CancellationToken.None)).Rows.Single();
+        service.GroupResponse = new(cycle.FiscalYear, cycle.CycleStart, cycle.CycleEnd, group,
+            60, 30, 12.3456m, 2, 10, 3,
+            [new ExpenseReviewTransactionDetailDto { Id = "9007199254740993", AccountingSequenceNumber = "9007199254740995", Amount = 12.3456m, JournalName = "journal" }]);
+        var result = (await controller.GroupTransactions(request.GroupId, query, CancellationToken.None)).Should().BeOfType<OkObjectResult>().Subject;
+        result.Value.Should().BeSameAs(service.GroupResponse);
+        service.GroupRequest.Should().BeEquivalentTo(request);
+        var json = System.Text.Json.JsonSerializer.Serialize(result.Value, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        json.Should().Contain("\"id\":\"9007199254740993\"").And.Contain("\"accountingSequenceNumber\":\"9007199254740995\"");
+        await using var output = new MemoryStream();
+        controller.Response.Body = output;
+        (await controller.GroupTransactionsCsv(request.GroupId, query, CancellationToken.None)).Should().BeOfType<EmptyResult>();
+        service.GroupCsvRequest.Should().BeEquivalentTo(request);
+        controller.Response.Headers.ContentDisposition.ToString().Should().Contain($"FY25-AE-{request.GroupId}.csv");
+        var csv = System.Text.Encoding.UTF8.GetString(output.ToArray());
+        csv.Should().Contain("Journal reference").And.Contain("Document type").And.Contain("9007199254740993").And.Contain("12.3456");
+    }
+
+    [Theory]
+    [InlineData(0, 25, null, null, null)]
+    [InlineData(1, 501, null, null, null)]
+    [InlineData(int.MaxValue, 100, null, null, null)]
+    [InlineData(1, 25, "exclusionReasons", null, null)]
+    [InlineData(1, 25, "amount", "sideways", null)]
+    [InlineData(1, 25, "amount", "asc", "maybe")]
+    public void Group_parser_rejects_invalid_input(int page, int size, string? sort, string? direction, string? include)
+    {
+        ExpenseReviewGroupTransactionsParser.TryParse(new string('A', 64),
+            new ExpenseReviewGroupTransactionsQuery { Page = page, PageSize = size, DetailSortBy = sort,
+                DetailSortDirection = direction, IncludeState = include }, out _, out var error).Should().BeFalse();
+        error.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public void Group_parser_preserves_context_and_uses_detail_defaults()
+    {
+        ExpenseReviewGroupTransactionsParser.TryParse(new string('a', 64), new ExpenseReviewGroupTransactionsQuery
+        {
+            SortBy = "fund", SortDirection = "desc", IncludeState = "excluded", DisplayByPeriod = true,
+            AccountingPeriod = ["Oct-24"], ExclusionReason = ["excludedByDate"], Search = "  100%_[]  ",
+        }, out var request, out _).Should().BeTrue();
+        request.GroupId.Should().Be(new string('A', 64));
+        request.SortBy.Should().Be("transactionDate");
+        request.SortDescending.Should().BeFalse();
+        request.Context.PageSize.Should().Be(25);
+        request.Context.DisplayByPeriod.Should().BeTrue();
+        request.Context.IncludeState.Should().Be(ExpenseReviewIncludeState.Excluded);
+        request.Context.Filters.AccountingPeriod.Should().Equal("Oct-24");
+        request.Context.Filters.ExclusionReason.Should().Equal("excludedByDate");
+        request.Search.Should().Be("100%_[]");
+        ExpenseReviewGroupTransactionsParser.TryParse(new string('A', 64),
+            new ExpenseReviewGroupTransactionsQuery { Search = new string('x', 501) }, out _, out _).Should().BeFalse();
+    }
+
     private static async Task<AppDbContext> CreateDbWithConfirmedRunAsync()
     {
         var db = TestDbContextFactory.CreateInMemory();
@@ -248,6 +337,23 @@ public class ExpenseReviewControllerTests
         public FiscalYearCycle? ReceivedUnmatchedJobCodesCycle { get; private set; }
         public ExpenseReviewTransactionsRequest? ReceivedRequest { get; private set; }
         public ExpenseReviewTransactionsRequest? ReceivedCsvRequest { get; private set; }
+
+        public ExpenseReviewGroupTransactionsResponse? GroupResponse { get; set; }
+        public ExpenseReviewGroupTransactionsRequest? GroupRequest { get; private set; }
+        public ExpenseReviewGroupTransactionsRequest? GroupCsvRequest { get; private set; }
+        public Task<ExpenseReviewGroupTransactionsResponse?> GetGroupTransactionsAsync(
+            FiscalYearCycle cycle, ExpenseReviewGroupTransactionsRequest request, CancellationToken cancellationToken)
+        {
+            GroupRequest = request;
+            return Task.FromResult(GroupResponse);
+        }
+
+        public Task WriteGroupTransactionsCsvAsync(FiscalYearCycle cycle, ExpenseReviewGroupTransactionsRequest request,
+            ExpenseReviewTransactionDto group, Stream output, CancellationToken cancellationToken)
+        {
+            GroupCsvRequest = request;
+            return ExpenseReviewDetailCsvWriter.WriteAsync(output, ToAsyncEnumerable(GroupResponse!.Rows.ToArray()), cycle, group, cancellationToken);
+        }
 
         public Task<ExpenseReviewTransactionsResponse> GetTransactionsAsync(
             FiscalYearCycle cycle,
