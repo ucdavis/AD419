@@ -72,6 +72,12 @@ Suggested values:
 
 The Bicep deployment creates an application database and a separate data database on the same SQL server. It sets `DB_CONNECTION`, `DATA_DB_CONNECTION`, `WEBSITE_RUN_FROM_PACKAGE`, Application Insights settings, and a default `Notification__BaseUrl`. The workflow can override notification, SMTP, and OTLP settings from GitHub Environment configuration.
 
+## Stage documentation configuration
+
+Set repository Actions variables `STAGEDOCUMENTATION__STAGES__<STAGE>__URL` and `__EMBEDURL` for each of the ten stages, using HTTPS Box URLs. Uppercase stage IDs and replace hyphens with underscores: `EXPENSE_REVIEW` maps to Azure keys `StageDocumentation__Stages__expense_review__Url` and `__EmbedUrl`. Matching `test`/`prod` environment variables override repository defaults.
+
+The runtime settings step writes all 20 values after optional Bicep deployment, including with `DEPLOY_INFRA=false`. Missing or empty values clear the corresponding Azure settings.
+
 ## CAES AI configuration
 
 To enable the assistant in a `test` or `prod` GitHub Environment, supply all four settings before deployment. Leave all four absent to deploy with the assistant disabled:

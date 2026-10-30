@@ -13,12 +13,12 @@ namespace Server.Tests.Workflow;
 public class StageDocumentationTests
 {
     [Fact]
-    public void Configuration_binds_existing_stage_ids_and_serializes_camel_case_links()
+    public void Configuration_binds_underscore_stage_keys_and_serializes_camel_case_links()
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["StageDocumentation:Stages:expense-review:Url"] = "https://ucdavis.app.box.com/notes/123",
-            ["StageDocumentation:Stages:expense-review:EmbedUrl"] = "https://ucdavis.box.com/embed/s/example",
+            ["StageDocumentation:Stages:expense_review:Url"] = "https://ucdavis.app.box.com/notes/123",
+            ["StageDocumentation:Stages:expense_review:EmbedUrl"] = "https://ucdavis.box.com/embed/s/example",
         }).Build();
         var options = configuration.GetSection("StageDocumentation").Get<StageDocumentationOptions>()!;
         var documentation = new StageDocumentationConfiguration(Options.Create(options), new RecordingLogger<StageDocumentationConfiguration>());
@@ -36,9 +36,9 @@ public class StageDocumentationTests
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            [$"StageDocumentation:Stages:expense-review:{field}"] = "https://box.com/notes/123",
-            ["StageDocumentation:Stages:data-import:Url"] = "https://box.com/notes/456",
-            ["StageDocumentation:Stages:data-import:EmbedUrl"] = "https://box.com/embed/s/example",
+            [$"StageDocumentation:Stages:expense_review:{field}"] = "https://box.com/notes/123",
+            ["StageDocumentation:Stages:data_import:Url"] = "https://box.com/notes/456",
+            ["StageDocumentation:Stages:data_import:EmbedUrl"] = "https://box.com/embed/s/example",
         }).Build();
         var options = configuration.GetSection("StageDocumentation").Get<StageDocumentationOptions>()!;
         var logger = new RecordingLogger<StageDocumentationConfiguration>();
@@ -61,10 +61,10 @@ public class StageDocumentationTests
         {
             Stages = new()
             {
-                ["expense-review"] = new(invalid, "https://box.com/embed/s/example"),
-                ["data-import"] = new("https://app.box.com/notes/123", invalid),
-                ["unknown-stage"] = new("https://box.com/notes/123", "https://box.com/embed/s/example"),
-                ["orgr-review"] = null,
+                ["expense_review"] = new(invalid, "https://box.com/embed/s/example"),
+                ["data_import"] = new("https://app.box.com/notes/123", invalid),
+                ["unknown_stage"] = new("https://box.com/notes/123", "https://box.com/embed/s/example"),
+                ["orgr_review"] = null,
             },
         };
         var logger = new RecordingLogger<StageDocumentationConfiguration>();

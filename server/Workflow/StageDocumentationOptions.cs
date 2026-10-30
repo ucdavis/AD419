@@ -18,13 +18,15 @@ public sealed class StageDocumentationConfiguration
         var stages = new Dictionary<string, StageDocumentationLink>();
         foreach (var (stageId, link) in options.Value.Stages)
         {
-            if (WorkflowStages.Find(stageId) == null || link == null ||
+            var stage = WorkflowStages.All.SingleOrDefault(stage =>
+                string.Equals(stage.Id.Replace('-', '_'), stageId, StringComparison.OrdinalIgnoreCase));
+            if (stage == null || link == null ||
                 !IsBoxUrl(link.Url) || !IsBoxUrl(link.EmbedUrl))
             {
                 logger.LogWarning("Stage documentation for {StageId} is invalid and will be unavailable. Use HTTPS Box URLs for both Url and EmbedUrl.", stageId);
                 continue;
             }
-            stages[WorkflowStages.Find(stageId)!.Id] = link;
+            stages[stage.Id] = link;
         }
         Stages = stages;
     }
