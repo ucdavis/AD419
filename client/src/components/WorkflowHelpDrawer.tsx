@@ -55,6 +55,7 @@ function Documentation({ stage }: { stage: WorkflowStage }) {
       {desktop ? (
         <iframe
           className="min-h-80 w-full flex-1 border-0"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
           src={note.embedUrl}
           title={`${stage.title} documentation`}
         />
