@@ -12,6 +12,39 @@ public sealed class ExpenseReviewController(
     IExpenseReviewService expenseReviewService,
     IConfirmedCycleProvider confirmedCycles) : ApiControllerBase
 {
+    [HttpGet("groups/{groupId}/transactions")]
+    public async Task<IActionResult> GroupTransactions(string groupId,
+        [FromQuery] ExpenseReviewGroupTransactionsQuery query, CancellationToken cancellationToken)
+    {
+        if (!ExpenseReviewGroupTransactionsParser.TryParse(groupId, query, out var request, out var error))
+            return BadRequest(error);
+        var (cycle, cycleError) = await GetConfirmedCycleAsync(cancellationToken);
+        if (cycle is null) return cycleError!;
+        var response = await expenseReviewService.GetGroupTransactionsAsync(cycle, request, cancellationToken);
+        return response is null ? NotFound("The group does not exist in the supplied context.") : Ok(response);
+    }
+
+    [HttpGet("groups/{groupId}/transactions.csv")]
+    public async Task<IActionResult> GroupTransactionsCsv(string groupId,
+        [FromQuery] ExpenseReviewGroupTransactionsQuery query, CancellationToken cancellationToken)
+    {
+        if (!ExpenseReviewGroupTransactionsParser.TryParse(groupId, query, out var request, out var error))
+            return BadRequest(error);
+        var (cycle, cycleError) = await GetConfirmedCycleAsync(cancellationToken);
+        if (cycle is null) return cycleError!;
+        var response = await expenseReviewService.GetGroupTransactionsAsync(cycle,
+            request with { Context = request.Context with { Page = 1, PageSize = 1 } }, cancellationToken);
+        if (response is null) return NotFound("The group does not exist in the supplied context.");
+        Response.ContentType = "text/csv; charset=utf-8";
+        Response.Headers[HeaderNames.ContentDisposition] = new ContentDispositionHeaderValue("attachment")
+        {
+            FileNameStar = $"expense-review-{cycle.FiscalYear}-{response.Group.Source}-{request.GroupId}.csv",
+        }.ToString();
+        await expenseReviewService.WriteGroupTransactionsCsvAsync(cycle, request, response.Group,
+            Response.Body, cancellationToken);
+        return new EmptyResult();
+    }
+
     [HttpGet("transactions")]
     public async Task<IActionResult> Transactions(
         [FromQuery] ExpenseReviewTransactionsQuery query,
