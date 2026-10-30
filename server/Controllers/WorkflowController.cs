@@ -7,6 +7,10 @@ namespace Server.Controllers;
 
 public sealed class WorkflowController(IWorkflowService workflowService) : ApiControllerBase
 {
+    [HttpGet("documentation")]
+    public ActionResult<IReadOnlyDictionary<string, StageDocumentationLink>> Documentation(
+        [FromServices] StageDocumentationConfiguration documentation) => Ok(documentation.Stages);
+
     [HttpGet("snapshot")]
     public async Task<ActionResult<WorkflowSnapshotResponse>> Snapshot(
         CancellationToken cancellationToken)

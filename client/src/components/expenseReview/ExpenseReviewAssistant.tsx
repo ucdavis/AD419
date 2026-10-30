@@ -6,14 +6,12 @@ import {
   type AssistantSession,
   type AssistantUiBridge,
 } from '@ucdavis/caes-ai-assistant-react';
-import {
-  AssistantDrawer,
-  AssistantLauncher,
-} from '@ucdavis/caes-ai-assistant-react/ui';
+import { AssistantInline } from '@ucdavis/caes-ai-assistant-react/ui';
 import '@ucdavis/caes-ai-assistant-react/theme.css';
+import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { getRouteApi } from '@tanstack/react-router';
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const routeApi = getRouteApi('/(authenticated)/workflow/$stageId');
 
@@ -64,7 +62,7 @@ export function AssistantToast({
   );
 }
 
-export function ExpenseReviewAssistant({ children }: { children: ReactNode }) {
+export function ExpenseReviewAssistant() {
   const search = routeApi.useSearch();
   const navigate = routeApi.useNavigate();
   const queryClient = useQueryClient();
@@ -106,19 +104,14 @@ export function ExpenseReviewAssistant({ children }: { children: ReactNode }) {
       title="Expense Review Assistant"
       uiBridge={uiBridge}
     >
-      <div className="expense-review-assistant">
-        <div className="flex justify-end">
-          <AssistantLauncher className="btn btn-primary btn-sm" />
-        </div>
-        {children}
-        <div id="caes-ai-assistant-drawer">
-          <AssistantDrawer
-            panelProps={{
-              composerProps: { placeholder: 'Ask about expense review' },
-            }}
-          />
-        </div>
-        <AssistantToast onDismiss={dismissToast} toast={toast} />
+      <div className="expense-review-assistant h-full">
+        <AssistantInline
+          composerProps={{ placeholder: 'Ask about expense review' }}
+        />
+        {createPortal(
+          <AssistantToast onDismiss={dismissToast} toast={toast} />,
+          document.body
+        )}
       </div>
     </AssistantProvider>
   );

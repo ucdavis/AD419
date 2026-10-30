@@ -1,6 +1,6 @@
 # Expense Review assistant: local development
 
-The Expense Review stage embeds a CAES AI chat drawer. Locally, ad419 talks to the shared CAES AI **test** instance in Azure, and that instance calls back into your machine through a Microsoft dev tunnel when the model uses a server tool.
+The Expense Review stage exposes CAES AI in the shared workflow help drawer. The assistant mounts on first use, retains its conversation and draft while closing or switching tabs, and is disposed when leaving Expense Review. Locally, ad419 talks to the shared CAES AI **test** instance in Azure, and that instance calls back into your machine through a Microsoft dev tunnel when the model uses a server tool.
 
 ## One-time setup
 

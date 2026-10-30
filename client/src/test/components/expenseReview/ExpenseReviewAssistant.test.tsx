@@ -44,7 +44,8 @@ const emptyTransactions = {
 function sessionResponse() {
   return {
     accessToken: 'browser-session-token-that-is-long-enough-for-zod',
-    chatUrl: 'https://caes-ai.test/v1/sessions/00000000-0000-4000-8000-000000000001/chat',
+    chatUrl:
+      'https://caes-ai.test/v1/sessions/00000000-0000-4000-8000-000000000001/chat',
     expiresAt: new Date(Date.now() + 60_000).toISOString(),
     modelPolicy: {
       allowedReasoningEfforts: ['none'],
@@ -65,14 +66,19 @@ function mockApi(sessionRequests: { count: number }) {
     http.get('/api/workflow/snapshot', () =>
       HttpResponse.json(
         createWorkflowSnapshot({
+          'auto-associations': 'Complete',
           'data-classification': 'Complete',
           'data-import': 'Complete',
-          'expense-review': 'InProgress',
+          'expense-review': 'Complete',
+          'manual-associations': 'InProgress',
+          'orgr-review': 'Complete',
           'project-identification': 'Complete',
         })
       )
     ),
-    http.get('/api/expensereview/filters', () => HttpResponse.json(emptyFilters)),
+    http.get('/api/expensereview/filters', () =>
+      HttpResponse.json(emptyFilters)
+    ),
     http.get('/api/expensereview/transactions', () =>
       HttpResponse.json(emptyTransactions)
     ),
@@ -84,19 +90,195 @@ function mockApi(sessionRequests: { count: number }) {
 }
 
 describe('Expense Review assistant', () => {
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', () => ({
+      addEventListener: vi.fn(),
+      matches: true,
+      removeEventListener: vi.fn(),
+    }));
+    server.use(
+      http.get('/api/workflow/documentation', () => HttpResponse.json({}))
+    );
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('preserves draft across tabs and closing, then disposes it on stage navigation', async () => {
+    const user = userEvent.setup();
+    const sessionRequests = { count: 0 };
+    mockApi(sessionRequests);
+    const { cleanup, router } = renderRoute({
+      initialPath: '/workflow/expense-review',
+    });
+    try {
+      await user.click(
+        await screen.findByRole('button', { name: 'Documentation' })
+      );
+      await screen.findByText(
+        'Documentation has not been configured for this stage.'
+      );
+      expect(sessionRequests.count).toBe(0);
+      await user.click(screen.getByRole('tab', { name: 'Ask CAES AI' }));
+      const composer = await screen.findByPlaceholderText(
+        'Ask about expense review'
+      );
+      await waitFor(() => expect(sessionRequests.count).toBe(1));
+      await user.type(composer, 'Keep my draft');
+      await user.click(screen.getByRole('tab', { name: 'Documentation' }));
+      expect(composer.closest('[role="tabpanel"]')).toHaveAttribute('inert');
+      await user.click(
+        screen.getByRole('button', { name: 'Close help drawer' })
+      );
+      await user.click(screen.getByRole('button', { name: 'Ask CAES AI' }));
+      expect(
+        screen.getByPlaceholderText('Ask about expense review')
+      ).toHaveValue('Keep my draft');
+      expect(sessionRequests.count).toBe(1);
+      await act(() =>
+        router.navigate({
+          params: { stageId: 'manual-associations' },
+          to: '/workflow/$stageId',
+        })
+      );
+      expect(
+        screen.queryByPlaceholderText('Ask about expense review')
+      ).not.toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('does not move focus when a session finishes while Documentation is selected', async () => {
+    const user = userEvent.setup();
+    mockApi({ count: 0 });
+    const ready = Promise.withResolvers<void>();
+    const started = Promise.withResolvers<void>();
+    server.use(
+      http.post('/api/assistant/session', async () => {
+        started.resolve();
+        await ready.promise;
+        return HttpResponse.json(sessionResponse());
+      })
+    );
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/expense-review',
+    });
+    try {
+      await user.click(
+        await screen.findByRole('button', { name: 'Ask CAES AI' })
+      );
+      await started.promise;
+      await user.click(screen.getByRole('tab', { name: 'Documentation' }));
+      const docs = screen.getByRole('tab', { name: 'Documentation' });
+      await act(async () => {
+        ready.resolve();
+      });
+      await waitFor(() =>
+        expect(
+          screen.getByPlaceholderText('Ask about expense review')
+        ).not.toBeDisabled()
+      );
+      expect(docs).toHaveFocus();
+      expect(document.querySelector('#assistant-panel')).toHaveAttribute(
+        'inert'
+      );
+    } finally {
+      ready.resolve();
+      cleanup();
+    }
+  });
+
+  it('preserves sent messages across tab changes and closing', async () => {
+    const user = userEvent.setup();
+    mockApi({ count: 0 });
+    server.use(
+      http.post(
+        sessionResponse().chatUrl,
+        () =>
+          new HttpResponse(
+            [
+              {
+                runId: 'test-run',
+                threadId: 'test-thread',
+                type: 'RUN_STARTED',
+              },
+              {
+                messageId: 'reply',
+                role: 'assistant',
+                type: 'TEXT_MESSAGE_START',
+              },
+              {
+                delta: 'Review complete.',
+                messageId: 'reply',
+                type: 'TEXT_MESSAGE_CONTENT',
+              },
+              { messageId: 'reply', type: 'TEXT_MESSAGE_END' },
+              {
+                runId: 'test-run',
+                threadId: 'test-thread',
+                type: 'RUN_FINISHED',
+              },
+            ]
+              .map(
+                (event) =>
+                  `data: ${JSON.stringify({ ...event, metadata: { caesAi: { protocolVersion: 1 } } })}\n\n`
+              )
+              .join(''),
+            {
+              headers: {
+                'Content-Type': 'text/event-stream',
+                'X-CAES-AI-Protocol-Version': '1',
+              },
+            }
+          )
+      )
+    );
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/expense-review',
+    });
+    try {
+      await user.click(
+        await screen.findByRole('button', { name: 'Ask CAES AI' })
+      );
+      const composer = await screen.findByPlaceholderText(
+        'Ask about expense review'
+      );
+      await waitFor(() => expect(composer).not.toBeDisabled());
+      await user.type(composer, 'Check my expenses');
+      await user.click(
+        screen.getByRole('button', { name: /^Send$/ })
+      );
+      await screen.findByText('Review complete.');
+      await user.click(screen.getByRole('tab', { name: 'Documentation' }));
+      await user.click(
+        screen.getByRole('button', { name: 'Close help drawer' })
+      );
+      await user.click(screen.getByRole('button', { name: 'Ask CAES AI' }));
+      expect(screen.getByText('Check my expenses')).toBeVisible();
+      expect(screen.getByText('Review complete.')).toBeVisible();
+    } finally {
+      cleanup();
+    }
+  });
+
   it('shows the launcher and only creates a session when opened', async () => {
     const user = userEvent.setup();
     const sessionRequests = { count: 0 };
     mockApi(sessionRequests);
-    const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/expense-review',
+    });
 
     try {
-      const launcher = await screen.findByRole('button', { name: 'Ask CAES AI' });
+      const launcher = await screen.findByRole('button', {
+        name: 'Ask CAES AI',
+      });
       expect(sessionRequests.count).toBe(0);
 
       await user.click(launcher);
 
-      expect(await screen.findByRole('dialog', { name: 'Assistant' })).toBeInTheDocument();
+      expect(
+        await screen.findByRole('complementary', { name: 'Stage help' })
+      ).toBeInTheDocument();
       await waitFor(() => {
         expect(sessionRequests.count).toBe(1);
       });
@@ -116,14 +298,19 @@ describe('Expense Review assistant', () => {
         )
       )
     );
-    const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/expense-review',
+    });
 
     try {
-      await user.click(await screen.findByRole('button', { name: 'Ask CAES AI' }));
+      await user.click(
+        await screen.findByRole('button', { name: 'Ask CAES AI' })
+      );
 
       expect(
         await screen.findByText(/unavailable|failed|error/i, {
-          selector: '[data-caes-ai-slot="error"], [data-caes-ai-slot="error"] *',
+          selector:
+            '[data-caes-ai-slot="error"], [data-caes-ai-slot="error"] *',
         })
       ).toBeInTheDocument();
     } finally {
