@@ -126,6 +126,101 @@ describe('DataTable', () => {
     expect(onSortingChange).toHaveBeenCalledWith([{ desc: false, id: 'name' }]);
   });
 
+  it.each(['click', 'Enter', 'Space'])(
+    'replaces the manual sort criterion with Shift+%s',
+    async (activation) => {
+      const user = userEvent.setup();
+      const onSortingChange = vi.fn();
+
+      render(
+        <DataTable
+          columns={columns}
+          data={makeRows(2)}
+          initialState={{ sorting: [{ desc: false, id: 'name' }] }}
+          manualSorting
+          onSortingChange={onSortingChange}
+        />
+      );
+
+      const nameHeader = screen.getByRole('columnheader', { name: /Name/ });
+      const statusHeader = screen.getByRole('columnheader', {
+        name: 'Status',
+      });
+      expect(nameHeader).toHaveAttribute('aria-sort', 'ascending');
+
+      await user.keyboard('{Shift>}');
+      if (activation === 'click') {
+        await user.click(statusHeader);
+      } else {
+        statusHeader.focus();
+        await user.keyboard(activation === 'Enter' ? '{Enter}' : ' ');
+      }
+      await user.keyboard('{/Shift}');
+
+      expect(onSortingChange).toHaveBeenCalledExactlyOnceWith([
+        { desc: false, id: 'status' },
+      ]);
+      expect(statusHeader).toHaveAttribute('aria-sort', 'ascending');
+      expect(statusHeader).toHaveTextContent('🔼');
+      expect(nameHeader).not.toHaveAttribute('aria-sort');
+      expect(nameHeader).not.toHaveTextContent(/🔼|🔽/);
+
+      await user.click(statusHeader);
+      expect(onSortingChange).toHaveBeenLastCalledWith([
+        { desc: true, id: 'status' },
+      ]);
+      expect(statusHeader).toHaveAttribute('aria-sort', 'descending');
+
+      await user.click(statusHeader);
+      expect(onSortingChange).toHaveBeenLastCalledWith([]);
+      expect(statusHeader).not.toHaveAttribute('aria-sort');
+      expect(statusHeader).not.toHaveTextContent(/🔼|🔽/);
+    }
+  );
+
+  it('retains the primary local sort and sorts tied rows by the Shift-clicked column', async () => {
+    const user = userEvent.setup();
+    const onSortingChange = vi.fn();
+
+    render(
+      <DataTable
+        columns={columns}
+        data={[
+          { name: 'Delta', status: 'Excluded' },
+          { name: 'Beta', status: 'Excluded' },
+          { name: 'Charlie', status: 'Included' },
+          { name: 'Alpha', status: 'Included' },
+        ]}
+        initialState={{ sorting: [{ desc: false, id: 'status' }] }}
+        onSortingChange={onSortingChange}
+      />
+    );
+
+    const body = screen.getAllByRole('rowgroup')[1];
+    const rowNames = () =>
+      within(body)
+        .getAllByRole('row')
+        .map((row) => within(row).getAllByRole('cell')[0].textContent);
+    expect(rowNames()).toEqual(['Delta', 'Beta', 'Charlie', 'Alpha']);
+
+    await user.keyboard('{Shift>}');
+    await user.click(screen.getByRole('columnheader', { name: 'Name' }));
+    await user.keyboard('{/Shift}');
+
+    expect(onSortingChange).toHaveBeenCalledExactlyOnceWith([
+      { desc: false, id: 'status' },
+      { desc: false, id: 'name' },
+    ]);
+    expect(rowNames()).toEqual(['Beta', 'Delta', 'Alpha', 'Charlie']);
+    expect(
+      screen.getByRole('columnheader', { name: /Status/ })
+    ).toHaveAttribute('aria-sort', 'ascending');
+    expect(screen.getByRole('columnheader', { name: /Name/ })).toHaveAttribute(
+      'aria-sort',
+      'ascending'
+    );
+  });
+
   it('hides and shows columns through table column visibility state', async () => {
     const user = userEvent.setup();
 

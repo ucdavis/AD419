@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode, type MouseEvent } from 'react';
 import {
   ColumnDef,
   flexRender,
@@ -42,6 +42,7 @@ interface DataTableProps<TData extends object> {
   onColumnVisibilityChange?: (columnVisibility: VisibilityState) => void;
   onPageIndexChange?: (pageIndex: number) => void;
   onPageSizeChange?: (pageSize: number) => void;
+  onRowClick?: (row: TData, event: MouseEvent<HTMLTableRowElement>) => void;
   onSortingChange?: (sorting: SortingState) => void;
   pageCount?: number;
   pageIndex?: number;
@@ -73,6 +74,7 @@ export const DataTable = <TData extends object>({
   onColumnVisibilityChange,
   onPageIndexChange,
   onPageSizeChange,
+  onRowClick,
   onSortingChange,
   pageCount: manualPageCount,
   pageIndex,
@@ -86,16 +88,16 @@ export const DataTable = <TData extends object>({
   const [pageInputValue, setPageInputValue] = useState('');
   const [internalColumnVisibility, setInternalColumnVisibility] =
     useState<VisibilityState>(initialState?.columnVisibility ?? {});
-  const [internalPagination, setInternalPagination] =
-    useState<PaginationState>({
+  const [internalPagination, setInternalPagination] = useState<PaginationState>(
+    {
       pageIndex: initialState?.pagination?.pageIndex ?? 0,
       pageSize: initialState?.pagination?.pageSize ?? 10,
-    });
+    }
+  );
   const [internalSorting, setInternalSorting] = useState<SortingState>(
     initialState?.sorting ?? []
   );
-  const resolvedColumnVisibility =
-    columnVisibility ?? internalColumnVisibility;
+  const resolvedColumnVisibility = columnVisibility ?? internalColumnVisibility;
   const resolvedPagination = {
     pageIndex: pageIndex ?? internalPagination.pageIndex,
     pageSize: pageSize ?? internalPagination.pageSize,
@@ -153,6 +155,7 @@ export const DataTable = <TData extends object>({
     autoResetPageIndex: false, // keep the current page when data updates in place
     columns,
     data,
+    enableMultiSort: !manualSorting,
     getCoreRowModel: getCoreRowModel(), // basic rendering
     getFilteredRowModel: getFilteredRowModel(), // enable filtering feature
     getPaginationRowModel: getPaginationRowModel(), // enable pagination calculations
@@ -258,6 +261,13 @@ export const DataTable = <TData extends object>({
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
                   <th
+                    aria-sort={
+                      header.column.getIsSorted() === 'asc'
+                        ? 'ascending'
+                        : header.column.getIsSorted() === 'desc'
+                          ? 'descending'
+                          : undefined
+                    }
                     className={[
                       'cursor-pointer',
                       headerClassName,
@@ -267,6 +277,17 @@ export const DataTable = <TData extends object>({
                       .join(' ')}
                     key={header.id}
                     onClick={header.column.getToggleSortingHandler?.()}
+                    onKeyDown={
+                      header.column.getCanSort()
+                        ? (event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              header.column.getToggleSortingHandler()?.(event);
+                            }
+                          }
+                        : undefined
+                    }
+                    tabIndex={header.column.getCanSort() ? 0 : undefined}
                   >
                     {header.isPlaceholder
                       ? null
@@ -287,7 +308,26 @@ export const DataTable = <TData extends object>({
           </thead>
           <tbody>
             {table.getRowModel().rows.map((row) => (
-              <tr key={row.id}>
+              <tr
+                className={
+                  onRowClick ? 'cursor-pointer hover:bg-base-200' : undefined
+                }
+                key={row.id}
+                onClick={
+                  onRowClick
+                    ? (event) => {
+                        if (
+                          (event.target as HTMLElement).closest(
+                            'button, a, input, select, textarea'
+                          )
+                        ) {
+                          return;
+                        }
+                        onRowClick(row.original, event);
+                      }
+                    : undefined
+                }
+              >
                 {row.getVisibleCells().map((cell) => (
                   <td
                     className={[
@@ -311,7 +351,9 @@ export const DataTable = <TData extends object>({
             <select
               aria-label="Rows per page"
               className="select select-bordered select-xs w-20"
-              onChange={(event) => table.setPageSize(Number(event.target.value))}
+              onChange={(event) =>
+                table.setPageSize(Number(event.target.value))
+              }
               value={currentPageSize}
             >
               {selectablePageSizes.map((pageSize) => (

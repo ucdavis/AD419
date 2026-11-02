@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Server.Models.ExpenseReview;
 
-public sealed class ExpenseReviewTransactionsQuery
+public class ExpenseReviewTransactionsQuery
 {
     public string? IncludeState { get; init; }
 

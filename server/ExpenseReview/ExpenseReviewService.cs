@@ -9,7 +9,7 @@ using Server.Models.ExpenseReview;
 
 namespace Server.ExpenseReview;
 
-public sealed class ExpenseReviewService(
+public sealed partial class ExpenseReviewService(
     DataDbContext dataDbContext,
     IConfiguration configuration,
     IMemoryCache? filterOptionsCache = null) : IExpenseReviewService
@@ -737,6 +737,8 @@ public sealed class ExpenseReviewService(
         (
             SELECT
                 CAST(CONCAT('AE:', a.[Id]) AS NVARCHAR(160)) AS [Id],
+                a.[Id] AS [AeTransactionId],
+                CAST(NULL AS NVARCHAR(125)) AS [LaborTransactionId],
                 CAST('AE' AS NVARCHAR(3)) AS [Source],
                 a.[Entity] AS [EntityCode],
                 a.[EntityDescription] AS [EntityName],
@@ -782,6 +784,8 @@ public sealed class ExpenseReviewService(
 
             SELECT
                 CAST(CONCAT('UCP:', u.[LaborTransactionId]) AS NVARCHAR(160)) AS [Id],
+                CAST(NULL AS BIGINT) AS [AeTransactionId],
+                u.[LaborTransactionId] AS [LaborTransactionId],
                 CAST('UCP' AS NVARCHAR(3)) AS [Source],
                 u.[Entity] AS [EntityCode],
                 COALESCE(NULLIF(entitySegment.[ValueDesc], ''), NULLIF(entitySegment.[Description], '')) AS [EntityName],

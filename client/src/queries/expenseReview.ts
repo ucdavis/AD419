@@ -218,3 +218,100 @@ export const expenseReviewFilterOptionsQueryOptions = () =>
       ),
     queryKey: ['expenseReview', 'filters'],
   });
+
+export type ExpenseReviewDetailSortBy =
+  | 'transactionDate'
+  | 'accountingPeriod'
+  | 'employeeName'
+  | 'positionNumber'
+  | 'ernCode'
+  | 'salaryFringe'
+  | 'jobCode'
+  | 'hours'
+  | 'calculatedFte'
+  | 'id'
+  | 'accountingSequenceNumber'
+  | 'journalName'
+  | 'lineDescription'
+  | 'documentType'
+  | 'journalReference'
+  | 'amount';
+
+export interface ExpenseReviewTransactionDetail {
+  accountingPeriod: string | null;
+  accountingSequenceNumber: string | null;
+  amount: number | null;
+  calculatedFte: number | null;
+  documentType: string | null;
+  employeeName: string | null;
+  ernCode: string | null;
+  ernDescription: string | null;
+  exclusionReasons: ExpenseReviewExclusionReason[];
+  hours: number | null;
+  id: string;
+  jobCode: string | null;
+  journalName: string | null;
+  journalReference: string | null;
+  lineDescription: string | null;
+  positionNumber: string | null;
+  salaryFringe: string | null;
+  transactionDate: string | null;
+}
+
+export interface ExpenseReviewGroupTransactionsResponse {
+  cycleEnd: string;
+  cycleStart: string;
+  fiscalYear: string;
+  group: ExpenseReviewTransaction;
+  matchingAmount: number;
+  matchingCount: number;
+  page: number;
+  pageCount: number;
+  pageSize: number;
+  rows: ExpenseReviewTransactionDetail[];
+  transactionCount: number;
+}
+
+export interface ExpenseReviewGroupTransactionsParams {
+  context: ExpenseReviewTransactionsCsvParams;
+  groupId: string;
+  page: number;
+  pageSize: number;
+  search: string;
+  sortBy: ExpenseReviewDetailSortBy;
+  sortDirection: ExpenseReviewSortDirection;
+}
+
+function groupTransactionsUrl(
+  params: ExpenseReviewGroupTransactionsParams,
+  csv = false
+) {
+  const search = appendParams(params.context, false);
+  search.set('detailSortBy', params.sortBy);
+  search.set('detailSortDirection', params.sortDirection);
+  if (params.search) {
+    search.set('search', params.search);
+  }
+  if (!csv) {
+    search.set('page', String(params.page));
+    search.set('pageSize', String(params.pageSize));
+  }
+  return `/api/expensereview/groups/${encodeURIComponent(params.groupId)}/transactions${csv ? '.csv' : ''}?${search}`;
+}
+
+export const expenseReviewGroupTransactionsQueryOptions = (
+  params: ExpenseReviewGroupTransactionsParams
+) =>
+  queryOptions({
+    queryFn: ({ signal }) =>
+      fetchJson<ExpenseReviewGroupTransactionsResponse>(
+        groupTransactionsUrl(params),
+        {},
+        signal
+      ),
+    queryKey: ['expenseReview', 'groupTransactions', params],
+  });
+
+export const buildExpenseReviewGroupTransactionsCsvUrl = (
+  params: ExpenseReviewGroupTransactionsParams
+) => groupTransactionsUrl(params, true);
