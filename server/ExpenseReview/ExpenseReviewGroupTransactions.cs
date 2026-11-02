@@ -100,7 +100,8 @@ public sealed partial class ExpenseReviewService
 
             DELETE FROM #Details WHERE @search IS NOT NULL AND NOT EXISTS (
                 SELECT 1 FROM (VALUES
-                    ([Id]), ([AccountingPeriod]), ([EmployeeName]), ([PositionNumber]), ([ErnCode]),
+                    (CONVERT(NVARCHAR(30), [AeTransactionId])), ([LaborTransactionId]),
+                    ([AccountingPeriod]), ([EmployeeName]), ([PositionNumber]), ([ErnCode]),
                     ([ErnDescription]), ([SalaryFringe]), ([JobCode]), ([AccountingSequenceNumber]),
                     ([JournalName]), ([LineDescription]), ([DocumentType]), ([JournalReference])) textFields([Value])
                 WHERE CHARINDEX(@search COLLATE Latin1_General_100_CI_AS, textFields.[Value] COLLATE Latin1_General_100_CI_AS) > 0)

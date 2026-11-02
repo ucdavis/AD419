@@ -1104,6 +1104,131 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         csvIds.Should().Equal(pagedIds);
     }
 
+    [Theory]
+    [InlineData("AE", "AE")]
+    [InlineData("AE", ":")]
+    [InlineData("UCP", "UCP")]
+    [InlineData("UCP", "CP")]
+    [InlineData("UCP", ":")]
+    public async Task Detail_id_search_ignores_internal_prefixes(string source, string search)
+    {
+        await SeedDetailIdSearchScenarioAsync();
+        await AssertDetailIdSearchAsync(source, search, [], 0m);
+    }
+
+    [Theory]
+    [InlineData("AE", "9007199254740993")]
+    [InlineData("AE", "925474099")]
+    [InlineData("UCP", "JRN24|RUN-2")]
+    [InlineData("UCP", "run-2")]
+    public async Task Detail_id_search_matches_full_and_partial_native_ids(string source, string search)
+    {
+        await SeedDetailIdSearchScenarioAsync();
+        var expectedId = source == "AE" ? "9007199254740993" : "JRN24|RUN-2";
+        await AssertDetailIdSearchAsync(source, search, [expectedId], source == "AE" ? 30m : 10m);
+    }
+
+    [Theory]
+    [InlineData("AE", "ae")]
+    [InlineData("AE", ":")]
+    [InlineData("UCP", "ucp")]
+    [InlineData("UCP", "cp")]
+    [InlineData("UCP", ":")]
+    public async Task Detail_id_search_preserves_prefix_text_in_native_ids_and_other_fields(string source, string search)
+    {
+        await SeedDetailIdSearchScenarioAsync();
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.ExecuteAsync("""
+            UPDATE [data].[AETransactions] SET [JournalReference] = N'AE:reference' WHERE [Id] = 2;
+            UPDATE [data].[UcPathTransactions] SET [LaborTransactionId] = N'UCP:RUN-2'
+            WHERE [LaborTransactionId] = N'JRN24|RUN-2';
+            """);
+        await AssertDetailIdSearchAsync(source, search, [source == "AE" ? "2" : "UCP:RUN-2"], 10m);
+    }
+
+    [Fact]
+    public async Task Detail_id_search_exports_all_native_id_matches_beyond_the_first_page()
+    {
+        await SeedDetailIdSearchScenarioAsync();
+        await AssertDetailIdSearchAsync("UCP", "run-", ["JRN24|RUN-10", "JRN24|RUN-100", "JRN24|RUN-2"], 60m);
+    }
+
+    private async Task AssertDetailIdSearchAsync(string source, string search, string[] expectedIds, decimal expectedAmount)
+    {
+        await using var db = fixture.CreateDataDbContext();
+        var service = new ExpenseReviewService(db, Configuration());
+        var context = Request(filters: Filters(source: [source]), pageSize: 2);
+        var group = (await service.GetTransactionsAsync(Cycle(), context, CancellationToken.None)).Rows.Single();
+        var request = new ExpenseReviewGroupTransactionsRequest(group.Id, context, "id", false, search);
+        var response = (await service.GetGroupTransactionsAsync(Cycle(), request, CancellationToken.None))!;
+        response.TransactionCount.Should().Be(3);
+        response.Group.Should().BeEquivalentTo(group);
+        response.Group.Amount.Should().Be(60m);
+        response.MatchingCount.Should().Be(expectedIds.Length);
+        response.MatchingAmount.Should().Be(expectedAmount);
+        response.PageCount.Should().Be((int)Math.Ceiling(expectedIds.Length / 2d));
+        response.Rows.Select(row => row.Id).Should().Equal(expectedIds.Take(2));
+
+        await using var output = new MemoryStream();
+        await service.WriteGroupTransactionsCsvAsync(Cycle(), request, group, output, CancellationToken.None);
+        output.Position = 0;
+        using var csv = new CsvHelper.CsvReader(new StreamReader(output), System.Globalization.CultureInfo.InvariantCulture);
+        (await csv.ReadAsync()).Should().BeTrue();
+        csv.ReadHeader();
+        var idColumn = source == "AE" ? "Transaction ID" : "Labor transaction ID";
+        csv.HeaderRecord.Should().Contain(idColumn);
+        List<string> csvIds = [];
+        decimal csvAmount = 0m;
+        while (await csv.ReadAsync())
+        {
+            csvIds.Add(csv.GetField(idColumn)!);
+            csvAmount += csv.GetField<decimal>("Amount");
+        }
+        csvIds.Should().Equal(expectedIds);
+        csvAmount.Should().Be(expectedAmount);
+    }
+
+    private async Task SeedDetailIdSearchScenarioAsync()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+        // Retain classifications while keeping native IDs out of every other searchable field.
+        await connection.ExecuteAsync("DELETE FROM [data].[AETransactions]; DELETE FROM [data].[UcPathTransactions];");
+        await connection.ExecuteAsync("SET IDENTITY_INSERT [data].[AETransactions] ON;");
+        try
+        {
+            await connection.ExecuteAsync("""
+                INSERT INTO [data].[AETransactions]
+                    ([Id], [Entity], [Fund], [FinancialDepartment], [Account], [Purpose], [Program], [Project], [Activity],
+                     [PeriodName], [Amount], [ExcludedByDate], [AccountInUcPath])
+                VALUES
+                    (2, '3310', 'F1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'Oct-24', 10, 0, 0),
+                    (10, '3310', 'F1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'Oct-24', 20, 0, 0),
+                    (9007199254740993, '3310', 'F1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'Oct-24', 30, 0, 0);
+                """);
+        }
+        finally
+        {
+            await connection.ExecuteAsync("SET IDENTITY_INSERT [data].[AETransactions] OFF;");
+        }
+        await connection.ExecuteAsync("""
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [PositionNumber],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
+            VALUES
+                ('JRN24|RUN-2', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01',
+                 '20000001', 'POS00001', 1, 10, 0.5, '2024-10-15', 'S', 2025, '4', 0, 0, 0, 0),
+                ('JRN24|RUN-10', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01',
+                 '20000001', 'POS00001', 1, 20, 0.5, '2024-10-15', 'S', 2025, '4', 0, 0, 0, 0),
+                ('JRN24|RUN-100', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01',
+                 '20000001', 'POS00001', 1, 30, 0.5, '2024-10-15', 'S', 2025, '4', 0, 0, 0, 0);
+            """);
+    }
+
     private async Task SeedExpenseReviewScenarioAsync()
     {
         await using var connection = new SqlConnection(fixture.ConnectionString);
