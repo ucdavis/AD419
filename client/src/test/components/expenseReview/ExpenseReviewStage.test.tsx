@@ -582,6 +582,69 @@ describe('Expense Review stage', () => {
     }
   });
 
+  it('narrows filter dropdowns to options valid for the current selections', async () => {
+    const user = userEvent.setup();
+    const filterRequests: URL[] = [];
+    mockExpenseReviewApi();
+    server.use(
+      http.get('/api/expensereview/filters', ({ request }) => {
+        const url = new URL(request.url);
+        filterRequests.push(url);
+        const byDept = url.searchParams.getAll('financialDept').length > 0;
+        return HttpResponse.json({
+          ...filtersResponse,
+          financialDepts: [
+            ...filtersResponse.financialDepts,
+            { label: 'D0999 - Other Dept', value: 'D0999' },
+          ],
+          funds: byDept
+            ? filtersResponse.funds
+            : [
+                ...filtersResponse.funds,
+                { label: 'F9 - Other Fund', value: 'F9' },
+              ],
+        });
+      })
+    );
+    const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });
+
+    try {
+      await screen.findByRole('tab', { name: /grouped expenses/i });
+      await user.click(screen.getByLabelText('Fund filter'));
+      expect(
+        screen.getByRole('option', { name: 'F9 - Other Fund' })
+      ).toBeInTheDocument();
+      await user.keyboard('{Escape}');
+
+      await chooseFilterOption(
+        user,
+        'Financial Dept',
+        'D0123 - Plant Sciences'
+      );
+      await waitFor(() => {
+        expect(
+          filterRequests.at(-1)?.searchParams.getAll('financialDept')
+        ).toEqual(['D0123']);
+      });
+      await waitFor(() => {
+        expect(screen.getByLabelText('Fund filter')).toBeEnabled();
+      });
+
+      await user.click(screen.getByLabelText('Fund filter'));
+      expect(
+        screen.getByRole('option', { name: '13U02 - Experiment Station' })
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('option', { name: 'F9 - Other Fund' })
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('tab', { name: /grouped expenses/i })
+      ).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
   it('writes filter changes to the URL and resets the page', async () => {
     const user = userEvent.setup();
     mockExpenseReviewApi();

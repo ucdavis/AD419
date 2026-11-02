@@ -83,23 +83,33 @@ public sealed class ExpenseReviewService(
             ToDtos(rows, reasons));
     }
 
-    public Task<ExpenseReviewFilterOptionsResponse> GetFilterOptionsAsync(
+    public async Task<ExpenseReviewFilterOptionsResponse> GetFilterOptionsAsync(
+        FiscalYearCycle cycle,
+        ExpenseReviewFilters filters,
+        CancellationToken cancellationToken)
+    {
+        var index = await GetFilterIndexAsync(cycle, cancellationToken);
+        return index.Narrow(filters);
+    }
+
+    private Task<ExpenseReviewFilterIndex> GetFilterIndexAsync(
         FiscalYearCycle cycle,
         CancellationToken cancellationToken)
     {
         if (filterOptionsCache == null)
         {
-            return LoadFilterOptionsAsync(cycle, cancellationToken);
+            return LoadFilterIndexAsync(cycle, cancellationToken);
         }
 
         // The options query scans every transaction in the cycle and can take longer than the
         // assistant's tool timeout. Callers share one in-flight load per cycle, and the load runs
         // without the caller's token so a canceled request does not fail it for everyone else.
-        var cacheKey = (nameof(GetFilterOptionsAsync), cycle);
+        // Narrowing to the selected filters happens in memory from the cached index.
+        var cacheKey = (nameof(GetFilterIndexAsync), cycle);
         var load = filterOptionsCache.GetOrCreate(cacheKey, entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = FilterOptionsCacheDuration;
-            return LoadFilterOptionsAsync(cycle, CancellationToken.None);
+            return LoadFilterIndexAsync(cycle, CancellationToken.None);
         })!;
 
         // Drop a failed load so the next caller retries instead of getting the cached failure.
@@ -112,25 +122,28 @@ public sealed class ExpenseReviewService(
         return load.WaitAsync(cancellationToken);
     }
 
-    private async Task<ExpenseReviewFilterOptionsResponse> LoadFilterOptionsAsync(
+    private async Task<ExpenseReviewFilterIndex> LoadFilterIndexAsync(
         FiscalYearCycle cycle,
         CancellationToken cancellationToken)
     {
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
-        var rows = (await connection.QueryAsync<ExpenseReviewFilterOptionRow>(new CommandDefinition(
-            FilterOptionsSql,
+        using var reader = await connection.QueryMultipleAsync(new CommandDefinition(
+            $"{FilterOptionsSql}\n\n{FilterCombosSql}",
             CycleParameters(cycle),
             commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
-            cancellationToken: cancellationToken))).ToList();
+            cancellationToken: cancellationToken));
+
+        var rows = (await reader.ReadAsync<ExpenseReviewFilterOptionRow>()).ToList();
+        var combos = (await reader.ReadAsync<ExpenseReviewFilterCombo>()).ToList();
 
         IReadOnlyList<ExpenseReviewFilterOptionDto> Options(string filter) =>
             rows.Where(row => row.Filter == filter)
                 .Select(row => new ExpenseReviewFilterOptionDto(row.Value, row.Label))
                 .ToList();
 
-        return new ExpenseReviewFilterOptionsResponse(
+        var allOptions = new ExpenseReviewFilterOptionsResponse(
             Options("entity"),
             Options("financialDept"),
             Options("fund"),
@@ -143,6 +156,8 @@ public sealed class ExpenseReviewService(
             Options("sfn"),
             Options("source"),
             Options("exclusionReason"));
+
+        return ExpenseReviewFilterIndex.Build(allOptions, combos);
     }
 
     public async Task<UnmatchedJobCodesResponse> GetUnmatchedJobCodesAsync(
@@ -730,6 +745,36 @@ public sealed class ExpenseReviewService(
         FROM ReasonOptions
         ) options
         ORDER BY [Filter], [SortKey], [Value], [Label];
+        """;
+
+    // Every distinct mix of filter values in the cycle, one row per exclusion reason (NULL when a
+    // transaction has none). About 75k rows for a full cycle against 350k transactions.
+    public static string FilterCombosSql => $$"""
+        {{UnifiedTransactionsCte}}
+        SELECT DISTINCT
+            u.[Source],
+            u.[EntityCode],
+            u.[FinancialDeptCode],
+            u.[FundCode],
+            u.[AccountCode],
+            u.[AeProjectCode],
+            u.[AccountingPeriod],
+            u.[PurposeCode],
+            u.[ProgramCode],
+            u.[ActivityCode],
+            u.[Sfn],
+            reason.[Code] AS [ExclusionReason]
+        FROM Unified u
+        OUTER APPLY
+        (
+            SELECT allReasons.[Code]
+            FROM
+            (
+                VALUES
+                    {{ReasonValuesSql("u")}}
+            ) allReasons([Code], [Label])
+            WHERE allReasons.[Code] IS NOT NULL
+        ) reason;
         """;
 
     public const string UnifiedTransactionsCte = """

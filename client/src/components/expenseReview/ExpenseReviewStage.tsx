@@ -479,7 +479,9 @@ export function ExpenseReviewStage() {
   const [exportError, setExportError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const filterOptionsQuery = useQuery(expenseReviewFilterOptionsQueryOptions());
+  const filterOptionsQuery = useQuery(
+    expenseReviewFilterOptionsQueryOptions(filters)
+  );
   const setSearch = (patch: ExpenseReviewSearch) => {
     void navigateSearch({
       replace: true,
