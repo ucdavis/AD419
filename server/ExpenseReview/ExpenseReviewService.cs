@@ -130,7 +130,7 @@ public sealed class ExpenseReviewService(
         await connection.OpenAsync(cancellationToken);
 
         using var reader = await connection.QueryMultipleAsync(new CommandDefinition(
-            $"{FilterOptionsSql}\n\n{FilterCombosSql}",
+            FilterIndexSql,
             CycleParameters(cycle),
             commandTimeout: DataDbConnection.ImportCommandTimeoutSeconds,
             cancellationToken: cancellationToken));
@@ -445,7 +445,7 @@ public sealed class ExpenseReviewService(
             : "\n            HAVING SUM(u.[Amount]) <> 0 OR SUM(u.[Amount]) IS NULL";
 
         return $$"""
-            {{UnifiedTransactionsCte}}
+            {{BuildUnifiedTransactionsCte(filters)}}
             SELECT
                 {{GroupIdExpression("u", request.DisplayByPeriod)}} AS [Id],
                 u.[Source],
@@ -622,14 +622,58 @@ public sealed class ExpenseReviewService(
         ORDER BY SUM(u.[CalculatedFte]) DESC, u.[JobCode];
         """;
 
+    // Materialize expensive source/view joins once per cache miss. Both result sets
+    // read these same facts; only combinations expand transactions by exclusion reason.
+    public static string FilterIndexSql => $$"""
+        {{UnifiedTransactionsCte}}
+        SELECT
+            u.[Source],
+            u.[EntityCode],
+            u.[EntityName],
+            u.[FinancialDeptCode],
+            u.[FinancialDeptName],
+            u.[FundCode],
+            u.[FundName],
+            u.[AccountCode],
+            u.[AccountName],
+            u.[AeProjectCode],
+            u.[AeProjectName],
+            u.[AccountingPeriod],
+            u.[AccountingPeriodSort],
+            u.[PurposeCode],
+            u.[PurposeName],
+            u.[ProgramCode],
+            u.[ProgramName],
+            u.[ActivityCode],
+            u.[ActivityName],
+            u.[Sfn],
+            u.[SfnLabel],
+            u.[ExcludedByDate],
+            u.[AccountInUcPath],
+            u.[AccountNotInAE],
+            u.[Account531010OnHatchFund],
+            u.[Sfn204NotOnProjectList],
+            u.[FinancialDeptIncludeInReport],
+            u.[FundIncludeInReport],
+            u.[AccountIncludeInReport],
+            u.[ActivityIncludeInReport],
+            u.[PurposeIncludeInReport],
+            u.[PurposeExempt]
+        INTO #FilterFacts
+        FROM Unified u;
+
+        {{FilterOptionsSql}}
+
+        {{FilterCombosSql}}
+        """;
+
     public static string FilterOptionsSql => $$"""
-        {{UnifiedTransactionsCte}},
-        ReasonOptions AS
+        WITH ReasonOptions AS
         (
             SELECT DISTINCT
                 reason.[Code],
                 reason.[Label]
-            FROM Unified u
+            FROM #FilterFacts u
             CROSS APPLY
             (
                 VALUES
@@ -645,7 +689,7 @@ public sealed class ExpenseReviewService(
             [EntityCode] AS [Value],
             {{CodeNameLabelExpression("[EntityCode]", "MAX(NULLIF([EntityName], N''))")}} AS [Label],
             CAST([EntityCode] AS NVARCHAR(500)) AS [SortKey]
-        FROM Unified
+        FROM #FilterFacts
         WHERE [EntityCode] IS NOT NULL
         GROUP BY [EntityCode]
         UNION ALL
@@ -654,7 +698,7 @@ public sealed class ExpenseReviewService(
             [FinancialDeptCode] AS [Value],
             {{CodeNameLabelExpression("[FinancialDeptCode]", "MAX(NULLIF([FinancialDeptName], N''))")}} AS [Label],
             CAST([FinancialDeptCode] AS NVARCHAR(500)) AS [SortKey]
-        FROM Unified
+        FROM #FilterFacts
         WHERE [FinancialDeptCode] IS NOT NULL
         GROUP BY [FinancialDeptCode]
         UNION ALL
@@ -663,7 +707,7 @@ public sealed class ExpenseReviewService(
             [FundCode] AS [Value],
             {{CodeNameLabelExpression("[FundCode]", "MAX(NULLIF([FundName], N''))")}} AS [Label],
             CAST([FundCode] AS NVARCHAR(500)) AS [SortKey]
-        FROM Unified
+        FROM #FilterFacts
         WHERE [FundCode] IS NOT NULL
         GROUP BY [FundCode]
         UNION ALL
@@ -672,7 +716,7 @@ public sealed class ExpenseReviewService(
             [AccountCode] AS [Value],
             {{CodeNameLabelExpression("[AccountCode]", "MAX(NULLIF([AccountName], N''))")}} AS [Label],
             CAST([AccountCode] AS NVARCHAR(500)) AS [SortKey]
-        FROM Unified
+        FROM #FilterFacts
         WHERE [AccountCode] IS NOT NULL
         GROUP BY [AccountCode]
         UNION ALL
@@ -681,7 +725,7 @@ public sealed class ExpenseReviewService(
             [AeProjectCode] AS [Value],
             {{CodeNameLabelExpression("[AeProjectCode]", "MAX(NULLIF([AeProjectName], N''))")}} AS [Label],
             CAST([AeProjectCode] AS NVARCHAR(500)) AS [SortKey]
-        FROM Unified
+        FROM #FilterFacts
         WHERE [AeProjectCode] IS NOT NULL
         GROUP BY [AeProjectCode]
         UNION ALL
@@ -690,7 +734,7 @@ public sealed class ExpenseReviewService(
             [AccountingPeriod] AS [Value],
             [AccountingPeriod] AS [Label],
             CONVERT(NVARCHAR(30), MIN([AccountingPeriodSort]), 126) AS [SortKey]
-        FROM Unified
+        FROM #FilterFacts
         WHERE [AccountingPeriod] IS NOT NULL
         GROUP BY [AccountingPeriod]
         UNION ALL
@@ -699,7 +743,7 @@ public sealed class ExpenseReviewService(
             [PurposeCode] AS [Value],
             {{CodeNameLabelExpression("[PurposeCode]", "MAX(NULLIF([PurposeName], N''))")}} AS [Label],
             CAST([PurposeCode] AS NVARCHAR(500)) AS [SortKey]
-        FROM Unified
+        FROM #FilterFacts
         WHERE [PurposeCode] IS NOT NULL
         GROUP BY [PurposeCode]
         UNION ALL
@@ -708,7 +752,7 @@ public sealed class ExpenseReviewService(
             [ProgramCode] AS [Value],
             {{CodeNameLabelExpression("[ProgramCode]", "MAX(NULLIF([ProgramName], N''))")}} AS [Label],
             CAST([ProgramCode] AS NVARCHAR(500)) AS [SortKey]
-        FROM Unified
+        FROM #FilterFacts
         WHERE [ProgramCode] IS NOT NULL
         GROUP BY [ProgramCode]
         UNION ALL
@@ -717,7 +761,7 @@ public sealed class ExpenseReviewService(
             [ActivityCode] AS [Value],
             {{CodeNameLabelExpression("[ActivityCode]", "MAX(NULLIF([ActivityName], N''))")}} AS [Label],
             CAST([ActivityCode] AS NVARCHAR(500)) AS [SortKey]
-        FROM Unified
+        FROM #FilterFacts
         WHERE [ActivityCode] IS NOT NULL
         GROUP BY [ActivityCode]
         UNION ALL
@@ -726,7 +770,7 @@ public sealed class ExpenseReviewService(
             [Sfn] AS [Value],
             {{CodeNameLabelExpression("[Sfn]", "MAX(NULLIF([SfnLabel], N''))")}} AS [Label],
             CAST([Sfn] AS NVARCHAR(500)) AS [SortKey]
-        FROM Unified
+        FROM #FilterFacts
         WHERE [Sfn] IS NOT NULL
         GROUP BY [Sfn]
         UNION ALL
@@ -735,7 +779,7 @@ public sealed class ExpenseReviewService(
             [Source] AS [Value],
             CASE [Source] WHEN N'AE' THEN N'Aggie Enterprise' ELSE N'UCPath' END AS [Label],
             [Source] AS [SortKey]
-        FROM Unified
+        FROM #FilterFacts
         UNION ALL
         SELECT
             CAST('exclusionReason' AS NVARCHAR(30)) AS [Filter],
@@ -750,7 +794,6 @@ public sealed class ExpenseReviewService(
     // Every distinct mix of filter values in the cycle, one row per exclusion reason (NULL when a
     // transaction has none). About 75k rows for a full cycle against 350k transactions.
     public static string FilterCombosSql => $$"""
-        {{UnifiedTransactionsCte}}
         SELECT DISTINCT
             u.[Source],
             u.[EntityCode],
@@ -764,7 +807,7 @@ public sealed class ExpenseReviewService(
             u.[ActivityCode],
             u.[Sfn],
             reason.[Code] AS [ExclusionReason]
-        FROM Unified u
+        FROM #FilterFacts u
         OUTER APPLY
         (
             SELECT allReasons.[Code]
@@ -777,143 +820,163 @@ public sealed class ExpenseReviewService(
         ) reason;
         """;
 
-    public const string UnifiedTransactionsCte = """
-        WITH Unified AS
-        (
-            SELECT
-                CAST(CONCAT('AE:', a.[Id]) AS NVARCHAR(160)) AS [Id],
-                CAST('AE' AS NVARCHAR(3)) AS [Source],
-                a.[Entity] AS [EntityCode],
-                a.[EntityDescription] AS [EntityName],
-                a.[FinancialDepartment] AS [FinancialDeptCode],
-                a.[FinancialDepartmentDescription] AS [FinancialDeptName],
-                a.[Fund] AS [FundCode],
-                a.[FundDescription] AS [FundName],
-                a.[Account] AS [AccountCode],
-                a.[AccountDescription] AS [AccountName],
-                a.[Project] AS [AeProjectCode],
-                a.[ProjectDescription] AS [AeProjectName],
-                a.[Purpose] AS [PurposeCode],
-                a.[PurposeDescription] AS [PurposeName],
-                a.[Program] AS [ProgramCode],
-                a.[ProgramDescription] AS [ProgramName],
-                a.[Activity] AS [ActivityCode],
-                a.[ActivityDescription] AS [ActivityName],
-                a.[PeriodName] AS [AccountingPeriod],
-                TRY_CONVERT(DATE, CONCAT('01-', a.[PeriodName]), 6) AS [AccountingPeriodSort],
-                incl.[ExpenseSfn] AS [Sfn],
-                sfn.[Label] AS [SfnLabel],
-                a.[Amount] AS [Amount],
-                a.[ExcludedByDate],
-                a.[AccountInUcPath],
-                CAST(NULL AS BIT) AS [AccountNotInAE],
-                incl.[FinancialDeptIncludeInReport],
-                incl.[FundIncludeInReport],
-                incl.[AccountIncludeInReport],
-                incl.[ActivityIncludeInReport],
-                incl.[PurposeIncludeInReport],
-                incl.[PurposeExempt],
-                incl.[Account531010OnHatchFund] AS [Account531010OnHatchFund],
-                incl.[Sfn204NotOnProjectList] AS [Sfn204NotOnProjectList],
-                incl.[Included] AS [Included]
-            FROM [data].[AETransactions] a
-            LEFT JOIN [data].[v_TransactionInclusion] incl
-                ON incl.[Source] = N'AE' AND incl.[AeTransactionId] = a.[Id]
-            LEFT JOIN [data].[Sfns] sfn
-                ON sfn.[Sfn] = incl.[ExpenseSfn]
-            WHERE TRY_CONVERT(DATE, CONCAT('01-', a.[PeriodName]), 6) BETWEEN @cycleStart AND @cycleEnd
-
-            UNION ALL
-
-            SELECT
-                CAST(CONCAT('UCP:', u.[LaborTransactionId]) AS NVARCHAR(160)) AS [Id],
-                CAST('UCP' AS NVARCHAR(3)) AS [Source],
-                u.[Entity] AS [EntityCode],
-                NULLIF(entitySegment.[Description], '') AS [EntityName],
-                u.[FinancialDepartment] AS [FinancialDeptCode],
-                NULLIF(financialDeptSegment.[Description], '') AS [FinancialDeptName],
-                u.[Fund] AS [FundCode],
-                NULLIF(fundSegment.[Description], '') AS [FundName],
-                u.[Account] AS [AccountCode],
-                NULLIF(accountSegment.[Description], '') AS [AccountName],
-                u.[Project] AS [AeProjectCode],
-                NULLIF(projectSegment.[Description], '') AS [AeProjectName],
-                u.[Purpose] AS [PurposeCode],
-                NULLIF(purposeSegment.[Description], '') AS [PurposeName],
-                u.[Program] AS [ProgramCode],
-                NULLIF(programSegment.[Description], '') AS [ProgramName],
-                u.[Activity] AS [ActivityCode],
-                NULLIF(activitySegment.[Description], '') AS [ActivityName],
-                CASE
-                    WHEN ucPeriod.[PeriodStart] IS NULL THEN NULL
-                    ELSE FORMAT(ucPeriod.[PeriodStart], 'MMM-yy', 'en-US')
-                END AS [AccountingPeriod],
-                ucPeriod.[PeriodStart] AS [AccountingPeriodSort],
-                incl.[ExpenseSfn] AS [Sfn],
-                sfn.[Label] AS [SfnLabel],
-                u.[Amount] AS [Amount],
-                u.[ExcludedByDate],
-                CAST(NULL AS BIT) AS [AccountInUcPath],
-                u.[AccountNotInAE],
-                incl.[FinancialDeptIncludeInReport],
-                incl.[FundIncludeInReport],
-                incl.[AccountIncludeInReport],
-                incl.[ActivityIncludeInReport],
-                incl.[PurposeIncludeInReport],
-                incl.[PurposeExempt],
-                incl.[Account531010OnHatchFund] AS [Account531010OnHatchFund],
-                incl.[Sfn204NotOnProjectList] AS [Sfn204NotOnProjectList],
-                incl.[Included] AS [Included]
-            FROM [data].[UcPathTransactions] u
-            CROSS APPLY
-            (
-                SELECT TRY_CONVERT(INT, NULLIF(u.[Period], '')) AS [PeriodNumber]
-            ) periodValue
-            OUTER APPLY
-            (
-                SELECT CASE
-                    WHEN periodValue.[PeriodNumber] BETWEEN 1 AND 12
-                    THEN DATEFROMPARTS(
-                        CASE
-                            WHEN periodValue.[PeriodNumber] BETWEEN 1 AND 6 THEN u.[FiscalYear] - 1
-                            ELSE u.[FiscalYear]
-                        END,
-                        ((periodValue.[PeriodNumber] + 5) % 12) + 1,
-                        1)
-                    ELSE NULL
-                END AS [PeriodStart]
-            ) ucPeriod
-            LEFT JOIN [data].[ChartSegments] entitySegment
-                ON entitySegment.[SegmentName] = 'Entity'
-               AND entitySegment.[Code] = u.[Entity]
-            LEFT JOIN [data].[ChartSegments] financialDeptSegment
-                ON financialDeptSegment.[SegmentName] = 'FinancialDepartment'
-               AND financialDeptSegment.[Code] = u.[FinancialDepartment]
-            LEFT JOIN [data].[ChartSegments] fundSegment
-                ON fundSegment.[SegmentName] = 'Fund'
-               AND fundSegment.[Code] = u.[Fund]
-            LEFT JOIN [data].[ChartSegments] accountSegment
-                ON accountSegment.[SegmentName] = 'Account'
-               AND accountSegment.[Code] = u.[Account]
-            LEFT JOIN [data].[ChartSegments] projectSegment
-                ON projectSegment.[SegmentName] = 'Project'
-               AND projectSegment.[Code] = u.[Project]
-            LEFT JOIN [data].[ChartSegments] purposeSegment
-                ON purposeSegment.[SegmentName] = 'Purpose'
-               AND purposeSegment.[Code] = u.[Purpose]
-            LEFT JOIN [data].[ChartSegments] programSegment
-                ON programSegment.[SegmentName] = 'Program'
-               AND programSegment.[Code] = u.[Program]
-            LEFT JOIN [data].[ChartSegments] activitySegment
-                ON activitySegment.[SegmentName] = 'Activity'
-               AND activitySegment.[Code] = u.[Activity]
-            LEFT JOIN [data].[v_TransactionInclusion] incl
-                ON incl.[Source] = N'UCPath' AND incl.[LaborTransactionId] = u.[LaborTransactionId]
-            LEFT JOIN [data].[Sfns] sfn
-                ON sfn.[Sfn] = incl.[ExpenseSfn]
-            WHERE CAST(u.[PayPeriodEndDate] AS DATE) BETWEEN @cycleStart AND @cycleEnd
-        )
+    private const string AeTransactionsProjection = """
+        SELECT
+            CAST(CONCAT('AE:', a.[Id]) AS NVARCHAR(160)) AS [Id],
+            CAST('AE' AS NVARCHAR(3)) AS [Source],
+            a.[Entity] AS [EntityCode],
+            a.[EntityDescription] AS [EntityName],
+            a.[FinancialDepartment] AS [FinancialDeptCode],
+            a.[FinancialDepartmentDescription] AS [FinancialDeptName],
+            a.[Fund] AS [FundCode],
+            a.[FundDescription] AS [FundName],
+            a.[Account] AS [AccountCode],
+            a.[AccountDescription] AS [AccountName],
+            a.[Project] AS [AeProjectCode],
+            a.[ProjectDescription] AS [AeProjectName],
+            a.[Purpose] AS [PurposeCode],
+            a.[PurposeDescription] AS [PurposeName],
+            a.[Program] AS [ProgramCode],
+            a.[ProgramDescription] AS [ProgramName],
+            a.[Activity] AS [ActivityCode],
+            a.[ActivityDescription] AS [ActivityName],
+            a.[PeriodName] AS [AccountingPeriod],
+            TRY_CONVERT(DATE, CONCAT('01-', a.[PeriodName]), 6) AS [AccountingPeriodSort],
+            incl.[ExpenseSfn] AS [Sfn],
+            sfn.[Label] AS [SfnLabel],
+            a.[Amount] AS [Amount],
+            a.[ExcludedByDate],
+            a.[AccountInUcPath],
+            CAST(NULL AS BIT) AS [AccountNotInAE],
+            incl.[FinancialDeptIncludeInReport],
+            incl.[FundIncludeInReport],
+            incl.[AccountIncludeInReport],
+            incl.[ActivityIncludeInReport],
+            incl.[PurposeIncludeInReport],
+            incl.[PurposeExempt],
+            incl.[Account531010OnHatchFund] AS [Account531010OnHatchFund],
+            incl.[Sfn204NotOnProjectList] AS [Sfn204NotOnProjectList],
+            incl.[Included] AS [Included]
+        FROM [data].[AETransactions] a
+        LEFT JOIN [data].[v_TransactionInclusion] incl
+            ON incl.[Source] = N'AE' AND incl.[AeTransactionId] = a.[Id]
+        LEFT JOIN [data].[Sfns] sfn
+            ON sfn.[Sfn] = incl.[ExpenseSfn]
+        WHERE TRY_CONVERT(DATE, CONCAT('01-', a.[PeriodName]), 6) BETWEEN @cycleStart AND @cycleEnd
         """;
+
+    private const string UcPathTransactionsProjection = """
+        SELECT
+            CAST(CONCAT('UCP:', u.[LaborTransactionId]) AS NVARCHAR(160)) AS [Id],
+            CAST('UCP' AS NVARCHAR(3)) AS [Source],
+            u.[Entity] AS [EntityCode],
+            NULLIF(entitySegment.[Description], '') AS [EntityName],
+            u.[FinancialDepartment] AS [FinancialDeptCode],
+            NULLIF(financialDeptSegment.[Description], '') AS [FinancialDeptName],
+            u.[Fund] AS [FundCode],
+            NULLIF(fundSegment.[Description], '') AS [FundName],
+            u.[Account] AS [AccountCode],
+            NULLIF(accountSegment.[Description], '') AS [AccountName],
+            u.[Project] AS [AeProjectCode],
+            NULLIF(projectSegment.[Description], '') AS [AeProjectName],
+            u.[Purpose] AS [PurposeCode],
+            NULLIF(purposeSegment.[Description], '') AS [PurposeName],
+            u.[Program] AS [ProgramCode],
+            NULLIF(programSegment.[Description], '') AS [ProgramName],
+            u.[Activity] AS [ActivityCode],
+            NULLIF(activitySegment.[Description], '') AS [ActivityName],
+            CASE
+                WHEN ucPeriod.[PeriodStart] IS NULL THEN NULL
+                ELSE FORMAT(ucPeriod.[PeriodStart], 'MMM-yy', 'en-US')
+            END AS [AccountingPeriod],
+            ucPeriod.[PeriodStart] AS [AccountingPeriodSort],
+            incl.[ExpenseSfn] AS [Sfn],
+            sfn.[Label] AS [SfnLabel],
+            u.[Amount] AS [Amount],
+            u.[ExcludedByDate],
+            CAST(NULL AS BIT) AS [AccountInUcPath],
+            u.[AccountNotInAE],
+            incl.[FinancialDeptIncludeInReport],
+            incl.[FundIncludeInReport],
+            incl.[AccountIncludeInReport],
+            incl.[ActivityIncludeInReport],
+            incl.[PurposeIncludeInReport],
+            incl.[PurposeExempt],
+            incl.[Account531010OnHatchFund] AS [Account531010OnHatchFund],
+            incl.[Sfn204NotOnProjectList] AS [Sfn204NotOnProjectList],
+            incl.[Included] AS [Included]
+        FROM [data].[UcPathTransactions] u
+        CROSS APPLY
+        (
+            SELECT TRY_CONVERT(INT, NULLIF(u.[Period], '')) AS [PeriodNumber]
+        ) periodValue
+        OUTER APPLY
+        (
+            SELECT CASE
+                WHEN periodValue.[PeriodNumber] BETWEEN 1 AND 12
+                THEN DATEFROMPARTS(
+                    CASE
+                        WHEN periodValue.[PeriodNumber] BETWEEN 1 AND 6 THEN u.[FiscalYear] - 1
+                        ELSE u.[FiscalYear]
+                    END,
+                    ((periodValue.[PeriodNumber] + 5) % 12) + 1,
+                    1)
+                ELSE NULL
+            END AS [PeriodStart]
+        ) ucPeriod
+        LEFT JOIN [data].[ChartSegments] entitySegment
+            ON entitySegment.[SegmentName] = 'Entity'
+           AND entitySegment.[Code] = u.[Entity]
+        LEFT JOIN [data].[ChartSegments] financialDeptSegment
+            ON financialDeptSegment.[SegmentName] = 'FinancialDepartment'
+           AND financialDeptSegment.[Code] = u.[FinancialDepartment]
+        LEFT JOIN [data].[ChartSegments] fundSegment
+            ON fundSegment.[SegmentName] = 'Fund'
+           AND fundSegment.[Code] = u.[Fund]
+        LEFT JOIN [data].[ChartSegments] accountSegment
+            ON accountSegment.[SegmentName] = 'Account'
+           AND accountSegment.[Code] = u.[Account]
+        LEFT JOIN [data].[ChartSegments] projectSegment
+            ON projectSegment.[SegmentName] = 'Project'
+           AND projectSegment.[Code] = u.[Project]
+        LEFT JOIN [data].[ChartSegments] purposeSegment
+            ON purposeSegment.[SegmentName] = 'Purpose'
+           AND purposeSegment.[Code] = u.[Purpose]
+        LEFT JOIN [data].[ChartSegments] programSegment
+            ON programSegment.[SegmentName] = 'Program'
+           AND programSegment.[Code] = u.[Program]
+        LEFT JOIN [data].[ChartSegments] activitySegment
+            ON activitySegment.[SegmentName] = 'Activity'
+           AND activitySegment.[Code] = u.[Activity]
+        LEFT JOIN [data].[v_TransactionInclusion] incl
+            ON incl.[Source] = N'UCPath' AND incl.[LaborTransactionId] = u.[LaborTransactionId]
+        LEFT JOIN [data].[Sfns] sfn
+            ON sfn.[Sfn] = incl.[ExpenseSfn]
+        WHERE CAST(u.[PayPeriodEndDate] AS DATE) BETWEEN @cycleStart AND @cycleEnd
+        """;
+
+    public const string UnifiedTransactionsCte =
+        "WITH Unified AS (\n" + AeTransactionsProjection + "\nUNION ALL\n" + UcPathTransactionsProjection + "\n)";
+
+    private static string BuildUnifiedTransactionsCte(ExpenseReviewFilters filters)
+    {
+        // Keep the parameterized Source predicate even when only one projection is used.
+        // Unknown or mixed selections retain the combined query and its existing IN semantics.
+        if (filters.Source.Count == 1)
+        {
+            if (filters.Source[0] == "AE")
+            {
+                return "WITH Unified AS (\n" + AeTransactionsProjection + "\n)";
+            }
+
+            if (filters.Source[0] == "UCP")
+            {
+                return "WITH Unified AS (\n" + UcPathTransactionsProjection + "\n)";
+            }
+        }
+
+        return UnifiedTransactionsCte;
+    }
 
     private const string GroupedSelectColumns = """
         [Id],

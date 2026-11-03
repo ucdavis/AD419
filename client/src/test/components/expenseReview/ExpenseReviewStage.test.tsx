@@ -1,6 +1,13 @@
+import { QueryClient } from '@tanstack/react-query';
+import { buildExpenseReviewClientTools } from '@/components/expenseReview/expenseReviewAssistantTools.ts';
+import { resolveExpenseReviewView } from '@/components/expenseReview/expenseReviewSearch.ts';
+import {
+  expenseReviewTransactionsQueryOptions,
+  type ExpenseReviewTransaction,
+} from '@/queries/expenseReview.ts';
 import { describe, expect, it, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { createWorkflowSnapshot, server } from '@/test/mswUtils.ts';
 import { renderRoute } from '@/test/routerUtils.tsx';
 import { userEvent } from '@testing-library/user-event';
@@ -18,9 +25,7 @@ const filtersResponse = {
   activities: [{ label: 'A100 - Research Activity', value: 'A100' }],
   aeProjects: [{ label: 'K1234 - Tomato Project', value: 'K1234' }],
   entities: [{ label: '3310 - UC Davis', value: '3310' }],
-  exclusionReasons: [
-    { label: 'Excluded by fund', value: 'fund:excluded' },
-  ],
+  exclusionReasons: [{ label: 'Excluded by fund', value: 'fund:excluded' }],
   financialDepts: [{ label: 'D0123 - Plant Sciences', value: 'D0123' }],
   funds: [{ label: '13U02 - Experiment Station', value: '13U02' }],
   programs: [{ label: 'PG01 - Extension Program', value: 'PG01' }],
@@ -32,7 +37,7 @@ const filtersResponse = {
   ],
 };
 
-const transactionRows = [
+const transactionRows: ExpenseReviewTransaction[] = [
   {
     account: { code: '500000', name: 'Salaries' },
     accountingPeriod: null,
@@ -93,7 +98,10 @@ function transactionsResponse(page = 1) {
   };
 }
 
-function mockExpenseReviewApi(requests: URL[] = [], exportRequests: URL[] = []) {
+function mockExpenseReviewApi(
+  requests: URL[] = [],
+  exportRequests: URL[] = []
+) {
   server.use(
     http.get('/api/user/me', () => HttpResponse.json(mockUser)),
     http.get('/api/workflow/snapshot', () =>
@@ -191,14 +199,16 @@ function mockCsvDownload() {
 describe('Expense Review stage', () => {
   it('renders grouped expense rows with full chart string columns and exclusion chips', async () => {
     mockExpenseReviewApi();
-    const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/expense-review?loadAll=true',
+    });
 
     try {
       expect(
         await screen.findByRole('tab', { name: /grouped expenses/i })
       ).toBeInTheDocument();
 
-      const table = screen.getByRole('table');
+      const table = await screen.findByRole('table');
       for (const header of [
         'Source',
         'Entity',
@@ -255,10 +265,12 @@ describe('Expense Review stage', () => {
     const user = userEvent.setup();
     const requests: URL[] = [];
     mockExpenseReviewApi(requests);
-    const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/expense-review?loadAll=true',
+    });
 
     try {
-      await screen.findByRole('tab', { name: /grouped expenses/i });
+      await screen.findByRole('table');
       expect(requests.at(-1)?.searchParams.get('displayByPeriod')).toBe(
         'false'
       );
@@ -277,9 +289,7 @@ describe('Expense Review stage', () => {
 
       await chooseFilterOption(user, 'Fund', '13U02 - Experiment Station');
       await waitFor(() => {
-        expect(requests.at(-1)?.searchParams.getAll('fund')).toEqual([
-          '13U02',
-        ]);
+        expect(requests.at(-1)?.searchParams.getAll('fund')).toEqual(['13U02']);
       });
       expect(
         screen.getByRole('button', {
@@ -294,16 +304,16 @@ describe('Expense Review stage', () => {
 
       await chooseFilterOption(user, 'Accounting Period', 'Oct-24');
       await waitFor(() => {
-        expect(requests.at(-1)?.searchParams.getAll('accountingPeriod')).toEqual(
-          ['Oct-24']
-        );
+        expect(
+          requests.at(-1)?.searchParams.getAll('accountingPeriod')
+        ).toEqual(['Oct-24']);
       });
 
       await chooseFilterOption(user, 'Exclusion Reason', 'Excluded by fund');
       await waitFor(() => {
-        expect(
-          requests.at(-1)?.searchParams.getAll('exclusionReason')
-        ).toEqual(['fund:excluded']);
+        expect(requests.at(-1)?.searchParams.getAll('exclusionReason')).toEqual(
+          ['fund:excluded']
+        );
       });
       expect(
         screen.getByRole('button', {
@@ -312,17 +322,16 @@ describe('Expense Review stage', () => {
       ).toBeInTheDocument();
 
       await user.click(screen.getByRole('button', { name: 'Clear all' }));
-      await waitFor(() => {
-        expect(requests.at(-1)?.searchParams.get('includeState')).toBe('all');
-        expect(requests.at(-1)?.searchParams.getAll('fund')).toEqual([]);
-        expect(requests.at(-1)?.searchParams.getAll('source')).toEqual([]);
-        expect(requests.at(-1)?.searchParams.getAll('accountingPeriod')).toEqual(
-          []
-        );
-        expect(requests.at(-1)?.searchParams.getAll('exclusionReason')).toEqual(
-          []
-        );
-      });
+      expect(
+        await screen.findByText('Select a filter or load all expenses')
+      ).toBeInTheDocument();
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+      await user.click(
+        screen.getByRole('button', { name: 'Load all expenses' })
+      );
+      await screen.findByRole('table');
+      expect(requests.at(-1)?.searchParams.get('includeState')).toBe('all');
+      expect(requests.at(-1)?.searchParams.getAll('fund')).toEqual([]);
 
       await user.click(
         screen.getByRole('columnheader', { name: /Financial Dept/ })
@@ -341,9 +350,7 @@ describe('Expense Review stage', () => {
         expect(requests.at(-1)?.searchParams.get('sortBy')).toBe(
           'financialDept'
         );
-        expect(requests.at(-1)?.searchParams.get('sortDirection')).toBe(
-          'desc'
-        );
+        expect(requests.at(-1)?.searchParams.get('sortDirection')).toBe('desc');
       });
 
       await user.click(
@@ -367,10 +374,12 @@ describe('Expense Review stage', () => {
     const user = userEvent.setup();
     const requests: URL[] = [];
     mockExpenseReviewApi(requests);
-    const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/expense-review?loadAll=true',
+    });
 
     try {
-      await screen.findByRole('tab', { name: /grouped expenses/i });
+      await screen.findByRole('table');
       await user.click(screen.getByLabelText('Include $0 groups'));
 
       await waitFor(() => {
@@ -388,10 +397,12 @@ describe('Expense Review stage', () => {
     const user = userEvent.setup();
     const requests: URL[] = [];
     mockExpenseReviewApi(requests);
-    const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/expense-review?loadAll=true',
+    });
 
     try {
-      await screen.findByRole('tab', { name: /grouped expenses/i });
+      await screen.findByRole('table');
       expect(
         within(screen.getByRole('table')).queryByRole('columnheader', {
           name: /^Accounting Period/,
@@ -441,10 +452,12 @@ describe('Expense Review stage', () => {
     const exportRequests: URL[] = [];
     const download = mockCsvDownload();
     mockExpenseReviewApi([], exportRequests);
-    const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/expense-review?loadAll=true',
+    });
 
     try {
-      await screen.findByRole('tab', { name: /grouped expenses/i });
+      await screen.findByRole('table');
 
       await user.selectOptions(screen.getByLabelText('Include State filter'), [
         'excluded',
@@ -484,17 +497,21 @@ describe('Expense Review stage', () => {
     const download = mockCsvDownload();
     mockExpenseReviewApi();
     server.use(
-      http.get('/api/expensereview/transactions.csv', () =>
-        new HttpResponse(JSON.stringify({ detail: 'CSV export failed.' }), {
-          headers: { 'Content-Type': 'application/problem+json' },
-          status: 500,
-        })
+      http.get(
+        '/api/expensereview/transactions.csv',
+        () =>
+          new HttpResponse(JSON.stringify({ detail: 'CSV export failed.' }), {
+            headers: { 'Content-Type': 'application/problem+json' },
+            status: 500,
+          })
       )
     );
-    const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/expense-review?loadAll=true',
+    });
 
     try {
-      await screen.findByRole('tab', { name: /grouped expenses/i });
+      await screen.findByRole('table');
       await user.click(screen.getByRole('button', { name: 'Export CSV' }));
 
       expect(await screen.findByText('CSV export failed.')).toBeInTheDocument();
@@ -540,7 +557,7 @@ describe('Expense Review stage', () => {
       });
 
       try {
-        await screen.findByRole('tab', { name: /grouped expenses/i });
+        await screen.findByText('Select a filter or load all expenses');
         await user.click(
           screen.getByRole('button', { name: /continue to orgr review/i })
         );
@@ -564,7 +581,7 @@ describe('Expense Review stage', () => {
     });
 
     try {
-      await screen.findByRole('tab', { name: /grouped expenses/i });
+      await screen.findByRole('table');
       const last = requests.at(-1)!.searchParams;
       expect(last.getAll('fund')).toEqual(['13U02']);
       expect(last.get('includeState')).toBe('excluded');
@@ -606,10 +623,12 @@ describe('Expense Review stage', () => {
         });
       })
     );
-    const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/expense-review?loadAll=true',
+    });
 
     try {
-      await screen.findByRole('tab', { name: /grouped expenses/i });
+      await screen.findByRole('table');
       await user.click(screen.getByLabelText('Fund filter'));
       expect(
         screen.getByRole('option', { name: 'F9 - Other Fund' })
@@ -649,11 +668,11 @@ describe('Expense Review stage', () => {
     const user = userEvent.setup();
     mockExpenseReviewApi();
     const { cleanup, router } = renderRoute({
-      initialPath: '/workflow/expense-review?page=2',
+      initialPath: '/workflow/expense-review?loadAll=true&page=2',
     });
 
     try {
-      await screen.findByRole('tab', { name: /grouped expenses/i });
+      await screen.findByRole('table');
       await chooseFilterOption(user, 'Fund', '13U02 - Experiment Station');
 
       await waitFor(() => {
@@ -687,16 +706,484 @@ describe('Expense Review stage', () => {
         )
       )
     );
-    const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review' });
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/expense-review?loadAll=true',
+    });
 
     try {
       expect(
-        await screen.findByText('Loading expense review transactions...')
-      ).toBeInTheDocument();
-      expect(
         await screen.findByText('No fiscal period has been confirmed.')
       ).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Retry expenses' })
+      ).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+function completion() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+describe('Expense Review loading eligibility', () => {
+  it.each([false, true])(
+    'stays idle with cached unfiltered results: %s',
+    async (cached) => {
+      const requests: URL[] = [];
+      mockExpenseReviewApi(requests);
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      });
+      if (cached) {
+        const view = resolveExpenseReviewView({});
+        queryClient.setQueryData(
+          expenseReviewTransactionsQueryOptions({
+            displayByPeriod: view.displayByPeriod,
+            filters: view.filters,
+            includeState: view.includeState,
+            includeZeroAmounts: view.includeZeroAmounts,
+            page: view.page,
+            pageSize: view.pageSize,
+            sortBy: view.sortBy,
+            sortDirection: view.sortDirection,
+          }).queryKey,
+          transactionsResponse()
+        );
+      }
+      const { cleanup, router } = renderRoute({
+        initialPath: '/workflow/expense-review',
+        queryClient,
+      });
+      try {
+        await screen.findByText('Select a filter or load all expenses');
+        expect(screen.queryByRole('table')).not.toBeInTheDocument();
+        expect(screen.queryByText(/grouped rows/)).not.toBeInTheDocument();
+        expect(
+          within(screen.getByLabelText('Include State filter')).getByRole('option', {
+            exact: true,
+            name: 'All',
+          })
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole('tab', { name: 'Grouped Expenses' })
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole('button', { name: 'Export CSV' })
+        ).toBeDisabled();
+        const user = userEvent.setup();
+        await user.click(screen.getByLabelText('Display by period'));
+        await user.click(screen.getByLabelText('Include $0 groups'));
+        expect(requests).toHaveLength(0);
+        await user.click(
+          screen.getByRole('button', { name: 'Load all expenses' })
+        );
+        await screen.findByRole('table');
+        expect(router.state.location.search.loadAll).toBe(true);
+        expect(requests.at(-1)?.searchParams.has('loadAll')).toBe(false);
+        await user.click(screen.getByRole('button', { name: 'Next' }));
+        await waitFor(() => expect(router.state.location.search.page).toBe(2));
+        expect(router.state.location.search.loadAll).toBe(true);
+        await screen.findByRole('table');
+        await user.click(
+          screen.getByRole('columnheader', { name: /Financial Dept/ })
+        );
+        await waitFor(() =>
+          expect(router.state.location.search.sort).toBe('financialDept')
+        );
+        expect(router.state.location.search.loadAll).toBe(true);
+      } finally {
+        cleanup();
+      }
+    }
+  );
+
+  it.each([
+    ['account', ['500000']],
+    ['accountingPeriod', ['Oct-24']],
+    ['activity', ['A100']],
+    ['aeProject', ['K1234']],
+    ['entity', ['3310']],
+    ['exclusionReason', ['fund:excluded']],
+    ['financialDept', ['D0123']],
+    ['fund', ['13U02']],
+    ['program', ['PG01']],
+    ['purpose', ['44']],
+    ['sfn', ['220']],
+    ['source', ['AE']],
+    ['include', 'included'],
+    ['include', 'excluded'],
+  ])('loads automatically from a %s deep link (%j)', async (key, value) => {
+    const requests: URL[] = [];
+    mockExpenseReviewApi(requests);
+    const search = new URLSearchParams({
+      [key as string]:
+        typeof value === 'string' ? value : JSON.stringify(value),
+    });
+    const { cleanup } = renderRoute({
+      initialPath: `/workflow/expense-review?${search}`,
+    });
+    try {
+      await screen.findByRole('table');
+      expect(requests).toHaveLength(1);
+      expect(
+        screen.queryByText('Select a filter or load all expenses')
+      ).not.toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it.each(['loadAll=false', 'loadAll=invalid', 'include=all', 'source=%5B%5D'])(
+    'ignores non-qualifying search %s',
+    async (search) => {
+      const requests: URL[] = [];
+      mockExpenseReviewApi(requests);
+      const { cleanup } = renderRoute({
+        initialPath: `/workflow/expense-review?${search}`,
+      });
+      try {
+        await screen.findByText('Select a filter or load all expenses');
+        expect(requests).toHaveLength(0);
+      } finally {
+        cleanup();
+      }
+    }
+  );
+
+  it('restores explicit loading from a refreshed URL and clears it when the last filter is removed', async () => {
+    mockExpenseReviewApi();
+    const user = userEvent.setup();
+    const first = renderRoute({
+      initialPath: '/workflow/expense-review?page=2',
+    });
+    await user.click(
+      await screen.findByRole('button', { name: 'Load all expenses' })
+    );
+    await screen.findByRole('table');
+    expect(first.router.state.location.search.page).toBeUndefined();
+    const refreshedPath = first.router.state.location.href;
+    first.cleanup();
+    const { cleanup, router } = renderRoute({ initialPath: refreshedPath });
+    try {
+      await screen.findByRole('table');
+      await chooseFilterOption(user, 'Source', 'Aggie Enterprise');
+      await waitFor(() =>
+        expect(router.state.location.search.loadAll).toBeUndefined()
+      );
+      await user.click(
+        screen.getByRole('button', { name: 'Source: Aggie Enterprise' })
+      );
+      await screen.findByText('Select a filter or load all expenses');
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('shows all expenses through the assistant and clears back to idle with cached results', async () => {
+    const requests: URL[] = [];
+    mockExpenseReviewApi(requests);
+    const { cleanup, queryClient, router } = renderRoute({
+      initialPath:
+        '/workflow/expense-review?byPeriod=true&dir=desc&page=3&size=50&sort=amount&zero=true',
+    });
+    try {
+      await screen.findByText('Select a filter or load all expenses');
+      expect(requests).toHaveLength(0);
+      let navigation: Promise<unknown> = Promise.resolve();
+      const tools = buildExpenseReviewClientTools({
+        getSearch: () => router.state.location.search,
+        setSearch: (patch) => {
+          navigation = router.navigate({
+            search: { ...router.state.location.search, ...patch },
+            to: '.',
+          });
+        },
+      });
+      const setFilters = tools.find(
+        (candidate) => candidate.name === 'set_expense_review_filters'
+      )!;
+      const getView = tools.find(
+        (candidate) => candidate.name === 'get_expense_review_view'
+      )!;
+
+      await act(async () => {
+        expect(
+          setFilters.execute({ includeState: 'all', loadAll: true })
+        ).toMatchObject({ loadAll: true });
+        await navigation;
+      });
+      await screen.findByRole('table');
+      expect(requests).toHaveLength(1);
+      const params = requests[0].searchParams;
+      expect(params.get('includeState')).toBe('all');
+      expect(params.get('page')).toBe('1');
+      expect(params.has('loadAll')).toBe(false);
+      for (const key of Object.keys(resolveExpenseReviewView({}).filters)) {
+        expect(params.has(key)).toBe(false);
+      }
+      expect(router.state.location.search).toMatchObject({
+        byPeriod: true,
+        dir: 'desc',
+        loadAll: true,
+        size: 50,
+        sort: 'amount',
+        zero: true,
+      });
+      expect(router.state.location.search.page).toBeUndefined();
+      expect(getView.execute({})).toMatchObject({ loadAll: true });
+      expect(screen.getByRole('button', { name: 'Export CSV' })).toBeEnabled();
+
+      await act(async () => {
+        expect(setFilters.execute({})).toMatchObject({ loadAll: false });
+        await navigation;
+      });
+      await screen.findByText('Select a filter or load all expenses');
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Export CSV' })).toBeDisabled();
+      expect(requests).toHaveLength(1);
+      expect(getView.execute({})).toMatchObject({ loadAll: false });
+      const cached = queryClient.getQueriesData({
+        queryKey: ['expenseReview', 'transactions'],
+      });
+      const cachedResults = cached
+        .map(([, data]) => data)
+        .filter((data) => data !== undefined);
+      expect(cachedResults).toEqual([transactionsResponse()]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('applies assistant filters and clears back to idle through the same URL helper', async () => {
+    mockExpenseReviewApi();
+    const { cleanup, router } = renderRoute({
+      initialPath: '/workflow/expense-review?loadAll=true&page=2',
+    });
+    try {
+      await screen.findByRole('table');
+      let navigation: Promise<unknown> = Promise.resolve();
+      const tools = buildExpenseReviewClientTools({
+        getSearch: () => router.state.location.search,
+        setSearch: (patch) => {
+          navigation = router.navigate({
+            search: { ...router.state.location.search, ...patch },
+            to: '.',
+          });
+        },
+      });
+      const tool = tools.find(
+        (candidate) => candidate.name === 'set_expense_review_filters'
+      )!;
+      await act(async () => {
+        tool.execute({ source: ['AE'] });
+        await navigation;
+      });
+      await screen.findByRole('table');
+      expect(router.state.location.search.loadAll).toBeUndefined();
+      expect(router.state.location.search.page).toBeUndefined();
+      await act(async () => {
+        tool.execute({});
+        await navigation;
+      });
+      await screen.findByText('Select a filter or load all expenses');
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('keeps controls and code chips visible while options and expenses load independently', async () => {
+    mockExpenseReviewApi();
+    const options = completion();
+    const expenses = completion();
+    server.use(
+      http.get('/api/expensereview/filters', async () => {
+        await options.promise;
+        return HttpResponse.json(filtersResponse);
+      }),
+      http.get('/api/expensereview/transactions', async () => {
+        await expenses.promise;
+        return HttpResponse.json(transactionsResponse());
+      })
+    );
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/expense-review?source=%5B%22AE%22%5D',
+    });
+    try {
+      await screen.findByText('Loading expense review transactions...');
+      expect(screen.getByLabelText('Include State filter')).toBeEnabled();
+      expect(screen.getByLabelText('Display by period')).toBeEnabled();
+      expect(screen.getByLabelText('Source filter')).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Source: AE' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Export CSV' })).toBeDisabled();
+      options.resolve();
+      await waitFor(() =>
+        expect(screen.getByLabelText('Source filter')).toBeEnabled()
+      );
+      expect(
+        screen.getByRole('button', { name: 'Source: Aggie Enterprise' })
+      ).toBeInTheDocument();
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+      expenses.resolve();
+      await screen.findByRole('table');
+      expect(screen.getByRole('button', { name: 'Export CSV' })).toBeEnabled();
+    } finally {
+      options.resolve();
+      expenses.resolve();
+      cleanup();
+    }
+  });
+
+  it('retries options without loading an idle grid', async () => {
+    const requests: URL[] = [];
+    mockExpenseReviewApi(requests);
+    let calls = 0;
+    server.use(
+      http.get('/api/expensereview/filters', () =>
+        ++calls === 1
+          ? HttpResponse.json({ detail: 'Options failed' }, { status: 500 })
+          : HttpResponse.json(filtersResponse)
+      )
+    );
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/expense-review',
+    });
+    try {
+      await screen.findByText('Options failed');
+      await userEvent
+        .setup()
+        .click(screen.getByRole('button', { name: 'Retry filter options' }));
+      await waitFor(() =>
+        expect(screen.getByLabelText('Fund filter')).toBeEnabled()
+      );
+      expect(requests).toHaveLength(0);
+      expect(calls).toBe(2);
+      expect(
+        screen.getByText('Select a filter or load all expenses')
+      ).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('retries grid and options failures separately', async () => {
+    mockExpenseReviewApi();
+    let optionsCalls = 0;
+    let expenseCalls = 0;
+    server.use(
+      http.get('/api/expensereview/filters', () =>
+        ++optionsCalls === 1
+          ? HttpResponse.json({ detail: 'Options failed' }, { status: 500 })
+          : HttpResponse.json(filtersResponse)
+      ),
+      http.get('/api/expensereview/transactions', () =>
+        ++expenseCalls === 1
+          ? HttpResponse.json({ detail: 'Expenses failed' }, { status: 500 })
+          : HttpResponse.json(transactionsResponse())
+      )
+    );
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/expense-review?loadAll=true',
+    });
+    try {
+      await screen.findByText('Options failed');
+      await screen.findByText('Expenses failed');
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: 'Retry expenses' }));
+      await screen.findByRole('table');
+      expect(optionsCalls).toBe(1);
+      expect(expenseCalls).toBe(2);
+      expect(screen.getByText('Options failed')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Export CSV' })).toBeEnabled();
+      await user.click(
+        screen.getByRole('button', { name: 'Retry filter options' })
+      );
+      await waitFor(() =>
+        expect(screen.getByLabelText('Fund filter')).toBeEnabled()
+      );
+      expect(expenseCalls).toBe(2);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('cancels obsolete grid requests and hides old results when the context changes', async () => {
+    mockExpenseReviewApi();
+    const started = completion();
+    const aborted = completion();
+    const response = completion();
+    server.use(
+      http.get('/api/expensereview/transactions', async ({ request }) => {
+        if (
+          new URL(request.url).searchParams.get('includeState') === 'excluded'
+        ) {
+          request.signal.addEventListener('abort', aborted.resolve, {
+            once: true,
+          });
+          started.resolve();
+          await response.promise;
+        }
+        return HttpResponse.json(transactionsResponse());
+      })
+    );
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/expense-review?loadAll=true',
+    });
+    try {
+      await screen.findByRole('table');
+      const user = userEvent.setup();
+      await user.selectOptions(
+        screen.getByLabelText('Include State filter'),
+        'excluded'
+      );
+      await started.promise;
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+      expect(screen.queryByText(/grouped rows/)).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Export CSV' })).toBeDisabled();
+      await user.selectOptions(
+        screen.getByLabelText('Include State filter'),
+        'all'
+      );
+      await aborted.promise;
+      await screen.findByText('Select a filter or load all expenses');
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    } finally {
+      response.resolve();
+      cleanup();
+    }
+  });
+
+  it('shows a successful empty result and permits an empty CSV export', async () => {
+    mockExpenseReviewApi();
+    server.use(
+      http.get('/api/expensereview/transactions', () =>
+        HttpResponse.json({
+          ...transactionsResponse(),
+          counts: { all: 0, excluded: 0, included: 0 },
+          pageCount: 0,
+          rows: [],
+          totalAmount: 0,
+          totalCount: 0,
+        })
+      )
+    );
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/expense-review?loadAll=true',
+    });
+    try {
+      await screen.findByRole('table');
+      expect(screen.getByText('0 grouped rows')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Export CSV' })).toBeEnabled();
+      expect(
+        screen.queryByText('Select a filter or load all expenses')
+      ).not.toBeInTheDocument();
     } finally {
       cleanup();
     }

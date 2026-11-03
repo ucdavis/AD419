@@ -94,7 +94,8 @@ public static class ExpenseReviewToolManifest
             SummaryDataSchema()),
         new(
             GetView,
-            "Returns the filters, include state, sort, paging, and toggles currently applied on the user's Expense Review page.",
+            "Returns the filters, include state, sort, paging, toggles, and explicit loadAll intent currently applied on the user's Expense Review page. " +
+            "With no filters, includeState all, and loadAll false, the page is idle.",
             CaesAiToolExecution.Client,
             CaesAiToolRisk.Read,
             false,
@@ -103,7 +104,9 @@ public static class ExpenseReviewToolManifest
         new(
             SetFilters,
             "Replaces the filters and include state on the user's Expense Review page and returns to page 1. " +
-            "Omitted filter arrays are cleared. Use this when the user asks to see, show, or filter rows on screen.",
+            "Omitted filter arrays are cleared. Use this when the user asks to see, show, or filter rows on screen. " +
+            "For show all expenses, use { includeState: 'all', loadAll: true }. For clear filters, use {} to return to idle. " +
+            "Omitting loadAll or setting it to false clears previous explicit loading intent; selected filters still load automatically.",
             CaesAiToolExecution.Client,
             CaesAiToolRisk.Read,
             false,
@@ -113,7 +116,8 @@ public static class ExpenseReviewToolManifest
                 ["applied"] = new JsonObject { ["type"] = "boolean" },
                 ["filters"] = FiltersSchema(),
                 ["includeState"] = IncludeStateSchema(),
-            }, "applied", "filters", "includeState")),
+                ["loadAll"] = new JsonObject { ["type"] = "boolean" },
+            }, "applied", "filters", "includeState", "loadAll")),
     ];
 
     private static JsonObject StringArray() => new()
@@ -261,12 +265,14 @@ public static class ExpenseReviewToolManifest
         ["pageSize"] = CaesAiJsonSchema.Integer(1),
         ["displayByPeriod"] = new JsonObject { ["type"] = "boolean" },
         ["includeZeroAmounts"] = new JsonObject { ["type"] = "boolean" },
-    }, "filters", "includeState", "sortBy", "sortDirection", "page", "pageSize", "displayByPeriod", "includeZeroAmounts");
+        ["loadAll"] = new JsonObject { ["type"] = "boolean" },
+    }, "filters", "includeState", "sortBy", "sortDirection", "page", "pageSize", "displayByPeriod", "includeZeroAmounts", "loadAll");
 
     private static JsonObject SetFiltersInputSchema()
     {
         var properties = FilterProperties();
         properties["includeState"] = IncludeStateSchema();
+        properties["loadAll"] = new JsonObject { ["type"] = "boolean" };
         return CaesAiJsonSchema.Object(properties);
     }
 }

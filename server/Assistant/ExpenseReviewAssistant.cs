@@ -13,6 +13,7 @@ public static class ExpenseReviewAssistant
         - Use query_expense_review_transactions only to show a short list of example rows. Its rows are arrays in the order given by its columns field.
         - Call get_expense_review_view when the user refers to what they are looking at, so you use their current filters.
         - When the user asks to see, show, or filter rows on screen, call set_expense_review_filters to change the page rather than listing rows yourself.
+        - To show all expenses, call set_expense_review_filters with { includeState: "all", loadAll: true }. To clear filters, call it with {} to return the page to idle without loading expenses. Applying filters without loadAll clears previous explicit loading intent; selected filters still load automatically.
         - You cannot change any data. Never say a transaction was included, excluded, or edited.
         - Amounts are US dollars. Keep answers short and cite the filters you applied.
         - Summaries grouped by exclusionReason count a transaction once per reason, so those counts and amounts can exceed the totals and are not comparable to grouped-row counts. Say so if you compare them.

@@ -17,6 +17,7 @@ export interface ExpenseReviewToolHost {
 
 interface SetFiltersArgs extends Partial<ExpenseReviewFilters> {
   includeState?: ExpenseReviewIncludeState;
+  loadAll?: boolean;
 }
 
 const FILTER_KEYS = Object.keys(
@@ -44,8 +45,9 @@ export function buildExpenseReviewClientTools(
         const input = (args ?? {}) as SetFiltersArgs;
         const filters = toFilters(input);
         const includeState = input.includeState ?? 'all';
-        host.setSearch(filtersToSearch(filters, includeState));
-        return { applied: true, filters, includeState };
+        const loadAll = input.loadAll === true;
+        host.setSearch(filtersToSearch(filters, includeState, loadAll));
+        return { applied: true, filters, includeState, loadAll };
       },
       name: 'set_expense_review_filters',
     },
