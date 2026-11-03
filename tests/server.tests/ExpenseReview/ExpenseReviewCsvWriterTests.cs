@@ -84,6 +84,40 @@ public class ExpenseReviewCsvWriterTests
         csv.Should().Contain("UCP,Nov-24,3310 - Entity,13U02 - Fund,D0123 - Department,500000 - Account,44 - Research,PG1 - Program,K1234 - Tomato Project,A1 - Activity One,220 - AES,50.00,Included,");
     }
 
+    [Fact]
+    public async Task WriteAsync_does_not_repeat_a_code_the_name_already_starts_with()
+    {
+        await using var output = new MemoryStream();
+
+        await ExpenseReviewCsvWriter.WriteAsync(
+            output,
+            ToAsyncEnumerable(
+                new ExpenseReviewTransactionDto(
+                    "group-1",
+                    "AE",
+                    new ExpenseReviewCodeNameDto("3310", "Entity"),
+                    new ExpenseReviewCodeNameDto("D0123", "D0123 - Department"),
+                    new ExpenseReviewCodeNameDto("13U02", "Fund"),
+                    new ExpenseReviewCodeNameDto("500000", "Account"),
+                    new ExpenseReviewCodeNameDto("SP0A241267", "SP0A241267 - Hernandez # R02CP7556"),
+                    "Nov-24",
+                    new ExpenseReviewCodeNameDto("44", "Research"),
+                    new ExpenseReviewCodeNameDto("PG1", "Program"),
+                    new ExpenseReviewCodeNameDto("103002664U", "103002664U Optical Beam Steering"),
+                    "220",
+                    "AES",
+                    50m,
+                    true,
+                    [])
+            ),
+            false,
+            CancellationToken.None);
+
+        var csv = Encoding.UTF8.GetString(output.ToArray());
+
+        csv.Should().Contain("AE,3310 - Entity,13U02 - Fund,D0123 - Department,500000 - Account,44 - Research,PG1 - Program,SP0A241267 - Hernandez # R02CP7556,103002664U Optical Beam Steering,220 - AES,");
+    }
+
     private static async IAsyncEnumerable<T> ToAsyncEnumerable<T>(params T[] rows)
     {
         foreach (var row in rows)

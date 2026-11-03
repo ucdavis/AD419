@@ -297,7 +297,7 @@ public sealed class AutoAssociationReportService(
             SELECT
                 e.[OrgR],
                 e.[FinancialDepartment],
-                COALESCE(NULLIF(cs.[ValueDesc], ''), NULLIF(cs.[Description], '')) AS [FinancialDepartmentName],
+                NULLIF(cs.[Description], '') AS [FinancialDepartmentName],
                 e.[ExpenseSfn],
                 sf.[Label] AS [SfnLabel],
                 SUM(e.[Expenses]) AS [Expenses],
@@ -305,7 +305,7 @@ public sealed class AutoAssociationReportService(
             FROM [data].[ExpenseSummary] e
             LEFT JOIN [data].[ChartSegments] cs ON cs.[SegmentName] = 'FinancialDepartment' AND cs.[Code] = e.[FinancialDepartment]
             LEFT JOIN [data].[Sfns] sf ON sf.[Sfn] = e.[ExpenseSfn]
-            GROUP BY e.[OrgR], e.[FinancialDepartment], cs.[ValueDesc], cs.[Description], e.[ExpenseSfn], sf.[Label]
+            GROUP BY e.[OrgR], e.[FinancialDepartment], cs.[Description], e.[ExpenseSfn], sf.[Label]
             ORDER BY e.[OrgR], e.[FinancialDepartment], e.[ExpenseSfn]
             """, cancellationToken));
         return rows.ToList();

@@ -50,6 +50,14 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         ucPathGroup.AccountingPeriod.Should().BeNull();
         ucPathGroup.Amount.Should().Be(500m);
         ucPathGroup.Included.Should().BeTrue();
+        ucPathGroup.Entity.Name.Should().Be("Entity One");
+        ucPathGroup.FinancialDept.Name.Should().Be("Dept One");
+        ucPathGroup.Fund.Name.Should().Be("Fund One");
+        ucPathGroup.Account.Name.Should().Be("Account One");
+        ucPathGroup.AeProject.Name.Should().Be("Project One");
+        ucPathGroup.Purpose.Name.Should().Be("Purpose One");
+        ucPathGroup.Program.Name.Should().Be("Program One");
+        ucPathGroup.Activity.Name.Should().Be("Activity One");
 
         var excludedGroup = all.Rows.Should().ContainSingle(row => row.Fund.Code == "F2").Subject;
         excludedGroup.Source.Should().Be("AE");
@@ -867,15 +875,15 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
 
             INSERT INTO [data].[ChartSegments] ([SegmentName], [Code], [Description], [ValueDesc])
             VALUES
-                ('Entity', '3310', 'Entity Fallback', 'Entity One'),
-                ('FinancialDepartment', 'D1', 'Financial Dept Fallback', 'Dept One'),
-                ('Fund', 'F1', 'Fund Fallback', 'Fund One'),
-                ('Fund', 'F2', 'Fund Two', 'Fund Two'),
-                ('Account', 'A1', 'Account Fallback', 'Account One'),
-                ('Project', 'PR1', 'Project Fallback', 'Project One'),
-                ('Purpose', 'P1', 'Purpose Fallback', 'Purpose One'),
-                ('Program', 'PG1', 'Program Fallback', 'Program One'),
-                ('Activity', 'AC1', 'Activity Fallback', 'Activity One');
+                ('Entity', '3310', 'Entity One', '3310 - Entity One'),
+                ('FinancialDepartment', 'D1', 'Dept One', 'D1 - Dept One'),
+                ('Fund', 'F1', 'Fund One', 'F1 - Fund One'),
+                ('Fund', 'F2', 'Fund Two', 'F2 - Fund Two'),
+                ('Account', 'A1', 'Account One', 'A1 - Account One'),
+                ('Project', 'PR1', 'Project One', 'PR1 - Project One'),
+                ('Purpose', 'P1', 'Purpose One', 'P1 - Purpose One'),
+                ('Program', 'PG1', 'Program One', 'PG1 - Program One'),
+                ('Activity', 'AC1', 'Activity One', 'AC1 - Activity One');
 
             INSERT INTO [data].[AETransactions]
                 ([Entity], [Fund], [FinancialDepartment], [Account], [Purpose], [Program], [Project], [Activity],
@@ -922,7 +930,7 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
             VALUES ('Fund', 'F0', 'Zero Fund', 1, '201');
 
             INSERT INTO [data].[ChartSegments] ([SegmentName], [Code], [Description], [ValueDesc])
-            VALUES ('Fund', 'F0', 'Zero Fund', 'Zero Fund');
+            VALUES ('Fund', 'F0', 'Zero Fund', 'F0 - Zero Fund');
 
             INSERT INTO [data].[AETransactions]
                 ([Entity], [Fund], [FinancialDepartment], [Account], [Purpose], [Program], [Project], [Activity],

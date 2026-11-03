@@ -246,7 +246,7 @@ public sealed class AutoAssociationReportServiceSqlIntegrationTests(SqlServerDat
                 ('Ern', 'BON', 'Bonus', 0, NULL);
 
             INSERT INTO [data].[ChartSegments] ([SegmentName], [Code], [Description], [ValueDesc])
-            VALUES ('FinancialDepartment', 'D1', 'Dept fallback', 'Dept One');
+            VALUES ('FinancialDepartment', 'D1', 'Dept One', 'D1 - Dept One');
 
             INSERT INTO [data].[StaffTypes] ([StaffTypeCode], [FteSfn], [Description]) VALUES ('PROF', '241', 'Professors');
             INSERT INTO [data].[Titles] ([TitleCode], [StaffTypeCode], [Name]) VALUES ('1234', 'PROF', 'Professor');
