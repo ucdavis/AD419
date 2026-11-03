@@ -79,6 +79,8 @@ if (caesAiConfigured)
     builder.Services.AddScoped<ICaesAiToolDispatcher, ExpenseReviewToolDispatcher>();
 }
 builder.Services.AddScoped<IWorkflowService, WorkflowService>();
+builder.Services.Configure<StageDocumentationOptions>(builder.Configuration.GetSection("StageDocumentation"));
+builder.Services.AddSingleton<StageDocumentationConfiguration>();
 builder.Services.AddScoped<IOrgRReviewSeeder, OrgRReviewSeeder>();
 builder.Services.AddScoped<IAutoAssociationBuilder, AutoAssociationBuilder>();
 builder.Services.AddScoped<IAutoAssociationReportService, AutoAssociationReportService>();
