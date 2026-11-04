@@ -7,6 +7,7 @@ React, TypeScript, Vite, TanStack Router, TanStack Query, Tailwind CSS, DaisyUI,
 Run these commands from `client/`:
 
 - `npm run dev` starts the Vite development server.
+- `npm run typecheck` checks TypeScript types in application and test files without building production assets.
 - `npm run build` builds the production assets.
 - `npm run lint` runs ESLint.
 - `npm test` runs the Vitest suite once.

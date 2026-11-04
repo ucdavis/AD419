@@ -766,7 +766,6 @@ describe('Expense Review loading eligibility', () => {
         expect(screen.queryByText(/grouped rows/)).not.toBeInTheDocument();
         expect(
           within(screen.getByLabelText('Include State filter')).getByRole('option', {
-            exact: true,
             name: 'All',
           })
         ).toBeInTheDocument();
