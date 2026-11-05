@@ -73,9 +73,9 @@ export interface ExpenseReviewView {
   sortDirection: ExpenseReviewSortDirection;
 }
 
-const FILTER_KEYS = Object.keys(
-  EMPTY_EXPENSE_REVIEW_FILTERS
-) as Array<keyof ExpenseReviewFilters>;
+const FILTER_KEYS = Object.keys(EMPTY_EXPENSE_REVIEW_FILTERS) as Array<
+  keyof ExpenseReviewFilters
+>;
 
 function stripUndefined(search: ExpenseReviewSearch): ExpenseReviewSearch {
   return Object.fromEntries(

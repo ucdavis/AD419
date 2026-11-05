@@ -6,6 +6,48 @@ namespace Server.Tests.ExpenseReview;
 
 public class ExpenseReviewServiceSqlTests
 {
+    [Theory]
+    [InlineData("AE", true, false)]
+    [InlineData("UCP", false, true)]
+    [InlineData("AE,UCP", true, true)]
+    [InlineData("", true, true)]
+    [InlineData("unknown", true, true)]
+    [InlineData("AE,unknown", true, true)]
+    [InlineData("UCP,unknown", true, true)]
+    public void Grouped_queries_select_only_an_unambiguous_recognized_source(
+        string source, bool hasAe, bool hasUcPath)
+    {
+        var filters = ExpenseReviewFilters.None with { Source = source.Split(',', StringSplitOptions.RemoveEmptyEntries) };
+        var request = Request(filters: filters);
+        var queries = new[]
+        {
+            ExpenseReviewService.BuildTransactionsSql(request),
+            ExpenseReviewService.BuildTransactionsExportSql(request),
+            ExpenseReviewService.BuildSummarySql(SummaryRequest("source", filters: filters)),
+        };
+
+        foreach (var sql in queries)
+        {
+            sql.Contains("FROM [data].[AETransactions] a", StringComparison.Ordinal).Should().Be(hasAe);
+            sql.Contains("FROM [data].[UcPathTransactions] u", StringComparison.Ordinal).Should().Be(hasUcPath);
+            sql.Contains("u.[Source] IN @source", StringComparison.Ordinal).Should().Be(filters.Source.Count > 0);
+            sql.Should().NotContain("OPTION (RECOMPILE)");
+        }
+    }
+
+    [Fact]
+    public void Filter_index_materializes_both_sources_once_before_reading_options_and_combinations()
+    {
+        var sql = ExpenseReviewService.FilterIndexSql;
+
+        CountOccurrences(sql, "FROM [data].[AETransactions] a").Should().Be(1);
+        CountOccurrences(sql, "FROM [data].[UcPathTransactions] u").Should().Be(1);
+        CountOccurrences(sql, "INTO #FilterFacts").Should().Be(1);
+        sql.Should().Contain("OUTER APPLY");
+        sql.Should().Contain("FROM #FilterFacts u");
+        sql.Should().Contain("ORDER BY [Filter], [SortKey], [Value], [Label]");
+    }
+
     [Fact]
     public void BuildTransactionsExportSql_returns_reasons_before_ordered_unpaginated_transactions()
     {

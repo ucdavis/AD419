@@ -15,6 +15,84 @@ namespace Server.Tests.ExpenseReview;
 [Collection(SqlIntegrationCollection.Name)]
 public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixture fixture)
 {
+    [Theory]
+    [InlineData("AE", false, false, ExpenseReviewIncludeState.All)]
+    [InlineData("UCP", false, false, ExpenseReviewIncludeState.All)]
+    [InlineData("AE,UCP", false, false, ExpenseReviewIncludeState.All)]
+    [InlineData("", false, false, ExpenseReviewIncludeState.All)]
+    [InlineData("unknown", false, false, ExpenseReviewIncludeState.All)]
+    [InlineData("AE,unknown", false, false, ExpenseReviewIncludeState.All)]
+    [InlineData("UCP,unknown", false, false, ExpenseReviewIncludeState.All)]
+    [InlineData("AE", true, false, ExpenseReviewIncludeState.Included)]
+    [InlineData("UCP", true, true, ExpenseReviewIncludeState.All)]
+    [InlineData("AE", false, true, ExpenseReviewIncludeState.Excluded)]
+    public async Task Source_shapes_preserve_grid_summary_export_and_pagination_semantics(
+        string source, bool byPeriod, bool includeZero, ExpenseReviewIncludeState includeState)
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        await SeedMultiReasonTransactionAsync();
+        await SeedZeroAmountGroupAsync();
+        var service = new ExpenseReviewService(fixture.CreateDataDbContext(), Configuration());
+        var sources = source.Split(',', StringSplitOptions.RemoveEmptyEntries);
+        var filters = Filters(source: sources);
+        var request = Request(includeState: includeState, pageSize: 500, displayByPeriod: byPeriod,
+            includeZeroAmounts: includeZero, filters: filters);
+        // An extra unknown value forces the combined projection without changing matches.
+        var combinedRequest = request with { Filters = filters with { Source = sources.Length == 0 ? [] : [.. sources, "another-unknown"] } };
+        var actual = await service.GetTransactionsAsync(Cycle(), request, CancellationToken.None);
+        var combined = await service.GetTransactionsAsync(Cycle(), combinedRequest, CancellationToken.None);
+        actual.Should().BeEquivalentTo(combined, options => options.WithStrictOrdering());
+        if (sources.Length > 0)
+        {
+            actual.Rows.Should().OnlyContain(row => sources.Contains(row.Source));
+            if (!sources.Contains("AE") && !sources.Contains("UCP"))
+            {
+                actual.TotalCount.Should().Be(0);
+            }
+        }
+
+        var summaryRequest = new ExpenseReviewSummaryRequest(includeState, includeZero, filters,
+            byPeriod ? "accountingPeriod" : "source", 100, false);
+        var summary = await service.GetSummaryAsync(Cycle(), summaryRequest, CancellationToken.None);
+        summary.TotalCount.Should().Be(actual.TotalCount);
+        summary.TotalAmount.Should().Be(actual.TotalAmount);
+        var combinedSummary = await service.GetSummaryAsync(Cycle(), summaryRequest with { Filters = combinedRequest.Filters }, CancellationToken.None);
+        summary.Should().BeEquivalentTo(combinedSummary, options => options.WithStrictOrdering());
+
+        await using var actualCsv = new MemoryStream();
+        await using var combinedCsv = new MemoryStream();
+        await service.WriteTransactionsCsvAsync(Cycle(), request, actualCsv, CancellationToken.None);
+        await service.WriteTransactionsCsvAsync(Cycle(), combinedRequest, combinedCsv, CancellationToken.None);
+        actualCsv.ToArray().Should().Equal(combinedCsv.ToArray());
+
+        var paged = new List<ExpenseReviewTransactionDto>();
+        for (var page = 1; page <= Math.Max(1, actual.TotalCount); page++)
+        {
+            var result = await service.GetTransactionsAsync(Cycle(), request with { Page = page, PageSize = 1 }, CancellationToken.None);
+            paged.AddRange(result.Rows);
+        }
+        paged.Should().BeEquivalentTo(actual.Rows, options => options.WithStrictOrdering());
+    }
+
+    [Theory]
+    [InlineData("AE", "UCP")]
+    [InlineData("UCP", "AE")]
+    public async Task Alternating_source_requests_preserve_results(string first, string second)
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        var service = new ExpenseReviewService(fixture.CreateDataDbContext(), Configuration());
+        var firstRequest = Request(filters: Filters(source: [first]));
+        var original = await service.GetTransactionsAsync(Cycle(), firstRequest, CancellationToken.None);
+        var other = await service.GetTransactionsAsync(Cycle(), Request(filters: Filters(source: [second])), CancellationToken.None);
+        var repeated = await service.GetTransactionsAsync(Cycle(), firstRequest, CancellationToken.None);
+
+        original.Rows.Should().NotBeEmpty().And.OnlyContain(row => row.Source == first);
+        other.Rows.Should().NotBeEmpty().And.OnlyContain(row => row.Source == second);
+        repeated.Should().BeEquivalentTo(original, options => options.WithStrictOrdering());
+    }
+
     [Fact]
     public async Task Transaction_queries_group_by_source_and_apply_filters_counts_sorting_and_filter_options()
     {
@@ -779,6 +857,41 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
             .Which.Should().Be(new ExpenseReviewFilterOptionDto("F3", "F3 - Fund Three"));
         bySecondDept.Sources.Select(option => option.Value).Should().Equal("AE");
         byReason.Funds.Select(option => option.Value).Should().Equal("F2");
+    }
+
+    [Fact]
+    public async Task Filter_facts_preserve_reasonless_and_multi_reason_combinations_and_cached_narrowing()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        await SeedMultiReasonTransactionAsync();
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        using var reader = await connection.QueryMultipleAsync(ExpenseReviewService.FilterIndexSql,
+            new { cycleStart = Cycle().CycleStart.ToDateTime(TimeOnly.MinValue), cycleEnd = Cycle().CycleEnd.ToDateTime(TimeOnly.MinValue) });
+        await reader.ReadAsync();
+        var combos = (await reader.ReadAsync<ExpenseReviewFilterCombo>()).ToList();
+        combos.Select(combo => (combo.Source, combo.AeProjectCode, combo.AccountingPeriod, combo.ExclusionReason))
+            .Should().BeEquivalentTo(new (string?, string?, string?, string?)[]
+            {
+                ("AE", "PR1", "Oct-24", null),
+                ("AE", "PR1", "Nov-24", null),
+                ("UCP", "PR1", "Nov-24", null),
+                ("AE", "PR1", "Oct-24", "fund:excluded"),
+                ("AE", "PR-MULTI", "Oct-24", "excludedByDate"),
+                ("AE", "PR-MULTI", "Oct-24", "aeAccountInUcPath"),
+            });
+
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var service = new ExpenseReviewService(fixture.CreateDataDbContext(), Configuration(), cache);
+        var options = await service.GetFilterOptionsAsync(Cycle(), Filters(), CancellationToken.None);
+        options.AccountingPeriods.Select(option => option.Value).Should().Equal("Oct-24", "Nov-24");
+        options.ExclusionReasons.Select(option => option.Label).Should().Equal(
+            "AE account also in UCPath", "Excluded by date", "Excluded by fund");
+        var narrowed = await service.GetFilterOptionsAsync(Cycle(),
+            Filters(aeProject: ["PR-MULTI"], exclusionReason: ["excludedByDate"]), CancellationToken.None);
+        narrowed.ExclusionReasons.Select(option => option.Value).Should().Equal("aeAccountInUcPath", "excludedByDate");
+        narrowed.AeProjects.Select(option => option.Value).Should().Equal("PR-MULTI");
+        narrowed.Funds.Select(option => option.Value).Should().Equal("F1");
     }
 
     private async Task SeedSecondDeptRowAsync()

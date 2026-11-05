@@ -86,4 +86,14 @@ describe('expense review search params', () => {
       filtersToSearch(EMPTY_EXPENSE_REVIEW_FILTERS, 'included').include
     ).toBe('included');
   });
+
+  it.each([true, false, 'invalid'])(
+    'ignores obsolete loadAll: %s while preserving valid filters',
+    (loadAll) => {
+      const search = parseExpenseReviewSearch({ fund: ['13U02'], loadAll });
+
+      expect(search).toEqual({ fund: ['13U02'] });
+      expect(resolveExpenseReviewView(search)).not.toHaveProperty('loadAll');
+    }
+  );
 });

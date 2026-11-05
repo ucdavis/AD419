@@ -5,7 +5,10 @@ import { EMPTY_EXPENSE_REVIEW_FILTERS } from '@/queries/expenseReview.ts';
 
 function host(search: ExpenseReviewSearch = {}) {
   const setSearch = vi.fn();
-  const tools = buildExpenseReviewClientTools({ getSearch: () => search, setSearch });
+  const tools = buildExpenseReviewClientTools({
+    getSearch: () => search,
+    setSearch,
+  });
   const tool = (name: string) => {
     const found = tools.find((candidate) => candidate.name === name);
     if (!found) {
@@ -17,8 +20,12 @@ function host(search: ExpenseReviewSearch = {}) {
 }
 
 describe('expense review client tools', () => {
-  it('get_expense_review_view reports the resolved view', () => {
-    const { tool } = host({ fund: ['13U02'], include: 'excluded', page: 2 });
+  it('get_expense_review_view reports the current view without loading intent', () => {
+    const { tool } = host({
+      fund: ['13U02'],
+      include: 'excluded',
+      page: 2,
+    });
 
     expect(tool('get_expense_review_view').execute({})).toEqual({
       displayByPeriod: false,
@@ -33,7 +40,11 @@ describe('expense review client tools', () => {
   });
 
   it('set_expense_review_filters replaces filters, resets the page, and reports what it applied', () => {
-    const { setSearch, tool } = host({ fund: ['13U02'], page: 3, source: ['AE'] });
+    const { setSearch, tool } = host({
+      fund: ['13U02'],
+      page: 3,
+      source: ['AE'],
+    });
 
     const result = tool('set_expense_review_filters').execute({
       account: ['770000'],
@@ -63,10 +74,39 @@ describe('expense review client tools', () => {
     });
   });
 
+  it.each([{}, { includeState: 'all' }, { loadAll: true }])(
+    'clears filters and pagination without loading intent for %j',
+    (args) => {
+      const { setSearch, tool } = host({
+        fund: ['13U02'],
+        include: 'excluded',
+        page: 3,
+        source: ['AE'],
+      });
+
+      expect(tool('set_expense_review_filters').execute(args)).toEqual({
+        applied: true,
+        filters: EMPTY_EXPENSE_REVIEW_FILTERS,
+        includeState: 'all',
+      });
+      expect(setSearch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fund: undefined,
+          include: undefined,
+          page: undefined,
+          source: undefined,
+        })
+      );
+      expect(setSearch.mock.calls[0][0]).not.toHaveProperty('loadAll');
+    }
+  );
+
   it('set_expense_review_filters treats a missing include state as all', () => {
     const { tool } = host();
 
-    expect(tool('set_expense_review_filters').execute({ fund: ['1'] })).toMatchObject({
+    expect(
+      tool('set_expense_review_filters').execute({ fund: ['1'] })
+    ).toMatchObject({
       includeState: 'all',
     });
   });
