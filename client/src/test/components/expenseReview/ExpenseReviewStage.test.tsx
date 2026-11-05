@@ -525,6 +525,8 @@ describe('Expense Review stage', () => {
     async (orgRStatus) => {
       const user = userEvent.setup();
       let updateRequests = 0;
+      const completionStarted = completion();
+      const completionResponse = completion();
       mockExpenseReviewApi();
       server.use(
         http.get('/api/orgr/financial-departments', () =>
@@ -538,6 +540,8 @@ describe('Expense Review stage', () => {
             expect(params.stageId).toBe('expense-review');
             expect(await request.json()).toEqual({ status: 'Complete' });
             updateRequests += 1;
+            completionStarted.resolve();
+            await completionResponse.promise;
             return HttpResponse.json(
               createWorkflowSnapshot({
                 'data-classification': 'Complete',
@@ -560,11 +564,21 @@ describe('Expense Review stage', () => {
           screen.getByRole('button', { name: /continue to orgr review/i })
         );
 
+        await completionStarted.promise;
+        const continuing = await screen.findByRole('button', {
+          name: 'Continuing...',
+        });
+        expect(continuing).toBeDisabled();
+        await user.click(continuing);
+        expect(updateRequests).toBe(1);
+        completionResponse.resolve();
+
         await waitFor(() => {
           expect(updateRequests).toBe(1);
           expect(router.state.location.pathname).toBe('/workflow/orgr-review');
         });
       } finally {
+        completionResponse.resolve();
         cleanup();
       }
     }
@@ -1049,6 +1063,9 @@ describe('Expense Review loading eligibility', () => {
       expect(screen.getByLabelText('Source filter')).toBeDisabled();
       expect(screen.getByRole('button', { name: 'Source: AE' })).toBeEnabled();
       expect(screen.getByRole('button', { name: 'Export CSV' })).toBeDisabled();
+      expect(
+        screen.getByRole('button', { name: 'Continue to OrgR Review' })
+      ).toBeDisabled();
       options.resolve();
       await waitFor(() =>
         expect(screen.getByLabelText('Source filter')).toBeEnabled()
@@ -1060,6 +1077,9 @@ describe('Expense Review loading eligibility', () => {
       expenses.resolve();
       await screen.findByRole('table');
       expect(screen.getByRole('button', { name: 'Export CSV' })).toBeEnabled();
+      expect(
+        screen.getByRole('button', { name: 'Continue to OrgR Review' })
+      ).toBeEnabled();
     } finally {
       options.resolve();
       expenses.resolve();
@@ -1103,17 +1123,23 @@ describe('Expense Review loading eligibility', () => {
     mockExpenseReviewApi();
     let optionsCalls = 0;
     let expenseCalls = 0;
+    const retryStarted = completion();
+    const retryResponse = completion();
     server.use(
       http.get('/api/expensereview/filters', () =>
         ++optionsCalls === 1
           ? HttpResponse.json({ detail: 'Options failed' }, { status: 500 })
           : HttpResponse.json(filtersResponse)
       ),
-      http.get('/api/expensereview/transactions', () =>
-        ++expenseCalls === 1
-          ? HttpResponse.json({ detail: 'Expenses failed' }, { status: 500 })
-          : HttpResponse.json(transactionsResponse())
-      )
+      http.get('/api/expensereview/transactions', async () => {
+        expenseCalls += 1;
+        if (expenseCalls === 1) {
+          return HttpResponse.json({ detail: 'Expenses failed' }, { status: 500 });
+        }
+        retryStarted.resolve();
+        await retryResponse.promise;
+        return HttpResponse.json(transactionsResponse());
+      })
     );
     const { cleanup } = renderRoute({
       initialPath: '/workflow/expense-review?entity=%5B%223310%22%5D',
@@ -1121,9 +1147,17 @@ describe('Expense Review loading eligibility', () => {
     try {
       await screen.findByText('Options failed');
       await screen.findByText('Expenses failed');
+      const continueButton = screen.getByRole('button', {
+        name: 'Continue to OrgR Review',
+      });
+      expect(continueButton).toBeDisabled();
       const user = userEvent.setup();
       await user.click(screen.getByRole('button', { name: 'Retry expenses' }));
+      await retryStarted.promise;
+      expect(continueButton).toBeDisabled();
+      retryResponse.resolve();
       await screen.findByRole('table');
+      expect(continueButton).toBeEnabled();
       expect(optionsCalls).toBe(1);
       expect(expenseCalls).toBe(2);
       expect(screen.getByText('Options failed')).toBeInTheDocument();
@@ -1135,6 +1169,109 @@ describe('Expense Review loading eligibility', () => {
         expect(screen.getByLabelText('Fund filter')).toBeEnabled()
       );
       expect(expenseCalls).toBe(2);
+    } finally {
+      retryResponse.resolve();
+      cleanup();
+    }
+  });
+
+  it.each([false, true])(
+    'blocks completion while refreshing visible results and after refresh failure: %s',
+    async (refreshFails) => {
+      mockExpenseReviewApi();
+      const refreshStarted = completion();
+      const refreshResponse = completion();
+      let expenseCalls = 0;
+      server.use(
+        http.get('/api/expensereview/transactions', async () => {
+          expenseCalls += 1;
+          if (expenseCalls > 1) {
+            refreshStarted.resolve();
+            await refreshResponse.promise;
+            if (refreshFails) {
+              return HttpResponse.json(
+                { detail: 'Refresh failed' },
+                { status: 500 }
+              );
+            }
+          }
+          return HttpResponse.json(transactionsResponse());
+        })
+      );
+      const { cleanup, queryClient } = renderRoute({
+        initialPath: '/workflow/expense-review?entity=%5B%223310%22%5D',
+      });
+      let refetch = Promise.resolve();
+      try {
+        await screen.findByRole('table');
+        const continueButton = screen.getByRole('button', {
+          name: 'Continue to OrgR Review',
+        });
+        expect(continueButton).toBeEnabled();
+
+        await act(async () => {
+          refetch = queryClient.refetchQueries({
+            queryKey: ['expenseReview', 'transactions'],
+            type: 'active',
+          });
+          await refreshStarted.promise;
+        });
+        await screen.findByText('Refreshing grouped expenses...');
+        expect(continueButton).toBeDisabled();
+        expect(
+          within(screen.getByRole('table')).getByText('$3,600.50')
+        ).toBeInTheDocument();
+
+        await act(async () => {
+          refreshResponse.resolve();
+          await refetch;
+        });
+        if (refreshFails) {
+          await screen.findByText('Refresh failed');
+          expect(continueButton).toBeDisabled();
+        } else {
+          await waitFor(() => expect(continueButton).toBeEnabled());
+        }
+        expect(
+          within(screen.getByRole('table')).getByText('$3,600.50')
+        ).toBeInTheDocument();
+        expect(expenseCalls).toBe(2);
+      } finally {
+        await act(async () => {
+          refreshResponse.resolve();
+          await refetch;
+        });
+        cleanup();
+      }
+    }
+  );
+
+  it('allows idle completion after clearing failed filters without requesting expenses again', async () => {
+    mockExpenseReviewApi();
+    let expenseCalls = 0;
+    server.use(
+      http.get('/api/expensereview/transactions', () => {
+        expenseCalls += 1;
+        return HttpResponse.json({ detail: 'Expenses failed' }, { status: 500 });
+      })
+    );
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/expense-review?entity=%5B%223310%22%5D',
+    });
+    try {
+      await screen.findByText('Expenses failed');
+      const continueButton = screen.getByRole('button', {
+        name: 'Continue to OrgR Review',
+      });
+      expect(continueButton).toBeDisabled();
+      await userEvent
+        .setup()
+        .click(screen.getByRole('button', { name: 'Clear all' }));
+      await screen.findByText('Select a filter to view expenses.');
+      expect(continueButton).toBeEnabled();
+      expect(screen.queryByText('Expenses failed')).not.toBeInTheDocument();
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+      expect(expenseCalls).toBe(1);
     } finally {
       cleanup();
     }
@@ -1207,6 +1344,9 @@ describe('Expense Review loading eligibility', () => {
       await screen.findByRole('table');
       expect(screen.getByText('0 grouped rows')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Export CSV' })).toBeEnabled();
+      expect(
+        screen.getByRole('button', { name: 'Continue to OrgR Review' })
+      ).toBeEnabled();
       expect(
         screen.queryByText('Select a filter to view expenses.')
       ).not.toBeInTheDocument();

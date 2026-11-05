@@ -782,7 +782,11 @@ export function ExpenseReviewStage() {
           />
           <button
             className="btn btn-primary"
-            disabled={continueMutation.isPending}
+            disabled={
+              continueMutation.isPending ||
+              (shouldLoadTransactions &&
+                (!transactionsQuery.isSuccess || transactionsQuery.isFetching))
+            }
             onClick={() => continueMutation.mutate()}
             type="button"
           >
