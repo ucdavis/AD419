@@ -465,7 +465,6 @@ export function ExpenseReviewStage() {
     filters,
     includeState,
     includeZeroAmounts,
-    loadAll,
     page,
     pageSize,
     sortBy,
@@ -488,7 +487,7 @@ export function ExpenseReviewStage() {
     });
   };
   const selectedFilterCount = activeFilterCount(filters, includeState);
-  const shouldLoadTransactions = selectedFilterCount > 0 || loadAll;
+  const shouldLoadTransactions = selectedFilterCount > 0;
   const transactionsQuery = useQuery({
     ...expenseReviewTransactionsQueryOptions({
       displayByPeriod,
@@ -685,19 +684,7 @@ export function ExpenseReviewStage() {
       ) : null}
 
       {!shouldLoadTransactions ? (
-        <div className="space-y-3">
-          <p>Select a filter or load all expenses</p>
-          <button
-            className="btn btn-outline"
-            onClick={() => {
-              setSearch({ loadAll: true, page: undefined });
-              resetExportError();
-            }}
-            type="button"
-          >
-            Load all expenses
-          </button>
-        </div>
+        <p>Select a filter to view expenses.</p>
       ) : null}
       {shouldLoadTransactions && transactionsQuery.isFetching ? (
         <div className="text-sm text-base-content/60" role="status">

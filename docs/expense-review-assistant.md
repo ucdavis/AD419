@@ -82,12 +82,12 @@ node dist/cli.js app update <application-id> --callback-url <tunnel-https-url>/a
 
 The assistant uses `set_expense_review_filters` to control the table:
 
-- “Show all expenses”: `{ "includeState": "all", "loadAll": true }` clears filters and explicitly loads the unfiltered table.
 - “Clear filters”: `{}` clears filters and returns to the idle prompt without loading expenses.
-- Applying filters without `loadAll` (or with `loadAll: false`) clears previous explicit loading intent. Selected filters, including an included/excluded state, still load automatically.
+- Applying at least one filter, including an included/excluded state, loads expenses automatically. All, display toggles, sorting, and paging alone do not load expenses.
+- “Show all expenses” without filters: the assistant explains that the table requires a filter and asks which filter to apply.
 
-Both actions return to page 1 and preserve sorting, page size, and display toggles. The tool response and `get_expense_review_view` report the resolved `loadAll` boolean.
+Filter changes return to page 1 and preserve sorting, page size, and display toggles.
 
 With the server, Vite, and the tunnel running, sign in as an authorized user and confirm a fiscal cycle in Project Identification. Open Expense Review, clear any filters, click **Ask CAES AI**, and ask "which funds have the most excluded spend". The details row should show a `summarize_expense_review_transactions` call. Compare each reported fund's amount against the table filtered to that fund and excluded rows. Then ask "show me those" and the page filters should change.
 
-Then ask “show all expenses” and verify the unfiltered table loads. Ask “clear filters” and verify the idle prompt returns and the table disappears.
+Then ask “show all expenses” and verify the assistant asks which filter to apply. Choose a filter and verify the table loads. Ask “clear filters” and verify the idle prompt returns, the table and counts disappear, and CSV export is disabled even when results are cached.

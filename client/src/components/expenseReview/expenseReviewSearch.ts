@@ -48,7 +48,6 @@ export const expenseReviewSearchSchema = z.object({
   financialDept: list,
   fund: list,
   include: lenient(z.enum(['all', 'included', 'excluded'])),
-  loadAll: lenient(z.boolean()),
   page: lenient(z.number().int().min(1)),
   program: list,
   purpose: list,
@@ -68,7 +67,6 @@ export interface ExpenseReviewView {
   filters: ExpenseReviewFilters;
   includeState: ExpenseReviewIncludeState;
   includeZeroAmounts: boolean;
-  loadAll: boolean;
   page: number;
   pageSize: number;
   sortBy: ExpenseReviewSortBy;
@@ -103,7 +101,6 @@ export function resolveExpenseReviewView(
     filters,
     includeState: search.include ?? 'all',
     includeZeroAmounts: search.zero ?? false,
-    loadAll: search.loadAll === true,
     page: search.page ?? 1,
     pageSize: search.size ?? DEFAULT_EXPENSE_REVIEW_PAGE_SIZE,
     sortBy: search.sort ?? 'source',
@@ -113,12 +110,10 @@ export function resolveExpenseReviewView(
 
 export function filtersToSearch(
   filters: ExpenseReviewFilters,
-  includeState: ExpenseReviewIncludeState,
-  loadAll = false
+  includeState: ExpenseReviewIncludeState
 ): ExpenseReviewSearch {
   const patch: ExpenseReviewSearch = {
     include: includeState === 'all' ? undefined : includeState,
-    loadAll: loadAll ? true : undefined,
     page: undefined,
   };
   for (const key of FILTER_KEYS) {

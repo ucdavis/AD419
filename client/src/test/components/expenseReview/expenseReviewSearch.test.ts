@@ -15,7 +15,6 @@ describe('expense review search params', () => {
       filters: EMPTY_EXPENSE_REVIEW_FILTERS,
       includeState: 'all',
       includeZeroAmounts: false,
-      loadAll: false,
       page: 1,
       pageSize: 25,
       sortBy: 'source',
@@ -29,7 +28,6 @@ describe('expense review search params', () => {
       dir: 'desc',
       fund: ['13U02', '12345'],
       include: 'excluded',
-      loadAll: true,
       page: 3,
       size: 50,
       sort: 'amount',
@@ -39,7 +37,6 @@ describe('expense review search params', () => {
     const view = resolveExpenseReviewView(search);
 
     expect(view.displayByPeriod).toBe(true);
-    expect(view.loadAll).toBe(true);
     expect(view.sortDirection).toBe('desc');
     expect(view.filters.fund).toEqual(['13U02', '12345']);
     expect(view.filters.source).toEqual(['AE']);
@@ -54,7 +51,6 @@ describe('expense review search params', () => {
     const search = parseExpenseReviewSearch({
       fund: 'not-an-array',
       include: 'maybe',
-      loadAll: 'true',
       page: 0,
       size: 33,
       sort: 'nope',
@@ -80,7 +76,6 @@ describe('expense review search params', () => {
       financialDept: undefined,
       fund: ['13U02'],
       include: undefined,
-      loadAll: undefined,
       page: undefined,
       program: undefined,
       purpose: undefined,
@@ -92,17 +87,13 @@ describe('expense review search params', () => {
     ).toBe('included');
   });
 
-  it.each([undefined, false, true])(
-    'writes only explicit loadAll intent: %s',
+  it.each([true, false, 'invalid'])(
+    'ignores obsolete loadAll: %s while preserving valid filters',
     (loadAll) => {
-      const patch = filtersToSearch(
-        EMPTY_EXPENSE_REVIEW_FILTERS,
-        'all',
-        loadAll
-      );
+      const search = parseExpenseReviewSearch({ fund: ['13U02'], loadAll });
 
-      expect(patch).toHaveProperty('loadAll', loadAll ? true : undefined);
-      expect(resolveExpenseReviewView(patch).loadAll).toBe(loadAll === true);
+      expect(search).toEqual({ fund: ['13U02'] });
+      expect(resolveExpenseReviewView(search)).not.toHaveProperty('loadAll');
     }
   );
 });

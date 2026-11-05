@@ -33,11 +33,11 @@ public class ExpenseReviewToolManifestTests
     }
 
     [Fact]
-    public void Set_filters_accepts_optional_explicit_loading()
+    public void Set_filters_does_not_accept_explicit_loading()
     {
         var tool = ExpenseReviewToolManifest.Build().Single(t => t.Name == ExpenseReviewToolManifest.SetFilters);
 
-        tool.InputSchema["properties"]!["loadAll"]!["type"]!.GetValue<string>().Should().Be("boolean");
+        tool.InputSchema["properties"]!.AsObject().ContainsKey("loadAll").Should().BeFalse();
         var required = tool.InputSchema["required"]?.AsArray().Select(node => node!.GetValue<string>()) ?? [];
         required.Should().NotContain("loadAll");
     }
@@ -45,12 +45,12 @@ public class ExpenseReviewToolManifestTests
     [Theory]
     [InlineData(ExpenseReviewToolManifest.GetView)]
     [InlineData(ExpenseReviewToolManifest.SetFilters)]
-    public void Client_tool_responses_require_explicit_loading_state(string name)
+    public void Client_tool_responses_do_not_include_explicit_loading_state(string name)
     {
         var tool = ExpenseReviewToolManifest.Build().Single(t => t.Name == name);
 
-        tool.DataSchema["properties"]!["loadAll"]!["type"]!.GetValue<string>().Should().Be("boolean");
-        tool.DataSchema["required"]!.AsArray().Select(node => node!.GetValue<string>()).Should().Contain("loadAll");
+        tool.DataSchema["properties"]!.AsObject().ContainsKey("loadAll").Should().BeFalse();
+        tool.DataSchema["required"]!.AsArray().Select(node => node!.GetValue<string>()).Should().NotContain("loadAll");
     }
 
     [Fact]

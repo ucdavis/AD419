@@ -200,7 +200,7 @@ describe('Expense Review stage', () => {
   it('renders grouped expense rows with full chart string columns and exclusion chips', async () => {
     mockExpenseReviewApi();
     const { cleanup } = renderRoute({
-      initialPath: '/workflow/expense-review?loadAll=true',
+      initialPath: '/workflow/expense-review?entity=%5B%223310%22%5D',
     });
 
     try {
@@ -266,7 +266,7 @@ describe('Expense Review stage', () => {
     const requests: URL[] = [];
     mockExpenseReviewApi(requests);
     const { cleanup } = renderRoute({
-      initialPath: '/workflow/expense-review?loadAll=true',
+      initialPath: '/workflow/expense-review?entity=%5B%223310%22%5D',
     });
 
     try {
@@ -323,12 +323,10 @@ describe('Expense Review stage', () => {
 
       await user.click(screen.getByRole('button', { name: 'Clear all' }));
       expect(
-        await screen.findByText('Select a filter or load all expenses')
+        await screen.findByText('Select a filter to view expenses.')
       ).toBeInTheDocument();
       expect(screen.queryByRole('table')).not.toBeInTheDocument();
-      await user.click(
-        screen.getByRole('button', { name: 'Load all expenses' })
-      );
+      await chooseFilterOption(user, 'Entity', '3310 - UC Davis');
       await screen.findByRole('table');
       expect(requests.at(-1)?.searchParams.get('includeState')).toBe('all');
       expect(requests.at(-1)?.searchParams.getAll('fund')).toEqual([]);
@@ -375,7 +373,7 @@ describe('Expense Review stage', () => {
     const requests: URL[] = [];
     mockExpenseReviewApi(requests);
     const { cleanup } = renderRoute({
-      initialPath: '/workflow/expense-review?loadAll=true',
+      initialPath: '/workflow/expense-review?entity=%5B%223310%22%5D',
     });
 
     try {
@@ -398,7 +396,7 @@ describe('Expense Review stage', () => {
     const requests: URL[] = [];
     mockExpenseReviewApi(requests);
     const { cleanup } = renderRoute({
-      initialPath: '/workflow/expense-review?loadAll=true',
+      initialPath: '/workflow/expense-review?entity=%5B%223310%22%5D',
     });
 
     try {
@@ -453,7 +451,7 @@ describe('Expense Review stage', () => {
     const download = mockCsvDownload();
     mockExpenseReviewApi([], exportRequests);
     const { cleanup } = renderRoute({
-      initialPath: '/workflow/expense-review?loadAll=true',
+      initialPath: '/workflow/expense-review?entity=%5B%223310%22%5D',
     });
 
     try {
@@ -507,7 +505,7 @@ describe('Expense Review stage', () => {
       )
     );
     const { cleanup } = renderRoute({
-      initialPath: '/workflow/expense-review?loadAll=true',
+      initialPath: '/workflow/expense-review?entity=%5B%223310%22%5D',
     });
 
     try {
@@ -557,7 +555,7 @@ describe('Expense Review stage', () => {
       });
 
       try {
-        await screen.findByText('Select a filter or load all expenses');
+        await screen.findByText('Select a filter to view expenses.');
         await user.click(
           screen.getByRole('button', { name: /continue to orgr review/i })
         );
@@ -624,7 +622,7 @@ describe('Expense Review stage', () => {
       })
     );
     const { cleanup } = renderRoute({
-      initialPath: '/workflow/expense-review?loadAll=true',
+      initialPath: '/workflow/expense-review?entity=%5B%223310%22%5D',
     });
 
     try {
@@ -668,7 +666,7 @@ describe('Expense Review stage', () => {
     const user = userEvent.setup();
     mockExpenseReviewApi();
     const { cleanup, router } = renderRoute({
-      initialPath: '/workflow/expense-review?loadAll=true&page=2',
+      initialPath: '/workflow/expense-review?entity=%5B%223310%22%5D&page=2',
     });
 
     try {
@@ -676,7 +674,10 @@ describe('Expense Review stage', () => {
       await chooseFilterOption(user, 'Fund', '13U02 - Experiment Station');
 
       await waitFor(() => {
-        expect(router.state.location.search).toEqual({ fund: ['13U02'] });
+        expect(router.state.location.search).toEqual({
+          entity: ['3310'],
+          fund: ['13U02'],
+        });
       });
     } finally {
       cleanup();
@@ -707,7 +708,7 @@ describe('Expense Review stage', () => {
       )
     );
     const { cleanup } = renderRoute({
-      initialPath: '/workflow/expense-review?loadAll=true',
+      initialPath: '/workflow/expense-review?entity=%5B%223310%22%5D',
     });
 
     try {
@@ -761,13 +762,16 @@ describe('Expense Review loading eligibility', () => {
         queryClient,
       });
       try {
-        await screen.findByText('Select a filter or load all expenses');
+        await screen.findByText('Select a filter to view expenses.');
         expect(screen.queryByRole('table')).not.toBeInTheDocument();
         expect(screen.queryByText(/grouped rows/)).not.toBeInTheDocument();
         expect(
-          within(screen.getByLabelText('Include State filter')).getByRole('option', {
-            name: 'All',
-          })
+          within(screen.getByLabelText('Include State filter')).getByRole(
+            'option',
+            {
+              name: 'All',
+            }
+          )
         ).toBeInTheDocument();
         expect(
           screen.getByRole('tab', { name: 'Grouped Expenses' })
@@ -779,23 +783,17 @@ describe('Expense Review loading eligibility', () => {
         await user.click(screen.getByLabelText('Display by period'));
         await user.click(screen.getByLabelText('Include $0 groups'));
         expect(requests).toHaveLength(0);
-        await user.click(
-          screen.getByRole('button', { name: 'Load all expenses' })
-        );
-        await screen.findByRole('table');
-        expect(router.state.location.search.loadAll).toBe(true);
-        expect(requests.at(-1)?.searchParams.has('loadAll')).toBe(false);
-        await user.click(screen.getByRole('button', { name: 'Next' }));
-        await waitFor(() => expect(router.state.location.search.page).toBe(2));
-        expect(router.state.location.search.loadAll).toBe(true);
-        await screen.findByRole('table');
-        await user.click(
-          screen.getByRole('columnheader', { name: /Financial Dept/ })
-        );
-        await waitFor(() =>
-          expect(router.state.location.search.sort).toBe('financialDept')
-        );
-        expect(router.state.location.search.loadAll).toBe(true);
+        expect(screen.queryByRole('table')).not.toBeInTheDocument();
+        expect(
+          screen.getByRole('button', { name: 'Export CSV' })
+        ).toBeDisabled();
+        expect(
+          screen.queryByRole('button', { name: 'Load all expenses' })
+        ).not.toBeInTheDocument();
+        expect(router.state.location.search).toMatchObject({
+          byPeriod: true,
+          zero: true,
+        });
       } finally {
         cleanup();
       }
@@ -831,61 +829,72 @@ describe('Expense Review loading eligibility', () => {
       await screen.findByRole('table');
       expect(requests).toHaveLength(1);
       expect(
-        screen.queryByText('Select a filter or load all expenses')
+        screen.queryByText('Select a filter to view expenses.')
       ).not.toBeInTheDocument();
     } finally {
       cleanup();
     }
   });
 
-  it.each(['loadAll=false', 'loadAll=invalid', 'include=all', 'source=%5B%5D'])(
-    'ignores non-qualifying search %s',
-    async (search) => {
+  it.each([
+    'loadAll=true',
+    'loadAll=false',
+    'loadAll=invalid',
+    'include=all',
+    'source=%5B%5D',
+    'byPeriod=true&zero=true&sort=amount&dir=desc&page=2&size=50',
+  ])('ignores non-qualifying search %s', async (search) => {
+    const requests: URL[] = [];
+    mockExpenseReviewApi(requests);
+    const { cleanup } = renderRoute({
+      initialPath: `/workflow/expense-review?${search}`,
+    });
+    try {
+      await screen.findByText('Select a filter to view expenses.');
+      expect(requests).toHaveLength(0);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it.each(['Source: Aggie Enterprise', 'Clear all'])(
+    'returns to idle when filters are cleared using %s, even with cached results',
+    async (buttonName) => {
       const requests: URL[] = [];
       mockExpenseReviewApi(requests);
-      const { cleanup } = renderRoute({
-        initialPath: `/workflow/expense-review?${search}`,
+      const { cleanup, queryClient } = renderRoute({
+        initialPath: '/workflow/expense-review?source=%5B%22AE%22%5D',
       });
       try {
-        await screen.findByText('Select a filter or load all expenses');
-        expect(requests).toHaveLength(0);
+        await screen.findByRole('table');
+        expect(
+          screen.getByRole('button', { name: 'Export CSV' })
+        ).toBeEnabled();
+        await userEvent
+          .setup()
+          .click(screen.getByRole('button', { name: buttonName }));
+        await screen.findByText('Select a filter to view expenses.');
+        expect(screen.queryByRole('table')).not.toBeInTheDocument();
+        expect(screen.queryByText(/grouped rows/)).not.toBeInTheDocument();
+        expect(
+          screen.getByRole('tab', { name: 'Grouped Expenses' })
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole('button', { name: 'Export CSV' })
+        ).toBeDisabled();
+        expect(requests).toHaveLength(1);
+        expect(
+          queryClient
+            .getQueriesData({ queryKey: ['expenseReview', 'transactions'] })
+            .some(([, data]) => data !== undefined)
+        ).toBe(true);
       } finally {
         cleanup();
       }
     }
   );
 
-  it('restores explicit loading from a refreshed URL and clears it when the last filter is removed', async () => {
-    mockExpenseReviewApi();
-    const user = userEvent.setup();
-    const first = renderRoute({
-      initialPath: '/workflow/expense-review?page=2',
-    });
-    await user.click(
-      await screen.findByRole('button', { name: 'Load all expenses' })
-    );
-    await screen.findByRole('table');
-    expect(first.router.state.location.search.page).toBeUndefined();
-    const refreshedPath = first.router.state.location.href;
-    first.cleanup();
-    const { cleanup, router } = renderRoute({ initialPath: refreshedPath });
-    try {
-      await screen.findByRole('table');
-      await chooseFilterOption(user, 'Source', 'Aggie Enterprise');
-      await waitFor(() =>
-        expect(router.state.location.search.loadAll).toBeUndefined()
-      );
-      await user.click(
-        screen.getByRole('button', { name: 'Source: Aggie Enterprise' })
-      );
-      await screen.findByText('Select a filter or load all expenses');
-      expect(screen.queryByRole('table')).not.toBeInTheDocument();
-    } finally {
-      cleanup();
-    }
-  });
-
-  it('shows all expenses through the assistant and clears back to idle with cached results', async () => {
+  it('applies assistant filters and clears back to idle with cached results', async () => {
     const requests: URL[] = [];
     mockExpenseReviewApi(requests);
     const { cleanup, queryClient, router } = renderRoute({
@@ -893,7 +902,7 @@ describe('Expense Review loading eligibility', () => {
         '/workflow/expense-review?byPeriod=true&dir=desc&page=3&size=50&sort=amount&zero=true',
     });
     try {
-      await screen.findByText('Select a filter or load all expenses');
+      await screen.findByText('Select a filter to view expenses.');
       expect(requests).toHaveLength(0);
       let navigation: Promise<unknown> = Promise.resolve();
       const tools = buildExpenseReviewClientTools({
@@ -913,9 +922,10 @@ describe('Expense Review loading eligibility', () => {
       )!;
 
       await act(async () => {
-        expect(
-          setFilters.execute({ includeState: 'all', loadAll: true })
-        ).toMatchObject({ loadAll: true });
+        expect(setFilters.execute({ entity: ['3310'] })).toMatchObject({
+          filters: { entity: ['3310'] },
+          includeState: 'all',
+        });
         await navigation;
       });
       await screen.findByRole('table');
@@ -924,30 +934,47 @@ describe('Expense Review loading eligibility', () => {
       expect(params.get('includeState')).toBe('all');
       expect(params.get('page')).toBe('1');
       expect(params.has('loadAll')).toBe(false);
-      for (const key of Object.keys(resolveExpenseReviewView({}).filters)) {
-        expect(params.has(key)).toBe(false);
-      }
+      expect(params.getAll('entity')).toEqual(['3310']);
       expect(router.state.location.search).toMatchObject({
         byPeriod: true,
         dir: 'desc',
-        loadAll: true,
+        entity: ['3310'],
         size: 50,
         sort: 'amount',
         zero: true,
       });
       expect(router.state.location.search.page).toBeUndefined();
-      expect(getView.execute({})).toMatchObject({ loadAll: true });
+      expect(getView.execute({})).toMatchObject({
+        filters: { entity: ['3310'] },
+      });
+      expect(getView.execute({})).not.toHaveProperty('loadAll');
       expect(screen.getByRole('button', { name: 'Export CSV' })).toBeEnabled();
 
       await act(async () => {
-        expect(setFilters.execute({})).toMatchObject({ loadAll: false });
+        expect(setFilters.execute({})).toMatchObject({
+          filters: resolveExpenseReviewView({}).filters,
+          includeState: 'all',
+        });
         await navigation;
       });
-      await screen.findByText('Select a filter or load all expenses');
+      await screen.findByText('Select a filter to view expenses.');
       expect(screen.queryByRole('table')).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Export CSV' })).toBeDisabled();
       expect(requests).toHaveLength(1);
-      expect(getView.execute({})).toMatchObject({ loadAll: false });
+      expect(getView.execute({})).toMatchObject({
+        displayByPeriod: true,
+        filters: resolveExpenseReviewView({}).filters,
+        includeState: 'all',
+        includeZeroAmounts: true,
+        page: 1,
+        pageSize: 50,
+        sortBy: 'amount',
+        sortDirection: 'desc',
+      });
+      expect(screen.queryByText(/grouped rows/)).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('tab', { name: 'Grouped Expenses' })
+      ).toBeInTheDocument();
       const cached = queryClient.getQueriesData({
         queryKey: ['expenseReview', 'transactions'],
       });
@@ -963,7 +990,7 @@ describe('Expense Review loading eligibility', () => {
   it('applies assistant filters and clears back to idle through the same URL helper', async () => {
     mockExpenseReviewApi();
     const { cleanup, router } = renderRoute({
-      initialPath: '/workflow/expense-review?loadAll=true&page=2',
+      initialPath: '/workflow/expense-review?entity=%5B%223310%22%5D&page=2',
     });
     try {
       await screen.findByRole('table');
@@ -985,13 +1012,13 @@ describe('Expense Review loading eligibility', () => {
         await navigation;
       });
       await screen.findByRole('table');
-      expect(router.state.location.search.loadAll).toBeUndefined();
+      expect(router.state.location.search).not.toHaveProperty('loadAll');
       expect(router.state.location.search.page).toBeUndefined();
       await act(async () => {
         tool.execute({});
         await navigation;
       });
-      await screen.findByText('Select a filter or load all expenses');
+      await screen.findByText('Select a filter to view expenses.');
       expect(screen.queryByRole('table')).not.toBeInTheDocument();
     } finally {
       cleanup();
@@ -1065,7 +1092,7 @@ describe('Expense Review loading eligibility', () => {
       expect(requests).toHaveLength(0);
       expect(calls).toBe(2);
       expect(
-        screen.getByText('Select a filter or load all expenses')
+        screen.getByText('Select a filter to view expenses.')
       ).toBeInTheDocument();
     } finally {
       cleanup();
@@ -1089,7 +1116,7 @@ describe('Expense Review loading eligibility', () => {
       )
     );
     const { cleanup } = renderRoute({
-      initialPath: '/workflow/expense-review?loadAll=true',
+      initialPath: '/workflow/expense-review?entity=%5B%223310%22%5D',
     });
     try {
       await screen.findByText('Options failed');
@@ -1133,7 +1160,7 @@ describe('Expense Review loading eligibility', () => {
       })
     );
     const { cleanup } = renderRoute({
-      initialPath: '/workflow/expense-review?loadAll=true',
+      initialPath: '/workflow/expense-review?include=included',
     });
     try {
       await screen.findByRole('table');
@@ -1151,7 +1178,7 @@ describe('Expense Review loading eligibility', () => {
         'all'
       );
       await aborted.promise;
-      await screen.findByText('Select a filter or load all expenses');
+      await screen.findByText('Select a filter to view expenses.');
       expect(screen.queryByRole('table')).not.toBeInTheDocument();
     } finally {
       response.resolve();
@@ -1174,14 +1201,14 @@ describe('Expense Review loading eligibility', () => {
       )
     );
     const { cleanup } = renderRoute({
-      initialPath: '/workflow/expense-review?loadAll=true',
+      initialPath: '/workflow/expense-review?entity=%5B%223310%22%5D',
     });
     try {
       await screen.findByRole('table');
       expect(screen.getByText('0 grouped rows')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Export CSV' })).toBeEnabled();
       expect(
-        screen.queryByText('Select a filter or load all expenses')
+        screen.queryByText('Select a filter to view expenses.')
       ).not.toBeInTheDocument();
     } finally {
       cleanup();
