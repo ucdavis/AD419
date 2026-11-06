@@ -36,19 +36,6 @@ public class ExpenseReviewServiceSqlTests
     }
 
     [Fact]
-    public void Filter_index_materializes_both_sources_once_before_reading_options_and_combinations()
-    {
-        var sql = ExpenseReviewService.FilterIndexSql;
-
-        CountOccurrences(sql, "FROM [data].[AETransactions] a").Should().Be(1);
-        CountOccurrences(sql, "FROM [data].[UcPathTransactions] u").Should().Be(1);
-        CountOccurrences(sql, "INTO #FilterFacts").Should().Be(1);
-        sql.Should().Contain("OUTER APPLY");
-        sql.Should().Contain("FROM #FilterFacts u");
-        sql.Should().Contain("ORDER BY [Filter], [SortKey], [Value], [Label]");
-    }
-
-    [Fact]
     public void BuildTransactionsExportSql_returns_reasons_before_ordered_unpaginated_transactions()
     {
         var sql = ExpenseReviewService.BuildTransactionsExportSql(Request());

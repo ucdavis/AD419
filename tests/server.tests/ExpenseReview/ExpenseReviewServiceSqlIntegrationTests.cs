@@ -2,7 +2,6 @@ using System.Text;
 using Dapper;
 using FluentAssertions;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Server.ExpenseReview;
 using Server.Models;
@@ -13,7 +12,7 @@ namespace Server.Tests.ExpenseReview;
 
 [Trait("Category", "SqlIntegration")]
 [Collection(SqlIntegrationCollection.Name)]
-public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixture fixture)
+public sealed partial class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixture fixture)
 {
     [Theory]
     [InlineData("AE", false, false, ExpenseReviewIncludeState.All)]
@@ -838,7 +837,7 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
         await fixture.ClearDataTablesAsync();
         await SeedExpenseReviewScenarioAsync();
         await SeedSecondDeptRowAsync();
-        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var cache = new ExpenseReviewFilterCache();
 
         await using var db = fixture.CreateDataDbContext();
         var service = new ExpenseReviewService(db, Configuration(), cache);
@@ -870,18 +869,17 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
             new { cycleStart = Cycle().CycleStart.ToDateTime(TimeOnly.MinValue), cycleEnd = Cycle().CycleEnd.ToDateTime(TimeOnly.MinValue) });
         await reader.ReadAsync();
         var combos = (await reader.ReadAsync<ExpenseReviewFilterCombo>()).ToList();
-        combos.Select(combo => (combo.Source, combo.AeProjectCode, combo.AccountingPeriod, combo.ExclusionReason))
-            .Should().BeEquivalentTo(new (string?, string?, string?, string?)[]
+        combos.Select(combo => (combo.Source, combo.AeProjectCode, combo.AccountingPeriod, combo.ExclusionReasonMask))
+            .Should().BeEquivalentTo(new (string?, string?, string?, int)[]
             {
-                ("AE", "PR1", "Oct-24", null),
-                ("AE", "PR1", "Nov-24", null),
-                ("UCP", "PR1", "Nov-24", null),
-                ("AE", "PR1", "Oct-24", "fund:excluded"),
-                ("AE", "PR-MULTI", "Oct-24", "excludedByDate"),
-                ("AE", "PR-MULTI", "Oct-24", "aeAccountInUcPath"),
+                ("AE", "PR1", "Oct-24", 0),
+                ("AE", "PR1", "Nov-24", 0),
+                ("UCP", "PR1", "Nov-24", 0),
+                ("AE", "PR1", "Oct-24", ExpenseReviewExclusionReasons.BitForCode("fund:excluded")),
+                ("AE", "PR-MULTI", "Oct-24", ExpenseReviewExclusionReasons.BitForCode("excludedByDate") | ExpenseReviewExclusionReasons.BitForCode("aeAccountInUcPath")),
             });
 
-        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var cache = new ExpenseReviewFilterCache();
         var service = new ExpenseReviewService(fixture.CreateDataDbContext(), Configuration(), cache);
         var options = await service.GetFilterOptionsAsync(Cycle(), Filters(), CancellationToken.None);
         options.AccountingPeriods.Select(option => option.Value).Should().Equal("Oct-24", "Nov-24");
@@ -918,11 +916,14 @@ public sealed class ExpenseReviewServiceSqlIntegrationTests(SqlServerDataDbFixtu
     {
         await fixture.ClearDataTablesAsync();
         await SeedExpenseReviewScenarioAsync();
-        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var cache = new ExpenseReviewFilterCache();
 
-        await using var firstDb = fixture.CreateDataDbContext();
-        var first = await new ExpenseReviewService(firstDb, Configuration(), cache)
-            .GetFilterOptionsAsync(Cycle(), ExpenseReviewFilters.None, CancellationToken.None);
+        ExpenseReviewFilterOptionsResponse first;
+        await using (var firstDb = fixture.CreateDataDbContext())
+        {
+            first = await new ExpenseReviewService(firstDb, Configuration(), cache)
+                .GetFilterOptionsAsync(Cycle(), ExpenseReviewFilters.None, CancellationToken.None);
+        }
 
         await fixture.ClearDataTablesAsync();
 

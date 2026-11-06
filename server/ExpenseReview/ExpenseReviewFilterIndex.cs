@@ -2,8 +2,7 @@ using Server.Models.ExpenseReview;
 
 namespace Server.ExpenseReview;
 
-// One distinct mix of filter values found in the cycle's transactions. A transaction with several
-// exclusion reasons shows up once per reason; one with none has a null ExclusionReason.
+// One mix of ordinary filter values, with its exclusion reasons encoded as bits.
 public sealed class ExpenseReviewFilterCombo
 {
     public string? Source { get; init; }
@@ -17,7 +16,7 @@ public sealed class ExpenseReviewFilterCombo
     public string? ProgramCode { get; init; }
     public string? ActivityCode { get; init; }
     public string? Sfn { get; init; }
-    public string? ExclusionReason { get; init; }
+    public int ExclusionReasonMask { get; init; }
 }
 
 // Narrows the filter dropdowns to values that exist in transactions matching the other selected
@@ -41,12 +40,15 @@ public sealed class ExpenseReviewFilterIndex
         new(options => options.Activities, filters => filters.Activity, combo => combo.ActivityCode),
         new(options => options.Sfns, filters => filters.Sfn, combo => combo.Sfn),
         new(options => options.Sources, filters => filters.Source, combo => combo.Source),
-        new(options => options.ExclusionReasons, filters => filters.ExclusionReason, combo => combo.ExclusionReason),
     ];
+
+    private static readonly int ReasonField = Fields.Length;
+    private static readonly int Stride = ReasonField + 1;
 
     private readonly IReadOnlyList<ExpenseReviewFilterOptionDto>[] _options;
     private readonly Dictionary<string, int>[] _optionIndexes;
     private readonly int[] _combos;
+    private readonly int[] _reasonBits;
     private readonly int _comboCount;
 
     private ExpenseReviewFilterIndex(
@@ -61,6 +63,7 @@ public sealed class ExpenseReviewFilterIndex
         _optionIndexes = optionIndexes;
         _combos = combos;
         _comboCount = comboCount;
+        _reasonBits = allOptions.ExclusionReasons.Select(option => ExpenseReviewExclusionReasons.BitForCode(option.Value)).ToArray();
     }
 
     public ExpenseReviewFilterOptionsResponse AllOptions { get; }
@@ -69,10 +72,10 @@ public sealed class ExpenseReviewFilterIndex
         ExpenseReviewFilterOptionsResponse allOptions,
         IReadOnlyCollection<ExpenseReviewFilterCombo> combos)
     {
-        var options = Fields.Select(field => field.Options(allOptions)).ToArray();
-        var optionIndexes = options.Select(BuildOptionIndex).ToArray();
+        var options = Fields.Select(field => field.Options(allOptions)).Append(allOptions.ExclusionReasons).ToArray();
+        var optionIndexes = Fields.Select(field => BuildOptionIndex(field.Options(allOptions))).ToArray();
 
-        var encoded = new int[combos.Count * Fields.Length];
+        var encoded = new int[combos.Count * Stride];
         var offset = 0;
         foreach (var combo in combos)
         {
@@ -81,7 +84,8 @@ public sealed class ExpenseReviewFilterIndex
                 encoded[offset + field] = IndexOf(optionIndexes[field], Fields[field].ComboValue(combo));
             }
 
-            offset += Fields.Length;
+            encoded[offset + ReasonField] = combo.ExclusionReasonMask;
+            offset += Stride;
         }
 
         return new ExpenseReviewFilterIndex(allOptions, options, optionIndexes, encoded, combos.Count);
@@ -93,18 +97,23 @@ public sealed class ExpenseReviewFilterIndex
         var activeFields = Enumerable.Range(0, Fields.Length)
             .Where(field => selected[field] != null)
             .ToArray();
-        if (activeFields.Length == 0)
+        var hasReasonSelection = filters.ExclusionReason.Count > 0;
+        if (activeFields.Length == 0 && !hasReasonSelection)
         {
             return AllOptions;
         }
 
+        var reasonSelection = filters.ExclusionReason.Aggregate(0,
+            (mask, code) => mask | ExpenseReviewExclusionReasons.BitForCode(code));
         var allowed = _options.Select(options => new bool[options.Count]).ToArray();
+        var allowedReasons = 0;
 
         for (var combo = 0; combo < _comboCount; combo++)
         {
-            var offset = combo * Fields.Length;
-            var failedField = Missing;
-            var failures = 0;
+            var offset = combo * Stride;
+            var reasonFailed = hasReasonSelection && (_combos[offset + ReasonField] & reasonSelection) == 0;
+            var failedField = reasonFailed ? ReasonField : Missing;
+            var failures = reasonFailed ? 1 : 0;
 
             foreach (var field in activeFields)
             {
@@ -128,14 +137,27 @@ public sealed class ExpenseReviewFilterIndex
                 {
                     Allow(allowed[field], _combos[offset + field]);
                 }
+                allowedReasons |= _combos[offset + ReasonField];
             }
             else if (failures == 1)
             {
-                Allow(allowed[failedField], _combos[offset + failedField]);
+                if (failedField == ReasonField)
+                {
+                    allowedReasons |= _combos[offset + ReasonField];
+                }
+                else
+                {
+                    Allow(allowed[failedField], _combos[offset + failedField]);
+                }
             }
         }
 
-        var narrowed = Enumerable.Range(0, Fields.Length)
+        for (var reason = 0; reason < _reasonBits.Length; reason++)
+        {
+            allowed[ReasonField][reason] = (allowedReasons & _reasonBits[reason]) != 0;
+        }
+
+        var narrowed = Enumerable.Range(0, Stride)
             .Select(field => _options[field].Where((_, index) => allowed[field][index]).ToList())
             .ToArray();
 
@@ -151,7 +173,7 @@ public sealed class ExpenseReviewFilterIndex
             narrowed[8],
             narrowed[9],
             narrowed[10],
-            narrowed[11]);
+            narrowed[ReasonField]);
     }
 
     private bool[]?[] SelectedMasks(ExpenseReviewFilters filters)
