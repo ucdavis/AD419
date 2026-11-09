@@ -636,7 +636,7 @@ export function ExpenseReviewStage() {
           />
           {filterControls.map((control) => (
             <FilterTypeahead
-              disabled={filterOptionsQuery.isFetching || !filterOptions}
+              disabled={!filterOptions}
               key={control.id}
               label={control.label}
               onAdd={(value) => addFilter(control.id, value)}
@@ -662,7 +662,11 @@ export function ExpenseReviewStage() {
       </div>
 
       {filterOptionsQuery.isFetching ? (
-        <p role="status">Loading filter options...</p>
+        <p role="status">
+          {filterOptions
+            ? 'Updating filter options...'
+            : 'Loading filter options...'}
+        </p>
       ) : null}
       {filterOptionsQuery.isError ? (
         <div className="alert alert-error" role="alert">

@@ -2,6 +2,8 @@ import { QueryClient } from '@tanstack/react-query';
 import { buildExpenseReviewClientTools } from '@/components/expenseReview/expenseReviewAssistantTools.ts';
 import { resolveExpenseReviewView } from '@/components/expenseReview/expenseReviewSearch.ts';
 import {
+  EMPTY_EXPENSE_REVIEW_FILTERS,
+  expenseReviewFilterOptionsQueryOptions,
   expenseReviewTransactionsQueryOptions,
   type ExpenseReviewTransaction,
 } from '@/queries/expenseReview.ts';
@@ -1061,6 +1063,7 @@ describe('Expense Review loading eligibility', () => {
       expect(screen.getByLabelText('Include State filter')).toBeEnabled();
       expect(screen.getByLabelText('Display by period')).toBeEnabled();
       expect(screen.getByLabelText('Source filter')).toBeDisabled();
+      expect(screen.getByText('Loading filter options...')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Source: AE' })).toBeEnabled();
       expect(screen.getByRole('button', { name: 'Export CSV' })).toBeDisabled();
       expect(
@@ -1083,6 +1086,129 @@ describe('Expense Review loading eligibility', () => {
     } finally {
       options.resolve();
       expenses.resolve();
+      cleanup();
+    }
+  });
+
+  it.each([false, true])(
+    'keeps dropdowns and chips usable during option refresh and supports retry after failure: %s',
+    async (refreshFails) => {
+      mockExpenseReviewApi();
+      const started = completion();
+      const response = completion();
+      let calls = 0;
+      server.use(
+        http.get('/api/expensereview/filters', async () => {
+          calls += 1;
+          if (calls === 2) {
+            started.resolve();
+            await response.promise;
+            if (refreshFails) {
+              return HttpResponse.json({ detail: 'Option refresh failed' }, { status: 500 });
+            }
+          }
+          return HttpResponse.json(filtersResponse);
+        })
+      );
+      const { cleanup, queryClient } = renderRoute({
+        initialPath: '/workflow/expense-review?source=%5B%22AE%22%5D',
+      });
+      let refetch = Promise.resolve();
+      try {
+        await waitFor(() => expect(screen.getByLabelText('Source filter')).toBeEnabled());
+        await act(async () => {
+          refetch = queryClient.refetchQueries({ queryKey: ['expenseReview', 'filters'], type: 'active' });
+          await started.promise;
+        });
+        await screen.findByText('Updating filter options...');
+        expect(screen.queryByText('Loading filter options...')).not.toBeInTheDocument();
+        expect(screen.getByLabelText('Fund filter')).toBeEnabled();
+        expect(screen.getByRole('button', { name: 'Source: Aggie Enterprise' })).toBeEnabled();
+        const user = userEvent.setup();
+        await user.click(screen.getByLabelText('Fund filter'));
+        expect(screen.getByRole('option', { name: '13U02 - Experiment Station' })).toBeInTheDocument();
+        await act(async () => { response.resolve(); await refetch; });
+        if (refreshFails) {
+          await screen.findByText('Option refresh failed');
+          expect(screen.getByLabelText('Fund filter')).toBeEnabled();
+          await user.click(screen.getByRole('button', { name: 'Retry filter options' }));
+          await waitFor(() => expect(screen.queryByText('Option refresh failed')).not.toBeInTheDocument());
+          expect(calls).toBe(3);
+        }
+      } finally {
+        await act(async () => { response.resolve(); await refetch; });
+        cleanup();
+      }
+    }
+  );
+
+  it('uses the latest filter query when selections change before an earlier response completes', async () => {
+    mockExpenseReviewApi();
+    const earlierStarted = completion();
+    const earlierResponse = completion();
+    const earlierAborted = completion();
+    const latestCompleted = completion();
+    server.use(
+      http.get('/api/expensereview/filters', async ({ request }) => {
+        const sources = new URL(request.url).searchParams.getAll('source');
+        if (sources.length === 1) {
+          request.signal.addEventListener('abort', earlierAborted.resolve, { once: true });
+          earlierStarted.resolve();
+          await earlierResponse.promise;
+          return HttpResponse.json({ ...filtersResponse, funds: [{ label: 'Obsolete fund', value: 'OLD' }] });
+        }
+        if (sources.length === 2) {
+          latestCompleted.resolve();
+          return HttpResponse.json({ ...filtersResponse, funds: [{ label: 'Latest fund', value: 'NEW' }] });
+        }
+        return HttpResponse.json(filtersResponse);
+      })
+    );
+    const { cleanup, queryClient } = renderRoute({ initialPath: '/workflow/expense-review' });
+    try {
+      await waitFor(() => expect(screen.getByLabelText('Source filter')).toBeEnabled());
+      const user = userEvent.setup();
+      await chooseFilterOption(user, 'Source', 'Aggie Enterprise');
+      await earlierStarted.promise;
+      expect(screen.getByLabelText('Source filter')).toBeEnabled();
+      await chooseFilterOption(user, 'Source', 'UCPath');
+      await latestCompleted.promise;
+      await earlierAborted.promise;
+      await waitFor(() => expect(screen.queryByText('Updating filter options...')).not.toBeInTheDocument());
+      await act(async () => { earlierResponse.resolve(); });
+      await user.click(screen.getByLabelText('Fund filter'));
+      expect(await screen.findByRole('option', { name: 'Latest fund' })).toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: 'Obsolete fund' })).not.toBeInTheDocument();
+      expect(queryClient.getQueryData(expenseReviewFilterOptionsQueryOptions({
+        ...EMPTY_EXPENSE_REVIEW_FILTERS, source: ['AE', 'UCP'],
+      }).queryKey)).toMatchObject({ funds: [{ value: 'NEW' }] });
+    } finally {
+      earlierResponse.resolve();
+      cleanup();
+    }
+  });
+
+  it('reuses fresh cached filter options on mount and focus', async () => {
+    mockExpenseReviewApi();
+    let calls = 0;
+    server.use(http.get('/api/expensereview/filters', () => {
+      calls += 1;
+      return HttpResponse.json(filtersResponse);
+    }));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const options = expenseReviewFilterOptionsQueryOptions(EMPTY_EXPENSE_REVIEW_FILTERS);
+    expect(options.staleTime).toBe(60_000);
+    await queryClient.fetchQuery(options);
+    const { cleanup } = renderRoute({ initialPath: '/workflow/expense-review', queryClient });
+    try {
+      await waitFor(() => expect(screen.getByLabelText('Fund filter')).toBeEnabled());
+      await act(async () => {
+        window.dispatchEvent(new Event('visibilitychange'));
+        await queryClient.fetchQuery(options);
+      });
+      expect(calls).toBe(1);
+      expect(screen.queryByText('Loading filter options...')).not.toBeInTheDocument();
+    } finally {
       cleanup();
     }
   });

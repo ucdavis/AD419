@@ -237,4 +237,5 @@ export const expenseReviewFilterOptionsQueryOptions = (
       );
     },
     queryKey: ['expenseReview', 'filters', filters],
+    staleTime: 60_000,
   });
