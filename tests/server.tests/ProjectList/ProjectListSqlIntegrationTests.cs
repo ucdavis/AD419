@@ -3,6 +3,7 @@ using FluentAssertions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Server.Core.Data;
+using Server.Tests.Helpers;
 using Server.Models;
 using Server.ProjectList;
 using Server.Tests.SqlIntegration;
@@ -20,7 +21,7 @@ public sealed class ProjectListSqlIntegrationTests(SqlServerDataDbFixture fixtur
         await SeedProjectListScenarioAsync();
 
         await using var db = fixture.CreateDataDbContext();
-        var service = new ProjectListService(db, Configuration());
+        var service = new ProjectListService(db, Configuration(), new RecordingExpenseReviewFilterCacheInvalidator());
         var cycle = Cycle();
 
         var response = await service.GetAsync(cycle, CancellationToken.None);

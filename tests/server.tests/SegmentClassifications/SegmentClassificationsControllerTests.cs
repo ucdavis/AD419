@@ -12,7 +12,7 @@ namespace Server.Tests.SegmentClassifications;
 
 public class SegmentClassificationsControllerTests
 {
-    private static SegmentClassificationsController CreateController(DataDbContext db) => new(db)
+    private static SegmentClassificationsController CreateController(DataDbContext db, RecordingExpenseReviewFilterCacheInvalidator? invalidator = null) => new(db, invalidator ?? new RecordingExpenseReviewFilterCacheInvalidator())
     {
         ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
     };
@@ -107,7 +107,7 @@ public class SegmentClassificationsControllerTests
         // Same code under another type is not a match.
         db.ClassificationCandidates.Add(new ClassificationCandidate { SegmentType = SegmentType.Fund, Code = "45530" });
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.Get(CancellationToken.None);
 
@@ -127,7 +127,7 @@ public class SegmentClassificationsControllerTests
             new SegmentClassification { SegmentType = SegmentType.FinancialDepartment, Code = "D1", IncludeInReport = null });
         db.ClassificationCandidates.Add(new ClassificationCandidate { SegmentType = SegmentType.FinancialDepartment, Code = "d1" });
         await db.SaveChangesAsync();
-        var controller = new SegmentClassificationsController(db);
+        var controller = CreateController(db);
 
         var result = await controller.Get(CancellationToken.None);
 
@@ -329,4 +329,54 @@ public class SegmentClassificationsControllerTests
         updated!.IncludeInReport.Should().BeTrue();
         updated.Sfn.Should().Be("Multiple");
     }
+    [Theory]
+    [InlineData(SegmentType.Fund, null, null, true, "201", 1)]
+    [InlineData(SegmentType.Fund, true, "201", true, "220", 1)]
+    [InlineData(SegmentType.Fund, true, "201", true, "201", 0)]
+    [InlineData(SegmentType.Account, null, null, false, null, 1)]
+    [InlineData(SegmentType.Activity, false, null, true, null, 1)]
+    [InlineData(SegmentType.Purpose, false, null, true, null, 1)]
+    [InlineData(SegmentType.FinancialDepartment, false, null, true, null, 1)]
+    [InlineData(SegmentType.Ern, false, null, true, null, 0)]
+    public async Task Patch_invalidates_only_changed_expense_review_values(
+        SegmentType type, bool? originalIncluded, string? originalSfn,
+        bool? included, string? sfn, int expectedInvalidations)
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        db.SegmentClassifications.Add(new SegmentClassification
+        {
+            SegmentType = type, Code = "TEST", IncludeInReport = originalIncluded, Sfn = originalSfn,
+        });
+        await db.SaveChangesAsync();
+        var invalidator = new RecordingExpenseReviewFilterCacheInvalidator(() =>
+            db.ChangeTracker.HasChanges().Should().BeFalse("invalidation must follow the save"));
+        var controller = CreateController(db, invalidator);
+
+        var result = await controller.UpdateClassification(
+            new UpdateClassificationRequest(type.ToString(), "TEST", included, sfn), CancellationToken.None);
+
+        result.Should().BeOfType<NoContentResult>();
+        invalidator.Calls.Should().Be(expectedInvalidations);
+    }
+
+    [Theory]
+    [InlineData("Unknown", "TEST", null)]
+    [InlineData("Fund", "MISSING", "201")]
+    [InlineData("Fund", "TEST", "999")]
+    [InlineData("Account", "TEST", "201")]
+    public async Task Rejected_classification_does_not_invalidate(string type, string code, string? sfn)
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        db.SegmentClassifications.AddRange(
+            new SegmentClassification { SegmentType = SegmentType.Fund, Code = "TEST" },
+            new SegmentClassification { SegmentType = SegmentType.Account, Code = "TEST" });
+        await db.SaveChangesAsync();
+        var invalidator = new RecordingExpenseReviewFilterCacheInvalidator();
+
+        await CreateController(db, invalidator).UpdateClassification(
+            new UpdateClassificationRequest(type, code, true, sfn), CancellationToken.None);
+
+        invalidator.Calls.Should().Be(0);
+    }
+
 }

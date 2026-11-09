@@ -50,11 +50,10 @@ function mockApi(options: { completed?: boolean; unmappedDepartment: boolean; })
       snapshot = createWorkflowSnapshot(completedUpstream);
       return new HttpResponse(null, { status: 204 });
     }),
-    http.put('/api/workflow/stages/orgr-review', () =>
-      HttpResponse.json(
-        createWorkflowSnapshot({ ...completedUpstream, 'orgr-review': 'Complete' })
-      )
-    ),
+    http.put('/api/workflow/stages/orgr-review', () => {
+      snapshot = createWorkflowSnapshot({ ...completedUpstream, 'orgr-review': 'Complete' });
+      return HttpResponse.json(snapshot);
+    }),
     http.get('/api/autoassociations/build', () =>
       HttpResponse.json({
         cycleEnd: '2025-09-30',
@@ -245,16 +244,17 @@ describe('OrgR Review stage', () => {
       mockApi({ unmappedDepartment: false });
       const completion = Promise.withResolvers<void>();
       let attempts = 0;
+      let snapshot = createWorkflowSnapshot(completedUpstream);
       server.use(
+        http.get('/api/workflow/snapshot', () => HttpResponse.json(snapshot)),
         http.put('/api/workflow/stages/orgr-review', async () => {
           attempts += 1;
           await completion.promise;
           if (fails && attempts === 1) {
             return HttpResponse.text('Could not complete review.', { status: 500 });
           }
-          return HttpResponse.json(
-            createWorkflowSnapshot({ ...completedUpstream, 'orgr-review': 'Complete' })
-          );
+          snapshot = createWorkflowSnapshot({ ...completedUpstream, 'orgr-review': 'Complete' });
+          return HttpResponse.json(snapshot);
         })
       );
       const user = userEvent.setup();

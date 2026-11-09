@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Server.Core.Data;
+using Server.Core.ExpenseReview;
 
 namespace Server.Core.Import;
 
@@ -71,19 +72,22 @@ public sealed class UcPathTransactionsImportService
     private readonly ILogger<UcPathTransactionsImportService> _logger;
     private readonly ILinkedServerQueryExecutor _linkedServer;
     private readonly ISqlBulkCopyWriter _bulkCopy;
+    private readonly IExpenseReviewFilterCacheInvalidator _filterCacheInvalidator;
 
     public UcPathTransactionsImportService(
         DataDbContext dataDbContext,
         IConfiguration configuration,
         ILogger<UcPathTransactionsImportService> logger,
         ILinkedServerQueryExecutor linkedServer,
-        ISqlBulkCopyWriter bulkCopy)
+        ISqlBulkCopyWriter bulkCopy,
+        IExpenseReviewFilterCacheInvalidator filterCacheInvalidator)
     {
         _dataDbContext = dataDbContext;
         _configuration = configuration;
         _logger = logger;
         _linkedServer = linkedServer;
         _bulkCopy = bulkCopy;
+        _filterCacheInvalidator = filterCacheInvalidator;
     }
 
     public async Task<int> ImportAsync(DateOnly cycleStart, DateOnly cycleEnd, CancellationToken cancellationToken = default)
@@ -139,6 +143,7 @@ public sealed class UcPathTransactionsImportService
                 cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
+        _filterCacheInvalidator.InvalidateAll();
 
         var rowsImported = (int)totalRowsCopied;
         _logger.LogInformation("Imported {RowCount} UCPath transactions", rowsImported);

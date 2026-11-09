@@ -9,6 +9,7 @@ using Server.AutoAssociations;
 using Server.Authorization;
 using Server.Controllers;
 using Server.Core.Data;
+using Server.Core.ExpenseReview;
 using Server.Import;
 using Server.Core.Import;
 using Server.Core.Notification;
@@ -69,6 +70,8 @@ builder.Services.AddScoped<IFlatFileImportService, FlatFileImportService>();
 builder.Services.AddScoped<IProjectIdentificationService, ProjectIdentificationService>();
 builder.Services.AddScoped<IProjectListService, ProjectListService>();
 builder.Services.AddSingleton<ExpenseReviewFilterCache>();
+builder.Services.AddSingleton<IExpenseReviewFilterCacheInvalidator>(services =>
+    services.GetRequiredService<ExpenseReviewFilterCache>());
 builder.Services.AddScoped<IExpenseReviewService, ExpenseReviewService>();
 builder.Services.AddScoped<IConfirmedCycleProvider, ConfirmedCycleProvider>();
 var caesAiSection = builder.Configuration.GetSection(CaesAiAppOptions.SectionName);

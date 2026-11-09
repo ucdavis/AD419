@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Server.Core.Data;
+using Server.Core.ExpenseReview;
 
 namespace Server.Core.Import;
 
@@ -55,19 +56,22 @@ public sealed class ChartSegmentsImportService
     private readonly ILogger<ChartSegmentsImportService> _logger;
     private readonly ILinkedServerQueryExecutor _linkedServer;
     private readonly ISqlBulkCopyWriter _bulkCopy;
+    private readonly IExpenseReviewFilterCacheInvalidator _filterCacheInvalidator;
 
     public ChartSegmentsImportService(
         DataDbContext dataDbContext,
         IConfiguration configuration,
         ILogger<ChartSegmentsImportService> logger,
         ILinkedServerQueryExecutor linkedServer,
-        ISqlBulkCopyWriter bulkCopy)
+        ISqlBulkCopyWriter bulkCopy,
+        IExpenseReviewFilterCacheInvalidator filterCacheInvalidator)
     {
         _dataDbContext = dataDbContext;
         _configuration = configuration;
         _logger = logger;
         _linkedServer = linkedServer;
         _bulkCopy = bulkCopy;
+        _filterCacheInvalidator = filterCacheInvalidator;
     }
 
     public async Task<int> ImportSegmentAsync(string segmentName, CancellationToken cancellationToken = default)
@@ -106,6 +110,7 @@ public sealed class ChartSegmentsImportService
 
         var rowsImported = (int)rowsCopied;
         await transaction.CommitAsync(cancellationToken);
+        _filterCacheInvalidator.InvalidateAll();
 
         _logger.LogInformation("Imported {RowCount} {Segment} chart segments", rowsImported, segmentName);
         return rowsImported;

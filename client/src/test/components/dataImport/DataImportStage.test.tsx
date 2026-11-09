@@ -102,6 +102,15 @@ describe('Data Import stage', () => {
     let updateRequests = 0;
     useSetupHandler();
     server.use(
+      http.get('/api/workflow/snapshot', () =>
+        HttpResponse.json(
+          createWorkflowSnapshot({
+            'data-classification': updateRequests > 0 ? 'InProgress' : 'NotStarted',
+            'data-import': updateRequests > 0 ? 'Complete' : 'InProgress',
+            'project-identification': 'Complete',
+          })
+        )
+      ),
       http.get('/api/importruns/current', () => HttpResponse.json(succeededRun)),
       http.put('/api/workflow/stages/:stageId', async ({ params, request }) => {
         expect(params.stageId).toBe('data-import');

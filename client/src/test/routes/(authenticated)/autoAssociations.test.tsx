@@ -40,10 +40,11 @@ const build = {
 };
 
 function mockApi(options: { completeFails?: boolean; failingReport?: boolean; hasBuild: boolean; }) {
+  let snapshot = createWorkflowSnapshot(completedUpstream);
   server.use(
     http.get('/api/user/me', () => HttpResponse.json(mockUser)),
     http.get('/api/workflow/snapshot', () =>
-      HttpResponse.json(createWorkflowSnapshot(completedUpstream))
+      HttpResponse.json(snapshot)
     ),
     http.get('/api/autoassociations/build', () =>
       HttpResponse.json(envelope(options.hasBuild ? build : null))
@@ -174,13 +175,13 @@ function mockApi(options: { completeFails?: boolean; failingReport?: boolean; ha
         ],
       })
     ),
-    http.put('/api/workflow/stages/auto-associations', () =>
-      options.completeFails
-        ? HttpResponse.text('The workflow stage cannot be updated in its current state.', { status: 400 })
-        : HttpResponse.json(
-            createWorkflowSnapshot({ ...completedUpstream, 'auto-associations': 'Complete' })
-          )
-    )
+    http.put('/api/workflow/stages/auto-associations', () => {
+      if (options.completeFails) {
+        return HttpResponse.text('The workflow stage cannot be updated in its current state.', { status: 400 });
+      }
+      snapshot = createWorkflowSnapshot({ ...completedUpstream, 'auto-associations': 'Complete' });
+      return HttpResponse.json(snapshot);
+    })
   );
 }
 

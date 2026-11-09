@@ -5,6 +5,7 @@ import {
   EMPTY_EXPENSE_REVIEW_FILTERS,
   expenseReviewFilterOptionsQueryOptions,
   expenseReviewTransactionsQueryOptions,
+  invalidateExpenseReviewQueries,
   type ExpenseReviewTransaction,
 } from '@/queries/expenseReview.ts';
 import { describe, expect, it, vi } from 'vitest';
@@ -527,10 +528,19 @@ describe('Expense Review stage', () => {
     async (orgRStatus) => {
       const user = userEvent.setup();
       let updateRequests = 0;
+      let workflowSnapshot = createWorkflowSnapshot({
+        'data-classification': 'Complete',
+        'data-import': 'Complete',
+        'expense-review': 'InProgress',
+        'project-identification': 'Complete',
+      });
       const completionStarted = completion();
       const completionResponse = completion();
       mockExpenseReviewApi();
       server.use(
+        http.get('/api/workflow/snapshot', () =>
+          HttpResponse.json(workflowSnapshot)
+        ),
         http.get('/api/orgr/financial-departments', () =>
           HttpResponse.json([])
         ),
@@ -544,15 +554,14 @@ describe('Expense Review stage', () => {
             updateRequests += 1;
             completionStarted.resolve();
             await completionResponse.promise;
-            return HttpResponse.json(
-              createWorkflowSnapshot({
-                'data-classification': 'Complete',
-                'data-import': 'Complete',
-                'expense-review': 'Complete',
-                'orgr-review': orgRStatus,
-                'project-identification': 'Complete',
-              })
-            );
+            workflowSnapshot = createWorkflowSnapshot({
+              'data-classification': 'Complete',
+              'data-import': 'Complete',
+              'expense-review': 'Complete',
+              'orgr-review': orgRStatus,
+              'project-identification': 'Complete',
+            });
+            return HttpResponse.json(workflowSnapshot);
           }
         )
       );
@@ -1188,7 +1197,7 @@ describe('Expense Review loading eligibility', () => {
     }
   });
 
-  it('reuses fresh cached filter options on mount and focus', async () => {
+  it('refreshes fresh cached filter options on mount and then reuses them on focus', async () => {
     mockExpenseReviewApi();
     let calls = 0;
     server.use(http.get('/api/expensereview/filters', () => {
@@ -1206,8 +1215,46 @@ describe('Expense Review loading eligibility', () => {
         window.dispatchEvent(new Event('visibilitychange'));
         await queryClient.fetchQuery(options);
       });
-      expect(calls).toBe(1);
+      expect(calls).toBe(2);
       expect(screen.queryByText('Loading filter options...')).not.toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('preserves bookmarked settings and unmatched selections through a refresh', async () => {
+    const requests: URL[] = [];
+    mockExpenseReviewApi(requests);
+    const { cleanup, queryClient, router } = renderRoute({
+      initialPath: '/workflow/expense-review?fund=%5B%22REMOVED%22%5D&include=excluded&sort=amount&dir=desc&page=2&size=50&byPeriod=true&zero=true',
+    });
+    try {
+      await screen.findByRole('table');
+      const previousSearch = { ...router.state.location.search };
+      server.use(
+        http.get('/api/expensereview/filters', () => HttpResponse.json({ ...filtersResponse, funds: [] })),
+        http.get('/api/expensereview/transactions', ({ request }) => {
+          requests.push(new URL(request.url));
+          return HttpResponse.json({ ...transactionsResponse(2), pageSize: 50, rows: [], totalCount: 0 });
+        })
+      );
+      await act(async () => {
+        await invalidateExpenseReviewQueries(queryClient);
+      });
+      expect(router.state.location.search).toEqual(previousSearch);
+      const params = requests.at(-1)!.searchParams;
+      expect(params.getAll('fund')).toEqual(['REMOVED']);
+      expect(Object.fromEntries(params)).toMatchObject({
+        displayByPeriod: 'true',
+        includeState: 'excluded',
+        includeZeroAmounts: 'true',
+        page: '2',
+        pageSize: '50',
+        sortBy: 'amount',
+        sortDirection: 'desc',
+      });
+      expect(screen.getByLabelText('Display by period')).toBeChecked();
+      expect(screen.getByLabelText('Include $0 groups')).toBeChecked();
     } finally {
       cleanup();
     }

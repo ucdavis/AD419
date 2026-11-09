@@ -30,7 +30,10 @@ function setup(stageIndex = 0) {
     </QueryClientProvider>
   );
   const result = render(ui(stageIndex));
-  return { ...result, navigate: (index: number) => result.rerender(ui(index)) };
+  return {
+    ...result,
+    navigate: (index: number) => result.rerender(ui(index)),
+  };
 }
 
 describe('Workflow help drawer', () => {

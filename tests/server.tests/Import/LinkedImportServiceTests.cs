@@ -5,6 +5,7 @@ using FluentAssertions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Server.Core.Import;
 using Server.Tests.SqlIntegration;
 using Server.Tests.Helpers;
@@ -26,15 +27,17 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
             PgmProjectRows(),
             EmptyRows());
         await using var db = fixture.CreateDataDbContext();
+        var invalidator = new RecordingExpenseReviewFilterCacheInvalidator();
         var service = new PgmProjectsImportService(
             db,
             Configuration(),
             NullLogger<PgmProjectsImportService>.Instance,
             linkedServer,
-            new SqlBulkCopyWriter());
+            new SqlBulkCopyWriter(), invalidator);
 
         var result = await service.ImportAsync(new DateOnly(2025, 6, 30), CancellationToken.None);
 
+        invalidator.Calls.Should().Be(1);
         result.RowsImported.Should().Be(1);
         var stored = await connection.QuerySingleAsync<(long ProjectId, string ProjectNumber, string SponsorAwardKey)>(
             "SELECT [ProjectId], [ProjectNumber], [SponsorAwardKey] FROM [data].[PGMProjects];");
@@ -59,15 +62,17 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
 
         var linkedServer = new FakeLinkedServerQueryExecutor(ChartSegmentRows());
         await using var db = fixture.CreateDataDbContext();
+        var invalidator = new RecordingExpenseReviewFilterCacheInvalidator();
         var service = new ChartSegmentsImportService(
             db,
             Configuration(),
             NullLogger<ChartSegmentsImportService>.Instance,
             linkedServer,
-            new SqlBulkCopyWriter());
+            new SqlBulkCopyWriter(), invalidator);
 
         var rowsImported = await service.ImportSegmentAsync("Fund", CancellationToken.None);
 
+        invalidator.Calls.Should().Be(1);
         rowsImported.Should().Be(1);
         var rows = (await connection.QueryAsync<(string SegmentName, string Code, string? Description)>(
             "SELECT [SegmentName], [Code], [Description] FROM [data].[ChartSegments] ORDER BY [SegmentName], [Code];"))
@@ -92,15 +97,17 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
 
         var linkedServer = new FakeLinkedServerQueryExecutor(AeTransactionRows());
         await using var db = fixture.CreateDataDbContext();
+        var invalidator = new RecordingExpenseReviewFilterCacheInvalidator();
         var service = new AeTransactionsImportService(
             db,
             Configuration(),
             NullLogger<AeTransactionsImportService>.Instance,
             linkedServer,
-            new SqlBulkCopyWriter());
+            new SqlBulkCopyWriter(), invalidator);
 
         var rowsImported = await service.ImportAsync(new DateOnly(2024, 10, 1), new DateOnly(2025, 9, 30), CancellationToken.None);
 
+        invalidator.Calls.Should().Be(1);
         rowsImported.Should().Be(1);
         var row = await connection.QuerySingleAsync<(string Fund, string Department, string Project, decimal Amount)>(
             "SELECT [Fund], [FinancialDepartment], [Project], [Amount] FROM [data].[AETransactions];");
@@ -131,15 +138,17 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
             EmployeeNameRows(),
             JobCodeRows());
         await using var db = fixture.CreateDataDbContext();
+        var invalidator = new RecordingExpenseReviewFilterCacheInvalidator();
         var service = new UcPathTransactionsImportService(
             db,
             Configuration(),
             NullLogger<UcPathTransactionsImportService>.Instance,
             linkedServer,
-            new SqlBulkCopyWriter());
+            new SqlBulkCopyWriter(), invalidator);
 
         var rowsImported = await service.ImportAsync(new DateOnly(2024, 10, 1), new DateOnly(2025, 9, 30), CancellationToken.None);
 
+        invalidator.Calls.Should().Be(1);
         rowsImported.Should().Be(2);
         var rows = (await connection.QueryAsync<(string Id, string? EmployeeName, string? JobCode)>(
             "SELECT [LaborTransactionId], [EmployeeName], [JobCode] FROM [data].[UcPathTransactions] ORDER BY [LaborTransactionId];"))
@@ -498,11 +507,13 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
         await using var db = fixture.CreateDataDbContext();
         var logger = new RecordingLogger<PgmProjectsImportService>();
         Exception error = canceled ? new OperationCanceledException() : new InvalidOperationException("Source failed");
+        var invalidator = new RecordingExpenseReviewFilterCacheInvalidator();
         var service = new PgmProjectsImportService(db, Configuration(), logger,
-            new FailingLinkedServerQueryExecutor(error), new SqlBulkCopyWriter());
+            new FailingLinkedServerQueryExecutor(error), new SqlBulkCopyWriter(), invalidator);
         var actual = await Record.ExceptionAsync(() => service.ImportAsync(new DateOnly(2025, 6, 30)));
         actual.Should().BeSameAs(error);
         (await connection.QuerySingleAsync<int>("SELECT [ProjectId] FROM [data].[PGMProjects];")).Should().Be(1);
+        invalidator.Calls.Should().Be(0);
         logger.Entries.Should().NotContain(e => e.Message.StartsWith("Imported "));
     }
 
@@ -529,12 +540,14 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
         await fixture.ClearDataTablesAsync();
         await using var db = fixture.CreateDataDbContext();
         var logger = new RecordingLogger<PgmProjectsImportService>();
+        var invalidator = new RecordingExpenseReviewFilterCacheInvalidator();
         var service = new PgmProjectsImportService(db, Configuration(), logger,
-            new CancelSecondQueryExecutor(PgmProjectRows()), new SqlBulkCopyWriter());
+            new CancelSecondQueryExecutor(PgmProjectRows()), new SqlBulkCopyWriter(), invalidator);
         await FluentActions.Awaiting(() => service.ImportAsync(new DateOnly(2025, 6, 30)))
             .Should().ThrowAsync<OperationCanceledException>();
         await using var connection = await OpenConnectionAsync();
         (await connection.QuerySingleAsync<int>("SELECT [ProjectId] FROM [data].[PGMProjects];")).Should().Be(9001);
+        invalidator.Calls.Should().Be(1);
         var committed = logger.Entries.Should().ContainSingle(e => e.Message.StartsWith("Imported ")).Subject;
         committed.Fields.Should().Contain("RowCount", 1).And.Contain("ReportDate", new DateOnly(2025, 6, 30));
     }
@@ -549,11 +562,62 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
         rows.ImportRow(rows.Rows[0]); // A duplicate key must fail during the actual destination write.
         await using var db = fixture.CreateDataDbContext();
         var logger = new RecordingLogger<PgmProjectsImportService>();
+        var invalidator = new RecordingExpenseReviewFilterCacheInvalidator();
         var service = new PgmProjectsImportService(db, Configuration(), logger,
-            new FakeLinkedServerQueryExecutor(rows), new SqlBulkCopyWriter());
+            new FakeLinkedServerQueryExecutor(rows), new SqlBulkCopyWriter(), invalidator);
         await FluentActions.Awaiting(() => service.ImportAsync(new DateOnly(2025, 6, 30))).Should().ThrowAsync<SqlException>();
         (await connection.QuerySingleAsync<int>("SELECT [ProjectId] FROM [data].[PGMProjects];")).Should().Be(1);
+        invalidator.Calls.Should().Be(0);
         logger.Entries.Should().NotContain(e => e.Message.StartsWith("Imported "));
+    }
+
+    [Fact]
+    public async Task Earlier_chart_import_commit_invalidates_even_when_the_next_segment_rolls_back()
+    {
+        await fixture.ClearDataTablesAsync();
+        await using var db = fixture.CreateDataDbContext();
+        var invalidator = new RecordingExpenseReviewFilterCacheInvalidator();
+        var service = new ChartSegmentsImportService(db, Configuration(), NullLogger<ChartSegmentsImportService>.Instance,
+            new CancelSecondQueryExecutor(ChartSegmentRows()), new SqlBulkCopyWriter(), invalidator);
+
+        await service.ImportSegmentAsync("Fund");
+        await FluentActions.Awaiting(() => service.ImportSegmentAsync("Entity")).Should().ThrowAsync<OperationCanceledException>();
+
+        invalidator.Calls.Should().Be(1);
+        await using var connection = await OpenConnectionAsync();
+        (await connection.ExecuteScalarAsync<string>("SELECT [Code] FROM [data].[ChartSegments] WHERE [SegmentName] = 'Fund';"))
+            .Should().Be("F1");
+    }
+
+    [Fact]
+    public async Task Pgm_import_invalidates_before_post_commit_logging_can_fail()
+    {
+        await fixture.ClearDataTablesAsync();
+        await using var db = fixture.CreateDataDbContext();
+        var invalidator = new RecordingExpenseReviewFilterCacheInvalidator();
+        var service = new PgmProjectsImportService(db, Configuration(), new FailCommittedImportLogger(),
+            new FakeLinkedServerQueryExecutor(PgmProjectRows()), new SqlBulkCopyWriter(), invalidator);
+
+        await FluentActions.Awaiting(() => service.ImportAsync(new DateOnly(2025, 6, 30)))
+            .Should().ThrowAsync<InvalidOperationException>().WithMessage("Logging unavailable");
+
+        invalidator.Calls.Should().Be(1);
+        await using var connection = await OpenConnectionAsync();
+        (await connection.ExecuteScalarAsync<int>("SELECT [ProjectId] FROM [data].[PGMProjects];")).Should().Be(9001);
+    }
+
+    private sealed class FailCommittedImportLogger : ILogger<PgmProjectsImportService>
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (formatter(state, exception).StartsWith("Imported ", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Logging unavailable");
+            }
+        }
     }
 
     private sealed class FailingLinkedServerQueryExecutor(Exception error) : ILinkedServerQueryExecutor

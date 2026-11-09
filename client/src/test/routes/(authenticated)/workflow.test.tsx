@@ -885,6 +885,7 @@ describe('AD419 workflow routes', () => {
     vi.setSystemTime(new Date('2026-07-07T12:00:00-07:00'));
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     let finalizeRequests = 0;
+    let workflowCompleted = false;
     const cleanProjectList = {
       ...projectListResponse,
       counts: { all: 3, clean: 3, excluded: 1, issues: 0 },
@@ -923,6 +924,14 @@ describe('AD419 workflow routes', () => {
     };
 
     server.use(
+      http.get('/api/workflow/snapshot', () =>
+        HttpResponse.json(
+          createWorkflowSnapshot({
+            'data-import': workflowCompleted ? 'InProgress' : 'NotStarted',
+            'project-identification': workflowCompleted ? 'Complete' : 'InProgress',
+          })
+        )
+      ),
       http.get('/api/user/me', () => {
         return HttpResponse.json(mockUser);
       }),
@@ -944,6 +953,7 @@ describe('AD419 workflow routes', () => {
       http.put('/api/workflow/stages/:stageId', async ({ params, request }) => {
         expect(params.stageId).toBe('project-identification');
         expect(await request.json()).toEqual({ status: 'Complete' });
+        workflowCompleted = true;
         return HttpResponse.json(
           createWorkflowSnapshot({
             'data-import': 'InProgress',
@@ -1224,9 +1234,11 @@ describe('AD419 workflow routes', () => {
       http.get('/api/workflow/snapshot', () => {
         return HttpResponse.json(
           createWorkflowSnapshot({
+            'auto-associations': updateRequests > 0 ? 'Complete' : 'NotStarted',
             'data-classification': 'Complete',
             'data-import': 'Complete',
             'expense-review': 'Complete',
+            'manual-associations': updateRequests > 0 ? 'InProgress' : 'NotStarted',
             'orgr-review': 'Complete',
             'project-identification': 'Complete',
           })
@@ -1465,8 +1477,9 @@ describe('AD419 workflow routes', () => {
             'data-classification': 'Complete',
             'data-import': 'Complete',
             'expense-review': 'Complete',
-            'manual-associations': 'InProgress',
+            'manual-associations': updateRequests > 0 ? 'Complete' : 'InProgress',
             'orgr-review': 'Complete',
+            'post-association-review': updateRequests > 0 ? 'InProgress' : 'NotStarted',
             'project-identification': 'Complete',
           })
         );

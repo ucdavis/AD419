@@ -4,7 +4,7 @@ import {
   expenseReviewFilterOptionsQueryOptions,
   type ExpenseReviewFilterOptionsResponse,
 } from '@/queries/expenseReview.ts';
-import type { ProjectIdentificationSetupResponse } from '@/queries/projectIdentification.ts';
+import type { ChecklistKind, ProjectIdentificationSetupResponse } from '@/queries/projectIdentification.ts';
 import { createWorkflowSnapshot, server } from '@/test/mswUtils.ts';
 import { renderRoute } from '@/test/routerUtils.tsx';
 import {
@@ -70,13 +70,13 @@ const oldOptions: ExpenseReviewFilterOptionsResponse = {
   sources: [],
 };
 
-function renderChecklist() {
+function renderChecklist(checklistSetup = setup) {
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
   });
   const view = render(
     <QueryClientProvider client={queryClient}>
-      <ProjectIdentificationSetupChecklist issueCount={0} setup={setup} />
+      <ProjectIdentificationSetupChecklist issueCount={0} setup={checklistSetup} />
     </QueryClientProvider>
   );
   return { queryClient, ...view };
@@ -181,7 +181,7 @@ describe('Fiscal confirmation Expense Review caches', () => {
     }
   );
 
-  it('leaves caches intact when confirmation fails', async () => {
+  it('retains cached data but marks it stale when confirmation fails', async () => {
     server.use(
       http.put('/api/projectidentification/fiscal-period', () =>
         HttpResponse.json({ detail: 'Confirmation failed' }, { status: 500 })
@@ -204,6 +204,8 @@ describe('Fiscal confirmation Expense Review caches', () => {
       );
       expect(queryClient.getQueryData(options.queryKey)).toBe(oldOptions);
       expect(queryClient.getQueryData(transactionsKey)).toBe(transactions);
+      expect(queryClient.getQueryState(options.queryKey)?.isInvalidated).toBe(true);
+      expect(queryClient.getQueryState(transactionsKey)?.isInvalidated).toBe(true);
     } finally {
       unmount();
       queryClient.clear();
@@ -254,4 +256,43 @@ describe('Fiscal confirmation Expense Review caches', () => {
       queryClient.clear();
     }
   });
+});
+
+describe('project setup Expense Review invalidation', () => {
+  it.each([
+    { button: 'Finalize projects', kind: 'action', url: '/api/projectidentification/finalize' },
+    { button: 'Re-import', kind: 'import', url: '/api/pgmprojects/import' },
+  ] satisfies { button: string; kind: ChecklistKind; url: string }[])(
+    'invalidates when $kind finishes after navigation, including partial failures',
+    async ({ button, kind, url }) => {
+      let finish!: () => void;
+      const response = new Promise<void>((resolve) => { finish = resolve; });
+      let start!: () => void;
+      const started = new Promise<void>((resolve) => { start = resolve; });
+      server.use(http.post(url, async () => {
+        start();
+        await response;
+        return HttpResponse.json({ detail: 'Recording failed' }, { status: 500 });
+      }));
+      const { queryClient, unmount } = renderChecklist({
+        ...setup,
+        checklistItems: [{ ...setup.checklistItems[0], completed: false, kind }],
+      });
+      const key = expenseReviewFilterOptionsQueryOptions(EMPTY_EXPENSE_REVIEW_FILTERS).queryKey;
+      queryClient.setQueryData(key, oldOptions);
+      try {
+        await userEvent.setup().click(screen.getByRole('button', { name: button }));
+        await started;
+        unmount();
+        finish();
+        await waitFor(() => expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+        expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+        expect(queryClient.getQueryData(key)).toBe(oldOptions);
+      } finally {
+        finish();
+        unmount();
+        queryClient.clear();
+      }
+    }
+  );
 });
