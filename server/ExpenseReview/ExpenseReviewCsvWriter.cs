@@ -43,7 +43,7 @@ public static class ExpenseReviewCsvWriter
         await CsvExportWriter.WriteAsync(output, rows, columns, cancellationToken);
     }
 
-    private static string? FormatCodeName(ExpenseReviewCodeNameDto value)
+    internal static string? FormatCodeName(ExpenseReviewCodeNameDto value)
     {
         if (string.IsNullOrWhiteSpace(value.Code))
         {

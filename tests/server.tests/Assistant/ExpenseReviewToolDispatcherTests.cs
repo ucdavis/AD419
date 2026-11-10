@@ -335,6 +335,13 @@ public class ExpenseReviewToolDispatcherTests
         public ExpenseReviewSummaryRequest? LastSummaryRequest { get; private set; }
         public ExpenseReviewFilters? LastFilterOptionsFilters { get; private set; }
 
+        public Task<ExpenseReviewGroupTransactionsResponse?> GetGroupTransactionsAsync(
+            FiscalYearCycle cycle, ExpenseReviewGroupTransactionsRequest request, CancellationToken cancellationToken) =>
+            Task.FromResult<ExpenseReviewGroupTransactionsResponse?>(null);
+
+        public Task WriteGroupTransactionsCsvAsync(FiscalYearCycle cycle, ExpenseReviewGroupTransactionsRequest request,
+            ExpenseReviewTransactionDto group, Stream output, CancellationToken cancellationToken) => Task.CompletedTask;
+
         public Task<ExpenseReviewTransactionsResponse> GetTransactionsAsync(
             FiscalYearCycle cycle, ExpenseReviewTransactionsRequest request, CancellationToken cancellationToken)
         {
