@@ -38,7 +38,7 @@ export function UnmatchedJobCodesTab() {
         csv={unmatchedJobCodesCsv}
         data={data}
         filename="auto-associations-unmatched-job-codes.csv"
-        title="Job codes with no FTE line"
+        title="Job codes with no SFN"
       />
     </div>
   );

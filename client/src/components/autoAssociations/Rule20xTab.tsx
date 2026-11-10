@@ -1,5 +1,5 @@
 import { amountColumn, fteColumn, LoadState, ReportSection, unassociatedColumns, unassociatedCsv } from './reportTables.tsx';
-import { formatCurrency, formatFte } from './autoAssociationsTabs.ts';
+import { formatCurrency, formatFte, type PiRuleSfn } from './autoAssociationsTabs.ts';
 import type { CsvColumn } from '@/lib/csv.ts';
 import { type Rule20xPi, rule20xReportQueryOptions } from '@/queries/autoAssociations.ts';
 import { useQuery } from '@tanstack/react-query';
@@ -21,34 +21,38 @@ const piCsv: CsvColumn<Rule20xPi>[] = [
   { header: 'FTE', key: 'fte' },
 ];
 
-export function Rule20xTab() {
+// One tab per SFN. 201, 202 and 205 share a report, so the three tabs read the
+// same cached query and each shows its own slice.
+export function Rule20xTab({ sfn }: { sfn: PiRuleSfn }) {
   const { data, error, isError, isLoading } = useQuery(rule20xReportQueryOptions());
   if (isLoading || isError || !data) {
-    return <LoadState error={error} isError={isError} isLoading={isLoading} label="the 201/202/205 report" />;
+    return <LoadState error={error} isError={isError} isLoading={isLoading} label={`the ${sfn} report`} />;
   }
+  const report = data.sfns.find((candidate) => candidate.sfn === sfn);
+  const unassociated = data.unassociated.filter((expense) => expense.expenseSfn === sfn);
   return (
     <div className="space-y-6">
-      {data.sfns.map((sfn) => (
-        <section className="space-y-2" key={sfn.sfn}>
+      {report ? (
+        <section className="space-y-2">
           <h3 className="text-lg font-semibold">
-            {sfn.sfn}
-            {sfn.label ? ` ${sfn.label}` : ''}: {formatCurrency(sfn.expenses)}, {formatFte(sfn.fte)} FTE across{' '}
-            {sfn.projectCount} projects
+            {report.sfn}
+            {report.label ? ` ${report.label}` : ''}: {formatCurrency(report.expenses)}, {formatFte(report.fte)} FTE
+            across {report.projectCount} projects
           </h3>
           <ReportSection
             columns={piColumns}
             csv={piCsv}
-            data={sfn.pis}
-            filename={`auto-associations-${sfn.sfn}-by-pi.csv`}
+            data={report.pis}
+            filename={`auto-associations-${sfn}-by-pi.csv`}
             title="By PI"
           />
         </section>
-      ))}
+      ) : null}
       <ReportSection
         columns={unassociatedColumns}
         csv={unassociatedCsv}
-        data={data.unassociated}
-        filename="auto-associations-20x-unassociated.csv"
+        data={unassociated}
+        filename={`auto-associations-${sfn}-unassociated.csv`}
         title="Not associated"
       />
     </div>

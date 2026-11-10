@@ -72,12 +72,6 @@ export function AutoAssociationsStage({ status }: { status: WorkflowStageStatus 
 
       {gateOpen && build ? (
         <>
-          <p className="text-sm text-base-content/70">
-            Built {new Date(build.builtAt).toLocaleString()}: {build.summaryRows} expense groups,{' '}
-            {build.associationRows} associations, {build.excludedProjects} projects under $100,{' '}
-            {build.misclassified204Rows} misclassified 204 rows.
-          </p>
-
           <div className="tabs tabs-bordered" role="tablist">
             {AUTO_ASSOCIATIONS_TABS.map((tab) => (
               <button
@@ -97,10 +91,14 @@ export function AutoAssociationsStage({ status }: { status: WorkflowStageStatus 
             <span>{activeTab.note}</span>
           </div>
 
-          {activeId === 'rule-204' ? (
+          {activeId === 'rule-201' ? (
+            <Rule20xTab sfn="201" />
+          ) : activeId === 'rule-202' ? (
+            <Rule20xTab sfn="202" />
+          ) : activeId === 'rule-204' ? (
             <Rule204Tab />
-          ) : activeId === 'rule-20x' ? (
-            <Rule20xTab />
+          ) : activeId === 'rule-205' ? (
+            <Rule20xTab sfn="205" />
           ) : activeId === 'rule-220' ? (
             <Rule220Tab />
           ) : activeId === 'excluded' ? (

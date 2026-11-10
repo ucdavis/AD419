@@ -51,7 +51,22 @@ function mockApi(options: { completeFails?: boolean; failingReport?: boolean; ha
     http.get('/api/autoassociations/rule-204', () =>
       HttpResponse.json(
         envelope({
-          misclassified: [],
+          misclassified: [
+            {
+              employeeId: null,
+              employeeName: null,
+              expenseId: 8,
+              expenses: 40,
+              expenseSfn: '204',
+              financialDepartment: 'D1',
+              fte: 0,
+              fund: 'F204',
+              orgR: 'AAAA',
+              project: 'AE-M',
+              reason: 'Misclassified204',
+              source: 'AE',
+            },
+          ],
           projects: [
             {
               accessionNumber: '1000001',
@@ -78,6 +93,20 @@ function mockApi(options: { completeFails?: boolean; failingReport?: boolean; ha
               reason: 'ProjectExcluded',
               source: 'AE',
             },
+            {
+              employeeId: null,
+              employeeName: null,
+              expenseId: 8,
+              expenses: 40,
+              expenseSfn: '204',
+              financialDepartment: 'D1',
+              fte: 0,
+              fund: 'F204',
+              orgR: 'AAAA',
+              project: 'AE-M',
+              reason: 'Misclassified204',
+              source: 'AE',
+            },
           ],
         })
       )
@@ -94,10 +123,46 @@ function mockApi(options: { completeFails?: boolean; failingReport?: boolean; ha
               projectCount: 3,
               sfn: '201',
             },
-            { expenses: 0, fte: 0, label: null, pis: [], projectCount: 0, sfn: '202' },
+            {
+              expenses: 220,
+              fte: 0.22,
+              label: 'Multi-State',
+              pis: [{ employeeId: 'E2', employeeName: 'PI Two', expenses: 220, fte: 0.2, projectCount: 1 }],
+              projectCount: 1,
+              sfn: '202',
+            },
             { expenses: 0, fte: 0, label: null, pis: [], projectCount: 0, sfn: '205' },
           ],
-          unassociated: [],
+          unassociated: [
+            {
+              employeeId: 'E8',
+              employeeName: 'Hatch Leftover',
+              expenseId: 81,
+              expenses: 81,
+              expenseSfn: '201',
+              financialDepartment: 'D1',
+              fte: 0,
+              fund: 'F201',
+              orgR: 'AAAA',
+              project: null,
+              reason: 'NoProject',
+              source: 'UCPath',
+            },
+            {
+              employeeId: 'E9',
+              employeeName: 'Multi-State Leftover',
+              expenseId: 82,
+              expenses: 82,
+              expenseSfn: '202',
+              financialDepartment: 'D1',
+              fte: 0,
+              fund: 'F202',
+              orgR: 'AAAA',
+              project: null,
+              reason: 'NoProject',
+              source: 'UCPath',
+            },
+          ],
         })
       )
     ),
@@ -210,10 +275,27 @@ describe('Auto-Associations stage', () => {
     const { cleanup, router } = renderRoute({ initialPath: '/workflow/auto-associations' });
 
     try {
-      expect(await screen.findByRole('tab', { name: /204/ })).toHaveAttribute('aria-selected', 'true');
+      expect(await screen.findByRole('tab', { name: '201' })).toHaveAttribute('aria-selected', 'true');
+      expect(screen.queryByText(/expense groups/)).not.toBeInTheDocument();
+      expect(screen.getAllByRole('tab').slice(0, 5).map((tab) => tab.textContent)).toEqual([
+        '201',
+        '202',
+        '204',
+        '205',
+        '220',
+      ]);
+
+      await user.click(screen.getByRole('tab', { name: '204' }));
       expect(await screen.findByText('Shared grant A')).toBeInTheDocument();
       expect(screen.getByText('AE-S')).toBeInTheDocument();
       expect(screen.getByText('ProjectExcluded')).toBeInTheDocument();
+
+      // One leftover list: a misclassified row shows there with its reason
+      // instead of in a section of its own.
+      expect(screen.getByRole('heading', { name: 'Not associated' })).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: /Misclassified/ })).not.toBeInTheDocument();
+      expect(screen.getAllByText('AE-M')).toHaveLength(1);
+      expect(screen.getByText('Misclassified204')).toBeInTheDocument();
 
       await user.click(screen.getByRole('tab', { name: /Under \$100/ }));
       expect(await screen.findByText('Small grant')).toBeInTheDocument();
@@ -254,11 +336,26 @@ describe('Auto-Associations stage', () => {
     try {
       await screen.findByRole('tab', { name: /204/ });
 
-      await user.click(screen.getByRole('tab', { name: '201 / 202 / 205' }));
+      // 201 is the first tab; it shows only its own PIs and leftovers.
       expect(await screen.findByText('PI One')).toBeInTheDocument();
       expect(
         (await screen.findAllByRole('heading')).some((el) => el.textContent?.includes('$660.00'))
       ).toBe(true);
+      expect(screen.getByText('Hatch Leftover')).toBeInTheDocument();
+      expect(screen.queryByText('PI Two')).not.toBeInTheDocument();
+      expect(screen.queryByText('Multi-State Leftover')).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('tab', { name: '202' }));
+      expect(await screen.findByText('PI Two')).toBeInTheDocument();
+      expect(screen.getByText('Multi-State Leftover')).toBeInTheDocument();
+      expect(screen.queryByText('PI One')).not.toBeInTheDocument();
+      expect(screen.queryByText('Hatch Leftover')).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('tab', { name: '205' }));
+      expect(
+        (await screen.findAllByRole('heading')).some((el) => el.textContent?.startsWith('205'))
+      ).toBe(true);
+      expect(screen.queryByText('PI Two')).not.toBeInTheDocument();
 
       await user.click(screen.getByRole('tab', { name: '220' }));
       expect(await screen.findByText('Hatch one')).toBeInTheDocument();
