@@ -151,8 +151,9 @@ public sealed record UnmatchedJobCodesResponse(
     IReadOnlyList<UnmatchedJobCodeDto> Rows);
 
 /// <summary>
-/// One UCPath job code inside the cycle window whose rows have no FTESFN.
-/// Reason is one of missingJobCode, noTitle, titleHasNoStaffType, staffTypeNotFound, staffTypeHasNoLine.
+/// One UCPath job code inside the cycle window whose included rows have no FTESFN.
+/// Rows with no job code and job codes with no reported FTE are left out.
+/// Reason is one of noTitle, titleHasNoStaffType, staffTypeNotFound, staffTypeHasNoLine.
 /// </summary>
 public sealed record UnmatchedJobCodeDto(
     string? JobCode,

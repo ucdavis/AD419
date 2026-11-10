@@ -553,19 +553,25 @@ public sealed partial class ExpenseReviewService(
             : expression;
     }
 
-    // In-window UCPath rows with no FTESFN, one row per job code. The view is
-    // the source of truth for FteSfn; the title and staff type joins here only
-    // explain which link in the chain is missing: no job code, no title, a
-    // title with no staff type code, a staff type code with no StaffTypes row
-    // (Titles has no foreign key to StaffTypes), or a staff type with no line.
-    // Rows already excluded by the persisted flags (date, account not in the AE chart) are skipped; fund and other classification exclusions are not applied here.
+    // In-window UCPath rows included in the report that have a job code but no
+    // FTESFN, one row per job code. The inclusion view is the source of truth
+    // for Included and FteSfn; the title and staff type joins here only explain
+    // which link in the chain is missing: no title, a title with no staff type
+    // code, a staff type code with no StaffTypes row (Titles has no foreign
+    // key to StaffTypes), or a staff type with no line.
+    // Rows the report drops are skipped, so a job code only needs classifying
+    // when it is on reported dollars. Last year's process classified job codes
+    // after all the exclusions for the same reason. Rows with no job code are
+    // skipped too: there is no code to classify.
+    // FTE is the reported FTE, counted like BuildAutoAssociations: only on rows
+    // whose ERN code is classified included. A job code whose reported FTE
+    // sums to zero is left out because classifying it changes no FTE line.
     public const string UnmatchedJobCodesSql = """
         SELECT
             u.[JobCode],
             MAX(title.[Name]) AS [TitleName],
             MAX(title.[StaffTypeCode]) AS [StaffTypeCode],
             CASE
-                WHEN u.[JobCode] IS NULL                                                THEN N'missingJobCode'
                 WHEN MAX(CASE WHEN title.[TitleCode] IS NULL THEN 1 ELSE 0 END) = 1     THEN N'noTitle'
                 WHEN MAX(title.[StaffTypeCode]) IS NULL                                 THEN N'titleHasNoStaffType'
                 WHEN MAX(CASE WHEN staffType.[StaffTypeCode] IS NULL THEN 1 ELSE 0 END) = 1 THEN N'staffTypeNotFound'
@@ -574,20 +580,25 @@ public sealed partial class ExpenseReviewService(
             COUNT(1) AS [RowCount],
             COUNT(DISTINCT u.[EmployeeId]) AS [EmployeeCount],
             SUM(u.[Amount]) AS [Amount],
-            SUM(u.[CalculatedFte]) AS [Fte]
+            SUM(reported.[Fte]) AS [Fte]
         FROM [data].[UcPathTransactions] u
-        JOIN [data].[v_TransactionSfn] txnSfn
-            ON txnSfn.[Source] = N'UCPath' AND txnSfn.[LaborTransactionId] = u.[LaborTransactionId]
+        JOIN [data].[v_TransactionInclusion] incl
+            ON incl.[Source] = N'UCPath' AND incl.[LaborTransactionId] = u.[LaborTransactionId]
+        CROSS APPLY
+        (
+            SELECT CASE WHEN incl.[ErnIncludeInReport] = 1 THEN COALESCE(u.[CalculatedFte], 0) ELSE 0 END AS [Fte]
+        ) reported
         LEFT JOIN [data].[Titles] title
             ON title.[TitleCode] = u.[JobCode]
         LEFT JOIN [data].[StaffTypes] staffType
             ON staffType.[StaffTypeCode] = title.[StaffTypeCode]
         WHERE CAST(u.[PayPeriodEndDate] AS DATE) BETWEEN @cycleStart AND @cycleEnd
-          AND COALESCE(u.[ExcludedByDate], 1) = 0
-          AND COALESCE(u.[AccountNotInAE], 1) = 0
-          AND txnSfn.[FteSfn] IS NULL
+          AND NULLIF(u.[JobCode], N'') IS NOT NULL
+          AND incl.[Included] = 1
+          AND incl.[FteSfn] IS NULL
         GROUP BY u.[JobCode]
-        ORDER BY SUM(u.[CalculatedFte]) DESC, u.[JobCode];
+        HAVING SUM(reported.[Fte]) <> 0
+        ORDER BY SUM(reported.[Fte]) DESC, u.[JobCode];
         """;
 
     // Dropdown loading has its own compact projection; transaction queries retain the full one.

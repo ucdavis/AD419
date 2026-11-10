@@ -634,10 +634,10 @@ public sealed partial class ExpenseReviewServiceSqlIntegrationTests(SqlServerDat
         var response = await service.GetUnmatchedJobCodesAsync(Cycle(), CancellationToken.None);
 
         response.FiscalYear.Should().Be("FY25");
-        // Ordered by summed FTE descending. The NULL job code group is the base
-        // scenario's two in-window rows (0.75) plus JC-MISSING (0.03).
+        // Ordered by summed FTE descending. Rows with no job code (the base
+        // scenario's rows, JC-MISSING and JC-BLANK) are left out: there is no
+        // code to classify.
         response.Rows.Select(row => (row.JobCode, row.Reason)).Should().Equal(
-            (null, "missingJobCode"),
             ("0000", "noTitle"),
             ("5678", "titleHasNoStaffType"),
             ("9999", "staffTypeHasNoLine"),
@@ -665,6 +665,57 @@ public sealed partial class ExpenseReviewServiceSqlIntegrationTests(SqlServerDat
         notFound.RowCount.Should().Be(1);
 
         response.Rows.Should().NotContain(row => row.JobCode == "1234");
+    }
+
+    [Fact]
+    public async Task Unmatched_job_codes_skip_rows_excluded_from_the_report()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        await SeedUnmatchedJobCodeRowsAsync();
+        await SeedUnmatchedJobCodeRowsExcludedFromReportAsync();
+
+        await using var db = fixture.CreateDataDbContext();
+        var service = new ExpenseReviewService(db, Configuration());
+
+        var response = await service.GetUnmatchedJobCodesAsync(Cycle(), CancellationToken.None);
+
+        // 4444 is only on an excluded fund and 4445 only on an unclassified
+        // department, so neither job code needs classifying.
+        response.Rows.Should().NotContain(row => row.JobCode == "4444");
+        response.Rows.Should().NotContain(row => row.JobCode == "4445");
+
+        // 5678 has one included row and one on the excluded fund; only the
+        // included row counts.
+        var noStaffType = response.Rows.Single(row => row.JobCode == "5678");
+        noStaffType.RowCount.Should().Be(1);
+        noStaffType.Amount.Should().Be(10m);
+        noStaffType.Fte.Should().Be(0.050000m);
+    }
+
+    [Fact]
+    public async Task Unmatched_job_codes_skip_job_codes_with_no_reported_fte()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        await SeedUnmatchedJobCodeRowsAsync();
+        await SeedUnmatchedJobCodeRowsWithoutReportedFteAsync();
+
+        await using var db = fixture.CreateDataDbContext();
+        var service = new ExpenseReviewService(db, Configuration());
+
+        var response = await service.GetUnmatchedJobCodesAsync(Cycle(), CancellationToken.None);
+
+        // 4446 has dollars but zero FTE, and 4447's only FTE is on an excluded
+        // ERN code, so classifying either would not change a reported FTE line.
+        response.Rows.Should().NotContain(row => row.JobCode == "4446");
+        response.Rows.Should().NotContain(row => row.JobCode == "4447");
+
+        // 5678 gains a row on the excluded ERN code: its dollars count, its FTE does not.
+        var noStaffType = response.Rows.Single(row => row.JobCode == "5678");
+        noStaffType.RowCount.Should().Be(2);
+        noStaffType.Amount.Should().Be(70m);
+        noStaffType.Fte.Should().Be(0.050000m);
     }
 
     [Fact]
@@ -808,10 +859,59 @@ public sealed partial class ExpenseReviewServiceSqlIntegrationTests(SqlServerDat
                 ('JC-NO-STAFF-TYPE',  '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000003', 'POS3', '5678', 10, 10.00, 0.050000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
                 ('JC-NO-LINE',        '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000004', 'POS4', '9999', 10, 10.00, 0.040000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
                 ('JC-MISSING',        '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000005', 'POS5', NULL,   10, 10.00, 0.030000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-BLANK',          '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000005', 'POS5', '',     10, 10.00, 0.030000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
                 ('JC-STAFF-TYPE-MISSING', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000006', 'POS6', '7777', 10, 10.00, 0.020000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
                 -- Flagged rows are in window but already excluded; they must not count.
                 ('JC-NO-TITLE-DATE-FLAG',    '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000002', 'POS2', '0000', 10, 50.00, 0.500000, '2024-11-15', 'S', 2025, '5', 0, 0, 1, 0),
                 ('JC-NO-TITLE-ACCOUNT-FLAG', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000002', 'POS2', '0000', 10, 60.00, 0.600000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 1);
+            """);
+    }
+
+    // Unmatched job codes whose FTE is not reported: zero FTE, or FTE only on
+    // an ERN code classified excluded (an excluded ERN drops FTE, never dollars).
+    private async Task SeedUnmatchedJobCodeRowsWithoutReportedFteAsync()
+    {
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description], [IncludeInReport], [Sfn])
+            VALUES ('Ern', 'E09', 'Excluded Pay', 0, NULL);
+
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [PositionNumber], [JobCode],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
+            VALUES
+                ('JC-ZERO-FTE',               '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000009', 'POS9', '4446', 0,  40.00, 0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-EXCLUDED-ERN',           '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E09', '30000010', 'POS10', '4447', 10, 50.00, 0.400000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-NO-STAFF-TYPE-EXCLUDED-ERN', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E09', '30000003', 'POS3', '5678', 10, 60.00, 0.600000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0);
+            """);
+    }
+
+    // Unmatched job codes on rows the report drops: fund F2 is classified
+    // excluded and department D-UNCLASSIFIED has no classification (fails closed).
+    private async Task SeedUnmatchedJobCodeRowsExcludedFromReportAsync()
+    {
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[Titles] ([TitleCode], [StaffTypeCode], [Name])
+            VALUES ('4444', NULL, 'Title only on excluded rows');
+
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [PositionNumber], [JobCode],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
+            VALUES
+                ('JC-EXCLUDED-FUND',               '3310', 'F2', 'D1',             'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000007', 'POS7', '4444', 10, 70.00, 0.700000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-NO-STAFF-TYPE-EXCLUDED-FUND', '3310', 'F2', 'D1',             'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000003', 'POS3', '5678', 10, 80.00, 0.800000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-UNCLASSIFIED-DEPT',           '3310', 'F1', 'D-UNCLASSIFIED', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000008', 'POS8', '4445', 10, 90.00, 0.900000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0);
             """);
     }
 
