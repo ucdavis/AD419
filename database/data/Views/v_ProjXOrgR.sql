@@ -2,10 +2,12 @@ CREATE VIEW [data].[v_ProjXOrgR]
 AS
 -- One row per project per OrgR screen it appears on. Default rows come from
 -- the NIFA project number department segment (characters 6-8) through the
--- reviewed OrgRNifaDepartments mapping. Manual rows are interdepartmental
--- placements added in the OrgR Review stage. A manual row that duplicates a
--- default row is still returned as Manual; select distinct on the first two
--- columns where only the pair matters.
+-- reviewed OrgRNifaDepartments mapping. Appointment rows put every non-204
+-- project of a PI on each additional OrgR the PI holds an appointment in
+-- (OrgRPiAppointments, entered in the OrgR Review stage). A PI appointment
+-- is the only way a project lands on a second OrgR. An Appointment row that
+-- duplicates a default row is still returned with its own source; select
+-- distinct on the first two columns where only the pair matters.
 --
 -- [data].[Projects] is at NIFA x AE grain: a single project can have several
 -- rows sharing the same AccessionNumber and NifaProjectNumber (one per AE
@@ -28,11 +30,13 @@ WHERE n.[OrgR] IS NOT NULL
 
 UNION ALL
 
+-- 204 projects follow their AE project and stay on the default OrgR only.
 SELECT DISTINCT
     p.[AccessionNumber],
     p.[NifaProjectNumber],
     a.[OrgR],
-    'Manual' AS [Source]
-FROM [data].[OrgRProjectAdditions] a
+    'Appointment' AS [Source]
+FROM [data].[OrgRPiAppointments] a
 JOIN [data].[Projects] p
-    ON p.[AccessionNumber] = a.[AccessionNumber];
+    ON p.[UcpEmployeeId] = a.[UcpEmployeeId]
+WHERE p.[Sfn] <> '204';

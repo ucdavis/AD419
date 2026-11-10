@@ -41,7 +41,8 @@ function mockApi(options: { completed?: boolean; unmappedDepartment: boolean; })
     http.get('/api/orgr/nifa-departments', () =>
       HttpResponse.json([{ nifaDepartment: 'ARE', orgR: 'AARE', projectCount: 2 }])
     ),
-    http.get('/api/orgr/projects', () => HttpResponse.json([])),
+    http.get('/api/orgr/pis', () => HttpResponse.json([])),
+    http.get('/api/orgr/pi-appointments', () => HttpResponse.json([])),
     http.patch('/api/orgr/financial-departments/:code', async ({ params, request }) => {
       const body = (await request.json()) as { orgR: string | null };
       departments = departments.map((d) =>
@@ -315,7 +316,7 @@ describe('OrgR Review stage', () => {
       expect(await screen.findByRole('tab', { name: /OrgR List/ })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: /Financial Departments/ })).toHaveTextContent('1 needs review');
       expect(screen.getByRole('tab', { name: /NIFA Departments/ })).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: /Project OrgRs/ })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /PI Appointments/ })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Continue to Auto-Associations/ })).toBeDisabled();
     } finally {
       cleanup();

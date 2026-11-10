@@ -134,6 +134,38 @@ describe('FilterTypeahead', () => {
     expect(input).toHaveValue('');
   });
 
+  it('keeps the chosen label and reports edits when used for a single choice', async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+    const onEdit = vi.fn();
+    render(
+      <FilterTypeahead
+        ariaLabel="Account"
+        disabled={false}
+        keepChoice
+        label="Account"
+        onAdd={onAdd}
+        onEdit={onEdit}
+        options={accountOptions}
+        placeholder="Type to search"
+        selected={[]}
+      />
+    );
+    const input = screen.getByRole('combobox', { name: 'Account' });
+    expect(input).toHaveAttribute('placeholder', 'Type to search');
+
+    await user.type(input, 'supp');
+    expect(onEdit).toHaveBeenCalledTimes(4);
+    await user.click(screen.getByRole('option', { name: '540000 - Supplies' }));
+    expect(onAdd).toHaveBeenCalledWith('540000');
+    expect(input).toHaveValue('540000 - Supplies');
+
+    onEdit.mockClear();
+    await user.keyboard('{Escape}');
+    expect(input).toHaveValue('');
+    expect(onEdit).toHaveBeenCalledTimes(1);
+  });
+
   it('hides options that are already selected', async () => {
     const user = userEvent.setup();
     const { input } = renderTypeahead({ selected: ['500000', '510000'] });

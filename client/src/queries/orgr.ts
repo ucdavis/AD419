@@ -28,20 +28,32 @@ export interface OrgRNifaDepartment {
   projectCount: number;
 }
 
-export interface ProjectOrgR {
-  accessionNumber: string;
-  nifaProjectNumber: string;
+// A PI who can be given an appointment. projectCount leaves out 204 projects,
+// which appointments never move.
+export interface Pi {
+  name: string;
+  projectCount: number;
+  ucpEmployeeId: string;
+}
+
+export interface PiAppointment {
+  // Default OrgRs of the PI's non-204 projects.
+  homeOrgRs: string[];
+  name: string;
   orgR: string;
-  projectDirector: string | null;
-  source: 'Default' | 'Manual';
-  title: string | null;
+  // Projects the appointment places on orgR.
+  projectCount: number;
+  // 204 projects left on their default OrgR.
+  skipped204Count: number;
+  ucpEmployeeId: string;
 }
 
 export const ORGR_KEYS = {
   financialDepartments: ['orgr', 'financialDepartments'] as const,
   nifaDepartments: ['orgr', 'nifaDepartments'] as const,
   orgRs: ['orgr', 'list'] as const,
-  projects: ['orgr', 'projects'] as const,
+  piAppointments: ['orgr', 'piAppointments'] as const,
+  pis: ['orgr', 'pis'] as const,
 };
 
 // Shared by OrgR edits and review completion so mapping edits and Continue block each other.
@@ -67,10 +79,16 @@ export const orgRNifaDepartmentsQueryOptions = () =>
     queryKey: ORGR_KEYS.nifaDepartments,
   });
 
-export const projectOrgRsQueryOptions = () =>
+export const pisQueryOptions = () =>
   queryOptions({
-    queryFn: () => fetchJson<ProjectOrgR[]>('/api/orgr/projects'),
-    queryKey: ORGR_KEYS.projects,
+    queryFn: () => fetchJson<Pi[]>('/api/orgr/pis'),
+    queryKey: ORGR_KEYS.pis,
+  });
+
+export const piAppointmentsQueryOptions = () =>
+  queryOptions({
+    queryFn: () => fetchJson<PiAppointment[]>('/api/orgr/pi-appointments'),
+    queryKey: ORGR_KEYS.piAppointments,
   });
 
 export function apiErrorMessage(error: unknown, fallback: string): string {
@@ -178,41 +196,42 @@ export const useSetNifaDepartmentOrgR = () => {
     onSettled: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: ORGR_KEYS.nifaDepartments }),
-        queryClient.invalidateQueries({ queryKey: ORGR_KEYS.projects }),
+        queryClient.invalidateQueries({ queryKey: ORGR_KEYS.piAppointments }),
         queryClient.invalidateQueries({ queryKey: ORGR_KEYS.orgRs }),
         queryClient.invalidateQueries({ queryKey: WORKFLOW_SNAPSHOT_KEY }),
       ]),
   });
 };
 
-export const useAddProjectOrgR = () => {
+// An appointment changes which projects sit on which OrgR, so the per OrgR
+// project counts are refetched along with it.
+function invalidatePiAppointments(queryClient: ReturnType<typeof useQueryClient>) {
+  void queryClient.invalidateQueries({ queryKey: ORGR_KEYS.piAppointments });
+  void queryClient.invalidateQueries({ queryKey: ORGR_KEYS.orgRs });
+}
+
+export const useAddPiAppointment = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { accessionNumber: string; orgR: string }) =>
-      fetchJson<void>('/api/orgr/projects', {
+    mutationFn: (input: { orgR: string; ucpEmployeeId: string }) =>
+      fetchJson<void>('/api/orgr/pi-appointments', {
         body: JSON.stringify(input),
         method: 'POST',
       }),
     mutationKey: ORGR_MUTATION_KEY,
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ORGR_KEYS.projects });
-      void queryClient.invalidateQueries({ queryKey: ORGR_KEYS.orgRs });
-    },
+    onSettled: () => invalidatePiAppointments(queryClient),
   });
 };
 
-export const useRemoveProjectOrgR = () => {
+export const useRemovePiAppointment = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { accessionNumber: string; orgR: string }) =>
+    mutationFn: (input: { orgR: string; ucpEmployeeId: string }) =>
       fetchJson<void>(
-        `/api/orgr/projects/${encodeURIComponent(input.accessionNumber)}/${encodeURIComponent(input.orgR)}`,
+        `/api/orgr/pi-appointments/${encodeURIComponent(input.ucpEmployeeId)}/${encodeURIComponent(input.orgR)}`,
         { method: 'DELETE' }
       ),
     mutationKey: ORGR_MUTATION_KEY,
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ORGR_KEYS.projects });
-      void queryClient.invalidateQueries({ queryKey: ORGR_KEYS.orgRs });
-    },
+    onSettled: () => invalidatePiAppointments(queryClient),
   });
 };

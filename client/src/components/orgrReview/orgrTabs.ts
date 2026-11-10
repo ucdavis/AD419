@@ -2,7 +2,7 @@ export type OrgRTabId =
   | 'orgrs'
   | 'financial-departments'
   | 'nifa-departments'
-  | 'projects';
+  | 'pi-appointments';
 
 export interface OrgRTab {
   id: OrgRTabId;
@@ -27,9 +27,9 @@ export const ORGR_TABS: OrgRTab[] = [
     note: 'The department segment of the NIFA project number (characters 6 to 8) sets each project’s default OrgR.',
   },
   {
-    id: 'projects',
-    label: 'Project OrgRs',
-    note: 'Optional. Each project already appears on its department’s OrgR, from the NIFA Departments tab. Add a second OrgR only when the project’s PI also holds an agronomist appointment in another department, so the project shows on both screens in associations.',
+    id: 'pi-appointments',
+    label: 'PI Appointments',
+    note: 'Optional. Each project already appears on its department’s OrgR, from the NIFA Departments tab. Most PIs sit in one department. For a PI who also holds an agronomist appointment in another, add that OrgR here and all of their projects show on both screens in associations. 204 projects are not affected.',
   },
 ];
 

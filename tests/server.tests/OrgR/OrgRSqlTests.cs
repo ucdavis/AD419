@@ -23,11 +23,12 @@ public class OrgRSqlTests
             .And.Contain("[NifaDepartment] NVARCHAR(3)  NOT NULL")
             .And.Contain("REFERENCES [data].[OrgRs] ([Code])");
 
-        var adds = ReadDatabaseFile("data/Tables/OrgRProjectAdditions.sql");
-        adds.Should().Contain("CREATE TABLE [data].[OrgRProjectAdditions]")
-            .And.Contain("[AccessionNumber] NVARCHAR(7)  NOT NULL")
-            .And.Contain("[OrgR]            NVARCHAR(10) NOT NULL")
-            .And.Contain("PRIMARY KEY CLUSTERED ([AccessionNumber], [OrgR])");
+        var appointments = ReadDatabaseFile("data/Tables/OrgRPiAppointments.sql");
+        appointments.Should().Contain("CREATE TABLE [data].[OrgRPiAppointments]")
+            .And.Contain("[UcpEmployeeId] NVARCHAR(8)   NOT NULL")
+            .And.Contain("[OrgR]          NVARCHAR(10)  NOT NULL")
+            .And.Contain("PRIMARY KEY CLUSTERED ([UcpEmployeeId], [OrgR])")
+            .And.Contain("REFERENCES [data].[OrgRs] ([Code])");
     }
 
     [Fact]
@@ -39,17 +40,40 @@ public class OrgRSqlTests
     }
 
     [Fact]
-    public void ProjXOrgR_view_unions_default_and_manual_rows()
+    public void ProjXOrgR_view_unions_default_and_appointment_rows_only()
     {
         var sql = ReadDatabaseFile("data/Views/v_ProjXOrgR.sql");
         sql.Should().Contain("CREATE VIEW [data].[v_ProjXOrgR]");
         sql.Should().Contain("SUBSTRING(p.[NifaProjectNumber], 6, 3)");
         sql.Should().Contain("SELECT DISTINCT");
         sql.Should().Contain("'Default' AS [Source]");
-        sql.Should().Contain("'Manual' AS [Source]");
-        sql.Should().Contain("[data].[OrgRProjectAdditions]");
+        sql.Should().Contain("'Appointment' AS [Source]");
         sql.Should().Contain("UNION ALL");
         sql.Should().NotContain("GETDATE()");
+        // A PI appointment is the only way onto a second OrgR.
+        sql.Should().NotContain("'Manual'");
+        sql.Should().NotContain("OrgRProjectAdditions");
+    }
+
+    [Fact]
+    public void Manual_project_additions_table_is_removed_and_cleared_before_the_drop()
+    {
+        File.Exists(Path.Combine(RepositoryRoot(), "database", "data", "Tables", "OrgRProjectAdditions.sql"))
+            .Should().BeFalse();
+        // The publish runs with BlockOnPossibleDataLoss, so rows must be gone before the table is dropped.
+        ReadDatabaseFile("data/Scripts/Script.PreDeployment.sql").Should().Contain(
+            "IF OBJECT_ID(N'[data].[OrgRProjectAdditions]', N'U') IS NOT NULL DELETE FROM [data].[OrgRProjectAdditions];");
+    }
+
+    [Fact]
+    public void ProjXOrgR_view_places_a_pis_non_204_projects_on_their_appointment_orgrs()
+    {
+        var sql = ReadDatabaseFile("data/Views/v_ProjXOrgR.sql");
+        var appointmentBranch = sql[sql.LastIndexOf("UNION ALL", StringComparison.Ordinal)..];
+        appointmentBranch.Should().Contain("'Appointment' AS [Source]")
+            .And.Contain("FROM [data].[OrgRPiAppointments] a")
+            .And.Contain("ON p.[UcpEmployeeId] = a.[UcpEmployeeId]")
+            .And.Contain("WHERE p.[Sfn] <> '204'");
     }
 
     [Fact]

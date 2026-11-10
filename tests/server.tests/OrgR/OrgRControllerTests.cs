@@ -26,8 +26,8 @@ public class OrgRControllerTests : IDisposable
     [InlineData("DeleteOrgR", "code", " bad! ", null)]
     [InlineData("SetFinancialDepartmentOrgR", "code", "missing", "AARE")]
     [InlineData("SetNifaDepartmentOrgR", "code", "missing", null)]
-    [InlineData("AddProject", "AccessionNumber", " missing ", "AARE")]
-    [InlineData("RemoveProject", "accessionNumber", "missing", "AARE")]
+    [InlineData("AddPiAppointment", "UcpEmployeeId", " missing ", "AARE")]
+    [InlineData("RemovePiAppointment", "ucpEmployeeId", "missing", "AARE")]
     public async Task Rejected_mutation_logs_submitted_identifiers(
         string operation, string field, string identifier, string? orgR)
     {
@@ -38,8 +38,8 @@ public class OrgRControllerTests : IDisposable
         context.Request.Method = "POST";
         context.Request.RouteValues["controller"] = "OrgR";
         context.Request.RouteValues["action"] = operation;
-        if (operation != "AddProject") context.Request.RouteValues[field] = identifier;
-        if (operation == "RemoveProject") context.Request.RouteValues["orgR"] = orgR;
+        if (operation != "AddPiAppointment") context.Request.RouteValues[field] = identifier;
+        if (operation == "RemovePiAppointment") context.Request.RouteValues["orgR"] = orgR;
         var logger = new RecordingLogger<ApiFailureLoggingMiddleware>();
         var middleware = new ApiFailureLoggingMiddleware(async ctx =>
         {
@@ -49,8 +49,8 @@ public class OrgRControllerTests : IDisposable
                 "DeleteOrgR" => await controller.DeleteOrgR(identifier, CancellationToken.None),
                 "SetFinancialDepartmentOrgR" => await controller.SetFinancialDepartmentOrgR(identifier, new SetOrgRRequest(orgR), CancellationToken.None),
                 "SetNifaDepartmentOrgR" => await controller.SetNifaDepartmentOrgR(identifier, new SetOrgRRequest(orgR), CancellationToken.None),
-                "AddProject" => await controller.AddProject(new AddProjectOrgRRequest(identifier, orgR!), CancellationToken.None),
-                "RemoveProject" => await controller.RemoveProject(identifier, orgR!, CancellationToken.None),
+                "AddPiAppointment" => await controller.AddPiAppointment(new AddPiAppointmentRequest(identifier, orgR!), CancellationToken.None),
+                "RemovePiAppointment" => await controller.RemovePiAppointment(identifier, orgR!, CancellationToken.None),
                 _ => throw new InvalidOperationException("Unknown test operation"),
             };
             ctx.Response.StatusCode = ((IStatusCodeActionResult)result).StatusCode!.Value;
@@ -62,7 +62,7 @@ public class OrgRControllerTests : IDisposable
         entry.Fields["action"].Should().Be(operation);
         entry.Fields["controller"].Should().Be("OrgR");
         entry.Fields[field].Should().Be(identifier);
-        if (operation is "SetFinancialDepartmentOrgR" or "SetNifaDepartmentOrgR" or "AddProject")
+        if (operation is "SetFinancialDepartmentOrgR" or "SetNifaDepartmentOrgR" or "AddPiAppointment")
         {
             entry.Fields["OrgR"].Should().Be(orgR);
         }
@@ -357,13 +357,13 @@ public class OrgRControllerTests : IDisposable
             new OrgRFinancialDepartment { FinancialDepartment = "AARE002", OrgR = "AARE" });
         db.OrgRNifaDepartments.Add(new OrgRNifaDepartment { NifaDepartment = "ARE", OrgR = "AARE" });
         db.Projects.AddRange(
-            new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-ARE-2868-H" },
-            new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-ARE-2868-H" },
-            new Project { AccessionNumber = "1000002", NifaProjectNumber = "CA-D-ARE-2778-CG" },
-            new Project { AccessionNumber = "1000003", NifaProjectNumber = "CA-D-ESP-2880-H" });
-        db.OrgRProjectAdditions.AddRange(
-            new OrgRProjectAddition { AccessionNumber = "1000001", OrgR = "AARE" },
-            new OrgRProjectAddition { AccessionNumber = "1000003", OrgR = "APLS" });
+            new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-ARE-2868-H", Sfn = "201", UcpEmployeeId = "10000001" },
+            new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-ARE-2868-H", Sfn = "201", UcpEmployeeId = "10000001" },
+            new Project { AccessionNumber = "1000002", NifaProjectNumber = "CA-D-ARE-2778-CG", Sfn = "204", UcpEmployeeId = "10000001" },
+            new Project { AccessionNumber = "1000003", NifaProjectNumber = "CA-D-ESP-2880-H", Sfn = "201", UcpEmployeeId = "10000002" });
+        db.OrgRPiAppointments.AddRange(
+            new OrgRPiAppointment { UcpEmployeeId = "10000001", OrgR = "AARE" },
+            new OrgRPiAppointment { UcpEmployeeId = "10000002", OrgR = "APLS" });
         await db.SaveChangesAsync();
         var controller = CreateController(db);
 
@@ -374,8 +374,8 @@ public class OrgRControllerTests : IDisposable
         dtos.Should().HaveCount(3);
         var aare = dtos.Single(d => d.Code == "AARE");
         aare.FinancialDepartmentCount.Should().Be(2);
-        aare.NifaProjectCount.Should().Be(2, "1000001 and 1000002 map through ARE; the manual addition of 1000001 does not double count");
-        aare.ReferenceCount.Should().Be(4, "two departments, one NIFA department, one addition");
+        aare.NifaProjectCount.Should().Be(2, "1000001 and 1000002 map through ARE; the appointment placing 1000001 there again does not double count");
+        aare.ReferenceCount.Should().Be(4, "two departments, one NIFA department, one PI appointment");
         var apls = dtos.Single(d => d.Code == "APLS");
         apls.FinancialDepartmentCount.Should().Be(0);
         apls.NifaProjectCount.Should().Be(1);
@@ -597,81 +597,118 @@ public class OrgRControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task GetProjects_returns_default_rows_from_nifa_mapping_plus_manual_rows()
+    public async Task GetPis_lists_each_pi_once_with_their_non_204_project_count()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
-        db.OrgRs.AddRange(new OrgR { Code = "AARE" }, new OrgR { Code = "APLS" });
-        db.OrgRNifaDepartments.AddRange(
-            new OrgRNifaDepartment { NifaDepartment = "ARE", OrgR = "AARE" },
-            new OrgRNifaDepartment { NifaDepartment = "ESP", OrgR = null });
         db.Projects.AddRange(
-            new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-ARE-2868-H", Title = "Water", ProjectDirector = "Doe" },
-            new Project { AccessionNumber = "1000003", NifaProjectNumber = "CA-D-ESP-2880-H", Title = "Soil" });
-        db.OrgRProjectAdditions.Add(new OrgRProjectAddition { AccessionNumber = "1000001", OrgR = "APLS" });
+            new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-NTR-2868-H", Sfn = "201", UcpEmployeeId = "10000001", ProjectDirector = "Slupsky, Carolyn" },
+            new Project { AccessionNumber = "1000004", NifaProjectNumber = "CA-D-NTR-2900-RR", Sfn = "202", UcpEmployeeId = "10000001", ProjectDirector = "Slupsky, Carolyn" },
+            new Project { AccessionNumber = "1000002", NifaProjectNumber = "CA-D-NTR-2778-CG", Sfn = "204", UcpEmployeeId = "10000001", ProjectDirector = "Slupsky, Carolyn" },
+            new Project { AccessionNumber = "1000003", NifaProjectNumber = "CA-D-ARE-2880-H", Sfn = "201", UcpEmployeeId = "10000002", ProjectDirector = "Doe, Jane" },
+            // Only 204 projects: an appointment would place nothing, so the PI is not offered.
+            new Project { AccessionNumber = "1000005", NifaProjectNumber = "CA-D-ARE-2990-CG", Sfn = "204", UcpEmployeeId = "10000003", ProjectDirector = "Roe, Sam" });
         await db.SaveChangesAsync();
         var controller = CreateController(db);
 
-        var result = await controller.GetProjects(CancellationToken.None);
+        var result = await controller.GetPis(CancellationToken.None);
 
         var dtos = result.Result.Should().BeOfType<OkObjectResult>().Subject.Value
-            .Should().BeAssignableTo<IEnumerable<ProjectOrgRDto>>().Subject.ToList();
-        dtos.Should().HaveCount(2);
-        dtos.Should().ContainSingle(d => d.AccessionNumber == "1000001" && d.OrgR == "AARE" && d.Source == "Default" && d.Title == "Water");
-        dtos.Should().ContainSingle(d => d.AccessionNumber == "1000001" && d.OrgR == "APLS" && d.Source == "Manual");
+            .Should().BeAssignableTo<IEnumerable<PiDto>>().Subject.ToList();
+        dtos.Should().BeEquivalentTo(
+            new[]
+            {
+                new PiDto("10000002", "Doe, Jane", 1),
+                new PiDto("10000001", "Slupsky, Carolyn", 2),
+            },
+            options => options.WithStrictOrdering());
     }
 
     [Fact]
-    public async Task GetProjects_dedupes_default_rows_for_projects_at_nifa_x_ae_grain()
+    public async Task GetPiAppointments_reports_home_orgrs_and_project_counts()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
-        db.OrgRNifaDepartments.Add(new OrgRNifaDepartment { NifaDepartment = "ARE", OrgR = "AARE" });
-        // Projects is at NIFA x AE grain: this accession has two rows for the
-        // same NifaProjectNumber (e.g. two AE projects). The Default rows
-        // must still yield exactly one row for this OrgR.
+        db.OrgRs.AddRange(new OrgR { Code = "ANUT" }, new OrgR { Code = "AFST" });
+        db.OrgRNifaDepartments.Add(new OrgRNifaDepartment { NifaDepartment = "NTR", OrgR = "ANUT" });
         db.Projects.AddRange(
-            new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-ARE-2868-H", Title = "Water" },
-            new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-ARE-2868-H", Title = "Water AE" });
+            new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-NTR-2868-H", Sfn = "201", UcpEmployeeId = "10000001", ProjectDirector = "Slupsky, Carolyn" },
+            new Project { AccessionNumber = "1000004", NifaProjectNumber = "CA-D-NTR-2900-RR", Sfn = "202", UcpEmployeeId = "10000001", ProjectDirector = "Slupsky, Carolyn" },
+            new Project { AccessionNumber = "1000002", NifaProjectNumber = "CA-D-NTR-2778-CG", Sfn = "204", UcpEmployeeId = "10000001", ProjectDirector = "Slupsky, Carolyn" });
+        db.OrgRPiAppointments.AddRange(
+            new OrgRPiAppointment { UcpEmployeeId = "10000001", OrgR = "AFST", PiName = "Old Name" },
+            // Carried forward from an earlier cycle: no projects this year.
+            new OrgRPiAppointment { UcpEmployeeId = "10000009", OrgR = "AFST", PiName = "Gone, Pat" });
         await db.SaveChangesAsync();
         var controller = CreateController(db);
 
-        var result = await controller.GetProjects(CancellationToken.None);
+        var result = await controller.GetPiAppointments(CancellationToken.None);
 
         var dtos = result.Result.Should().BeOfType<OkObjectResult>().Subject.Value
-            .Should().BeAssignableTo<IEnumerable<ProjectOrgRDto>>().Subject.ToList();
-        dtos.Should().ContainSingle(d => d.AccessionNumber == "1000001" && d.Source == "Default");
+            .Should().BeAssignableTo<IEnumerable<PiAppointmentDto>>().Subject.ToList();
+        dtos.Should().BeEquivalentTo(
+            new[]
+            {
+                new PiAppointmentDto("10000009", "Gone, Pat", "AFST", Array.Empty<string>(), 0, 0),
+                new PiAppointmentDto("10000001", "Slupsky, Carolyn", "AFST", new[] { "ANUT" }, 2, 1),
+            },
+            options => options.WithStrictOrdering());
     }
 
     [Fact]
-    public async Task AddProject_validates_and_rejects_duplicates()
+    public async Task AddPiAppointment_validates_and_rejects_duplicates()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
-        db.OrgRs.Add(new OrgR { Code = "APLS" });
-        db.Projects.Add(new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-ARE-2868-H" });
+        db.OrgRs.Add(new OrgR { Code = "AFST" });
+        db.Projects.Add(new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-NTR-2868-H", Sfn = "201", UcpEmployeeId = "10000001", ProjectDirector = "Slupsky, Carolyn" });
         await db.SaveChangesAsync();
         var controller = CreateController(db);
 
-        (await controller.AddProject(new AddProjectOrgRRequest("1000001", "apls"), CancellationToken.None))
+        (await controller.AddPiAppointment(new AddPiAppointmentRequest(" 10000001 ", "afst"), CancellationToken.None))
             .Should().BeOfType<NoContentResult>();
-        db.OrgRProjectAdditions.Single().OrgR.Should().Be("APLS");
+        db.OrgRPiAppointments.Single().Should().BeEquivalentTo(
+            new OrgRPiAppointment { UcpEmployeeId = "10000001", OrgR = "AFST", PiName = "Slupsky, Carolyn" });
 
-        (await controller.AddProject(new AddProjectOrgRRequest("1000001", "APLS"), CancellationToken.None))
+        (await controller.AddPiAppointment(new AddPiAppointmentRequest("10000001", "AFST"), CancellationToken.None))
             .Should().BeOfType<ConflictObjectResult>();
-        (await controller.AddProject(new AddProjectOrgRRequest("9999999", "APLS"), CancellationToken.None))
+        (await controller.AddPiAppointment(new AddPiAppointmentRequest("99999999", "AFST"), CancellationToken.None))
             .Should().BeOfType<BadRequestObjectResult>();
-        (await controller.AddProject(new AddProjectOrgRRequest("1000001", "ZZZZ"), CancellationToken.None))
+        (await controller.AddPiAppointment(new AddPiAppointmentRequest("10000001", "ZZZZ"), CancellationToken.None))
             .Should().BeOfType<BadRequestObjectResult>();
     }
 
     [Fact]
-    public async Task RemoveProject_deletes_manual_row_only()
+    public async Task RemovePiAppointment_deletes_the_pair()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
-        db.OrgRProjectAdditions.Add(new OrgRProjectAddition { AccessionNumber = "1000001", OrgR = "APLS" });
+        db.OrgRPiAppointments.Add(new OrgRPiAppointment { UcpEmployeeId = "10000001", OrgR = "AFST" });
         await db.SaveChangesAsync();
         var controller = CreateController(db);
 
-        (await controller.RemoveProject("1000001", "APLS", CancellationToken.None)).Should().BeOfType<NoContentResult>();
-        db.OrgRProjectAdditions.Should().BeEmpty();
-        (await controller.RemoveProject("1000001", "APLS", CancellationToken.None)).Should().BeOfType<NotFoundResult>();
+        (await controller.RemovePiAppointment("10000001", "afst", CancellationToken.None)).Should().BeOfType<NoContentResult>();
+        db.OrgRPiAppointments.Should().BeEmpty();
+        (await controller.RemovePiAppointment("10000001", "AFST", CancellationToken.None)).Should().BeOfType<NotFoundResult>();
+    }
+
+    [Fact]
+    public async Task OrgR_used_by_a_pi_appointment_counts_its_projects_and_cannot_be_deleted()
+    {
+        using var db = TestDbContextFactory.CreateDataInMemory();
+        db.OrgRs.AddRange(new OrgR { Code = "ANUT" }, new OrgR { Code = "AFST" });
+        db.OrgRNifaDepartments.Add(new OrgRNifaDepartment { NifaDepartment = "NTR", OrgR = "ANUT" });
+        db.Projects.AddRange(
+            new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-NTR-2868-H", Sfn = "201", UcpEmployeeId = "10000001" },
+            new Project { AccessionNumber = "1000002", NifaProjectNumber = "CA-D-NTR-2778-CG", Sfn = "204", UcpEmployeeId = "10000001" });
+        db.OrgRPiAppointments.Add(new OrgRPiAppointment { UcpEmployeeId = "10000001", OrgR = "AFST" });
+        await db.SaveChangesAsync();
+        var controller = CreateController(db);
+
+        var dtos = (await controller.GetOrgRs(CancellationToken.None)).Result
+            .Should().BeOfType<OkObjectResult>().Subject.Value
+            .Should().BeAssignableTo<IEnumerable<OrgRDto>>().Subject.ToList();
+        var afst = dtos.Single(d => d.Code == "AFST");
+        afst.NifaProjectCount.Should().Be(1, "the 204 project stays on its default OrgR only");
+        afst.ReferenceCount.Should().Be(1);
+
+        (await controller.DeleteOrgR("AFST", CancellationToken.None)).Should().BeOfType<ConflictObjectResult>();
+        db.OrgRs.Should().Contain(o => o.Code == "AFST");
     }
 }

@@ -28,17 +28,29 @@ export function matchFilterOptions(
   ];
 }
 
+// By default this adds to a list of filters: choosing an option clears the
+// box for the next one. For a single choice, pass keepChoice so the chosen
+// label stays in the box, and onEdit to learn when the user changes the text
+// so the caller can drop its choice.
 export function FilterTypeahead({
+  ariaLabel,
   disabled,
+  keepChoice = false,
   label,
   onAdd,
+  onEdit,
   options,
+  placeholder = 'Any',
   selected,
 }: {
+  ariaLabel?: string;
   disabled: boolean;
+  keepChoice?: boolean;
   label: string;
   onAdd: (value: string) => void;
+  onEdit?: () => void;
   options: ExpenseReviewFilterOption[];
+  placeholder?: string;
   selected: string[];
 }) {
   const inputId = useId();
@@ -60,7 +72,7 @@ export function FilterTypeahead({
 
   const choose = (option: ExpenseReviewFilterOption) => {
     onAdd(option.value);
-    setQuery('');
+    setQuery(keepChoice ? option.label : '');
     setActiveIndex(0);
     setIsOpen(false);
   };
@@ -99,6 +111,7 @@ export function FilterTypeahead({
         setIsOpen(false);
       } else {
         setQuery('');
+        onEdit?.();
       }
     }
   };
@@ -118,7 +131,7 @@ export function FilterTypeahead({
           aria-autocomplete="list"
           aria-controls={listboxId}
           aria-expanded={showList}
-          aria-label={`${label} filter`}
+          aria-label={ariaLabel ?? `${label} filter`}
           autoComplete="off"
           className="input input-bordered input-sm w-full"
           disabled={isDisabled}
@@ -128,10 +141,11 @@ export function FilterTypeahead({
             setQuery(event.target.value);
             setActiveIndex(0);
             setIsOpen(true);
+            onEdit?.();
           }}
           onClick={() => setIsOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder="Any"
+          placeholder={placeholder}
           role="combobox"
           type="text"
           value={query}

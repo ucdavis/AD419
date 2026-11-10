@@ -1,0 +1,127 @@
+import { describe, expect, it } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { server } from '@/test/mswUtils.ts';
+import { PiAppointmentsTab } from '@/components/orgrReview/PiAppointmentsTab.tsx';
+import type { Pi, PiAppointment } from '@/queries/orgr.ts';
+
+function renderTab() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <PiAppointmentsTab />
+    </QueryClientProvider>
+  );
+}
+
+const pis: Pi[] = [
+  { name: 'Doe, Jane', projectCount: 1, ucpEmployeeId: '10000002' },
+  { name: 'Slupsky, Carolyn', projectCount: 2, ucpEmployeeId: '10000001' },
+];
+
+const appointments: PiAppointment[] = [
+  {
+    homeOrgRs: ['ANUT'],
+    name: 'Slupsky, Carolyn',
+    orgR: 'AFST',
+    projectCount: 2,
+    skipped204Count: 1,
+    ucpEmployeeId: '10000001',
+  },
+];
+
+function mockApi() {
+  const posts: unknown[] = [];
+  const deletes: string[] = [];
+  server.use(
+    http.get('/api/orgr/orgrs', () =>
+      HttpResponse.json([
+        { code: 'AFST', financialDepartmentCount: 0, nifaProjectCount: 0, referenceCount: 1 },
+        { code: 'ANUT', financialDepartmentCount: 0, nifaProjectCount: 0, referenceCount: 1 },
+      ])
+    ),
+    http.get('/api/orgr/pis', () => HttpResponse.json(pis)),
+    http.get('/api/orgr/pi-appointments', () => HttpResponse.json(appointments)),
+    http.post('/api/orgr/pi-appointments', async ({ request }) => {
+      posts.push(await request.json());
+      return new HttpResponse(null, { status: 204 });
+    }),
+    http.delete('/api/orgr/pi-appointments/:employeeId/:orgR', ({ params }) => {
+      deletes.push(`${params.employeeId}/${params.orgR}`);
+      return new HttpResponse(null, { status: 204 });
+    })
+  );
+  return { deletes, posts };
+}
+
+describe('PiAppointmentsTab', () => {
+  it('finds a PI by typing and adds an appointment for the chosen PI and OrgR', async () => {
+    const { posts } = mockApi();
+    const user = userEvent.setup();
+    renderTab();
+
+    const piInput = await screen.findByRole('combobox', { name: 'PI' });
+    const add = screen.getByRole('button', { name: 'Add appointment' });
+    expect(add).toBeDisabled();
+
+    await user.type(piInput, 'doe');
+    expect(
+      screen.queryByRole('option', { name: 'Slupsky, Carolyn (2 projects)' })
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('option', { name: 'Doe, Jane (1 project)' }));
+    expect(piInput).toHaveValue('Doe, Jane (1 project)');
+
+    await user.selectOptions(screen.getByLabelText('OrgR to add'), 'AFST');
+    await user.click(add);
+
+    await waitFor(() =>
+      expect(posts).toEqual([{ orgR: 'AFST', ucpEmployeeId: '10000002' }])
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: 'PI' })).toHaveValue('')
+    );
+  });
+
+  it('drops the chosen PI when the search text is edited', async () => {
+    mockApi();
+    const user = userEvent.setup();
+    renderTab();
+
+    const piInput = await screen.findByRole('combobox', { name: 'PI' });
+    await user.type(piInput, 'slup');
+    await user.click(screen.getByRole('option', { name: 'Slupsky, Carolyn (2 projects)' }));
+    await user.selectOptions(screen.getByLabelText('OrgR to add'), 'AFST');
+    const add = screen.getByRole('button', { name: 'Add appointment' });
+    expect(add).toBeEnabled();
+
+    await user.type(piInput, '{Backspace}');
+    expect(add).toBeDisabled();
+  });
+
+  it('lists appointments with their home OrgR and removes one', async () => {
+    const { deletes } = mockApi();
+    const user = userEvent.setup();
+    renderTab();
+
+    const section = await screen.findByRole('region', { name: 'PI appointments' });
+    const row = within(section).getByRole('row', { name: /Slupsky, Carolyn/ });
+    expect(within(row).getByText('ANUT')).toBeInTheDocument();
+    expect(within(row).getByText('AFST')).toBeInTheDocument();
+
+    await user.click(
+      within(row).getByRole('button', { name: 'Remove Slupsky, Carolyn from AFST' })
+    );
+    await waitFor(() => expect(deletes).toEqual(['10000001/AFST']));
+  });
+
+  it('has no per project placement list or controls', async () => {
+    mockApi();
+    renderTab();
+
+    await screen.findByRole('region', { name: 'PI appointments' });
+    expect(screen.queryByText('Projects on an additional OrgR')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('table')).toHaveLength(1);
+  });
+});
