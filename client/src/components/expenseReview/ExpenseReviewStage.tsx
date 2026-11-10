@@ -1,3 +1,7 @@
+import {
+  ExpenseReviewTransactionDialog,
+  defaultDetailVisibility,
+} from './ExpenseReviewTransactionDialog.tsx';
 import { FilterTypeahead } from '@/components/expenseReview/FilterTypeahead.tsx';
 import { HttpError } from '@/lib/api.ts';
 import {
@@ -25,8 +29,37 @@ import {
 } from './expenseReviewSearch.ts';
 import { getRouteApi, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ColumnDef, SortingState } from '@tanstack/react-table';
-import { useState } from 'react';
+import type {
+  CellContext,
+  ColumnDef,
+  SortingState,
+  VisibilityState,
+} from '@tanstack/react-table';
+import { createContext, useContext, useState } from 'react';
+
+const TransactionDetailsOpenerContext = createContext<
+  (group: ExpenseReviewTransaction, opener: HTMLElement) => void
+>(() => {});
+function TransactionDetailsButton({
+  row,
+}: CellContext<ExpenseReviewTransaction, unknown>) {
+  const open = useContext(TransactionDetailsOpenerContext);
+  return (
+    <button
+      className="btn btn-ghost btn-xs"
+      onClick={(event) => open(row.original, event.currentTarget)}
+      type="button"
+    >
+      View transactions
+    </button>
+  );
+}
+const DETAILS_COLUMN: ColumnDef<ExpenseReviewTransaction> = {
+  cell: TransactionDetailsButton,
+  enableSorting: false,
+  header: 'Details',
+  id: 'details',
+};
 
 const routeApi = getRouteApi('/(authenticated)/workflow/$stageId');
 
@@ -474,6 +507,30 @@ export function ExpenseReviewStage() {
     { desc: sortDirection === 'desc', id: sortBy },
   ];
   const [exportError, setExportError] = useState<string | null>(null);
+  const detailContext = {
+    displayByPeriod,
+    filters,
+    includeState,
+    includeZeroAmounts,
+  };
+  const detailContextKey = JSON.stringify(detailContext);
+  const [selectedGroup, setSelectedGroup] = useState<{
+    contextKey: string;
+    group: ExpenseReviewTransaction;
+    opener: HTMLElement | null;
+  } | null>(null);
+  const [detailVisibility, setDetailVisibility] = useState<
+    Record<'AE' | 'UCP', VisibilityState>
+  >({ AE: defaultDetailVisibility('AE'), UCP: defaultDetailVisibility('UCP') });
+  if (selectedGroup && selectedGroup.contextKey !== detailContextKey) {
+    setSelectedGroup(null);
+  }
+  const openGroup = (
+    group: ExpenseReviewTransaction,
+    opener: HTMLElement | null
+  ) => {
+    setSelectedGroup({ contextKey: detailContextKey, group, opener });
+  };
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const filterOptionsQuery = useQuery(
@@ -511,7 +568,10 @@ export function ExpenseReviewStage() {
       });
     },
   });
-  const columns = displayByPeriod ? PERIOD_COLUMNS : FLAT_COLUMNS;
+  const columns = [
+    ...(displayByPeriod ? PERIOD_COLUMNS : FLAT_COLUMNS),
+    DETAILS_COLUMN,
+  ];
   const exportUrl = buildExpenseReviewTransactionsCsvUrl({
     displayByPeriod,
     filters,
@@ -721,42 +781,64 @@ export function ExpenseReviewStage() {
       ) : null}
 
       {transactions ? (
-        <DataTable
-          columns={columns}
-          data={transactions.rows}
-          globalFilter="none"
-          manualPagination
-          manualSorting
-          onPageIndexChange={(pageIndex) =>
-            setSearch({ page: pageIndex === 0 ? undefined : pageIndex + 1 })
+        <TransactionDetailsOpenerContext.Provider value={openGroup}>
+          <DataTable
+            columns={columns}
+            data={transactions.rows}
+            globalFilter="none"
+            manualPagination
+            manualSorting
+            onPageIndexChange={(pageIndex) =>
+              setSearch({ page: pageIndex === 0 ? undefined : pageIndex + 1 })
+            }
+            onPageSizeChange={(nextPageSize) =>
+              setSearch({
+                page: undefined,
+                size:
+                  nextPageSize === DEFAULT_EXPENSE_REVIEW_PAGE_SIZE
+                    ? undefined
+                    : (nextPageSize as ExpenseReviewSearch['size']),
+              })
+            }
+            onRowClick={(row, event) =>
+              openGroup(row, event.currentTarget.querySelector('button'))
+            }
+            onSortingChange={(nextSorting) => {
+              const next = nextSorting[0];
+              setSearch({
+                dir: next?.desc ? 'desc' : undefined,
+                page: undefined,
+                sort:
+                  next && next.id !== 'source'
+                    ? (next.id as ExpenseReviewSortBy)
+                    : undefined,
+              });
+              resetExportError();
+            }}
+            pageCount={transactions.pageCount}
+            pageIndex={page - 1}
+            pageSize={pageSize}
+            pageSizeOptions={[...EXPENSE_REVIEW_PAGE_SIZES]}
+            rowCount={transactions.totalCount}
+            sorting={sorting}
+          />
+        </TransactionDetailsOpenerContext.Provider>
+      ) : null}
+
+      {selectedGroup && selectedGroup.contextKey === detailContextKey ? (
+        <ExpenseReviewTransactionDialog
+          context={detailContext}
+          group={selectedGroup.group}
+          key={selectedGroup.group.id}
+          onClose={() => setSelectedGroup(null)}
+          onVisibilityChange={(value) =>
+            setDetailVisibility((current) => ({
+              ...current,
+              [selectedGroup.group.source]: value,
+            }))
           }
-          onPageSizeChange={(nextPageSize) =>
-            setSearch({
-              page: undefined,
-              size:
-                nextPageSize === DEFAULT_EXPENSE_REVIEW_PAGE_SIZE
-                  ? undefined
-                  : (nextPageSize as ExpenseReviewSearch['size']),
-            })
-          }
-          onSortingChange={(nextSorting) => {
-            const next = nextSorting[0];
-            setSearch({
-              dir: next?.desc ? 'desc' : undefined,
-              page: undefined,
-              sort:
-                next && next.id !== 'source'
-                  ? (next.id as ExpenseReviewSortBy)
-                  : undefined,
-            });
-            resetExportError();
-          }}
-          pageCount={transactions.pageCount}
-          pageIndex={page - 1}
-          pageSize={pageSize}
-          pageSizeOptions={[...EXPENSE_REVIEW_PAGE_SIZES]}
-          rowCount={transactions.totalCount}
-          sorting={sorting}
+          opener={selectedGroup.opener}
+          visibility={detailVisibility[selectedGroup.group.source]}
         />
       ) : null}
 

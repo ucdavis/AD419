@@ -14,16 +14,19 @@ public class ExpenseReviewServiceSqlTests
     [InlineData("unknown", true, true)]
     [InlineData("AE,unknown", true, true)]
     [InlineData("UCP,unknown", true, true)]
-    public void Grouped_queries_select_only_an_unambiguous_recognized_source(
+    public void Transaction_queries_select_only_an_unambiguous_recognized_source(
         string source, bool hasAe, bool hasUcPath)
     {
         var filters = ExpenseReviewFilters.None with { Source = source.Split(',', StringSplitOptions.RemoveEmptyEntries) };
         var request = Request(filters: filters);
+        var detailRequest = new ExpenseReviewGroupTransactionsRequest(new string('A', 64), request, "id", false, null);
         var queries = new[]
         {
             ExpenseReviewService.BuildTransactionsSql(request),
             ExpenseReviewService.BuildTransactionsExportSql(request),
             ExpenseReviewService.BuildSummarySql(SummaryRequest("source", filters: filters)),
+            ExpenseReviewService.BuildGroupTransactionsSql(detailRequest),
+            ExpenseReviewService.BuildGroupTransactionsSql(detailRequest, export: true),
         };
 
         foreach (var sql in queries)
@@ -33,6 +36,70 @@ public class ExpenseReviewServiceSqlTests
             sql.Contains("u.[Source] IN @source", StringComparison.Ordinal).Should().Be(filters.Source.Count > 0);
             sql.Should().NotContain("OPTION (RECOMPILE)");
         }
+    }
+
+    [Fact]
+    public void Unified_cte_preserves_native_key_types_for_both_sources()
+    {
+        var sql = ExpenseReviewService.UnifiedTransactionsCte;
+
+        sql.Should().Contain("a.[Id] AS [AeTransactionId]");
+        sql.Should().Contain("CAST(NULL AS NVARCHAR(125)) AS [LaborTransactionId]");
+        sql.Should().Contain("CAST(NULL AS BIGINT) AS [AeTransactionId]");
+        sql.Should().Contain("u.[LaborTransactionId] AS [LaborTransactionId]");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BuildGroupTransactionsSql_joins_detail_sources_by_bare_native_keys(bool export)
+    {
+        var request = new ExpenseReviewGroupTransactionsRequest(new string('A', 64), Request(), "id", false, null);
+        var sql = ExpenseReviewService.BuildGroupTransactionsSql(request, export);
+        var joinStart = sql.IndexOf("FROM #Members m", StringComparison.Ordinal);
+        var joinEnd = sql.IndexOf(';', joinStart);
+
+        sql[joinStart..joinEnd].Should().Be("""
+            FROM #Members m
+            LEFT JOIN [data].[UcPathTransactions] u ON m.[Source] = N'UCP' AND m.[LaborTransactionId] = u.[LaborTransactionId]
+            LEFT JOIN [data].[AETransactions] a ON m.[Source] = N'AE' AND m.[AeTransactionId] = a.[Id]
+            """);
+        sql.Should().Contain("SELECT u.* INTO #Members FROM Unified u");
+        sql.Should().Contain("SELECT m.[Id], m.[AeTransactionId], m.[LaborTransactionId],");
+    }
+
+    [Theory]
+    [InlineData("id", false, "ASC")]
+    [InlineData("ID", true, "DESC")]
+    [InlineData("Id", false, "ASC")]
+    [InlineData("iD", true, "DESC")]
+    public void BuildGroupTransactionsSql_sorts_native_ids_in_the_same_order_for_pages_and_exports(
+        string sortBy, bool descending, string direction)
+    {
+        var request = new ExpenseReviewGroupTransactionsRequest(new string('A', 64), Request(), sortBy, descending, null);
+        var sql = ExpenseReviewService.BuildGroupTransactionsSql(request);
+        var export = ExpenseReviewService.BuildGroupTransactionsSql(request, export: true);
+        var expected = $"ORDER BY [AeTransactionId] {direction}, [LaborTransactionId] {direction}, [Id] ASC";
+
+        PagedOrderByClause(sql).Trim().Should().Be(expected);
+        export.Should().Contain(expected);
+        export.Should().NotContain("OFFSET @offset");
+    }
+
+    [Theory]
+    [InlineData("transactionDate", "TransactionDate", false, "ASC")]
+    [InlineData("accountingSequenceNumber", "SequenceNumberSort", true, "DESC")]
+    [InlineData("employeeName", "EmployeeName", false, "ASC")]
+    public void BuildGroupTransactionsSql_preserves_null_ordering_and_tie_breakers_for_other_sorts(
+        string sortBy, string column, bool descending, string direction)
+    {
+        var request = new ExpenseReviewGroupTransactionsRequest(new string('A', 64), Request(), sortBy, descending, null);
+        var sql = ExpenseReviewService.BuildGroupTransactionsSql(request);
+        var export = ExpenseReviewService.BuildGroupTransactionsSql(request, export: true);
+        var expected = $"ORDER BY CASE WHEN [{column}] IS NULL THEN 1 ELSE 0 END, [{column}] {direction}, [Id] ASC";
+
+        PagedOrderByClause(sql).Trim().Should().Be(expected);
+        export.Should().Contain(expected);
     }
 
     [Fact]
