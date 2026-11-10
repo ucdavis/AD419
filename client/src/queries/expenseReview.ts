@@ -1,5 +1,5 @@
 import { fetchJson } from '@/lib/api.ts';
-import { queryOptions } from '@tanstack/react-query';
+import { keepPreviousData, queryOptions } from '@tanstack/react-query';
 
 export type ExpenseReviewIncludeState = 'all' | 'included' | 'excluded';
 
@@ -178,13 +178,20 @@ function appendParams(
     search.set('sortDirection', params.sortDirection);
   }
 
+  appendFilterParams(search, params.filters);
+
+  return search;
+}
+
+function appendFilterParams(
+  search: URLSearchParams,
+  filters: ExpenseReviewFilters
+) {
   for (const filter of filterQueryParams) {
-    for (const value of params.filters[filter]) {
+    for (const value of filters[filter]) {
       search.append(filter, value);
     }
   }
-
-  return search;
 }
 
 export const expenseReviewTransactionsQueryOptions = (
@@ -208,15 +215,29 @@ export function buildExpenseReviewTransactionsCsvUrl(
   return `/api/expensereview/transactions.csv?${search}`;
 }
 
-export const expenseReviewFilterOptionsQueryOptions = () =>
+// Each dropdown lists only values found in transactions matching the other
+// selected filters, so the options are refetched whenever the filters change.
+// The previous options stay on screen while the next ones load.
+export const expenseReviewFilterOptionsQueryOptions = (
+  filters: ExpenseReviewFilters
+) =>
   queryOptions({
-    queryFn: ({ signal }) =>
-      fetchJson<ExpenseReviewFilterOptionsResponse>(
-        '/api/expensereview/filters',
+    placeholderData: keepPreviousData,
+    queryFn: ({ signal }) => {
+      const search = new URLSearchParams();
+      appendFilterParams(search, filters);
+      const query = search.toString();
+
+      return fetchJson<ExpenseReviewFilterOptionsResponse>(
+        query
+          ? `/api/expensereview/filters?${query}`
+          : '/api/expensereview/filters',
         {},
         signal
-      ),
-    queryKey: ['expenseReview', 'filters'],
+      );
+    },
+    queryKey: ['expenseReview', 'filters', filters],
+    staleTime: 60_000,
   });
 
 export type ExpenseReviewDetailSortBy =

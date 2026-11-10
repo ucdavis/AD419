@@ -1,6 +1,6 @@
 # Expense Review assistant: local development
 
-The Expense Review stage embeds a CAES AI chat drawer. Locally, ad419 talks to the shared CAES AI **test** instance in Azure, and that instance calls back into your machine through a Microsoft dev tunnel when the model uses a server tool.
+The Expense Review stage exposes CAES AI in the shared workflow help drawer. The assistant mounts on first use, retains its conversation and draft while closing or switching tabs, and is disposed when leaving Expense Review. Locally, ad419 talks to the shared CAES AI **test** instance in Azure, and that instance calls back into your machine through a Microsoft dev tunnel when the model uses a server tool.
 
 ## One-time setup
 
@@ -80,4 +80,22 @@ node dist/cli.js app update <application-id> --callback-url <tunnel-https-url>/a
 
 ## Smoke test
 
+The assistant uses `set_expense_review_filters` to control the table:
+
+- “Clear filters”: `{}` clears filters and returns to the idle prompt without loading expenses.
+- Applying at least one filter, including an included/excluded state, loads expenses automatically. All, display toggles, sorting, and paging alone do not load expenses.
+- “Show all expenses” without filters: the assistant explains that the table requires a filter and asks which filter to apply.
+
+Filter changes return to page 1 and preserve sorting, page size, and display toggles.
+
 With the server, Vite, and the tunnel running, sign in as an authorized user and confirm a fiscal cycle in Project Identification. Open Expense Review, clear any filters, click **Ask CAES AI**, and ask "which funds have the most excluded spend". The details row should show a `summarize_expense_review_transactions` call. Compare each reported fund's amount against the table filtered to that fund and excluded rows. Then ask "show me those" and the page filters should change.
+
+Then ask “show all expenses” and verify the assistant asks which filter to apply. Choose a filter and verify the table loads. Ask “clear filters” and verify the idle prompt returns, the table and counts disappear, and CSV export is disabled even when results are cached.
+
+## Dropdown caching
+
+The assistant and expense-review dropdowns share one cycle-wide index. A successful build expires ten minutes after completion. Concurrent requests share the same build; canceled callers stop waiting without canceling the shared SQL work, and a failed build can be retried.
+
+Each dropdown shows values matching the other selected filters. Existing options remain usable while refreshed options load, and the browser treats each filter-option response as fresh for one minute.
+
+Successful fiscal-period confirmation clears all Expense Review browser caches, including pending requests, so the next visit loads options and transactions for the confirmed cycle. Reconfirming the same cycle also clears these caches; a failed confirmation leaves them intact.

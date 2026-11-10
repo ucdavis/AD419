@@ -346,12 +346,10 @@ const PERIOD_COLUMNS = buildColumns(true);
 
 function IncludeStateSelect({
   counts,
-  disabled,
   includeState,
   onChange,
 }: {
   counts?: { all: number; excluded: number; included: number };
-  disabled: boolean;
   includeState: ExpenseReviewIncludeState;
   onChange: (state: ExpenseReviewIncludeState) => void;
 }) {
@@ -367,7 +365,6 @@ function IncludeStateSelect({
       <select
         aria-label="Include State filter"
         className="select select-bordered select-sm w-full"
-        disabled={disabled}
         onChange={(event) =>
           onChange(event.target.value as ExpenseReviewIncludeState)
         }
@@ -375,7 +372,8 @@ function IncludeStateSelect({
       >
         {options.map((option) => (
           <option key={option.state} value={option.state}>
-            {option.label} ({counts?.[option.state] ?? 0})
+            {option.label}
+            {counts ? ` (${counts[option.state]})` : ''}
           </option>
         ))}
       </select>
@@ -385,11 +383,9 @@ function IncludeStateSelect({
 
 function DisplayByPeriodToggle({
   checked,
-  disabled,
   onChange,
 }: {
   checked: boolean;
-  disabled: boolean;
   onChange: (checked: boolean) => void;
 }) {
   return (
@@ -398,7 +394,6 @@ function DisplayByPeriodToggle({
         aria-label="Display by period"
         checked={checked}
         className="toggle toggle-sm"
-        disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
         type="checkbox"
       />
@@ -409,11 +404,9 @@ function DisplayByPeriodToggle({
 
 function IncludeZeroAmountsToggle({
   checked,
-  disabled,
   onChange,
 }: {
   checked: boolean;
-  disabled: boolean;
   onChange: (checked: boolean) => void;
 }) {
   return (
@@ -422,7 +415,6 @@ function IncludeZeroAmountsToggle({
         aria-label="Include $0 groups"
         checked={checked}
         className="toggle toggle-sm"
-        disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
         type="checkbox"
       />
@@ -439,7 +431,7 @@ function SelectedFilters({
   onIncludeStateChange,
   onRemove,
 }: {
-  filterOptions: ExpenseReviewFilterOptionsResponse;
+  filterOptions: ExpenseReviewFilterOptionsResponse | undefined;
   filters: ExpenseReviewFilters;
   includeState: ExpenseReviewIncludeState;
   onClearAll: () => void;
@@ -469,7 +461,7 @@ function SelectedFilters({
       {filterControls.flatMap((control) =>
         filters[control.id].map((value) => {
           const label =
-            filterOptions[control.optionsKey].find(
+            filterOptions?.[control.optionsKey].find(
               (option) => option.value === value
             )?.label ?? value;
 
@@ -541,7 +533,9 @@ export function ExpenseReviewStage() {
   };
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const filterOptionsQuery = useQuery(expenseReviewFilterOptionsQueryOptions());
+  const filterOptionsQuery = useQuery(
+    expenseReviewFilterOptionsQueryOptions(filters)
+  );
   const setSearch = (patch: ExpenseReviewSearch) => {
     void navigateSearch({
       replace: true,
@@ -549,8 +543,10 @@ export function ExpenseReviewStage() {
       to: '.',
     });
   };
-  const transactionsQuery = useQuery(
-    expenseReviewTransactionsQueryOptions({
+  const selectedFilterCount = activeFilterCount(filters, includeState);
+  const shouldLoadTransactions = selectedFilterCount > 0;
+  const transactionsQuery = useQuery({
+    ...expenseReviewTransactionsQueryOptions({
       displayByPeriod,
       filters,
       includeState,
@@ -559,8 +555,9 @@ export function ExpenseReviewStage() {
       pageSize,
       sortBy,
       sortDirection,
-    })
-  );
+    }),
+    enabled: shouldLoadTransactions,
+  });
   const continueMutation = useMutation({
     mutationFn: () => updateWorkflowStageStatus('expense-review', 'Complete'),
     onSuccess: (snapshot) => {
@@ -583,8 +580,10 @@ export function ExpenseReviewStage() {
     sortBy,
     sortDirection,
   });
-  const counts = transactionsQuery.data?.counts;
-  const selectedFilterCount = activeFilterCount(filters, includeState);
+  const transactions = shouldLoadTransactions
+    ? transactionsQuery.data
+    : undefined;
+  const counts = transactions?.counts;
   const filterOptions = filterOptionsQuery.data;
 
   const resetExportError = () => setExportError(null);
@@ -640,48 +639,6 @@ export function ExpenseReviewStage() {
     resetExportError();
   };
 
-  if (filterOptionsQuery.isLoading || transactionsQuery.isLoading) {
-    return <p>Loading expense review transactions...</p>;
-  }
-
-  if (filterOptionsQuery.isError || transactionsQuery.isError) {
-    const error = filterOptionsQuery.error ?? transactionsQuery.error;
-
-    return (
-      <div className="alert alert-error items-start" role="alert">
-        <div>
-          <h2 className="font-bold">Unable to load expense review</h2>
-          <p>
-            {errorMessage(
-              error,
-              'The grouped expense table could not be loaded.'
-            )}
-          </p>
-          <button
-            className="btn btn-sm mt-3"
-            disabled={
-              filterOptionsQuery.isFetching || transactionsQuery.isFetching
-            }
-            onClick={() => {
-              void filterOptionsQuery.refetch();
-              void transactionsQuery.refetch();
-            }}
-            type="button"
-          >
-            {filterOptionsQuery.isFetching || transactionsQuery.isFetching
-              ? 'Retrying...'
-              : 'Retry'}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const transactions = transactionsQuery.data;
-  if (!transactions || !filterOptions) {
-    return <p>Loading expense review transactions...</p>;
-  }
-
   return (
     <div className="space-y-4">
       <div className="tabs tabs-bordered" role="tablist">
@@ -692,7 +649,9 @@ export function ExpenseReviewStage() {
           type="button"
         >
           Grouped Expenses
-          <span className="badge badge-sm ml-2">{counts?.all ?? 0}</span>
+          {counts ? (
+            <span className="badge badge-sm ml-2">{counts.all}</span>
+          ) : null}
         </button>
         <button
           aria-disabled="true"
@@ -714,31 +673,30 @@ export function ExpenseReviewStage() {
         </button>
       </div>
 
-      <div className="text-sm text-base-content/70">
-        {transactions.totalCount.toLocaleString()} grouped rows
-      </div>
+      {transactions ? (
+        <div className="text-sm text-base-content/70">
+          {transactions.totalCount.toLocaleString()} grouped rows
+        </div>
+      ) : null}
 
       <div className="space-y-3">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <IncludeStateSelect
             counts={counts}
-            disabled={transactionsQuery.isFetching}
             includeState={includeState}
             onChange={handleIncludeStateChange}
           />
           <DisplayByPeriodToggle
             checked={displayByPeriod}
-            disabled={transactionsQuery.isFetching}
             onChange={handleDisplayByPeriodChange}
           />
           <IncludeZeroAmountsToggle
             checked={includeZeroAmounts}
-            disabled={transactionsQuery.isFetching}
             onChange={handleIncludeZeroAmountsChange}
           />
           {filterControls.map((control) => (
             <FilterTypeahead
-              disabled={filterOptionsQuery.isFetching}
+              disabled={!filterOptions}
               key={control.id}
               label={control.label}
               onAdd={(value) => addFilter(control.id, value)}
@@ -763,54 +721,109 @@ export function ExpenseReviewStage() {
         ) : null}
       </div>
 
-      {transactionsQuery.isFetching ? (
-        <div className="text-sm text-base-content/60" role="status">
-          Refreshing grouped expenses...
+      {filterOptionsQuery.isFetching ? (
+        <p role="status">
+          {filterOptions
+            ? 'Updating filter options...'
+            : 'Loading filter options...'}
+        </p>
+      ) : null}
+      {filterOptionsQuery.isError ? (
+        <div className="alert alert-error" role="alert">
+          <span>
+            {errorMessage(
+              filterOptionsQuery.error,
+              'Filter options could not be loaded.'
+            )}
+          </span>
+          <button
+            className="btn btn-sm"
+            disabled={filterOptionsQuery.isFetching}
+            onClick={() => void filterOptionsQuery.refetch()}
+            type="button"
+          >
+            Retry filter options
+          </button>
         </div>
       ) : null}
 
-      <TransactionDetailsOpenerContext.Provider value={openGroup}>
-        <DataTable
-          columns={columns}
-          data={transactions.rows}
-          globalFilter="none"
-          manualPagination
-          manualSorting
-          onPageIndexChange={(pageIndex) =>
-            setSearch({ page: pageIndex === 0 ? undefined : pageIndex + 1 })
-          }
-          onPageSizeChange={(nextPageSize) =>
-            setSearch({
-              page: undefined,
-              size:
-                nextPageSize === DEFAULT_EXPENSE_REVIEW_PAGE_SIZE
-                  ? undefined
-                  : (nextPageSize as ExpenseReviewSearch['size']),
-            })
-          }
-          onRowClick={(row, event) =>
-            openGroup(row, event.currentTarget.querySelector('button'))
-          }
-          onSortingChange={(nextSorting) => {
-            const next = nextSorting[0];
-            setSearch({
-              dir: next?.desc ? 'desc' : undefined,
-              page: undefined,
-              sort:
-                next && next.id !== 'source'
-                  ? (next.id as ExpenseReviewSortBy)
-                  : undefined,
-            });
-            resetExportError();
-          }}
-          pageCount={transactions.pageCount}
-          pageIndex={page - 1}
-          pageSize={pageSize}
-          pageSizeOptions={[...EXPENSE_REVIEW_PAGE_SIZES]}
-          rowCount={transactions.totalCount}
-          sorting={sorting}
-        />
-      </TransactionDetailsOpenerContext.Provider>
+      {!shouldLoadTransactions ? (
+        <p>Select a filter to view expenses.</p>
+      ) : null}
+      {shouldLoadTransactions && transactionsQuery.isFetching ? (
+        <div className="text-sm text-base-content/60" role="status">
+          {transactions
+            ? 'Refreshing grouped expenses...'
+            : 'Loading expense review transactions...'}
+        </div>
+      ) : null}
+      {shouldLoadTransactions && transactionsQuery.isError ? (
+        <div className="alert alert-error" role="alert">
+          <span>
+            {errorMessage(
+              transactionsQuery.error,
+              'The grouped expense table could not be loaded.'
+            )}
+          </span>
+          <button
+            className="btn btn-sm"
+            disabled={transactionsQuery.isFetching}
+            onClick={() => {
+              if (shouldLoadTransactions) {
+                void transactionsQuery.refetch();
+              }
+            }}
+            type="button"
+          >
+            Retry expenses
+          </button>
+        </div>
+      ) : null}
+
+      {transactions ? (
+        <TransactionDetailsOpenerContext.Provider value={openGroup}>
+          <DataTable
+            columns={columns}
+            data={transactions.rows}
+            globalFilter="none"
+            manualPagination
+            manualSorting
+            onPageIndexChange={(pageIndex) =>
+              setSearch({ page: pageIndex === 0 ? undefined : pageIndex + 1 })
+            }
+            onPageSizeChange={(nextPageSize) =>
+              setSearch({
+                page: undefined,
+                size:
+                  nextPageSize === DEFAULT_EXPENSE_REVIEW_PAGE_SIZE
+                    ? undefined
+                    : (nextPageSize as ExpenseReviewSearch['size']),
+              })
+            }
+            onRowClick={(row, event) =>
+              openGroup(row, event.currentTarget.querySelector('button'))
+            }
+            onSortingChange={(nextSorting) => {
+              const next = nextSorting[0];
+              setSearch({
+                dir: next?.desc ? 'desc' : undefined,
+                page: undefined,
+                sort:
+                  next && next.id !== 'source'
+                    ? (next.id as ExpenseReviewSortBy)
+                    : undefined,
+              });
+              resetExportError();
+            }}
+            pageCount={transactions.pageCount}
+            pageIndex={page - 1}
+            pageSize={pageSize}
+            pageSizeOptions={[...EXPENSE_REVIEW_PAGE_SIZES]}
+            rowCount={transactions.totalCount}
+            sorting={sorting}
+          />
+        </TransactionDetailsOpenerContext.Provider>
+      ) : null}
 
       {selectedGroup && selectedGroup.contextKey === detailContextKey ? (
         <ExpenseReviewTransactionDialog
@@ -837,7 +850,11 @@ export function ExpenseReviewStage() {
         <div className="flex flex-wrap items-center gap-2">
           <ExportEndpointButton
             className="btn-outline"
-            disabled={transactionsQuery.isFetching}
+            disabled={
+              !shouldLoadTransactions ||
+              !transactionsQuery.isSuccess ||
+              transactionsQuery.isFetching
+            }
             filename="expense-review-transactions.csv"
             label="Export CSV"
             onError={(error) =>
@@ -851,7 +868,11 @@ export function ExpenseReviewStage() {
           />
           <button
             className="btn btn-primary"
-            disabled={continueMutation.isPending}
+            disabled={
+              continueMutation.isPending ||
+              (shouldLoadTransactions &&
+                (!transactionsQuery.isSuccess || transactionsQuery.isFetching))
+            }
             onClick={() => continueMutation.mutate()}
             type="button"
           >

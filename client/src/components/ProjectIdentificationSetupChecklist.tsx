@@ -54,6 +54,7 @@ export function ProjectIdentificationSetupChecklist({
   const fiscalMutation = useMutation({
     mutationFn: confirmFiscalPeriod,
     onSuccess: (response) => {
+      queryClient.removeQueries({ queryKey: ['expenseReview'] });
       queryClient.setQueryData(['projectIdentification', 'setup'], response);
       setOpenItemId(findFirstIncompleteItemId(response));
       void queryClient.invalidateQueries({ queryKey: ['projectList'] });

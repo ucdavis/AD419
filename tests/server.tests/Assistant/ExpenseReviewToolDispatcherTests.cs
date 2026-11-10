@@ -30,6 +30,19 @@ public class ExpenseReviewToolDispatcherTests
     }
 
     [Fact]
+    public async Task Filter_options_lists_every_value_in_the_cycle()
+    {
+        await using var db = await DbWithCycleAsync();
+        var service = new StubService();
+        var dispatcher = Dispatcher(db, service);
+
+        await dispatcher.ExecuteAsync(
+            Request(ExpenseReviewToolManifest.FilterOptions, "{}"), UserId.ToString(), CancellationToken.None);
+
+        service.LastFilterOptionsFilters.Should().BeSameAs(ExpenseReviewFilters.None);
+    }
+
+    [Fact]
     public async Task Rejects_user_references_that_are_not_guids()
     {
         await using var db = await DbWithCycleAsync();
@@ -320,6 +333,7 @@ public class ExpenseReviewToolDispatcherTests
         public bool ThrowCancelled { get; init; }
         public ExpenseReviewTransactionsRequest? LastRequest { get; private set; }
         public ExpenseReviewSummaryRequest? LastSummaryRequest { get; private set; }
+        public ExpenseReviewFilters? LastFilterOptionsFilters { get; private set; }
 
         public Task<ExpenseReviewGroupTransactionsResponse?> GetGroupTransactionsAsync(
             FiscalYearCycle cycle, ExpenseReviewGroupTransactionsRequest request, CancellationToken cancellationToken) =>
@@ -352,8 +366,10 @@ public class ExpenseReviewToolDispatcherTests
         }
 
         public Task<ExpenseReviewFilterOptionsResponse> GetFilterOptionsAsync(
-            FiscalYearCycle cycle, CancellationToken cancellationToken)
+            FiscalYearCycle cycle, ExpenseReviewFilters filters, CancellationToken cancellationToken)
         {
+            LastFilterOptionsFilters = filters;
+
             if (Throw)
             {
                 throw new InvalidOperationException("boom");

@@ -68,7 +68,7 @@ public sealed partial class ExpenseReviewService
             {{BuildGroupedTempTablesSql(context)}}
             DELETE FROM #Grouped WHERE [Id] <> @groupId OR NOT ({{BuildIncludeClause(context.IncludeState, "")}});
 
-            {{UnifiedTransactionsCte}}
+            {{BuildUnifiedTransactionsCte(context.Filters)}}
             SELECT u.* INTO #Members FROM Unified u
             WHERE {{GroupIdExpression("u", context.DisplayByPeriod)}} = @groupId
               AND EXISTS (SELECT 1 FROM #Grouped)

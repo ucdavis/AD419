@@ -81,7 +81,8 @@ public sealed class ExpenseReviewToolDispatcher(
                 $"filter must be one of: {string.Join(", ", ExpenseReviewToolManifest.FilterNames)}.");
         }
 
-        var options = OptionsByFilter(await expenseReviewService.GetFilterOptionsAsync(cycle, cancellationToken));
+        var options = OptionsByFilter(await expenseReviewService.GetFilterOptionsAsync(
+            cycle, ExpenseReviewFilters.None, cancellationToken));
         var display = new ToolDisplay("expense-review-filter-options", new { }, Visibility: CaesAiDisplayVisibility.Hidden);
 
         if (input.Filter == null)

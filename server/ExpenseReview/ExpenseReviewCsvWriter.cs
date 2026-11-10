@@ -43,7 +43,7 @@ public static class ExpenseReviewCsvWriter
         await CsvExportWriter.WriteAsync(output, rows, columns, cancellationToken);
     }
 
-    private static string? FormatCodeName(ExpenseReviewCodeNameDto value)
+    internal static string? FormatCodeName(ExpenseReviewCodeNameDto value)
     {
         if (string.IsNullOrWhiteSpace(value.Code))
         {
@@ -55,7 +55,24 @@ public static class ExpenseReviewCsvWriter
             return value.Code;
         }
 
+        // Some upstream names already lead with their code, e.g. AE project
+        // "SP0A241267 - Hernandez # R02CP7556". Write those as-is.
+        if (StartsWithCode(value.Name, value.Code))
+        {
+            return value.Name;
+        }
+
         return $"{value.Code} - {value.Name}";
+    }
+
+    private static bool StartsWithCode(string name, string code)
+    {
+        if (!name.StartsWith(code, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return name.Length == code.Length || char.IsWhiteSpace(name[code.Length]);
     }
 
     private static string? FormatCodeLabel(string? code, string? label)

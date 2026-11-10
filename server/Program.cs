@@ -68,7 +68,7 @@ builder.Services.AddSingleton<IFlatFileImportRegistry, FlatFileImportRegistry>()
 builder.Services.AddScoped<IFlatFileImportService, FlatFileImportService>();
 builder.Services.AddScoped<IProjectIdentificationService, ProjectIdentificationService>();
 builder.Services.AddScoped<IProjectListService, ProjectListService>();
-builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<ExpenseReviewFilterCache>();
 builder.Services.AddScoped<IExpenseReviewService, ExpenseReviewService>();
 builder.Services.AddScoped<IConfirmedCycleProvider, ConfirmedCycleProvider>();
 var caesAiSection = builder.Configuration.GetSection(CaesAiAppOptions.SectionName);
@@ -79,6 +79,8 @@ if (caesAiConfigured)
     builder.Services.AddScoped<ICaesAiToolDispatcher, ExpenseReviewToolDispatcher>();
 }
 builder.Services.AddScoped<IWorkflowService, WorkflowService>();
+builder.Services.Configure<StageDocumentationOptions>(builder.Configuration.GetSection("StageDocumentation"));
+builder.Services.AddSingleton<StageDocumentationConfiguration>();
 builder.Services.AddScoped<IOrgRReviewSeeder, OrgRReviewSeeder>();
 builder.Services.AddScoped<IAutoAssociationBuilder, AutoAssociationBuilder>();
 builder.Services.AddScoped<IAutoAssociationReportService, AutoAssociationReportService>();

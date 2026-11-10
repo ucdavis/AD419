@@ -24,6 +24,7 @@ public interface IExpenseReviewService
 
     Task<ExpenseReviewFilterOptionsResponse> GetFilterOptionsAsync(
         FiscalYearCycle cycle,
+        ExpenseReviewFilters filters,
         CancellationToken cancellationToken);
 
     Task<UnmatchedJobCodesResponse> GetUnmatchedJobCodesAsync(

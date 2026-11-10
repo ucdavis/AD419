@@ -32,7 +32,7 @@ public class ExpenseReviewControllerTests
         var service = new StubExpenseReviewService();
         var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db));
 
-        var result = await controller.Filters(CancellationToken.None);
+        var result = await controller.Filters(new ExpenseReviewFiltersQuery(), CancellationToken.None);
 
         result.Should().BeOfType<ConflictObjectResult>();
         service.FiltersCalled.Should().BeFalse();
@@ -156,13 +156,38 @@ public class ExpenseReviewControllerTests
         var service = new StubExpenseReviewService();
         var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db));
 
-        var result = await controller.Filters(CancellationToken.None);
+        var result = await controller.Filters(new ExpenseReviewFiltersQuery(), CancellationToken.None);
 
         result.Should().BeOfType<OkObjectResult>();
         service.ReceivedFiltersCycle.Should().Be(new FiscalYearCycle(
             "FY25",
             new DateOnly(2024, 10, 1),
             new DateOnly(2025, 9, 30)));
+    }
+
+    [Fact]
+    public async Task Filters_passes_the_selected_filters_to_the_service()
+    {
+        await using var db = await CreateDbWithConfirmedRunAsync();
+        var service = new StubExpenseReviewService();
+        var controller = new ExpenseReviewController(service, new ConfirmedCycleProvider(db));
+
+        await controller.Filters(
+            new ExpenseReviewFiltersQuery
+            {
+                FinancialDept = [" D0123 ", ""],
+                Fund = ["13U02", "13u02"],
+                Source = ["ucp"],
+                ExclusionReason = ["fund:excluded"],
+            },
+            CancellationToken.None);
+
+        service.ReceivedFilters.Should().NotBeNull();
+        service.ReceivedFilters!.FinancialDept.Should().Equal("D0123");
+        service.ReceivedFilters.Fund.Should().Equal("13U02");
+        service.ReceivedFilters.Source.Should().Equal("UCP");
+        service.ReceivedFilters.ExclusionReason.Should().Equal("fund:excluded");
+        service.ReceivedFilters.Account.Should().BeEmpty();
     }
 
     [Fact]
@@ -333,6 +358,7 @@ public class ExpenseReviewControllerTests
         public bool UnmatchedJobCodesCalled { get; private set; }
         public FiscalYearCycle? ReceivedTransactionsCycle { get; private set; }
         public FiscalYearCycle? ReceivedFiltersCycle { get; private set; }
+        public ExpenseReviewFilters? ReceivedFilters { get; private set; }
         public FiscalYearCycle? ReceivedCsvCycle { get; private set; }
         public FiscalYearCycle? ReceivedUnmatchedJobCodesCycle { get; private set; }
         public ExpenseReviewTransactionsRequest? ReceivedRequest { get; private set; }
@@ -397,10 +423,12 @@ public class ExpenseReviewControllerTests
 
         public Task<ExpenseReviewFilterOptionsResponse> GetFilterOptionsAsync(
             FiscalYearCycle cycle,
+            ExpenseReviewFilters filters,
             CancellationToken cancellationToken)
         {
             FiltersCalled = true;
             ReceivedFiltersCycle = cycle;
+            ReceivedFilters = filters;
 
             return Task.FromResult(new ExpenseReviewFilterOptionsResponse([], [], [], [], [], [], [], [], [], [], [], []));
         }

@@ -6,6 +6,38 @@ namespace Server.Tests.ExpenseReview;
 
 public class ExpenseReviewServiceSqlTests
 {
+    [Theory]
+    [InlineData("AE", true, false)]
+    [InlineData("UCP", false, true)]
+    [InlineData("AE,UCP", true, true)]
+    [InlineData("", true, true)]
+    [InlineData("unknown", true, true)]
+    [InlineData("AE,unknown", true, true)]
+    [InlineData("UCP,unknown", true, true)]
+    public void Transaction_queries_select_only_an_unambiguous_recognized_source(
+        string source, bool hasAe, bool hasUcPath)
+    {
+        var filters = ExpenseReviewFilters.None with { Source = source.Split(',', StringSplitOptions.RemoveEmptyEntries) };
+        var request = Request(filters: filters);
+        var detailRequest = new ExpenseReviewGroupTransactionsRequest(new string('A', 64), request, "id", false, null);
+        var queries = new[]
+        {
+            ExpenseReviewService.BuildTransactionsSql(request),
+            ExpenseReviewService.BuildTransactionsExportSql(request),
+            ExpenseReviewService.BuildSummarySql(SummaryRequest("source", filters: filters)),
+            ExpenseReviewService.BuildGroupTransactionsSql(detailRequest),
+            ExpenseReviewService.BuildGroupTransactionsSql(detailRequest, export: true),
+        };
+
+        foreach (var sql in queries)
+        {
+            sql.Contains("FROM [data].[AETransactions] a", StringComparison.Ordinal).Should().Be(hasAe);
+            sql.Contains("FROM [data].[UcPathTransactions] u", StringComparison.Ordinal).Should().Be(hasUcPath);
+            sql.Contains("u.[Source] IN @source", StringComparison.Ordinal).Should().Be(filters.Source.Count > 0);
+            sql.Should().NotContain("OPTION (RECOMPILE)");
+        }
+    }
+
     [Fact]
     public void Unified_cte_preserves_native_key_types_for_both_sources()
     {

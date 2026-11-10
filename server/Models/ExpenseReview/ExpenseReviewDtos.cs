@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Server.Models.ExpenseReview;
 
-public class ExpenseReviewTransactionsQuery
+public class ExpenseReviewTransactionsQuery : ExpenseReviewFiltersQuery
 {
     public string? IncludeState { get; init; }
 
@@ -17,7 +17,10 @@ public class ExpenseReviewTransactionsQuery
     public bool DisplayByPeriod { get; init; }
 
     public bool IncludeZeroAmounts { get; init; }
+}
 
+public class ExpenseReviewFiltersQuery
+{
     [FromQuery(Name = "financialDept")]
     public string[] FinancialDept { get; init; } = [];
 
@@ -73,7 +76,10 @@ public sealed record ExpenseReviewFilters(
     IReadOnlyList<string> Activity,
     IReadOnlyList<string> Sfn,
     IReadOnlyList<string> Source,
-    IReadOnlyList<string> ExclusionReason);
+    IReadOnlyList<string> ExclusionReason)
+{
+    public static ExpenseReviewFilters None { get; } = new([], [], [], [], [], [], [], [], [], [], [], []);
+}
 
 public sealed record ExpenseReviewTransactionsResponse(
     string FiscalYear,
@@ -274,21 +280,24 @@ public static class ExpenseReviewRequestParser
             sortDescending,
             query.DisplayByPeriod,
             query.IncludeZeroAmounts,
-            new ExpenseReviewFilters(
-                Clean(query.Entity),
-                Clean(query.FinancialDept),
-                Clean(query.Fund),
-                Clean(query.Account),
-                Clean(query.AeProject),
-                Clean(query.AccountingPeriod),
-                Clean(query.Purpose),
-                Clean(query.Program),
-                Clean(query.Activity),
-                Clean(query.Sfn),
-                Clean(query.Source).Select(source => source.ToUpperInvariant()).ToArray(),
-                Clean(query.ExclusionReason)));
+            ParseFilters(query));
         return true;
     }
+
+    public static ExpenseReviewFilters ParseFilters(ExpenseReviewFiltersQuery query) =>
+        new(
+            Clean(query.Entity),
+            Clean(query.FinancialDept),
+            Clean(query.Fund),
+            Clean(query.Account),
+            Clean(query.AeProject),
+            Clean(query.AccountingPeriod),
+            Clean(query.Purpose),
+            Clean(query.Program),
+            Clean(query.Activity),
+            Clean(query.Sfn),
+            Clean(query.Source).Select(source => source.ToUpperInvariant()).ToArray(),
+            Clean(query.ExclusionReason));
 
     public static bool IsAllowedSortField(string value) => SortFields.Contains(value);
 

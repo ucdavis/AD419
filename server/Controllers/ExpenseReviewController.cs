@@ -97,7 +97,9 @@ public sealed class ExpenseReviewController(
     }
 
     [HttpGet("filters")]
-    public async Task<IActionResult> Filters(CancellationToken cancellationToken)
+    public async Task<IActionResult> Filters(
+        [FromQuery] ExpenseReviewFiltersQuery query,
+        CancellationToken cancellationToken)
     {
         var (cycle, cycleError) = await GetConfirmedCycleAsync(cancellationToken);
         if (cycle is null)
@@ -105,7 +107,10 @@ public sealed class ExpenseReviewController(
             return cycleError!;
         }
 
-        var response = await expenseReviewService.GetFilterOptionsAsync(cycle, cancellationToken);
+        var response = await expenseReviewService.GetFilterOptionsAsync(
+            cycle,
+            ExpenseReviewRequestParser.ParseFilters(query),
+            cancellationToken);
         return Ok(response);
     }
 

@@ -15,14 +15,14 @@ public static class ExpenseReviewDetailCsvWriter
             new("Source", _ => group.Source),
             new("Fiscal Year", _ => cycle.FiscalYear),
             new("Group ID", _ => group.Id),
-            new("Entity", _ => CodeName(group.Entity)),
-            new("Financial Dept", _ => CodeName(group.FinancialDept)),
-            new("Fund", _ => CodeName(group.Fund)),
-            new("Account", _ => CodeName(group.Account)),
-            new("Project", _ => CodeName(group.AeProject)),
-            new("Purpose", _ => CodeName(group.Purpose)),
-            new("Program", _ => CodeName(group.Program)),
-            new("Activity", _ => CodeName(group.Activity)),
+            new("Entity", _ => ExpenseReviewCsvWriter.FormatCodeName(group.Entity)),
+            new("Financial Dept", _ => ExpenseReviewCsvWriter.FormatCodeName(group.FinancialDept)),
+            new("Fund", _ => ExpenseReviewCsvWriter.FormatCodeName(group.Fund)),
+            new("Account", _ => ExpenseReviewCsvWriter.FormatCodeName(group.Account)),
+            new("Project", _ => ExpenseReviewCsvWriter.FormatCodeName(group.AeProject)),
+            new("Purpose", _ => ExpenseReviewCsvWriter.FormatCodeName(group.Purpose)),
+            new("Program", _ => ExpenseReviewCsvWriter.FormatCodeName(group.Program)),
+            new("Activity", _ => ExpenseReviewCsvWriter.FormatCodeName(group.Activity)),
             new("SFN", _ => group.Sfn),
             new("SFN Label", _ => group.SfnLabel),
             new("Include State", _ => group.Included ? "Included" : "Excluded"),
@@ -60,6 +60,4 @@ public static class ExpenseReviewDetailCsvWriter
     }
 
     private static string? Number(decimal? value) => value?.ToString(CultureInfo.InvariantCulture);
-    private static string? CodeName(ExpenseReviewCodeNameDto value) =>
-        value.Name is null ? value.Code : $"{value.Code} - {value.Name}";
 }

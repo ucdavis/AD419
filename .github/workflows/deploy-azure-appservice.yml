@@ -200,10 +200,12 @@ jobs:
           echo "Resolved web app: $web_app_name"
           echo "Resolved app SQL database: $sql_server_fqdn/$sql_database_name"
           echo "Resolved data SQL database: $sql_server_fqdn/$data_sql_database_name"
-          echo "web_app_name=$web_app_name" >> "$GITHUB_OUTPUT"
-          echo "sql_server_fqdn=$sql_server_fqdn" >> "$GITHUB_OUTPUT"
-          echo "sql_database_name=$sql_database_name" >> "$GITHUB_OUTPUT"
-          echo "data_sql_database_name=$data_sql_database_name" >> "$GITHUB_OUTPUT"
+          {
+            echo "web_app_name=$web_app_name"
+            echo "sql_server_fqdn=$sql_server_fqdn"
+            echo "sql_database_name=$sql_database_name"
+            echo "data_sql_database_name=$data_sql_database_name"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Install SQLPackage
         run: |
@@ -242,6 +244,26 @@ jobs:
           OTEL_EXPORTER_OTLP_ENDPOINT_VALUE: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS_VALUE: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS || vars.OTEL_EXPORTER_OTLP_HEADERS }}
           OTEL_EXPORTER_OTLP_PROTOCOL_VALUE: ${{ vars.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          STAGEDOCUMENTATION__STAGES__PROJECT_IDENTIFICATION__URL: ${{ vars.STAGEDOCUMENTATION__STAGES__PROJECT_IDENTIFICATION__URL }}
+          STAGEDOCUMENTATION__STAGES__PROJECT_IDENTIFICATION__EMBEDURL: ${{ vars.STAGEDOCUMENTATION__STAGES__PROJECT_IDENTIFICATION__EMBEDURL }}
+          STAGEDOCUMENTATION__STAGES__DATA_IMPORT__URL: ${{ vars.STAGEDOCUMENTATION__STAGES__DATA_IMPORT__URL }}
+          STAGEDOCUMENTATION__STAGES__DATA_IMPORT__EMBEDURL: ${{ vars.STAGEDOCUMENTATION__STAGES__DATA_IMPORT__EMBEDURL }}
+          STAGEDOCUMENTATION__STAGES__DATA_CLASSIFICATION__URL: ${{ vars.STAGEDOCUMENTATION__STAGES__DATA_CLASSIFICATION__URL }}
+          STAGEDOCUMENTATION__STAGES__DATA_CLASSIFICATION__EMBEDURL: ${{ vars.STAGEDOCUMENTATION__STAGES__DATA_CLASSIFICATION__EMBEDURL }}
+          STAGEDOCUMENTATION__STAGES__EXPENSE_REVIEW__URL: ${{ vars.STAGEDOCUMENTATION__STAGES__EXPENSE_REVIEW__URL }}
+          STAGEDOCUMENTATION__STAGES__EXPENSE_REVIEW__EMBEDURL: ${{ vars.STAGEDOCUMENTATION__STAGES__EXPENSE_REVIEW__EMBEDURL }}
+          STAGEDOCUMENTATION__STAGES__ORGR_REVIEW__URL: ${{ vars.STAGEDOCUMENTATION__STAGES__ORGR_REVIEW__URL }}
+          STAGEDOCUMENTATION__STAGES__ORGR_REVIEW__EMBEDURL: ${{ vars.STAGEDOCUMENTATION__STAGES__ORGR_REVIEW__EMBEDURL }}
+          STAGEDOCUMENTATION__STAGES__AUTO_ASSOCIATIONS__URL: ${{ vars.STAGEDOCUMENTATION__STAGES__AUTO_ASSOCIATIONS__URL }}
+          STAGEDOCUMENTATION__STAGES__AUTO_ASSOCIATIONS__EMBEDURL: ${{ vars.STAGEDOCUMENTATION__STAGES__AUTO_ASSOCIATIONS__EMBEDURL }}
+          STAGEDOCUMENTATION__STAGES__MANUAL_ASSOCIATIONS__URL: ${{ vars.STAGEDOCUMENTATION__STAGES__MANUAL_ASSOCIATIONS__URL }}
+          STAGEDOCUMENTATION__STAGES__MANUAL_ASSOCIATIONS__EMBEDURL: ${{ vars.STAGEDOCUMENTATION__STAGES__MANUAL_ASSOCIATIONS__EMBEDURL }}
+          STAGEDOCUMENTATION__STAGES__POST_ASSOCIATION_REVIEW__URL: ${{ vars.STAGEDOCUMENTATION__STAGES__POST_ASSOCIATION_REVIEW__URL }}
+          STAGEDOCUMENTATION__STAGES__POST_ASSOCIATION_REVIEW__EMBEDURL: ${{ vars.STAGEDOCUMENTATION__STAGES__POST_ASSOCIATION_REVIEW__EMBEDURL }}
+          STAGEDOCUMENTATION__STAGES__STATION_SPECIALIST_IMPORT__URL: ${{ vars.STAGEDOCUMENTATION__STAGES__STATION_SPECIALIST_IMPORT__URL }}
+          STAGEDOCUMENTATION__STAGES__STATION_SPECIALIST_IMPORT__EMBEDURL: ${{ vars.STAGEDOCUMENTATION__STAGES__STATION_SPECIALIST_IMPORT__EMBEDURL }}
+          STAGEDOCUMENTATION__STAGES__FINAL_REPORTS__URL: ${{ vars.STAGEDOCUMENTATION__STAGES__FINAL_REPORTS__URL }}
+          STAGEDOCUMENTATION__STAGES__FINAL_REPORTS__EMBEDURL: ${{ vars.STAGEDOCUMENTATION__STAGES__FINAL_REPORTS__EMBEDURL }}
         run: |
           set -euo pipefail
 
@@ -250,6 +272,26 @@ jobs:
             "CaesAi__ApplicationId=$CAES_AI_APPLICATION_ID"
             "CaesAi__ApplicationApiKey=$CAES_AI_APPLICATION_API_KEY"
             "CaesAi__ContextSigningKey=$CAES_AI_CONTEXT_SIGNING_KEY"
+            "StageDocumentation__Stages__project_identification__Url=$STAGEDOCUMENTATION__STAGES__PROJECT_IDENTIFICATION__URL"
+            "StageDocumentation__Stages__project_identification__EmbedUrl=$STAGEDOCUMENTATION__STAGES__PROJECT_IDENTIFICATION__EMBEDURL"
+            "StageDocumentation__Stages__data_import__Url=$STAGEDOCUMENTATION__STAGES__DATA_IMPORT__URL"
+            "StageDocumentation__Stages__data_import__EmbedUrl=$STAGEDOCUMENTATION__STAGES__DATA_IMPORT__EMBEDURL"
+            "StageDocumentation__Stages__data_classification__Url=$STAGEDOCUMENTATION__STAGES__DATA_CLASSIFICATION__URL"
+            "StageDocumentation__Stages__data_classification__EmbedUrl=$STAGEDOCUMENTATION__STAGES__DATA_CLASSIFICATION__EMBEDURL"
+            "StageDocumentation__Stages__expense_review__Url=$STAGEDOCUMENTATION__STAGES__EXPENSE_REVIEW__URL"
+            "StageDocumentation__Stages__expense_review__EmbedUrl=$STAGEDOCUMENTATION__STAGES__EXPENSE_REVIEW__EMBEDURL"
+            "StageDocumentation__Stages__orgr_review__Url=$STAGEDOCUMENTATION__STAGES__ORGR_REVIEW__URL"
+            "StageDocumentation__Stages__orgr_review__EmbedUrl=$STAGEDOCUMENTATION__STAGES__ORGR_REVIEW__EMBEDURL"
+            "StageDocumentation__Stages__auto_associations__Url=$STAGEDOCUMENTATION__STAGES__AUTO_ASSOCIATIONS__URL"
+            "StageDocumentation__Stages__auto_associations__EmbedUrl=$STAGEDOCUMENTATION__STAGES__AUTO_ASSOCIATIONS__EMBEDURL"
+            "StageDocumentation__Stages__manual_associations__Url=$STAGEDOCUMENTATION__STAGES__MANUAL_ASSOCIATIONS__URL"
+            "StageDocumentation__Stages__manual_associations__EmbedUrl=$STAGEDOCUMENTATION__STAGES__MANUAL_ASSOCIATIONS__EMBEDURL"
+            "StageDocumentation__Stages__post_association_review__Url=$STAGEDOCUMENTATION__STAGES__POST_ASSOCIATION_REVIEW__URL"
+            "StageDocumentation__Stages__post_association_review__EmbedUrl=$STAGEDOCUMENTATION__STAGES__POST_ASSOCIATION_REVIEW__EMBEDURL"
+            "StageDocumentation__Stages__station_specialist_import__Url=$STAGEDOCUMENTATION__STAGES__STATION_SPECIALIST_IMPORT__URL"
+            "StageDocumentation__Stages__station_specialist_import__EmbedUrl=$STAGEDOCUMENTATION__STAGES__STATION_SPECIALIST_IMPORT__EMBEDURL"
+            "StageDocumentation__Stages__final_reports__Url=$STAGEDOCUMENTATION__STAGES__FINAL_REPORTS__URL"
+            "StageDocumentation__Stages__final_reports__EmbedUrl=$STAGEDOCUMENTATION__STAGES__FINAL_REPORTS__EMBEDURL"
             "ASPNETCORE_ENVIRONMENT=$ENVIRONMENT_NAME"
             "OTEL_SERVICE_NAME=ad419.web"
             "OTEL_RESOURCE_ATTRIBUTES=service.name=ad419.web,service.environment=$ENVIRONMENT_NAME,deployment.environment.name=$ENVIRONMENT_NAME"

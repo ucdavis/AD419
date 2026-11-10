@@ -94,7 +94,8 @@ public static class ExpenseReviewToolManifest
             SummaryDataSchema()),
         new(
             GetView,
-            "Returns the filters, include state, sort, paging, and toggles currently applied on the user's Expense Review page.",
+            "Returns the filters, include state, sort, paging, and toggles currently applied on the user's Expense Review page. " +
+            "With no filters and includeState all, the page is idle.",
             CaesAiToolExecution.Client,
             CaesAiToolRisk.Read,
             false,
@@ -103,7 +104,8 @@ public static class ExpenseReviewToolManifest
         new(
             SetFilters,
             "Replaces the filters and include state on the user's Expense Review page and returns to page 1. " +
-            "Omitted filter arrays are cleared. Use this when the user asks to see, show, or filter rows on screen.",
+            "Omitted filter arrays are cleared. Use this when the user asks to see, show, or filter rows on screen. " +
+            "Use {} to clear filters and return to idle. At least one filter or an included/excluded include state is required to load rows.",
             CaesAiToolExecution.Client,
             CaesAiToolRisk.Read,
             false,
