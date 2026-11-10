@@ -15,6 +15,48 @@ describe('FlatFileImportPanel', () => {
     vi.unstubAllGlobals();
   });
 
+  it.each([
+    ['active-projects', true],
+    ['all-projects', true],
+    ['assistance-listing-numbers', true],
+    ['ce-specialists', false],
+    ['field-station-expenses', false],
+  ] as const)(
+    'invalidates review after a failed %s upload finishes away from the page: %s',
+    async (dataset, invalidates) => {
+      let finish!: () => void;
+      const response = new Promise<void>((resolve) => { finish = resolve; });
+      let start!: () => void;
+      const started = new Promise<void>((resolve) => { start = resolve; });
+      server.use(
+        http.get('/api/imports/recent', () => HttpResponse.json([])),
+        http.post('/api/imports/:dataset', async () => {
+          start();
+          await response;
+          return HttpResponse.json({ detail: 'Recording failed after upload' }, { status: 500 });
+        })
+      );
+      const { cleanup, queryClient, unmount } = renderPanel();
+      const key = ['expenseReview', 'filters', {}];
+      queryClient.setQueryData(key, 'existing options');
+      try {
+        const user = userEvent.setup();
+        await user.selectOptions(screen.getByLabelText('Dataset'), dataset);
+        await user.upload(screen.getByLabelText('Import file'), new File(['test'], 'upload.csv', { type: 'text/csv' }));
+        await user.click(screen.getByRole('button', { name: 'Upload' }));
+        await started;
+        unmount();
+        finish();
+        await waitFor(() => expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+        expect(queryClient.getQueryState(key)?.isInvalidated).toBe(invalidates);
+        expect(queryClient.getQueryData(key)).toBe('existing options');
+      } finally {
+        finish();
+        cleanup();
+      }
+    }
+  );
+
   it('shows the last import status for every dataset', async () => {
     server.use(
       http.get('/api/imports/recent', () =>
@@ -959,6 +1001,8 @@ function renderPanel() {
       queryClient.clear();
       view.unmount();
     },
+    queryClient,
+    unmount: view.unmount,
   };
 }
 

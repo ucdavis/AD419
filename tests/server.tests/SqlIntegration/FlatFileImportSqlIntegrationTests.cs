@@ -1,16 +1,83 @@
+using Server.Tests.Helpers;
 using Dapper;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Server.Import;
+using Server.Core.Data;
 
 namespace Server.Tests.SqlIntegration;
 
 [Collection(SqlIntegrationCollection.Name)]
 public sealed class FlatFileImportSqlIntegrationTests(SqlServerDataDbFixture fixture)
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Aln_commit_invalidates_before_import_history_is_saved(bool historyFails)
+    {
+        await fixture.ClearDataTablesAsync();
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase($"AlnHistory_{Guid.NewGuid():N}")
+            .AddInterceptors(new RejectImportHistorySave(historyFails))
+            .Options;
+        await using var appDb = new AppDbContext(options);
+        await using var dataDb = fixture.CreateDataDbContext();
+        var invalidator = new RecordingExpenseReviewFilterCacheInvalidator();
+        var service = CreateService(appDb, dataDb, invalidator);
+        var file = CreateCsvFile("aln.csv", ["Program Title", "Program Number", "Federal Agency"],
+            [["Test program", "10.203", "NATIONAL INSTITUTE OF FOOD AND AGRICULTURE"]]);
+
+        var error = await Record.ExceptionAsync(() => service.ImportAsync(
+            "assistance-listing-numbers", file, null, CancellationToken.None));
+
+        if (historyFails) error.Should().BeOfType<InvalidOperationException>();
+        else error.Should().BeNull();
+        invalidator.Calls.Should().Be(1);
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        (await connection.ExecuteScalarAsync<string>("SELECT [ProgramNumber] FROM [data].[AssistanceListingNumbers];"))
+            .Should().Be("10.203");
+    }
+
+    [Fact]
+    public async Task Aln_validation_rejection_and_transaction_rollback_do_not_invalidate()
+    {
+        await fixture.ClearDataTablesAsync();
+        await using var appDb = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = fixture.CreateDataDbContext();
+        var invalidator = new RecordingExpenseReviewFilterCacheInvalidator();
+        var service = CreateService(appDb, dataDb, invalidator);
+        var rejected = await service.ImportAsync("assistance-listing-numbers",
+            CreateCsvFile("aln.csv", ["Wrong header"], [["Invalid"]]), null, CancellationToken.None);
+        rejected.Should().BeOfType<ImportValidationFailed>();
+        invalidator.Calls.Should().Be(0);
+
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+        await connection.ExecuteAsync("""
+            INSERT INTO [data].[AssistanceListingNumbers] ([ProgramTitle], [ProgramNumber]) VALUES ('Existing', '10.001');
+            ALTER TABLE [data].[AssistanceListingNumbers] ADD CONSTRAINT [RejectAlnImport] CHECK ([ProgramNumber] <> '10.203');
+            """);
+        try
+        {
+            var failed = await service.ImportAsync("assistance-listing-numbers",
+                CreateCsvFile("aln.csv", ["Program Title", "Program Number"], [["Rejected", "10.203"]]),
+                null, CancellationToken.None);
+            failed.Should().BeOfType<ImportValidationFailed>();
+            invalidator.Calls.Should().Be(0);
+            (await connection.ExecuteScalarAsync<string>("SELECT [ProgramNumber] FROM [data].[AssistanceListingNumbers];"))
+                .Should().Be("10.001");
+        }
+        finally
+        {
+            await connection.ExecuteAsync("ALTER TABLE [data].[AssistanceListingNumbers] DROP CONSTRAINT [RejectAlnImport];");
+        }
+    }
+
     [Fact]
     public async Task Ce_specialists_import_accepts_active_accessions_and_transactionally_replaces_rows()
     {
@@ -164,14 +231,16 @@ public sealed class FlatFileImportSqlIntegrationTests(SqlServerDataDbFixture fix
 
     private static FlatFileImportService CreateService(
         Server.Core.Data.AppDbContext appDb,
-        Server.Core.Data.DataDbContext dataDb)
+        Server.Core.Data.DataDbContext dataDb,
+        RecordingExpenseReviewFilterCacheInvalidator? invalidator = null)
     {
         return new FlatFileImportService(
             appDb,
             dataDb,
             new FlatFileImportRegistry(),
             new ConfigurationBuilder().Build(),
-            NullLogger<FlatFileImportService>.Instance);
+            NullLogger<FlatFileImportService>.Instance,
+            invalidator ?? new RecordingExpenseReviewFilterCacheInvalidator());
     }
 
     private static IFormFile CreateCeCsv(
@@ -235,5 +304,15 @@ public sealed class FlatFileImportSqlIntegrationTests(SqlServerDataDbFixture fix
         public string ProjectAccessionNum { get; init; } = string.Empty;
         public string? ProjectDirector { get; init; }
         public decimal FieldStationCharge { get; init; }
+    }
+
+    private sealed class RejectImportHistorySave(bool fail) : SaveChangesInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (fail) throw new InvalidOperationException("Import history unavailable after the data commit.");
+            return ValueTask.FromResult(result);
+        }
     }
 }

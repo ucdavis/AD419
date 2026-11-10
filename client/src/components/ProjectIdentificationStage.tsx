@@ -28,6 +28,7 @@ import {
   type SfnCandidate,
 } from '@/queries/projectList.ts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { invalidateExpenseReviewQueries } from '@/queries/expenseReview.ts';
 import type { ColumnDef } from '@tanstack/react-table';
 import {
   projectIdentificationSetupQueryOptions,
@@ -490,6 +491,7 @@ function ProjectIssueResolutionControl({
           return setProjectSfn(fiscalYear, projectAccession, action.sfn);
       }
     },
+    onSettled: () => invalidateExpenseReviewQueries(queryClient),
     onSuccess: () => {
       closePicker();
       setExclusionDialogAction(null);

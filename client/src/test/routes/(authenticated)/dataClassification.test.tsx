@@ -96,8 +96,9 @@ describe('Data Classification stage', () => {
       http.get('/api/workflow/snapshot', () =>
         HttpResponse.json(
           createWorkflowSnapshot({
-            'data-classification': 'InProgress',
+            'data-classification': updateRequests > 0 ? 'Complete' : 'InProgress',
             'data-import': 'Complete',
+            'expense-review': updateRequests > 0 ? 'InProgress' : 'NotStarted',
             'project-identification': 'Complete',
           })
         )

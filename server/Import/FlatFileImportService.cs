@@ -14,6 +14,7 @@ using Microsoft.Extensions.Configuration;
 using Server.Authorization;
 using Server.Core.Data;
 using Server.Core.Domain;
+using Server.Core.ExpenseReview;
 using Server.Models.Imports;
 
 namespace Server.Import;
@@ -38,7 +39,8 @@ public sealed class FlatFileImportService(
     DataDbContext dataDbContext,
     IFlatFileImportRegistry registry,
     IConfiguration configuration,
-    ILogger<FlatFileImportService> logger) : IFlatFileImportService
+    ILogger<FlatFileImportService> logger,
+    IExpenseReviewFilterCacheInvalidator filterCacheInvalidator) : IFlatFileImportService
 {
     private const int DatabaseCommandTimeoutSeconds = DataDbConnection.ImportCommandTimeoutSeconds;
     private const string TempTableName = "#FlatFileImportRows";
@@ -954,6 +956,10 @@ public sealed class FlatFileImportService(
         }
 
         await transaction.CommitAsync(cancellationToken);
+        if (definition.Id == "assistance-listing-numbers")
+        {
+            filterCacheInvalidator.InvalidateAll();
+        }
     }
 
     private static Task DropTempTableIfExistsAsync(

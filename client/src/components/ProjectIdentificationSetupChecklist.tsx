@@ -13,6 +13,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { fetchJson } from '@/lib/api.ts';
 import { WORKFLOW_SNAPSHOT_KEY } from '@/queries.ts';
+import { invalidateExpenseReviewQueries } from '@/queries/expenseReview.ts';
 
 interface PgmImportResponse {
   reportDate: string;
@@ -53,6 +54,7 @@ export function ProjectIdentificationSetupChecklist({
 
   const fiscalMutation = useMutation({
     mutationFn: confirmFiscalPeriod,
+    onSettled: () => invalidateExpenseReviewQueries(queryClient),
     onSuccess: (response) => {
       queryClient.removeQueries({ queryKey: ['expenseReview'] });
       queryClient.setQueryData(['projectIdentification', 'setup'], response);
@@ -64,6 +66,7 @@ export function ProjectIdentificationSetupChecklist({
 
   const finalizeMutation = useMutation({
     mutationFn: finalizeProjects,
+    onSettled: () => invalidateExpenseReviewQueries(queryClient),
     onSuccess: (response) => {
       queryClient.setQueryData(['projectIdentification', 'setup'], response);
       setOpenItemId(findFirstIncompleteItemId(response));
@@ -377,6 +380,7 @@ function PgmImportChecklistContent({
           method: 'POST',
         }
       ),
+    onSettled: () => invalidateExpenseReviewQueries(queryClient),
     onSuccess: (response) => {
       setResult(response);
       void queryClient.invalidateQueries({

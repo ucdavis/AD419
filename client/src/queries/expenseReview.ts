@@ -1,5 +1,14 @@
 import { fetchJson } from '@/lib/api.ts';
-import { keepPreviousData, queryOptions } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  queryOptions,
+  type QueryClient,
+} from '@tanstack/react-query';
+
+export async function invalidateExpenseReviewQueries(queryClient: QueryClient) {
+  await queryClient.cancelQueries({ queryKey: ['expenseReview'] });
+  await queryClient.invalidateQueries({ queryKey: ['expenseReview'] });
+}
 
 export type ExpenseReviewIncludeState = 'all' | 'included' | 'excluded';
 
@@ -205,6 +214,7 @@ export const expenseReviewTransactionsQueryOptions = (
         signal
       ),
     queryKey: ['expenseReview', 'transactions', params],
+    refetchOnMount: 'always',
   });
 
 export function buildExpenseReviewTransactionsCsvUrl(
@@ -237,6 +247,7 @@ export const expenseReviewFilterOptionsQueryOptions = (
       );
     },
     queryKey: ['expenseReview', 'filters', filters],
+    refetchOnMount: 'always',
     staleTime: 60_000,
   });
 

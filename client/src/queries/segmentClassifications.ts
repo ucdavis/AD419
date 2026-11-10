@@ -1,4 +1,5 @@
 import { fetchJson } from '../lib/api.ts';
+import { invalidateExpenseReviewQueries } from './expenseReview.ts';
 import {
   queryOptions,
   useMutation,
@@ -103,7 +104,12 @@ export const useUpdateSegmentClassification = () => {
         queryClient.setQueryData(SEGMENTS_KEY, context.previous);
       }
     },
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: SEGMENTS_KEY }),
+    onSettled: (_data, _error, input) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: SEGMENTS_KEY }),
+        input.segmentType === 'Ern'
+          ? Promise.resolve()
+          : invalidateExpenseReviewQueries(queryClient),
+      ]),
   });
 };

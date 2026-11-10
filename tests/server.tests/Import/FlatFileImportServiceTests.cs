@@ -1,3 +1,4 @@
+using Server.Tests.Helpers;
 using ClosedXML.Excel;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
@@ -713,14 +714,16 @@ public class FlatFileImportServiceTests
 
     private static FlatFileImportService CreateService(
         Server.Core.Data.AppDbContext db,
-        Server.Core.Data.DataDbContext dataDb)
+        Server.Core.Data.DataDbContext dataDb,
+        RecordingExpenseReviewFilterCacheInvalidator? invalidator = null)
     {
         return new FlatFileImportService(
             db,
             dataDb,
             new FlatFileImportRegistry(),
             new ConfigurationBuilder().Build(),
-            NullLogger<FlatFileImportService>.Instance);
+            NullLogger<FlatFileImportService>.Instance,
+            invalidator ?? new RecordingExpenseReviewFilterCacheInvalidator());
     }
 
     private static IFormFile CreateTextFile(string filename, string contents)

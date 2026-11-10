@@ -11,6 +11,7 @@ import { useRef, useState } from 'react';
 import { DataTable } from '@/shared/dataTable.tsx';
 import { projectResolutionEditsQueryOptions } from '@/queries/projectList.ts';
 import { ConfirmationDialog } from '@/shared/ConfirmationDialog.tsx';
+import { invalidateExpenseReviewQueries } from '@/queries/expenseReview.ts';
 
 export type ImportDatasetId =
   | 'active-projects'
@@ -18,6 +19,14 @@ export type ImportDatasetId =
   | 'assistance-listing-numbers'
   | 'ce-specialists'
   | 'field-station-expenses';
+
+function affectsExpenseReview(dataset: ImportDatasetId) {
+  return (
+    dataset === 'active-projects' ||
+    dataset === 'all-projects' ||
+    dataset === 'assistance-listing-numbers'
+  );
+}
 
 interface ImportDatasetOption {
   id: ImportDatasetId;
@@ -245,9 +254,12 @@ export function FlatFileImportPanel({
         succeeded: false,
       });
     },
-    onSettled: () => {
+    onSettled: (_data, _error, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['imports', 'recent'] });
       void queryClient.invalidateQueries({ queryKey: ['projectList'] });
+      if (affectsExpenseReview(variables.dataset)) {
+        return invalidateExpenseReviewQueries(queryClient);
+      }
     },
     onSuccess: (response) => {
       setValidation(null);
@@ -429,12 +441,15 @@ export function FlatFileImportChecklistItem({
         succeeded: false,
       });
     },
-    onSettled: () => {
+    onSettled: (_data, _error, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['imports', 'recent'] });
       void queryClient.invalidateQueries({ queryKey: ['projectList'] });
       void queryClient.invalidateQueries({
         queryKey: ['projectIdentification', 'setup'],
       });
+      if (affectsExpenseReview(variables.dataset)) {
+        return invalidateExpenseReviewQueries(queryClient);
+      }
     },
     onSuccess: (response) => {
       setValidation(null);

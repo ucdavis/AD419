@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Server.Authorization;
 using Server.Core.Data;
 using Server.Core.Domain;
+using Server.Core.ExpenseReview;
 using Server.Core.Import;
 using Server.Import;
 using Server.Models;
@@ -19,7 +20,8 @@ public sealed class ProjectIdentificationService(
     IFlatFileImportRegistry importRegistry,
     IProjectListService projectListService,
     IWorkflowService workflowService,
-    ILogger<ProjectIdentificationService> logger) : IProjectIdentificationService
+    ILogger<ProjectIdentificationService> logger,
+    IExpenseReviewFilterCacheInvalidator filterCacheInvalidator) : IProjectIdentificationService
 {
     private const string FiscalPeriodItemId = "fiscal-period";
     private const string PgmItemId = "pgm-master-data";
@@ -83,7 +85,7 @@ public sealed class ProjectIdentificationService(
 
         if (changed)
         {
-            await SaveChangesAndResetProjectIdentificationAsync(user, cancellationToken);
+            await SaveChangesAndResetProjectIdentificationAsync(user, cancellationToken, fiscalCycleChanged: true);
         }
         else
         {
@@ -284,7 +286,8 @@ public sealed class ProjectIdentificationService(
 
     private async Task SaveChangesAndResetProjectIdentificationAsync(
         ClaimsPrincipal user,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool fiscalCycleChanged = false)
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -293,6 +296,10 @@ public sealed class ProjectIdentificationService(
             user,
             cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        if (fiscalCycleChanged)
+        {
+            filterCacheInvalidator.InvalidateAll();
+        }
     }
 
     private ProjectIdentificationSetupResponse CreateSetupResponse(

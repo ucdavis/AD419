@@ -73,22 +73,104 @@ public sealed class ExpenseReviewFilterCacheTests
     }
 
     [Fact]
-    public async Task Expiration_is_ten_minutes_from_completion_and_never_expires_inflight_work()
+    public async Task Completed_indexes_are_reused_until_explicit_invalidation()
     {
-        var clock = new ManualClock();
-        var cache = new ExpenseReviewFilterCache(clock);
-        var completion = Completion();
-        var first = cache.GetAsync(Cycle(), () => completion.Task, CancellationToken.None);
-        clock.Advance(TimeSpan.FromHours(1));
-        var waiting = cache.GetAsync(Cycle(), () => throw new Exception("inflight expired"), CancellationToken.None);
+        var cache = Cache();
         var index = Index();
-        completion.SetResult(index);
-        await Task.WhenAll(first, waiting);
-        clock.Advance(TimeSpan.FromMinutes(10) - TimeSpan.FromTicks(1));
-        (await cache.GetAsync(Cycle(), () => throw new Exception("early expiry"), CancellationToken.None)).Should().BeSameAs(index);
-        clock.Advance(TimeSpan.FromTicks(1));
+        var calls = 0;
+        Task<ExpenseReviewFilterIndex> Build()
+        {
+            calls++;
+            return Task.FromResult(index);
+        }
+
+        for (var request = 0; request < 100; request++)
+        {
+            (await cache.GetAsync(Cycle(), Build, CancellationToken.None)).Should().BeSameAs(index);
+        }
+        calls.Should().Be(1);
+
+        cache.InvalidateAll();
+        calls.Should().Be(1);
+        var replacement = Index();
+        (await cache.GetAsync(Cycle(), () => Task.FromResult(replacement), CancellationToken.None))
+            .Should().BeSameAs(replacement);
+    }
+
+    [Fact]
+    public async Task Repeated_edits_release_all_cycles_without_building_until_one_shared_request()
+    {
+        var cache = Cache();
+        var secondCycle = Cycle() with { FiscalYear = "FY26" };
+        var oldIndex = Index();
+        await cache.GetAsync(Cycle(), () => Task.FromResult(oldIndex), CancellationToken.None);
+        await cache.GetAsync(secondCycle, () => Task.FromResult(oldIndex), CancellationToken.None);
+        for (var edit = 0; edit < 20; edit++)
+        {
+            cache.InvalidateAll();
+        }
+
+        var completion = Completion();
+        var calls = 0;
+        Task<ExpenseReviewFilterIndex> Build()
+        {
+            Interlocked.Increment(ref calls);
+            return completion.Task;
+        }
+        var callers = Enumerable.Range(0, 20)
+            .Select(_ => cache.GetAsync(Cycle(), Build, CancellationToken.None)).ToArray();
+        calls.Should().Be(1);
         var next = Index();
-        (await cache.GetAsync(Cycle(), () => Task.FromResult(next), CancellationToken.None)).Should().BeSameAs(next);
+        completion.SetResult(next);
+        (await Task.WhenAll(callers)).Should().OnlyContain(index => ReferenceEquals(index, next));
+        (await cache.GetAsync(secondCycle, () => Task.FromResult(next), CancellationToken.None))
+            .Should().BeSameAs(next);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Invalidated_build_finishes_for_original_callers_without_replacing_new_cache_entry(bool fail)
+    {
+        var cache = Cache();
+        var original = Completion();
+        var first = cache.GetAsync(Cycle(), () => original.Task, CancellationToken.None);
+
+        cache.InvalidateAll();
+        first.IsCompleted.Should().BeFalse();
+
+        var replacement = Completion();
+        var next = cache.GetAsync(Cycle(), () => replacement.Task, CancellationToken.None);
+        var shared = cache.GetAsync(Cycle(), () => throw new Exception("duplicate build"), CancellationToken.None);
+        var newIndex = Index();
+        replacement.SetResult(newIndex);
+        (await next).Should().BeSameAs(newIndex);
+        (await shared).Should().BeSameAs(newIndex);
+        first.IsCompleted.Should().BeFalse("the replacement does not wait for the obsolete build");
+
+        if (fail)
+        {
+            original.SetException(new InvalidOperationException("original failure"));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => first);
+        }
+        else
+        {
+            var oldIndex = Index();
+            original.SetResult(oldIndex);
+            (await first).Should().BeSameAs(oldIndex);
+        }
+
+        (await cache.GetAsync(Cycle(), () => throw new Exception("replacement removed"), CancellationToken.None))
+            .Should().BeSameAs(newIndex);
+    }
+
+    [Fact]
+    public async Task Already_canceled_request_never_starts_a_build()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Cache().GetAsync(
+            Cycle(), () => throw new Exception("must not build"), cancellation.Token));
     }
 
     private static ExpenseReviewFilterCache Cache() => new();
@@ -96,10 +178,4 @@ public sealed class ExpenseReviewFilterCacheTests
     private static TaskCompletionSource<ExpenseReviewFilterIndex> Completion() => new(TaskCreationOptions.RunContinuationsAsynchronously);
     private static ExpenseReviewFilterIndex Index() => ExpenseReviewFilterIndex.Build(new([], [], [], [], [], [], [], [], [], [], [], []), []);
 
-    private sealed class ManualClock : TimeProvider
-    {
-        private DateTimeOffset _now = new(2026, 11, 5, 0, 0, 0, TimeSpan.Zero);
-        public override DateTimeOffset GetUtcNow() => _now;
-        public void Advance(TimeSpan duration) => _now += duration;
-    }
 }

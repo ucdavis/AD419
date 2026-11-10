@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Server.Core.Data;
+using Server.Core.ExpenseReview;
 
 namespace Server.Core.Import;
 
@@ -64,19 +65,22 @@ public sealed class AeTransactionsImportService
     private readonly ILogger<AeTransactionsImportService> _logger;
     private readonly ILinkedServerQueryExecutor _linkedServer;
     private readonly ISqlBulkCopyWriter _bulkCopy;
+    private readonly IExpenseReviewFilterCacheInvalidator _filterCacheInvalidator;
 
     public AeTransactionsImportService(
         DataDbContext dataDbContext,
         IConfiguration configuration,
         ILogger<AeTransactionsImportService> logger,
         ILinkedServerQueryExecutor linkedServer,
-        ISqlBulkCopyWriter bulkCopy)
+        ISqlBulkCopyWriter bulkCopy,
+        IExpenseReviewFilterCacheInvalidator filterCacheInvalidator)
     {
         _dataDbContext = dataDbContext;
         _configuration = configuration;
         _logger = logger;
         _linkedServer = linkedServer;
         _bulkCopy = bulkCopy;
+        _filterCacheInvalidator = filterCacheInvalidator;
     }
 
     public async Task<int> ImportAsync(DateOnly cycleStart, DateOnly cycleEnd, CancellationToken cancellationToken = default)
@@ -122,6 +126,7 @@ public sealed class AeTransactionsImportService
 
         var rowsImported = (int)rowsCopied;
         await transaction.CommitAsync(cancellationToken);
+        _filterCacheInvalidator.InvalidateAll();
 
         _logger.LogInformation("Imported {RowCount} AE transactions", rowsImported);
         return rowsImported;

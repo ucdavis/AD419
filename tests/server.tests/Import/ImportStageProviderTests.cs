@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Server.Core.Import;
+using Server.Tests.Helpers;
 
 namespace Server.Tests.Import;
 
@@ -14,10 +15,10 @@ public class ImportStageProviderTests
         var linkedServer = new LinkedServerQueryExecutor();
         var bulkCopy = new SqlBulkCopyWriter();
         return new ImportStageProvider(
-            new ChartSegmentsImportService(db, config, NullLogger<ChartSegmentsImportService>.Instance, linkedServer, bulkCopy),
-            new AeTransactionsImportService(db, config, NullLogger<AeTransactionsImportService>.Instance, linkedServer, bulkCopy),
-            new UcPathTransactionsImportService(db, config, NullLogger<UcPathTransactionsImportService>.Instance, linkedServer, bulkCopy),
-            new SprocStageService(db, config));
+            new ChartSegmentsImportService(db, config, NullLogger<ChartSegmentsImportService>.Instance, linkedServer, bulkCopy, new RecordingExpenseReviewFilterCacheInvalidator()),
+            new AeTransactionsImportService(db, config, NullLogger<AeTransactionsImportService>.Instance, linkedServer, bulkCopy, new RecordingExpenseReviewFilterCacheInvalidator()),
+            new UcPathTransactionsImportService(db, config, NullLogger<UcPathTransactionsImportService>.Instance, linkedServer, bulkCopy, new RecordingExpenseReviewFilterCacheInvalidator()),
+            new SprocStageService(db, config, new RecordingExpenseReviewFilterCacheInvalidator()));
     }
 
     [Fact]

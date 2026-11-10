@@ -12,6 +12,7 @@ using Server.ProjectIdentification;
 using Server.ProjectList;
 using Server.Tests.AutoAssociations;
 using Server.Tests.OrgRReview;
+using Server.Tests.Helpers;
 using Server.Workflow;
 
 namespace Server.Tests.ProjectIdentification;
@@ -306,13 +307,15 @@ public partial class ProjectIdentificationServiceTests
         AppDbContext db,
         DataDbContext dataDb,
         StubProjectListService? projectListService = null,
-        ILogger<ProjectIdentificationService>? logger = null) =>
+        ILogger<ProjectIdentificationService>? logger = null,
+        RecordingExpenseReviewFilterCacheInvalidator? invalidator = null) =>
         new(
             db,
             new FlatFileImportRegistry(),
             projectListService ?? new StubProjectListService(),
             new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder()),
-            logger ?? NullLogger<ProjectIdentificationService>.Instance);
+            logger ?? NullLogger<ProjectIdentificationService>.Instance,
+            invalidator ?? new RecordingExpenseReviewFilterCacheInvalidator());
 
     private static void AddImport(
         AppDbContext db,

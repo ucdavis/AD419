@@ -16,7 +16,14 @@ import { StationSpecialistImportStage } from '@/components/stationSpecialistImpo
 import { WorkflowShell } from '@/components/WorkflowShell.tsx';
 import type { WorkflowSnapshot, WorkflowStageId } from '@/types.ts';
 import type { RouterContext } from '@/main.tsx';
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import {
+  createFileRoute,
+  Navigate,
+  redirect,
+  useNavigate,
+  useRouter,
+  useRouterState,
+} from '@tanstack/react-router';
 import {
   useMutation,
   useQueryClient,
@@ -26,16 +33,23 @@ import {
 const MANUAL_ASSOCIATIONS_URL = 'https://ad419-next.caes.ucdavis.edu/';
 
 export const Route = createFileRoute('/(authenticated)/workflow/$stageId')({
-  beforeLoad: async ({
+  validateSearch: parseExpenseReviewSearch,
+
+  // Check access on entry, not on every filter change. React Query owns the data cache.
+  component: WorkflowStageRoute,
+  errorComponent: WorkflowLoadError,
+  gcTime: 0,
+  loader: async ({
     context,
     params,
   }: {
     context: RouterContext;
     params: { stageId: string };
   }) => {
-    const snapshot = await context.queryClient.ensureQueryData(
-      workflowSnapshotQueryOptions()
-    );
+    const snapshot = await context.queryClient.fetchQuery({
+      ...workflowSnapshotQueryOptions(),
+      staleTime: 0,
+    });
     const stage = findWorkflowStage(snapshot, params.stageId);
 
     if (!stage || !stage.canAccess) {
@@ -45,18 +59,53 @@ export const Route = createFileRoute('/(authenticated)/workflow/$stageId')({
       });
     }
   },
-  component: WorkflowStageRoute,
-  validateSearch: parseExpenseReviewSearch,
+  pendingComponent: () => <p role="status">Loading workflow...</p>,
+  preload: false,
+  shouldReload: false,
 });
+
+function WorkflowLoadError() {
+  const router = useRouter();
+  const isLoading = useRouterState({ select: (state) => state.isLoading });
+
+  return (
+    <div className="alert alert-error items-start" role="alert">
+      <div>
+        <h2 className="font-bold">Unable to load workflow status</h2>
+        <p>The current workflow step could not be loaded.</p>
+        <button
+          className="btn btn-sm mt-3"
+          disabled={isLoading}
+          onClick={() => void router.invalidate()}
+          type="button"
+        >
+          {isLoading ? 'Retrying...' : 'Retry'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function WorkflowStageRoute() {
   const { stageId } = Route.useParams();
   const workflowStageId = stageId as WorkflowStageId;
-  const { data: snapshot } = useSuspenseQuery(workflowSnapshotQueryOptions());
+  const { data: snapshot } = useSuspenseQuery({
+    ...workflowSnapshotQueryOptions(),
+    refetchOnMount: false,
+  });
   const stage = snapshot.stages.find((item) => item.id === workflowStageId);
 
   if (!stage) {
     return null;
+  }
+
+  if (workflowStageId === 'expense-review' && !stage.canAccess) {
+    return (
+      <Navigate
+        params={{ stageId: snapshot.currentStageId }}
+        to="/workflow/$stageId"
+      />
+    );
   }
 
   return (

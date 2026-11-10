@@ -4,6 +4,7 @@ using Dapper;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Server.Core.Data;
+using Server.Core.ExpenseReview;
 using Server.Models;
 using Server.Models.ProjectList;
 using Server.Models.SegmentClassifications;
@@ -12,7 +13,8 @@ namespace Server.ProjectList;
 
 public sealed class ProjectListService(
     DataDbContext dataDbContext,
-    IConfiguration configuration) : IProjectListService
+    IConfiguration configuration,
+    IExpenseReviewFilterCacheInvalidator filterCacheInvalidator) : IProjectListService
 {
     private const string CleanStatus = "Clean";
     private const string NoPgmMatchStatus = "No PGM match";
@@ -565,6 +567,7 @@ public sealed class ProjectListService(
             cancellationToken: cancellationToken));
 
         await transaction.CommitAsync(cancellationToken);
+        filterCacheInvalidator.InvalidateAll();
         activity?.SetTag("ad419.rows_built", result.AeProjects);
         activity?.SetTag("ad419.nifa_projects_built", result.NifaProjects);
         return result.AeProjects;
