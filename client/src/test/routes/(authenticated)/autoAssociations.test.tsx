@@ -373,6 +373,53 @@ describe('Auto-Associations stage', () => {
     }
   });
 
+  it('starts each SFN tab on its first page', async () => {
+    mockApi({ hasBuild: true });
+    // 201 fills more than one page of PIs; 202 has a single PI.
+    const hatchPis = Array.from({ length: 26 }, (_, index) => ({
+      employeeId: `H${String(index + 1).padStart(2, '0')}`,
+      employeeName: `Hatch PI ${String(index + 1).padStart(2, '0')}`,
+      expenses: 10,
+      fte: 0.01,
+      projectCount: 1,
+    }));
+    server.use(
+      http.get('/api/autoassociations/rule-20x', () =>
+        HttpResponse.json(
+          envelope({
+            sfns: [
+              { expenses: 260, fte: 0.26, label: 'Hatch', pis: hatchPis, projectCount: 26, sfn: '201' },
+              {
+                expenses: 220,
+                fte: 0.22,
+                label: 'Multi-State',
+                pis: [{ employeeId: 'E2', employeeName: 'PI Two', expenses: 220, fte: 0.2, projectCount: 1 }],
+                projectCount: 1,
+                sfn: '202',
+              },
+            ],
+            unassociated: [],
+          })
+        )
+      )
+    );
+    const user = userEvent.setup();
+    const { cleanup } = renderRoute({ initialPath: '/workflow/auto-associations' });
+
+    try {
+      expect(await screen.findByText('Hatch PI 01')).toBeInTheDocument();
+      await user.click(screen.getAllByRole('button', { name: 'Next' })[0]);
+      expect(await screen.findByText('Hatch PI 26')).toBeInTheDocument();
+      expect(screen.queryByText('Hatch PI 01')).not.toBeInTheDocument();
+
+      // The 202 tab must not inherit page 2 from the 201 tab.
+      await user.click(screen.getByRole('tab', { name: '202' }));
+      expect(await screen.findByText('PI Two')).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
   it('shows a report error inside the tab', async () => {
     mockApi({ failingReport: true, hasBuild: true });
     const user = userEvent.setup();
