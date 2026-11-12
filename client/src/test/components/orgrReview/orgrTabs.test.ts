@@ -12,7 +12,7 @@ describe('orgrTabs', () => {
       'orgrs',
       'financial-departments',
       'nifa-departments',
-      'projects',
+      'pi-appointments',
     ]);
   });
 

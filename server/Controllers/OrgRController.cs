@@ -16,6 +16,10 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
     [GeneratedRegex("^[A-Z0-9]{1,10}$")]
     private static partial Regex OrgRCodePattern();
 
+    // PI appointments never move 204 projects: those follow their AE project
+    // and stay on the default OrgR only.
+    private const string Sfn204 = "204";
+
     // GET api/orgr/orgrs
     [HttpGet("orgrs")]
     public async Task<ActionResult<IReadOnlyList<OrgRDto>>> GetOrgRs(CancellationToken cancellationToken)
@@ -31,19 +35,19 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
             .GroupBy(m => m.OrgR!)
             .Select(g => new { OrgR = g.Key, Count = g.Count() })
             .ToDictionaryAsync(g => g.OrgR, g => g.Count, cancellationToken);
-        var additions = await db.OrgRProjectAdditions.ToListAsync(cancellationToken);
-        var additionRefs = additions
+        var appointments = await db.OrgRPiAppointments.ToListAsync(cancellationToken);
+        var appointmentRefs = appointments
             .GroupBy(a => a.OrgR)
             .ToDictionary(g => g.Key, g => g.Count());
 
         // NIFA projects per OrgR: distinct accessions that land on the OrgR
-        // either through the NIFA department mapping or a manual addition,
-        // the same union [data].[v_ProjXOrgR] exposes.
+        // through the NIFA department mapping or a PI appointment, the same
+        // union [data].[v_ProjXOrgR] exposes.
         var nifaMap = await db.OrgRNifaDepartments
             .Where(m => m.OrgR != null)
             .ToDictionaryAsync(m => m.NifaDepartment, m => m.OrgR!, cancellationToken);
         var projectPairs = await db.Projects
-            .Select(p => new { p.AccessionNumber, p.NifaProjectNumber })
+            .Select(p => new { p.AccessionNumber, p.NifaProjectNumber, p.UcpEmployeeId, p.Sfn })
             .Distinct()
             .ToListAsync(cancellationToken);
         var projectsByOrgR = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
@@ -55,9 +59,14 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
             }
         }
 
-        foreach (var addition in additions)
+        foreach (var appointment in appointments)
         {
-            ProjectsFor(addition.OrgR).Add(addition.AccessionNumber);
+            var placed = projectPairs
+                .Where(p => p.UcpEmployeeId == appointment.UcpEmployeeId && p.Sfn != Sfn204);
+            foreach (var pair in placed)
+            {
+                ProjectsFor(appointment.OrgR).Add(pair.AccessionNumber);
+            }
         }
 
         var dtos = orgRs
@@ -67,7 +76,7 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
                 projectsByOrgR.TryGetValue(o.Code, out var projects) ? projects.Count : 0,
                 departmentRefs.GetValueOrDefault(o.Code)
                     + nifaRefs.GetValueOrDefault(o.Code)
-                    + additionRefs.GetValueOrDefault(o.Code)))
+                    + appointmentRefs.GetValueOrDefault(o.Code)))
             .ToList();
 
         return Ok(dtos);
@@ -128,7 +137,7 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
         var references =
             await db.OrgRFinancialDepartments.CountAsync(m => m.OrgR == normalized, cancellationToken)
             + await db.OrgRNifaDepartments.CountAsync(m => m.OrgR == normalized, cancellationToken)
-            + await db.OrgRProjectAdditions.CountAsync(a => a.OrgR == normalized, cancellationToken);
+            + await db.OrgRPiAppointments.CountAsync(a => a.OrgR == normalized, cancellationToken);
 
         if (references > 0)
         {
@@ -309,60 +318,82 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
         return NoContent();
     }
 
-    // GET api/orgr/projects
-    // Mirrors [data].[v_ProjXOrgR] in LINQ so the grid can be served and
-    // tested through DataDbContext. Keep the two in step.
-    [HttpGet("projects")]
-    public async Task<ActionResult<IReadOnlyList<ProjectOrgRDto>>> GetProjects(CancellationToken cancellationToken)
+    // GET api/orgr/pis
+    // The PIs an appointment can be added for: everyone directing at least
+    // one non-204 project this cycle.
+    [HttpGet("pis")]
+    public async Task<ActionResult<IReadOnlyList<PiDto>>> GetPis(CancellationToken cancellationToken)
     {
-        var projects = await db.Projects
-            .OrderBy(p => p.AccessionNumber)
-            .ToListAsync(cancellationToken);
+        var projects = await LoadPiProjectsAsync(cancellationToken);
+        var dtos = projects
+            .Where(p => p.Sfn != Sfn204)
+            .GroupBy(p => p.UcpEmployeeId)
+            .Select(g => new PiDto(g.Key, PiNameOf(g, g.Key), g.Count()))
+            .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(d => d.UcpEmployeeId)
+            .ToList();
+
+        return Ok(dtos);
+    }
+
+    // GET api/orgr/pi-appointments
+    [HttpGet("pi-appointments")]
+    public async Task<ActionResult<IReadOnlyList<PiAppointmentDto>>> GetPiAppointments(CancellationToken cancellationToken)
+    {
+        var appointments = await db.OrgRPiAppointments.ToListAsync(cancellationToken);
         var nifaMap = await db.OrgRNifaDepartments
             .Where(m => m.OrgR != null)
             .ToDictionaryAsync(m => m.NifaDepartment, m => m.OrgR!, cancellationToken);
-        var additions = await db.OrgRProjectAdditions.ToListAsync(cancellationToken);
-        // Projects is at NIFA x AE grain, so several rows can share the same
-        // (AccessionNumber, NifaProjectNumber) pair; dedupe to one row per
-        // project before building the Default rows so the grid shows each
-        // project once per OrgR.
-        var projectsByAccession = projects
-            .GroupBy(p => p.AccessionNumber)
-            .ToDictionary(g => g.Key, g => g.First());
+        var projectsByPi = (await LoadPiProjectsAsync(cancellationToken)).ToLookup(p => p.UcpEmployeeId);
 
-        var defaults = projectsByAccession.Values
-            .Select(p => (Project: p, OrgR: NifaDepartmentOf(p.NifaProjectNumber) is { } dept ? nifaMap.GetValueOrDefault(dept) : null))
-            .Where(x => x.OrgR is not null)
-            .Select(x => ToDto(x.Project, x.OrgR!, "Default"));
+        var dtos = appointments
+            .Select(a =>
+            {
+                var projects = projectsByPi[a.UcpEmployeeId].ToList();
+                var placed = projects.Where(p => p.Sfn != Sfn204).ToList();
+                var homeOrgRs = new List<string>();
+                foreach (var project in placed)
+                {
+                    var department = NifaDepartmentOf(project.NifaProjectNumber);
+                    if (department != null
+                        && nifaMap.TryGetValue(department, out var home)
+                        && !homeOrgRs.Contains(home))
+                    {
+                        homeOrgRs.Add(home);
+                    }
+                }
 
-        var manual = additions
-            .Where(a => projectsByAccession.ContainsKey(a.AccessionNumber))
-            .Select(a => ToDto(projectsByAccession[a.AccessionNumber], a.OrgR, "Manual"));
-
-        return Ok(defaults.Concat(manual)
-            .OrderBy(d => d.AccessionNumber)
-            .ThenBy(d => d.Source)
+                homeOrgRs.Sort(StringComparer.Ordinal);
+                // The current project list names the PI; the stored name only
+                // covers a PI with no projects this cycle.
+                var name = PiNameOf(projects, a.PiName ?? a.UcpEmployeeId);
+                return new PiAppointmentDto(
+                    a.UcpEmployeeId, name, a.OrgR, homeOrgRs, placed.Count, projects.Count - placed.Count);
+            })
+            .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(d => d.UcpEmployeeId)
             .ThenBy(d => d.OrgR)
-            .ToList());
+            .ToList();
 
-        static ProjectOrgRDto ToDto(Project p, string orgR, string source) =>
-            new(p.AccessionNumber, p.NifaProjectNumber, p.Title, p.ProjectDirector, orgR, source);
+        return Ok(dtos);
     }
 
-    // POST api/orgr/projects
-    [HttpPost("projects")]
-    public async Task<IActionResult> AddProject(
-        [FromBody] AddProjectOrgRRequest request,
+    // POST api/orgr/pi-appointments
+    [HttpPost("pi-appointments")]
+    public async Task<IActionResult> AddPiAppointment(
+        [FromBody] AddPiAppointmentRequest request,
         CancellationToken cancellationToken)
     {
         ApiOperationContext.Set(HttpContext,
-            ("AccessionNumber", request.AccessionNumber), ("OrgR", request.OrgR));
+            ("UcpEmployeeId", request.UcpEmployeeId), ("OrgR", request.OrgR));
 
-        var accession = request.AccessionNumber?.Trim();
-        if (string.IsNullOrEmpty(accession)
-            || !await db.Projects.AnyAsync(p => p.AccessionNumber == accession, cancellationToken))
+        var employeeId = request.UcpEmployeeId?.Trim();
+        var projects = string.IsNullOrEmpty(employeeId)
+            ? []
+            : (await LoadPiProjectsAsync(cancellationToken)).Where(p => p.UcpEmployeeId == employeeId).ToList();
+        if (string.IsNullOrEmpty(employeeId) || projects.Count == 0)
         {
-            return BadRequest($"Unknown accession number '{request.AccessionNumber}'.");
+            return BadRequest($"No PI on the project list has employee ID '{request.UcpEmployeeId}'.");
         }
 
         var (orgR, error) = await ResolveOrgRAsync(request.OrgR, cancellationToken);
@@ -371,30 +402,31 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
             return BadRequest(error ?? "An OrgR is required.");
         }
 
-        if (await db.OrgRProjectAdditions.AnyAsync(a => a.AccessionNumber == accession && a.OrgR == orgR, cancellationToken))
+        var name = PiNameOf(projects, employeeId);
+        if (await db.OrgRPiAppointments.AnyAsync(a => a.UcpEmployeeId == employeeId && a.OrgR == orgR, cancellationToken))
         {
-            return Conflict($"{accession} is already added to {orgR}.");
+            return Conflict($"{name} already has an appointment in {orgR}.");
         }
 
-        db.OrgRProjectAdditions.Add(new OrgRProjectAddition { AccessionNumber = accession, OrgR = orgR });
+        db.OrgRPiAppointments.Add(new OrgRPiAppointment { UcpEmployeeId = employeeId, OrgR = orgR, PiName = name });
         await db.SaveChangesAsync(cancellationToken);
         return NoContent();
     }
 
-    // DELETE api/orgr/projects/{accessionNumber}/{orgR}
-    [HttpDelete("projects/{accessionNumber}/{orgR}")]
-    public async Task<IActionResult> RemoveProject(string accessionNumber, string orgR, CancellationToken cancellationToken)
+    // DELETE api/orgr/pi-appointments/{ucpEmployeeId}/{orgR}
+    [HttpDelete("pi-appointments/{ucpEmployeeId}/{orgR}")]
+    public async Task<IActionResult> RemovePiAppointment(string ucpEmployeeId, string orgR, CancellationToken cancellationToken)
     {
         var normalized = NormalizeCode(orgR);
-        var addition = normalized is null
+        var appointment = normalized is null
             ? null
-            : await db.OrgRProjectAdditions.FindAsync([accessionNumber, normalized], cancellationToken);
-        if (addition is null)
+            : await db.OrgRPiAppointments.FindAsync([ucpEmployeeId, normalized], cancellationToken);
+        if (appointment is null)
         {
             return NotFound();
         }
 
-        db.OrgRProjectAdditions.Remove(addition);
+        db.OrgRPiAppointments.Remove(appointment);
         await db.SaveChangesAsync(cancellationToken);
         return NoContent();
     }
@@ -402,6 +434,35 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
     /// <summary>Characters 6 to 8 of a NIFA project number, e.g. CA-D-ARE-2868-H gives ARE.</summary>
     internal static string? NifaDepartmentOf(string? nifaProjectNumber) =>
         nifaProjectNumber is { Length: >= 8 } ? nifaProjectNumber.Substring(5, 3) : null;
+
+    private sealed record PiProject(
+        string UcpEmployeeId, string AccessionNumber, string NifaProjectNumber, string? ProjectDirector, string Sfn);
+
+    // One row per project that has a PI. Projects is at NIFA x AE grain, so
+    // rows sharing an accession are collapsed to the first.
+    private async Task<List<PiProject>> LoadPiProjectsAsync(CancellationToken cancellationToken)
+    {
+        var rows = await db.Projects
+            .Where(p => p.UcpEmployeeId != null && p.UcpEmployeeId != "")
+            .OrderBy(p => p.AccessionNumber)
+            .Select(p => new PiProject(p.UcpEmployeeId!, p.AccessionNumber, p.NifaProjectNumber, p.ProjectDirector, p.Sfn))
+            .ToListAsync(cancellationToken);
+
+        return rows.GroupBy(p => p.AccessionNumber).Select(g => g.First()).ToList();
+    }
+
+    // The same person can be spelled differently across projects, so pick one
+    // spelling deterministically.
+    private static string PiNameOf(IEnumerable<PiProject> projects, string fallback)
+    {
+        var name = projects
+            .Select(p => p.ProjectDirector?.Trim())
+            .Where(n => !string.IsNullOrEmpty(n))
+            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+
+        return name ?? fallback;
+    }
 
     // Null request clears the mapping. A non-null value must be an existing OrgR.
     private async Task<(string? OrgR, string? Error)> ResolveOrgRAsync(string? requested, CancellationToken cancellationToken)

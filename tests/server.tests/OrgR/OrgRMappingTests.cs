@@ -18,15 +18,15 @@ public class OrgRMappingTests
         db.OrgRs.Add(new OrgR { Code = "AARE" });
         db.OrgRFinancialDepartments.Add(new OrgRFinancialDepartment { FinancialDepartment = "AARE001", OrgR = "AARE" });
         db.OrgRNifaDepartments.Add(new OrgRNifaDepartment { NifaDepartment = "ARE", OrgR = "AARE" });
-        db.OrgRProjectAdditions.Add(new OrgRProjectAddition { AccessionNumber = "1000001", OrgR = "AARE" });
-        db.Projects.Add(new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-ARE-2868-H", Title = "T", ProjectDirector = "D" });
+        db.OrgRPiAppointments.Add(new OrgRPiAppointment { UcpEmployeeId = "10000001", OrgR = "AARE", PiName = "D" });
+        db.Projects.Add(new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-ARE-2868-H", Title = "T", ProjectDirector = "D", UcpEmployeeId = "10000001", Sfn = "201" });
         await db.SaveChangesAsync();
 
         (await db.OrgRs.SingleAsync()).Code.Should().Be("AARE");
         (await db.OrgRFinancialDepartments.SingleAsync()).OrgR.Should().Be("AARE");
         (await db.OrgRNifaDepartments.SingleAsync()).NifaDepartment.Should().Be("ARE");
-        (await db.OrgRProjectAdditions.SingleAsync()).AccessionNumber.Should().Be("1000001");
-        (await db.Projects.SingleAsync()).Id.Should().BePositive();
+        (await db.OrgRPiAppointments.SingleAsync()).UcpEmployeeId.Should().Be("10000001");
+        (await db.Projects.SingleAsync()).Sfn.Should().Be("201");
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class OrgRMappingTests
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
         var designTimeModel = db.GetService<IDesignTimeModel>();
-        foreach (var name in new[] { "OrgRs", "OrgRFinancialDepartments", "OrgRNifaDepartments", "OrgRProjectAdditions", "Projects", "ChartSegments" })
+        foreach (var name in new[] { "OrgRs", "OrgRFinancialDepartments", "OrgRNifaDepartments", "OrgRPiAppointments", "Projects", "ChartSegments" })
         {
             var entity = designTimeModel.Model.GetEntityTypes().Single(e => e.GetTableName() == name);
             entity.GetSchema().Should().Be("data");

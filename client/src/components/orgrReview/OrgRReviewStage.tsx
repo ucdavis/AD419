@@ -3,7 +3,7 @@ import { allMapped, ORGR_TABS, type OrgRTabId, unmappedCount } from './orgrTabs.
 import { FinancialDepartmentsTab } from './FinancialDepartmentsTab.tsx';
 import { NifaDepartmentsTab } from './NifaDepartmentsTab.tsx';
 import { OrgRListTab } from './OrgRListTab.tsx';
-import { ProjectOrgRsTab } from './ProjectOrgRsTab.tsx';
+import { PiAppointmentsTab } from './PiAppointmentsTab.tsx';
 import {
   apiErrorMessage,
   ORGR_MUTATION_KEY,
@@ -123,7 +123,7 @@ export function OrgRReviewStage({ status }: { status: WorkflowStageStatus }) {
       ) : activeId === 'nifa-departments' ? (
         <NifaDepartmentsTab />
       ) : (
-        <ProjectOrgRsTab />
+        <PiAppointmentsTab />
       )}
 
       <div className="flex items-center justify-between border-t pt-4">

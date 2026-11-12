@@ -85,7 +85,7 @@ public sealed class SqlServerDataDbFixture : IAsyncLifetime
             DELETE FROM [data].[AllProjects];
             DELETE FROM [data].[AssistanceListingNumbers];
             DELETE FROM [data].[Sfns];
-            DELETE FROM [data].[OrgRProjectAdditions];
+            DELETE FROM [data].[OrgRPiAppointments];
             DELETE FROM [data].[OrgRNifaDepartments];
             DELETE FROM [data].[OrgRFinancialDepartments];
             DELETE FROM [data].[OrgRs] WHERE [Code] <> N'ADNO';

@@ -8,4 +8,6 @@ public class Project
     public string NifaProjectNumber { get; set; } = string.Empty;
     public string? Title { get; set; }
     public string? ProjectDirector { get; set; }
+    public string? UcpEmployeeId { get; set; }
+    public string Sfn { get; set; } = string.Empty;
 }

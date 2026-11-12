@@ -11,3 +11,9 @@ IF OBJECT_ID(N'[data].[DepartmentHierarchy]', N'U') IS NOT NULL DELETE FROM [dat
 IF OBJECT_ID(N'[data].[FundHierarchy]', N'U') IS NOT NULL DELETE FROM [data].[FundHierarchy];
 IF OBJECT_ID(N'[data].[PurposeHierarchy]', N'U') IS NOT NULL DELETE FROM [data].[PurposeHierarchy];
 GO
+
+-- Single project placements on a second OrgR were replaced by PI
+-- appointments (OrgRPiAppointments), now the only way a project lands on an
+-- additional OrgR. The few rows here were loaded from a reference CSV.
+IF OBJECT_ID(N'[data].[OrgRProjectAdditions]', N'U') IS NOT NULL DELETE FROM [data].[OrgRProjectAdditions];
+GO

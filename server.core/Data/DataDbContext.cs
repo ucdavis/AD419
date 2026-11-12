@@ -13,7 +13,7 @@ public class DataDbContext(DbContextOptions<DataDbContext> options) : DbContext(
     public DbSet<OrgR> OrgRs => Set<OrgR>();
     public DbSet<OrgRFinancialDepartment> OrgRFinancialDepartments => Set<OrgRFinancialDepartment>();
     public DbSet<OrgRNifaDepartment> OrgRNifaDepartments => Set<OrgRNifaDepartment>();
-    public DbSet<OrgRProjectAddition> OrgRProjectAdditions => Set<OrgRProjectAddition>();
+    public DbSet<OrgRPiAppointment> OrgRPiAppointments => Set<OrgRPiAppointment>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<ChartSegment> ChartSegments => Set<ChartSegment>();
 
@@ -65,12 +65,13 @@ public class DataDbContext(DbContextOptions<DataDbContext> options) : DbContext(
             entity.Property(m => m.OrgR).HasMaxLength(10);
         });
 
-        modelBuilder.Entity<OrgRProjectAddition>(entity =>
+        modelBuilder.Entity<OrgRPiAppointment>(entity =>
         {
-            entity.ToTable("OrgRProjectAdditions", DataSchema, table => table.ExcludeFromMigrations());
-            entity.HasKey(a => new { a.AccessionNumber, a.OrgR });
-            entity.Property(a => a.AccessionNumber).HasMaxLength(7);
+            entity.ToTable("OrgRPiAppointments", DataSchema, table => table.ExcludeFromMigrations());
+            entity.HasKey(a => new { a.UcpEmployeeId, a.OrgR });
+            entity.Property(a => a.UcpEmployeeId).HasMaxLength(8);
             entity.Property(a => a.OrgR).HasMaxLength(10);
+            entity.Property(a => a.PiName).HasMaxLength(200);
         });
 
         modelBuilder.Entity<ChartSegment>(entity =>
@@ -98,6 +99,8 @@ public class DataDbContext(DbContextOptions<DataDbContext> options) : DbContext(
             entity.Property(p => p.AccessionNumber).HasMaxLength(7);
             entity.Property(p => p.NifaProjectNumber).HasMaxLength(20);
             entity.Property(p => p.ProjectDirector).HasMaxLength(200);
+            entity.Property(p => p.UcpEmployeeId).HasMaxLength(8);
+            entity.Property(p => p.Sfn).HasMaxLength(7);
         });
     }
 }
