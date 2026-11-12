@@ -563,15 +563,46 @@ public sealed partial class ExpenseReviewService(
     // when it is on reported dollars. Last year's process classified job codes
     // after all the exclusions for the same reason. Rows with no job code are
     // skipped too: there is no code to classify.
-    // FTE is the reported FTE, counted like BuildAutoAssociations: only on rows
-    // whose ERN code is classified included. A job code whose reported FTE
-    // sums to zero is left out because classifying it changes no FTE line,
-    // unless it has dollars on State Appropriations (13U02): rule 220 in
-    // AutoAssociationCandidates only associates those dollars on FTE line 241,
-    // so classifying the code can still move them.
+    // FTE is the reported FTE: like BuildAutoAssociations, a row's FTE counts
+    // only when its ERN code is classified included. RowCount, EmployeeCount,
+    // Amount and Fte are totals over all of the job code's included rows, so
+    // Amount and Fte can be zero when summary rows offset each other.
+    // A job code is listed only when classifying it can change the build.
+    // The build works on expense summary rows, not job codes, so SummaryRows
+    // groups the way BuildAutoAssociations does and the test is made per
+    // summary row. Dollars or FTE that offset across employees or chart
+    // strings still leave a summary row each. A summary row counts when its
+    // dollars do not net to zero (the build drops it otherwise) and it either
+    // reports FTE, which has no line to land on, or is on State Appropriations
+    // (13U02), where rule 220 in AutoAssociationCandidates only associates
+    // the dollars on FTE line 241.
+    // SummaryRows leaves out four of the build's grouping columns because
+    // they cannot split a job code's rows any further: Source is always
+    // UCPath here, OrgR follows the job code and financial department
+    // (v_TransactionOrgR), ExpenseSfn follows the fund and project
+    // (v_TransactionSfn), and FteSfn follows the job code.
     public const string UnmatchedJobCodesSql = """
+        WITH SummaryRows AS
+        (
+            SELECT
+                u.[JobCode],
+                u.[EmployeeId],
+                u.[Fund],
+                COUNT(1) AS [RowCount],
+                SUM(u.[Amount]) AS [Amount],
+                SUM(CASE WHEN incl.[ErnIncludeInReport] = 1 THEN COALESCE(u.[CalculatedFte], 0) ELSE 0 END) AS [Fte]
+            FROM [data].[UcPathTransactions] u
+            JOIN [data].[v_TransactionInclusion] incl
+                ON incl.[Source] = N'UCPath' AND incl.[LaborTransactionId] = u.[LaborTransactionId]
+            WHERE CAST(u.[PayPeriodEndDate] AS DATE) BETWEEN @cycleStart AND @cycleEnd
+              AND NULLIF(u.[JobCode], N'') IS NOT NULL
+              AND incl.[Included] = 1
+              AND incl.[FteSfn] IS NULL
+            GROUP BY u.[JobCode], u.[Entity], u.[Project], u.[Activity], u.[Fund], u.[FinancialDepartment],
+                     u.[EmployeeId], u.[EmployeeName]
+        )
         SELECT
-            u.[JobCode],
+            s.[JobCode],
             MAX(title.[Name]) AS [TitleName],
             MAX(title.[StaffTypeCode]) AS [StaffTypeCode],
             CASE
@@ -580,29 +611,18 @@ public sealed partial class ExpenseReviewService(
                 WHEN MAX(CASE WHEN staffType.[StaffTypeCode] IS NULL THEN 1 ELSE 0 END) = 1 THEN N'staffTypeNotFound'
                 ELSE N'staffTypeHasNoLine'
             END AS [Reason],
-            COUNT(1) AS [RowCount],
-            COUNT(DISTINCT u.[EmployeeId]) AS [EmployeeCount],
-            SUM(u.[Amount]) AS [Amount],
-            SUM(reported.[Fte]) AS [Fte]
-        FROM [data].[UcPathTransactions] u
-        JOIN [data].[v_TransactionInclusion] incl
-            ON incl.[Source] = N'UCPath' AND incl.[LaborTransactionId] = u.[LaborTransactionId]
-        CROSS APPLY
-        (
-            SELECT CASE WHEN incl.[ErnIncludeInReport] = 1 THEN COALESCE(u.[CalculatedFte], 0) ELSE 0 END AS [Fte]
-        ) reported
+            SUM(s.[RowCount]) AS [RowCount],
+            COUNT(DISTINCT s.[EmployeeId]) AS [EmployeeCount],
+            SUM(s.[Amount]) AS [Amount],
+            SUM(s.[Fte]) AS [Fte]
+        FROM SummaryRows s
         LEFT JOIN [data].[Titles] title
-            ON title.[TitleCode] = u.[JobCode]
+            ON title.[TitleCode] = s.[JobCode]
         LEFT JOIN [data].[StaffTypes] staffType
             ON staffType.[StaffTypeCode] = title.[StaffTypeCode]
-        WHERE CAST(u.[PayPeriodEndDate] AS DATE) BETWEEN @cycleStart AND @cycleEnd
-          AND NULLIF(u.[JobCode], N'') IS NOT NULL
-          AND incl.[Included] = 1
-          AND incl.[FteSfn] IS NULL
-        GROUP BY u.[JobCode]
-        HAVING SUM(reported.[Fte]) <> 0
-            OR SUM(CASE WHEN u.[Fund] = '13U02' THEN u.[Amount] ELSE 0 END) <> 0
-        ORDER BY SUM(reported.[Fte]) DESC, u.[JobCode];
+        GROUP BY s.[JobCode]
+        HAVING MAX(CASE WHEN s.[Amount] <> 0 AND (s.[Fte] <> 0 OR s.[Fund] = '13U02') THEN 1 ELSE 0 END) = 1
+        ORDER BY SUM(s.[Fte]) DESC, s.[JobCode];
         """;
 
     // Dropdown loading has its own compact projection; transaction queries retain the full one.

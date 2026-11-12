@@ -152,8 +152,10 @@ public sealed record UnmatchedJobCodesResponse(
 
 /// <summary>
 /// One UCPath job code inside the cycle window whose included rows have no FTESFN.
-/// Rows with no job code are left out. So are job codes with no reported FTE,
-/// unless they have State Appropriations (13U02) dollars that rule 220 could associate.
+/// Rows with no job code are left out. A job code is listed when at least one of its
+/// expense summary rows reports FTE or has State Appropriations (13U02) dollars, which
+/// rule 220 only associates on FTE line 241. Amount and Fte are totals for the job code,
+/// so either can be zero when summary rows offset each other.
 /// Reason is one of noTitle, titleHasNoStaffType, staffTypeNotFound, staffTypeHasNoLine.
 /// </summary>
 public sealed record UnmatchedJobCodeDto(

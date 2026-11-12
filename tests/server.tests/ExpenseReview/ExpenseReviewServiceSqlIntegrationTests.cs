@@ -665,6 +665,9 @@ public sealed partial class ExpenseReviewServiceSqlIntegrationTests(SqlServerDat
         notFound.RowCount.Should().Be(1);
 
         response.Rows.Should().NotContain(row => row.JobCode == "1234");
+
+        // 4460 is only on a row outside the cycle window.
+        response.Rows.Should().NotContain(row => row.JobCode == "4460");
     }
 
     [Fact]
@@ -717,8 +720,129 @@ public sealed partial class ExpenseReviewServiceSqlIntegrationTests(SqlServerDat
         // 4449's 13U02 dollars net to zero, so there is nothing to associate.
         response.Rows.Should().NotContain(row => row.JobCode == "4449");
 
-        // Codes with reported FTE still sort ahead of the zero FTE code.
+        // 4448 totals zero FTE, so it sorts after every code with FTE.
         response.Rows[^1].JobCode.Should().Be("4448");
+    }
+
+    [Fact]
+    public async Task Unmatched_job_codes_keep_job_codes_whose_dollars_or_fte_offset_across_summary_rows()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        await SeedUnmatchedJobCodeRowsAsync();
+        await SeedUnmatchedJobCodeRowsOnStateAppropriationsAsync();
+        await SeedUnmatchedJobCodeRowsOffsettingAcrossSummaryRowsAsync();
+
+        await using var db = fixture.CreateDataDbContext();
+        var service = new ExpenseReviewService(db, Configuration());
+
+        var response = await service.GetUnmatchedJobCodesAsync(Cycle(), CancellationToken.None);
+
+        // 4450 has +$25 for one PI and -$25 for another on 13U02. The build
+        // keeps one summary row per employee, so rule 220 would associate
+        // each one even though the job code nets to zero.
+        var offsettingDollars = response.Rows.Single(row => row.JobCode == "4450");
+        offsettingDollars.RowCount.Should().Be(2);
+        offsettingDollars.EmployeeCount.Should().Be(2);
+        offsettingDollars.Amount.Should().Be(0m);
+        offsettingDollars.Fte.Should().Be(0m);
+
+        // 4451 has +0.5 FTE for one employee and -0.5 for another. Each
+        // summary row carries its own FTE with no line.
+        var offsettingFte = response.Rows.Single(row => row.JobCode == "4451");
+        offsettingFte.RowCount.Should().Be(2);
+        offsettingFte.Amount.Should().Be(80m);
+        offsettingFte.Fte.Should().Be(0m);
+
+        // 13U02 dollars for one PI that offset across each of the other
+        // columns the build groups by: department, entity, project,
+        // activity, employee name and fund.
+        response.Rows.Select(row => row.JobCode).Should().Contain(["4454", "4455", "4456", "4457", "4458", "4459"]);
+
+        // 4452's FTE cancels inside one summary row, so no row reports FTE.
+        response.Rows.Should().NotContain(row => row.JobCode == "4452");
+
+        // 4453 has FTE but its dollars net to zero, so the build drops the
+        // summary row and its FTE with it.
+        response.Rows.Should().NotContain(row => row.JobCode == "4453");
+    }
+
+    [Fact]
+    public async Task Unmatched_job_codes_group_like_the_built_expense_summary()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        await SeedUnmatchedJobCodeRowsAsync();
+        await SeedUnmatchedJobCodeRowsExcludedFromReportAsync();
+        await SeedUnmatchedJobCodeRowsWithoutReportedFteAsync();
+        await SeedUnmatchedJobCodeRowsOnStateAppropriationsAsync();
+        await SeedUnmatchedJobCodeRowsOffsettingAcrossSummaryRowsAsync();
+
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        // BuildAutoAssociations needs an OrgR for every included row and a
+        // project list. Both PIs behind 4450's offsetting dollars get a project.
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[OrgRs] ([Code]) VALUES ('AAAA'), ('BBBB');
+
+            INSERT INTO [data].[OrgRFinancialDepartments] ([FinancialDepartment], [OrgR])
+            VALUES ('D1', 'AAAA'), ('D2', 'BBBB');
+
+            INSERT INTO [data].[Projects] ([AccessionNumber], [NifaProjectNumber], [Is204], [Sfn], [UcpEmployeeId])
+            VALUES
+                ('1000001', 'CA-D-ABC-1001-H', 0, '201', '30000013'),
+                ('1000002', 'CA-D-ABC-1002-H', 0, '201', '30000014');
+            """);
+
+        var cycle = Cycle();
+        var window = new { cycleStart = cycle.CycleStart.ToDateTime(TimeOnly.MinValue), cycleEnd = cycle.CycleEnd.ToDateTime(TimeOnly.MinValue) };
+        await connection.ExecuteAsync("EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd", window);
+
+        // The report regroups transactions itself, so this checks that its
+        // grouping agrees with the summary the build really produced: the same
+        // test (FTE, or on 13U02) applied to the built rows picks the same codes.
+        var expected = (await connection.QueryAsync<string>(
+            """
+            SELECT DISTINCT [JobCode]
+            FROM [data].[ExpenseSummary]
+            WHERE [Source] = N'UCPath'
+              AND [FteSfn] IS NULL
+              AND NULLIF([JobCode], N'') IS NOT NULL
+              AND ([Fte] <> 0 OR [Fund] = '13U02')
+            """)).ToList();
+
+        await using var db = fixture.CreateDataDbContext();
+        var service = new ExpenseReviewService(db, Configuration());
+        var response = await service.GetUnmatchedJobCodesAsync(cycle, CancellationToken.None);
+
+        expected.Should().Contain(["0000", "4448", "4450", "4451", "4454", "4455", "4456", "4457", "4458", "4459"]);
+        response.Rows.Select(row => row.JobCode).Should().BeEquivalentTo(expected);
+
+        // Why 4450 has to be listed: nothing of it is associated yet, and
+        // classifying it on FTE line 241 gives rule 220 a row for each PI.
+        const string staged4450Sql =
+            """
+            SELECT s.[EmployeeId], a.[Expenses]
+            FROM [data].[StagedAssociations] a
+            JOIN [data].[ExpenseSummary] s ON s.[ExpenseId] = a.[ExpenseId]
+            WHERE a.[Rule] = N'220' AND s.[JobCode] = '4450'
+            """;
+        (await connection.QueryAsync<(string EmployeeId, decimal Expenses)>(staged4450Sql)).Should().BeEmpty();
+
+        await connection.ExecuteAsync(
+            "INSERT INTO [data].[Titles] ([TitleCode], [StaffTypeCode], [Name]) VALUES ('4450', 'PROF', 'Now classified');");
+        await connection.ExecuteAsync("EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd", window);
+
+        (await connection.QueryAsync<(string EmployeeId, decimal Expenses)>(staged4450Sql)).Should().BeEquivalentTo(new[]
+        {
+            ("30000013", 25m),
+            ("30000014", -25m),
+        });
+
+        var afterClassifying = await service.GetUnmatchedJobCodesAsync(cycle, CancellationToken.None);
+        afterClassifying.Rows.Should().NotContain(row => row.JobCode == "4450");
     }
 
     [Fact]
@@ -889,6 +1013,8 @@ public sealed partial class ExpenseReviewServiceSqlIntegrationTests(SqlServerDat
                 ('JC-MISSING',        '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000005', 'POS5', NULL,   10, 10.00, 0.030000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
                 ('JC-BLANK',          '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000005', 'POS5', '',     10, 10.00, 0.030000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
                 ('JC-STAFF-TYPE-MISSING', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000006', 'POS6', '7777', 10, 10.00, 0.020000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                -- Out of window with no flag set: the cycle window alone must drop it.
+                ('JC-OUT-OF-WINDOW',  '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000025', 'POS25', '4460', 10, 10.00, 0.100000, '2023-11-15', 'S', 2024, '5', 0, 0, 0, 0),
                 -- Flagged rows are in window but already excluded; they must not count.
                 ('JC-NO-TITLE-DATE-FLAG',    '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000002', 'POS2', '0000', 10, 50.00, 0.500000, '2024-11-15', 'S', 2025, '5', 0, 0, 1, 0),
                 ('JC-NO-TITLE-ACCOUNT-FLAG', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000002', 'POS2', '0000', 10, 60.00, 0.600000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 1);
@@ -943,6 +1069,65 @@ public sealed partial class ExpenseReviewServiceSqlIntegrationTests(SqlServerDat
                 ('JC-STATE-ZERO-FTE',     '3310', '13U02', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000011', 'POS11', '4448', 0,  40.00, 0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
                 ('JC-STATE-NET-ZERO-A',   '3310', '13U02', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000012', 'POS12', '4449', 0,  25.00, 0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
                 ('JC-STATE-NET-ZERO-B',   '3310', '13U02', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000012', 'POS12', '4449', 0, -25.00, 0.000000, '2024-12-15', 'S', 2025, '6', 0, 0, 0, 0);
+            """);
+    }
+
+    // Unmatched job codes whose dollars or FTE net to zero across the job code
+    // but not inside each expense summary row. BuildAutoAssociations keeps one
+    // row per employee and chart string. Needs the 13U02 fund from
+    // SeedUnmatchedJobCodeRowsOnStateAppropriationsAsync.
+    private async Task SeedUnmatchedJobCodeRowsOffsettingAcrossSummaryRowsAsync()
+    {
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description], [IncludeInReport], [Sfn])
+            VALUES
+                ('FinancialDepartment', 'D2', 'Dept Two', 1, NULL),
+                ('Activity', 'AC2', 'Activity Two', 1, NULL);
+
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [PositionNumber], [JobCode],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
+            VALUES
+                -- 13U02 dollars that offset across two PIs.
+                ('JC-STATE-OFFSET-PI-A',  '3310', '13U02', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000013', 'POS13', '4450', 0,   25.00,  0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-STATE-OFFSET-PI-B',  '3310', '13U02', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000014', 'POS14', '4450', 0,  -25.00,  0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                -- FTE that offsets across two employees.
+                ('JC-FTE-OFFSET-EMP-A',   '3310', 'F1',    'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000015', 'POS15', '4451', 10,  50.00,  0.500000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-FTE-OFFSET-EMP-B',   '3310', 'F1',    'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000016', 'POS16', '4451', 10,  30.00, -0.500000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                -- FTE that offsets inside one summary row.
+                ('JC-FTE-OFFSET-SAME-A',  '3310', 'F1',    'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000017', 'POS17', '4452', 10,  50.00,  0.500000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-FTE-OFFSET-SAME-B',  '3310', 'F1',    'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000017', 'POS17', '4452', 10,  30.00, -0.500000, '2024-12-15', 'S', 2025, '6', 0, 0, 0, 0),
+                -- FTE on a summary row whose dollars net to zero.
+                ('JC-FTE-NO-DOLLARS-A',   '3310', 'F1',    'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000018', 'POS18', '4453', 10,  50.00,  0.500000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-FTE-NO-DOLLARS-B',   '3310', 'F1',    'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000018', 'POS18', '4453', 0,  -50.00,  0.000000, '2024-12-15', 'S', 2025, '6', 0, 0, 0, 0),
+                -- 13U02 dollars for one PI that offset across two departments.
+                ('JC-STATE-OFFSET-DEPT-A', '3310', '13U02', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000019', 'POS19', '4454', 0,   25.00,  0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-STATE-OFFSET-DEPT-B', '3310', '13U02', 'D2', 'D2', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000019', 'POS19', '4454', 0,  -25.00,  0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0);
+
+            -- 13U02 dollars for one PI that offset across each remaining column
+            -- the build groups by: entity, project, activity, employee name, fund.
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [EmployeeName], [PositionNumber], [JobCode],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
+            VALUES
+                ('JC-STATE-OFFSET-ENTITY-A',   '3310', '13U02', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000020', NULL,          'POS20', '4455', 0,  25.00, 0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-STATE-OFFSET-ENTITY-B',   '3320', '13U02', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000020', NULL,          'POS20', '4455', 0, -25.00, 0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-STATE-OFFSET-PROJECT-A',  '3310', '13U02', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000021', NULL,          'POS21', '4456', 0,  25.00, 0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-STATE-OFFSET-PROJECT-B',  '3310', '13U02', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR2', 'AC1', 'E01', '30000021', NULL,          'POS21', '4456', 0, -25.00, 0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-STATE-OFFSET-ACTIVITY-A', '3310', '13U02', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000022', NULL,          'POS22', '4457', 0,  25.00, 0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-STATE-OFFSET-ACTIVITY-B', '3310', '13U02', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC2', 'E01', '30000022', NULL,          'POS22', '4457', 0, -25.00, 0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-STATE-OFFSET-NAME-A',     '3310', '13U02', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000023', 'Name, Old',   'POS23', '4458', 0,  25.00, 0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-STATE-OFFSET-NAME-B',     '3310', '13U02', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000023', 'Name, New',   'POS23', '4458', 0, -25.00, 0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-STATE-OFFSET-FUND-A',     '3310', '13U02', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000024', NULL,          'POS24', '4459', 0,  25.00, 0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-STATE-OFFSET-FUND-B',     '3310', 'F1',    'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000024', NULL,          'POS24', '4459', 0, -25.00, 0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0);
             """);
     }
 
