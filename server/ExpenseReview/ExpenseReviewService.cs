@@ -565,7 +565,10 @@ public sealed partial class ExpenseReviewService(
     // skipped too: there is no code to classify.
     // FTE is the reported FTE, counted like BuildAutoAssociations: only on rows
     // whose ERN code is classified included. A job code whose reported FTE
-    // sums to zero is left out because classifying it changes no FTE line.
+    // sums to zero is left out because classifying it changes no FTE line,
+    // unless it has dollars on State Appropriations (13U02): rule 220 in
+    // AutoAssociationCandidates only associates those dollars on FTE line 241,
+    // so classifying the code can still move them.
     public const string UnmatchedJobCodesSql = """
         SELECT
             u.[JobCode],
@@ -598,6 +601,7 @@ public sealed partial class ExpenseReviewService(
           AND incl.[FteSfn] IS NULL
         GROUP BY u.[JobCode]
         HAVING SUM(reported.[Fte]) <> 0
+            OR SUM(CASE WHEN u.[Fund] = '13U02' THEN u.[Amount] ELSE 0 END) <> 0
         ORDER BY SUM(reported.[Fte]) DESC, u.[JobCode];
         """;
 

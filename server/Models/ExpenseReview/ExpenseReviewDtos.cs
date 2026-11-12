@@ -152,7 +152,8 @@ public sealed record UnmatchedJobCodesResponse(
 
 /// <summary>
 /// One UCPath job code inside the cycle window whose included rows have no FTESFN.
-/// Rows with no job code and job codes with no reported FTE are left out.
+/// Rows with no job code are left out. So are job codes with no reported FTE,
+/// unless they have State Appropriations (13U02) dollars that rule 220 could associate.
 /// Reason is one of noTitle, titleHasNoStaffType, staffTypeNotFound, staffTypeHasNoLine.
 /// </summary>
 public sealed record UnmatchedJobCodeDto(

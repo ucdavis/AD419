@@ -65,7 +65,7 @@ export const AUTO_ASSOCIATIONS_TABS: AutoAssociationsTab[] = [
   {
     id: 'job-codes',
     label: 'Unmatched job codes',
-    note: 'Payroll job codes with no SFN. Their dollars are included; their FTE cannot be reported until the title or staff type is classified.',
+    note: 'Payroll job codes with no SFN. Their dollars are included. Until the title or staff type is classified their FTE cannot be reported and their State Appropriations (13U02) dollars cannot be auto-associated.',
   },
 ];
 

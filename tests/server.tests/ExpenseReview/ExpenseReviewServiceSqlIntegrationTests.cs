@@ -694,6 +694,34 @@ public sealed partial class ExpenseReviewServiceSqlIntegrationTests(SqlServerDat
     }
 
     [Fact]
+    public async Task Unmatched_job_codes_keep_zero_fte_job_codes_with_state_appropriations_dollars()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedExpenseReviewScenarioAsync();
+        await SeedUnmatchedJobCodeRowsAsync();
+        await SeedUnmatchedJobCodeRowsOnStateAppropriationsAsync();
+
+        await using var db = fixture.CreateDataDbContext();
+        var service = new ExpenseReviewService(db, Configuration());
+
+        var response = await service.GetUnmatchedJobCodesAsync(Cycle(), CancellationToken.None);
+
+        // Rule 220 only associates 13U02 payroll dollars on FTE line 241, so
+        // classifying 4448 can move its $40 even though it reports no FTE.
+        var stateFunded = response.Rows.Single(row => row.JobCode == "4448");
+        stateFunded.Reason.Should().Be("noTitle");
+        stateFunded.RowCount.Should().Be(1);
+        stateFunded.Amount.Should().Be(40m);
+        stateFunded.Fte.Should().Be(0m);
+
+        // 4449's 13U02 dollars net to zero, so there is nothing to associate.
+        response.Rows.Should().NotContain(row => row.JobCode == "4449");
+
+        // Codes with reported FTE still sort ahead of the zero FTE code.
+        response.Rows[^1].JobCode.Should().Be("4448");
+    }
+
+    [Fact]
     public async Task Unmatched_job_codes_skip_job_codes_with_no_reported_fte()
     {
         await fixture.ClearDataTablesAsync();
@@ -888,6 +916,33 @@ public sealed partial class ExpenseReviewServiceSqlIntegrationTests(SqlServerDat
                 ('JC-ZERO-FTE',               '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000009', 'POS9', '4446', 0,  40.00, 0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
                 ('JC-EXCLUDED-ERN',           '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E09', '30000010', 'POS10', '4447', 10, 50.00, 0.400000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
                 ('JC-NO-STAFF-TYPE-EXCLUDED-ERN', '3310', 'F1', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E09', '30000003', 'POS3', '5678', 10, 60.00, 0.600000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0);
+            """);
+    }
+
+    // Unmatched job codes with no reported FTE on State Appropriations (13U02),
+    // the fund rule 220 associates by FTE line.
+    private async Task SeedUnmatchedJobCodeRowsOnStateAppropriationsAsync()
+    {
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[Sfns] ([Sfn], [Label])
+            VALUES ('220', 'State Appropriations');
+
+            INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description], [IncludeInReport], [Sfn])
+            VALUES ('Fund', '13U02', 'State Appropriations', 1, '220');
+
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [PositionNumber], [JobCode],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
+            VALUES
+                ('JC-STATE-ZERO-FTE',     '3310', '13U02', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000011', 'POS11', '4448', 0,  40.00, 0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-STATE-NET-ZERO-A',   '3310', '13U02', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000012', 'POS12', '4449', 0,  25.00, 0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-STATE-NET-ZERO-B',   '3310', '13U02', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000012', 'POS12', '4449', 0, -25.00, 0.000000, '2024-12-15', 'S', 2025, '6', 0, 0, 0, 0);
             """);
     }
 
