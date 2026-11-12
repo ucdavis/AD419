@@ -1,8 +1,10 @@
 import type { AutoAssociationBuild } from '@/queries/autoAssociations.ts';
 
 export type AutoAssociationsTabId =
+  | 'rule-201'
+  | 'rule-202'
   | 'rule-204'
-  | 'rule-20x'
+  | 'rule-205'
   | 'rule-220'
   | 'excluded'
   | 'fte'
@@ -15,16 +17,30 @@ export interface AutoAssociationsTab {
   note: string;
 }
 
+// The SFNs that share the follow-the-PI rule and one report endpoint.
+export type PiRuleSfn = '201' | '202' | '205';
+
+// SFN tabs come first, in numeric order.
 export const AUTO_ASSOCIATIONS_TABS: AutoAssociationsTab[] = [
+  {
+    id: 'rule-201',
+    label: '201',
+    note: 'Expenses on Hatch funds follow the PI and are prorated equally across the PI’s 201 projects.',
+  },
+  {
+    id: 'rule-202',
+    label: '202',
+    note: 'Expenses on Multi-State funds follow the PI and are prorated equally across the PI’s 202 projects.',
+  },
   {
     id: 'rule-204',
     label: '204',
     note: 'Expenses on a 204 AE project go to that project. The remainder shows 204 expenses no rule could place, including misclassified rows.',
   },
   {
-    id: 'rule-20x',
-    label: '201 / 202 / 205',
-    note: 'Expenses on Hatch, Multi-State and Animal Health funds follow the PI and are prorated equally across the PI’s projects of the same SFN.',
+    id: 'rule-205',
+    label: '205',
+    note: 'Expenses on Animal Health funds follow the PI and are prorated equally across the PI’s 205 projects.',
   },
   {
     id: 'rule-220',
@@ -49,7 +65,7 @@ export const AUTO_ASSOCIATIONS_TABS: AutoAssociationsTab[] = [
   {
     id: 'job-codes',
     label: 'Unmatched job codes',
-    note: 'Payroll job codes with no FTE line. Their dollars are included; their FTE cannot be reported until the title or staff type is classified.',
+    note: 'Payroll job codes with no SFN. Their dollars are included. Until the title or staff type is classified their FTE cannot be reported and their State Appropriations (13U02) dollars cannot be auto-associated.',
   },
 ];
 

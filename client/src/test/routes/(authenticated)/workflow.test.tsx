@@ -1278,11 +1278,12 @@ describe('AD419 workflow routes', () => {
           fiscalYear: 'FY25',
         })
       ),
-      http.get('/api/autoassociations/rule-204', () =>
+      // 201 is the first tab, so its report loads with the stage.
+      http.get('/api/autoassociations/rule-20x', () =>
         HttpResponse.json({
           cycleEnd: '2025-09-30',
           cycleStart: '2024-10-01',
-          data: { misclassified: [], projects: [], unassociated: [] },
+          data: { sfns: [], unassociated: [] },
           fiscalYear: 'FY25',
         })
       )

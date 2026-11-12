@@ -23,19 +23,14 @@ export function Rule204Tab() {
         filename="auto-associations-204.csv"
         title="Associated 204 projects"
       />
+      {/* Misclassified rows should not exist (the inclusion rule drops them
+          before the build); if one ever does, it shows here with its reason. */}
       <ReportSection
         columns={unassociatedColumns}
         csv={unassociatedCsv}
-        data={data.unassociated.filter((row) => row.reason !== 'Misclassified204')}
+        data={data.unassociated}
         filename="auto-associations-204-unassociated.csv"
-        title="Not associated (misclassified rows are listed separately)"
-      />
-      <ReportSection
-        columns={unassociatedColumns}
-        csv={unassociatedCsv}
-        data={data.misclassified}
-        filename="auto-associations-204-misclassified.csv"
-        title="Misclassified 204 expenses (read only)"
+        title="Not associated"
       />
     </div>
   );

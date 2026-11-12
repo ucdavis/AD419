@@ -7,16 +7,22 @@ import {
 } from '@/components/autoAssociations/autoAssociationsTabs.ts';
 
 describe('autoAssociationsTabs', () => {
-  it('lists every report tab once', () => {
+  it('lists every report tab once, SFN tabs first in numeric order', () => {
     expect(AUTO_ASSOCIATIONS_TABS.map((tab) => tab.id)).toEqual([
+      'rule-201',
+      'rule-202',
       'rule-204',
-      'rule-20x',
+      'rule-205',
       'rule-220',
       'excluded',
       'fte',
       'totals',
       'job-codes',
     ]);
+  });
+
+  it('labels each SFN tab with its own number', () => {
+    expect(AUTO_ASSOCIATIONS_TABS.slice(0, 5).map((tab) => tab.label)).toEqual(['201', '202', '204', '205', '220']);
   });
 
   it('opens the gate only when a build exists', () => {
