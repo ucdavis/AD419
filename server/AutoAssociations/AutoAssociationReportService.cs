@@ -289,6 +289,36 @@ public sealed class AutoAssociationReportService(
         return rows.ToList();
     }
 
+    // PI payroll that v_TransactionSfn moved from FTE line 242 to 241. The
+    // summary stores only the adjusted line, so a moved row is one on 241
+    // whose title's staff type line is 242; the PI rule is the only way that
+    // happens. Review only.
+    public async Task<IReadOnlyList<PiFteAdjustmentDto>> GetPiFteAdjustmentsAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        // Column order matches the record's constructor; Dapper maps by position.
+        var rows = await connection.QueryAsync<PiFteAdjustmentDto>(Command(
+            """
+            SELECT
+                e.[EmployeeId],
+                MAX(e.[EmployeeName]) AS [EmployeeName],
+                e.[JobCode],
+                MAX(ti.[Name]) AS [TitleName],
+                st.[FteSfn] AS [TitleFteSfn],
+                e.[FteSfn],
+                SUM(e.[Expenses]) AS [Expenses],
+                SUM(e.[Fte]) AS [Fte],
+                COUNT(*) AS [RowCount]
+            FROM [data].[ExpenseSummary] e
+            JOIN [data].[Titles] ti ON ti.[TitleCode] = e.[JobCode]
+            JOIN [data].[StaffTypes] st ON st.[StaffTypeCode] = ti.[StaffTypeCode]
+            WHERE e.[FteSfn] = '241' AND st.[FteSfn] = '242'
+            GROUP BY e.[EmployeeId], e.[JobCode], st.[FteSfn], e.[FteSfn]
+            ORDER BY MAX(e.[EmployeeName]), e.[EmployeeId], e.[JobCode]
+            """, cancellationToken));
+        return rows.ToList();
+    }
+
     public async Task<IReadOnlyList<PreAssociationTotalDto>> GetPreAssociationTotalsAsync(CancellationToken cancellationToken)
     {
         await using var connection = await OpenAsync(cancellationToken);
