@@ -292,7 +292,8 @@ public sealed class AutoAssociationReportService(
     // PI payroll that v_TransactionSfn moved from FTE line 242 to 241. The
     // summary stores only the adjusted line, so a moved row is one on 241
     // whose title's staff type line is 242; the PI rule is the only way that
-    // happens. Review only.
+    // happens, as long as Titles and StaffTypes are unchanged since the
+    // build. Review only.
     public async Task<IReadOnlyList<PiFteAdjustmentDto>> GetPiFteAdjustmentsAsync(CancellationToken cancellationToken)
     {
         await using var connection = await OpenAsync(cancellationToken);

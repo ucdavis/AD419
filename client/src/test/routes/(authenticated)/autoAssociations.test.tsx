@@ -383,6 +383,10 @@ describe('Auto-Associations stage', () => {
 
       await user.click(screen.getByRole('tab', { name: 'PI FTE to 241' }));
       expect(await screen.findByText('Specialist')).toBeInTheDocument();
+      // The list covers every fund, so the note must not promise proration for all of it.
+      expect(screen.getByRole('note')).toHaveTextContent(
+        'Any State Appropriations (13U02) payroll they have can then be prorated across their projects.'
+      );
       expect(screen.getByText('3300')).toBeInTheDocument();
       expect(screen.getByText('242')).toBeInTheDocument();
       expect(screen.getByText('$140.00')).toBeInTheDocument();

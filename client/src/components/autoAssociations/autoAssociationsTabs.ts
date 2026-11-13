@@ -61,7 +61,7 @@ export const AUTO_ASSOCIATIONS_TABS: AutoAssociationsTab[] = [
   {
     id: 'pi-fte',
     label: 'PI FTE to 241',
-    note: 'PIs whose title puts their payroll on FTE line 242 (Professional Support). It is reported on 241 (Scientist) instead, so their State Appropriations (13U02) payroll is prorated across their projects. Review only.',
+    note: 'PIs whose title puts their payroll on FTE line 242 (Professional Support). It is reported on 241 (Scientist) instead. Any State Appropriations (13U02) payroll they have can then be prorated across their projects. Review only.',
   },
   {
     id: 'totals',
