@@ -26,7 +26,8 @@ public sealed class AssistantController(IServiceProvider services) : ApiControll
         var definition = new CaesAiSessionDefinition(
             entraId.ToString(),
             ExpenseReviewAssistant.Instructions,
-            ExpenseReviewToolManifest.Build());
+            ExpenseReviewToolManifest.Build(),
+            McpServers: ["github"]);
 
         try
         {

@@ -92,6 +92,14 @@ With the server, Vite, and the tunnel running, sign in as an authorized user and
 
 Then ask “show all expenses” and verify the assistant asks which filter to apply. Choose a filter and verify the table loads. Ask “clear filters” and verify the idle prompt returns, the table and counts disappear, and CSV export is disabled even when results are cached.
 
+## Reading the code
+
+The assistant opts in to CAES AI's read-only GitHub tools by sending `mcpServers: ["github"]` when it creates a session. It uses them to read the public `ucdavis/AD419` repository and explain the rules behind the data, such as why a row is excluded or how an SFN is derived. The code it reads comes from `main`, which can be slightly ahead of what is deployed.
+
+The CAES AI instance must have `CAES_AI_GITHUB_MCP_TOKEN` set. Without it, CAES AI rejects session creation and the whole assistant reports that it is unavailable, not only the GitHub tools. ad419 needs no setting of its own for this.
+
+To check it, ask "how is the SFN worked out for a fund classified as Multiple". The details row should show a `github_get_file_contents` call, and the answer should explain the rule in plain terms with no link. Then ask for the source and verify the answer ends with a note for the developers that links the file.
+
 ## Dropdown caching
 
 The assistant and expense-review dropdowns share one cycle-wide index. A successful build expires ten minutes after completion. Concurrent requests share the same build; canceled callers stop waiting without canceling the shared SQL work, and a failed build can be retried.
