@@ -102,6 +102,20 @@ export interface FteOverOne {
   rowCount: number;
 }
 
+// PI payroll the FTE line rule moved: titleFteSfn is the line the title gives
+// (242), fteSfn the line it reports on (241).
+export interface PiFteAdjustment {
+  employeeId: string;
+  employeeName: string | null;
+  expenses: number;
+  fte: number;
+  fteSfn: string;
+  jobCode: string;
+  rowCount: number;
+  titleFteSfn: string;
+  titleName: string | null;
+}
+
 export interface PreAssociationTotal {
   expenses: number;
   expenseSfn: string | null;
@@ -135,6 +149,7 @@ export const AUTO_ASSOCIATIONS_KEYS = {
   excluded: ['autoAssociations', 'excluded'] as const,
   fte: ['autoAssociations', 'fte'] as const,
   jobCodes: ['autoAssociations', 'jobCodes'] as const,
+  piFte: ['autoAssociations', 'piFte'] as const,
   rule204: ['autoAssociations', 'rule204'] as const,
   rule20x: ['autoAssociations', 'rule20x'] as const,
   rule220: ['autoAssociations', 'rule220'] as const,
@@ -177,6 +192,12 @@ export const fteOverOneQueryOptions = () =>
   queryOptions({
     queryFn: () => report<FteOverOne[]>('/api/autoassociations/fte-over-one'),
     queryKey: AUTO_ASSOCIATIONS_KEYS.fte,
+  });
+
+export const piFteAdjustmentsQueryOptions = () =>
+  queryOptions({
+    queryFn: () => report<PiFteAdjustment[]>('/api/autoassociations/pi-fte-adjustments'),
+    queryKey: AUTO_ASSOCIATIONS_KEYS.piFte,
   });
 
 export const preAssociationTotalsQueryOptions = () =>
