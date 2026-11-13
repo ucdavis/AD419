@@ -19,8 +19,12 @@ public sealed record SetOrgRRequest(string? OrgR);
 
 public sealed record OrgRNifaDepartmentDto(string NifaDepartment, string? OrgR, int ProjectCount);
 
-/// <summary>A PI who can be given an appointment. ProjectCount leaves out 204 projects, which appointments never move.</summary>
-public sealed record PiDto(string UcpEmployeeId, string Name, int ProjectCount);
+/// <summary>
+/// A PI who can be given an appointment. ProjectCount leaves out 204 projects,
+/// which appointments never move. HomeOrgRs are the default OrgRs of the
+/// counted projects.
+/// </summary>
+public sealed record PiDto(string UcpEmployeeId, string Name, int ProjectCount, IReadOnlyList<string> HomeOrgRs);
 
 /// <summary>
 /// HomeOrgRs are the default OrgRs of the PI's non-204 projects. ProjectCount

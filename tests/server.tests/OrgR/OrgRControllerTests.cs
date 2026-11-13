@@ -597,9 +597,14 @@ public class OrgRControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task GetPis_lists_each_pi_once_with_their_non_204_project_count()
+    public async Task GetPis_lists_each_pi_once_with_their_non_204_project_count_and_home_orgrs()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
+        db.OrgRs.Add(new OrgR { Code = "ANUT" });
+        // ARE has no OrgR yet, so Doe has no home OrgR to show.
+        db.OrgRNifaDepartments.AddRange(
+            new OrgRNifaDepartment { NifaDepartment = "NTR", OrgR = "ANUT" },
+            new OrgRNifaDepartment { NifaDepartment = "ARE", OrgR = null });
         db.Projects.AddRange(
             new Project { AccessionNumber = "1000001", NifaProjectNumber = "CA-D-NTR-2868-H", Sfn = "201", UcpEmployeeId = "10000001", ProjectDirector = "Slupsky, Carolyn" },
             new Project { AccessionNumber = "1000004", NifaProjectNumber = "CA-D-NTR-2900-RR", Sfn = "202", UcpEmployeeId = "10000001", ProjectDirector = "Slupsky, Carolyn" },
@@ -617,8 +622,8 @@ public class OrgRControllerTests : IDisposable
         dtos.Should().BeEquivalentTo(
             new[]
             {
-                new PiDto("10000002", "Doe, Jane", 1),
-                new PiDto("10000001", "Slupsky, Carolyn", 2),
+                new PiDto("10000002", "Doe, Jane", 1, Array.Empty<string>()),
+                new PiDto("10000001", "Slupsky, Carolyn", 2, new[] { "ANUT" }),
             },
             options => options.WithStrictOrdering());
     }

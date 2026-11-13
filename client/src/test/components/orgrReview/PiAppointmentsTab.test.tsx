@@ -17,8 +17,8 @@ function renderTab() {
 }
 
 const pis: Pi[] = [
-  { name: 'Doe, Jane', projectCount: 1, ucpEmployeeId: '10000002' },
-  { name: 'Slupsky, Carolyn', projectCount: 2, ucpEmployeeId: '10000001' },
+  { homeOrgRs: ['AARE'], name: 'Doe, Jane', projectCount: 1, ucpEmployeeId: '10000002' },
+  { homeOrgRs: ['ANUT'], name: 'Slupsky, Carolyn', projectCount: 2, ucpEmployeeId: '10000001' },
 ];
 
 const appointments: PiAppointment[] = [
@@ -100,7 +100,7 @@ describe('PiAppointmentsTab', () => {
     expect(add).toBeDisabled();
   });
 
-  it('lists appointments with their home OrgR and removes one', async () => {
+  it('lists appointments with their default and additional OrgR and removes one', async () => {
     const { deletes } = mockApi();
     const user = userEvent.setup();
     renderTab();
@@ -114,6 +114,22 @@ describe('PiAppointmentsTab', () => {
       within(row).getByRole('button', { name: 'Remove Slupsky, Carolyn from AFST' })
     );
     await waitFor(() => expect(deletes).toEqual(['10000001/AFST']));
+  });
+
+  it('lists PIs with an additional OrgR first, then PIs with only a default OrgR', async () => {
+    mockApi();
+    renderTab();
+
+    const section = await screen.findByRole('region', { name: 'PI appointments' });
+    const [, first, second] = within(section).getAllByRole('row');
+    expect(within(first).getByText('Slupsky, Carolyn')).toBeInTheDocument();
+    expect(within(first).getByText('AFST')).toBeInTheDocument();
+
+    // Doe sorts ahead of Slupsky by name but has a single appointment.
+    expect(within(second).getByText('Doe, Jane')).toBeInTheDocument();
+    expect(within(second).getByText('AARE')).toBeInTheDocument();
+    expect(within(second).queryByRole('button')).not.toBeInTheDocument();
+    expect(within(section).getAllByRole('row')).toHaveLength(3);
   });
 
   it('has no per project placement list or controls', async () => {

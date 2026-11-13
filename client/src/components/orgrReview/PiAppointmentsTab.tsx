@@ -14,12 +14,14 @@ import { ExportDataButton } from '@/shared/exportDataButton.tsx';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 
-interface AppointmentRow {
-  homeOrgR: string;
+// One row per appointment, then one row per PI who has none. additionalOrgR
+// and skipped204Count are null on a PI with only their default OrgR.
+interface PiRow {
+  additionalOrgR: string | null;
+  defaultOrgR: string;
   name: string;
-  orgR: string;
   projectCount: number;
-  skipped204Count: number;
+  skipped204Count: number | null;
   ucpEmployeeId: string;
 }
 
@@ -63,14 +65,29 @@ export function PiAppointmentsTab() {
     );
   };
 
-  const rows: AppointmentRow[] = appointments.map((appointment) => ({
-    homeOrgR: appointment.homeOrgRs.join(', '),
-    name: appointment.name,
-    orgR: appointment.orgR,
-    projectCount: appointment.projectCount,
-    skipped204Count: appointment.skipped204Count,
-    ucpEmployeeId: appointment.ucpEmployeeId,
-  }));
+  // PIs with an additional OrgR lead the list; everyone else follows with
+  // only their default OrgR. Both lists arrive sorted by name.
+  const appointed = new Set(appointments.map((appointment) => appointment.ucpEmployeeId));
+  const rows: PiRow[] = [
+    ...appointments.map((appointment) => ({
+      additionalOrgR: appointment.orgR,
+      defaultOrgR: appointment.homeOrgRs.join(', '),
+      name: appointment.name,
+      projectCount: appointment.projectCount,
+      skipped204Count: appointment.skipped204Count,
+      ucpEmployeeId: appointment.ucpEmployeeId,
+    })),
+    ...pis
+      .filter((pi) => !appointed.has(pi.ucpEmployeeId))
+      .map((pi) => ({
+        additionalOrgR: null,
+        defaultOrgR: pi.homeOrgRs.join(', '),
+        name: pi.name,
+        projectCount: pi.projectCount,
+        skipped204Count: null,
+        ucpEmployeeId: pi.ucpEmployeeId,
+      })),
+  ];
 
   // The employee ID is part of what the search matches, so either works.
   const piOptions = pis.map((pi) => ({
@@ -78,31 +95,37 @@ export function PiAppointmentsTab() {
     value: pi.ucpEmployeeId,
   }));
 
-  const columns: ColumnDef<AppointmentRow>[] = [
+  const columns: ColumnDef<PiRow>[] = [
     { accessorKey: 'name', header: 'PI' },
     { accessorKey: 'ucpEmployeeId', header: 'Employee ID' },
-    { accessorKey: 'homeOrgR', header: 'Home OrgR' },
-    { accessorKey: 'orgR', header: 'Added OrgR' },
+    { accessorKey: 'defaultOrgR', header: 'Default OrgR' },
+    { accessorKey: 'additionalOrgR', header: 'Additional OrgR' },
     { accessorKey: 'projectCount', header: 'Projects' },
     { accessorKey: 'skipped204Count', header: '204 Projects Skipped' },
     {
-      cell: ({ row }) => (
-        <button
-          aria-label={`Remove ${row.original.name} from ${row.original.orgR}`}
-          className="btn btn-ghost btn-xs text-error"
-          disabled={remove.isPending}
-          onClick={() => {
-            setError(null);
-            remove.mutate(
-              { orgR: row.original.orgR, ucpEmployeeId: row.original.ucpEmployeeId },
-              { onError: (err) => setError(apiErrorMessage(err, 'Could not remove the appointment.')) }
-            );
-          }}
-          type="button"
-        >
-          Remove
-        </button>
-      ),
+      cell: ({ row }) => {
+        const { additionalOrgR, name, ucpEmployeeId } = row.original;
+        if (additionalOrgR === null) {
+          return null;
+        }
+        return (
+          <button
+            aria-label={`Remove ${name} from ${additionalOrgR}`}
+            className="btn btn-ghost btn-xs text-error"
+            disabled={remove.isPending}
+            onClick={() => {
+              setError(null);
+              remove.mutate(
+                { orgR: additionalOrgR, ucpEmployeeId },
+                { onError: (err) => setError(apiErrorMessage(err, 'Could not remove the appointment.')) }
+              );
+            }}
+            type="button"
+          >
+            Remove
+          </button>
+        );
+      },
       header: '',
       id: 'actions',
     },
@@ -162,8 +185,8 @@ export function PiAppointmentsTab() {
               columns={[
                 { header: 'PI', key: 'name' },
                 { header: 'Employee ID', key: 'ucpEmployeeId' },
-                { header: 'Home OrgR', key: 'homeOrgR' },
-                { header: 'Added OrgR', key: 'orgR' },
+                { header: 'Default OrgR', key: 'defaultOrgR' },
+                { header: 'Additional OrgR', key: 'additionalOrgR' },
                 { header: 'Projects', key: 'projectCount' },
                 { header: '204 Projects Skipped', key: 'skipped204Count' },
               ]}
