@@ -6,6 +6,7 @@ import {
 } from './autoAssociationsTabs.ts';
 import { ExcludedProjectsTab } from './ExcludedProjectsTab.tsx';
 import { FteOverOneTab } from './FteOverOneTab.tsx';
+import { PiFteAdjustmentsTab } from './PiFteAdjustmentsTab.tsx';
 import { PreAssociationTotalsTab } from './PreAssociationTotalsTab.tsx';
 import { Rule20xTab } from './Rule20xTab.tsx';
 import { Rule204Tab } from './Rule204Tab.tsx';
@@ -106,6 +107,8 @@ export function AutoAssociationsStage({ status }: { status: WorkflowStageStatus 
             <ExcludedProjectsTab />
           ) : activeId === 'fte' ? (
             <FteOverOneTab />
+          ) : activeId === 'pi-fte' ? (
+            <PiFteAdjustmentsTab />
           ) : activeId === 'totals' ? (
             <PreAssociationTotalsTab />
           ) : (

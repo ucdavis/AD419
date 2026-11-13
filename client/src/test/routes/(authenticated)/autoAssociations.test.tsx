@@ -206,6 +206,23 @@ function mockApi(options: { completeFails?: boolean; failingReport?: boolean; ha
         envelope([{ employeeId: 'E1', employeeName: 'PI One', fte: 1.3, rowCount: 3 }])
       )
     ),
+    http.get('/api/autoassociations/pi-fte-adjustments', () =>
+      HttpResponse.json(
+        envelope([
+          {
+            employeeId: 'E2',
+            employeeName: 'PI Two',
+            expenses: 140,
+            fte: 0.14,
+            fteSfn: '241',
+            jobCode: '3300',
+            rowCount: 2,
+            titleFteSfn: '242',
+            titleName: 'Specialist',
+          },
+        ])
+      )
+    ),
     http.get('/api/autoassociations/pre-association-totals', () =>
       HttpResponse.json(
         envelope([
@@ -364,11 +381,38 @@ describe('Auto-Associations stage', () => {
       await user.click(screen.getByRole('tab', { name: 'FTE over 1.0' }));
       expect(await screen.findByText('1.300')).toBeInTheDocument();
 
+      await user.click(screen.getByRole('tab', { name: 'PI FTE to 241' }));
+      expect(await screen.findByText('Specialist')).toBeInTheDocument();
+      // The list covers every fund, so the note must not promise proration for all of it.
+      expect(screen.getByRole('note')).toHaveTextContent(
+        'Any State Appropriations (13U02) payroll they have can then be prorated across their projects.'
+      );
+      expect(screen.getByText('3300')).toBeInTheDocument();
+      expect(screen.getByText('242')).toBeInTheDocument();
+      expect(screen.getByText('$140.00')).toBeInTheDocument();
+
       await user.click(screen.getByRole('tab', { name: 'Pre-association totals' }));
       expect(await screen.findByText('Dept One')).toBeInTheDocument();
 
       await user.click(screen.getByRole('tab', { name: 'Unmatched job codes' }));
       expect(await screen.findByText('9999')).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('shows an empty PI FTE table when nobody moved', async () => {
+    mockApi({ hasBuild: true });
+    server.use(
+      http.get('/api/autoassociations/pi-fte-adjustments', () => HttpResponse.json(envelope([])))
+    );
+    const user = userEvent.setup();
+    const { cleanup } = renderRoute({ initialPath: '/workflow/auto-associations' });
+
+    try {
+      await user.click(await screen.findByRole('tab', { name: 'PI FTE to 241' }));
+      expect(await screen.findByRole('heading', { name: 'PI payroll moved to line 241' })).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     } finally {
       cleanup();
     }

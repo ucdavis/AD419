@@ -26,6 +26,12 @@ AS
 -- missing link is NULL. Fringe rows carry the backfilled job code so they
 -- resolve like their salary rows. AE rows are always NULL.
 --
+-- PI rule: when the title's line is 242 (Professional Support) and the
+-- employee is the PI of record on any project in the cycle project list
+-- (data.Projects.UcpEmployeeId), the line is 241 (Scientist). This is last
+-- year's sp_Adjust241FTE without the self certify title code list. Projects
+-- excluded under $100 still count. No other line is adjusted.
+--
 -- LaborTransactionId and AeTransactionId carry the native keys so consumers
 -- can join on an indexed column; TransactionId is the text form shared with
 -- v_TransactionOrgR.
@@ -56,6 +62,12 @@ PgmAwardSfn AS
     GROUP BY [ProjectNumber]
     HAVING COUNT(DISTINCT [PgmSfn]) = 1
 ),
+ProjectPis AS
+(
+    SELECT DISTINCT [UcpEmployeeId]
+    FROM [data].[Projects]
+    WHERE [UcpEmployeeId] IS NOT NULL
+),
 Transactions AS
 (
     SELECT
@@ -64,7 +76,8 @@ Transactions AS
         u.[LaborTransactionId] AS [LaborTransactionId], CAST(NULL AS BIGINT) AS [AeTransactionId],
         u.[Fund],
         u.[Project],
-        u.[JobCode]
+        u.[JobCode],
+        u.[EmployeeId]
     FROM [data].[UcPathTransactions] u
 
     UNION ALL
@@ -75,7 +88,8 @@ Transactions AS
         CAST(NULL AS NVARCHAR(125)) AS [LaborTransactionId], a.[Id] AS [AeTransactionId],
         a.[Fund],
         a.[Project],
-        CAST(NULL AS NVARCHAR(4)) AS [JobCode]
+        CAST(NULL AS NVARCHAR(4)) AS [JobCode],
+        CAST(NULL AS NVARCHAR(10)) AS [EmployeeId]
     FROM [data].[AETransactions] a
 )
 SELECT
@@ -96,7 +110,11 @@ SELECT
         WHEN fs.[Sfn] = 'Multiple' AND pa.[Sfn] IS NOT NULL  THEN N'PgmAward'
         ELSE NULL
     END AS NVARCHAR(20)) AS [ExpenseSfnSource],
-    CAST(CASE WHEN t.[Source] = N'UCPath' THEN st.[FteSfn] END AS NVARCHAR(10)) AS [FteSfn]
+    CAST(CASE
+        WHEN t.[Source] <> N'UCPath'                                 THEN NULL
+        WHEN st.[FteSfn] = '242' AND pis.[UcpEmployeeId] IS NOT NULL THEN '241'
+        ELSE st.[FteSfn]
+    END AS NVARCHAR(10)) AS [FteSfn]
 FROM Transactions t
 LEFT JOIN FundSfn fs
     ON fs.[Fund] = t.[Fund]
@@ -107,4 +125,6 @@ LEFT JOIN PgmAwardSfn pa
 LEFT JOIN [data].[Titles] ti
     ON t.[Source] = N'UCPath' AND ti.[TitleCode] = t.[JobCode]
 LEFT JOIN [data].[StaffTypes] st
-    ON st.[StaffTypeCode] = ti.[StaffTypeCode];
+    ON st.[StaffTypeCode] = ti.[StaffTypeCode]
+LEFT JOIN ProjectPis pis
+    ON t.[Source] = N'UCPath' AND pis.[UcpEmployeeId] = t.[EmployeeId];
