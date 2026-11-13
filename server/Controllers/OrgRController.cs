@@ -43,9 +43,7 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
         // NIFA projects per OrgR: distinct accessions that land on the OrgR
         // through the NIFA department mapping or a PI appointment, the same
         // union [data].[v_ProjXOrgR] exposes.
-        var nifaMap = await db.OrgRNifaDepartments
-            .Where(m => m.OrgR != null)
-            .ToDictionaryAsync(m => m.NifaDepartment, m => m.OrgR!, cancellationToken);
+        var nifaMap = await LoadNifaMapAsync(cancellationToken);
         var projectPairs = await db.Projects
             .Select(p => new { p.AccessionNumber, p.NifaProjectNumber, p.UcpEmployeeId, p.Sfn })
             .Distinct()
@@ -327,9 +325,15 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
         var projects = await LoadPiProjectsAsync(cancellationToken);
         var nifaMap = await LoadNifaMapAsync(cancellationToken);
         var dtos = projects
-            .Where(p => p.Sfn != Sfn204)
             .GroupBy(p => p.UcpEmployeeId)
-            .Select(g => new PiDto(g.Key, PiNameOf(g, g.Key), g.Count(), HomeOrgRsOf(g, nifaMap)))
+            .Select(g => new { Pi = g, Placed = g.Where(p => p.Sfn != Sfn204).ToList() })
+            .Where(x => x.Placed.Count > 0)
+            .Select(x => new PiDto(
+                x.Pi.Key,
+                PiNameOf(x.Pi, x.Pi.Key),
+                x.Placed.Count,
+                x.Pi.Count() - x.Placed.Count,
+                HomeOrgRsOf(x.Placed, nifaMap)))
             .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
             .ThenBy(d => d.UcpEmployeeId)
             .ToList();

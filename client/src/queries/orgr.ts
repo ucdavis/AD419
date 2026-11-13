@@ -35,6 +35,8 @@ export interface Pi {
   homeOrgRs: string[];
   name: string;
   projectCount: number;
+  // The PI's 204 projects, which an appointment would leave in place.
+  skipped204Count: number;
   ucpEmployeeId: string;
 }
 

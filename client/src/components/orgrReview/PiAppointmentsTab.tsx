@@ -15,13 +15,14 @@ import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 
 // One row per appointment, then one row per PI who has none. additionalOrgR
-// and skipped204Count are null on a PI with only their default OrgR.
+// is undefined, not null, on a PI with only their default OrgR: the table
+// only knows how to sort undefined values to the end.
 interface PiRow {
-  additionalOrgR: string | null;
+  additionalOrgR: string | undefined;
   defaultOrgR: string;
   name: string;
   projectCount: number;
-  skipped204Count: number | null;
+  skipped204Count: number;
   ucpEmployeeId: string;
 }
 
@@ -30,10 +31,16 @@ function projectLabel(count: number): string {
 }
 
 export function PiAppointmentsTab() {
-  const { data: pis = [], isLoading: pisLoading } = useQuery(pisQueryOptions());
-  const { data: appointments = [], isLoading: appointmentsLoading } = useQuery(
-    piAppointmentsQueryOptions()
-  );
+  const {
+    data: pis = [],
+    isError: pisFailed,
+    isLoading: pisLoading,
+  } = useQuery(pisQueryOptions());
+  const {
+    data: appointments = [],
+    isError: appointmentsFailed,
+    isLoading: appointmentsLoading,
+  } = useQuery(piAppointmentsQueryOptions());
   const { data: orgRs = [] } = useQuery(orgRsQueryOptions());
   const add = useAddPiAppointment();
   const remove = useRemovePiAppointment();
@@ -45,6 +52,15 @@ export function PiAppointmentsTab() {
 
   if (pisLoading || appointmentsLoading) {
     return <p role="status">Loading PI appointments...</p>;
+  }
+
+  // The table and its export need both lists; half of them would look complete.
+  if (pisFailed || appointmentsFailed) {
+    return (
+      <div className="alert alert-error" role="alert">
+        <span>Could not load PI appointments. Reload the page to try again.</span>
+      </div>
+    );
   }
 
   const handleAdd = () => {
@@ -80,11 +96,11 @@ export function PiAppointmentsTab() {
     ...pis
       .filter((pi) => !appointed.has(pi.ucpEmployeeId))
       .map((pi) => ({
-        additionalOrgR: null,
+        additionalOrgR: undefined,
         defaultOrgR: pi.homeOrgRs.join(', '),
         name: pi.name,
         projectCount: pi.projectCount,
-        skipped204Count: null,
+        skipped204Count: pi.skipped204Count,
         ucpEmployeeId: pi.ucpEmployeeId,
       })),
   ];
@@ -99,13 +115,20 @@ export function PiAppointmentsTab() {
     { accessorKey: 'name', header: 'PI' },
     { accessorKey: 'ucpEmployeeId', header: 'Employee ID' },
     { accessorKey: 'defaultOrgR', header: 'Default OrgR' },
-    { accessorKey: 'additionalOrgR', header: 'Additional OrgR' },
+    {
+      accessorKey: 'additionalOrgR',
+      header: 'Additional OrgR',
+      // Named, because the automatic choice samples rows past the tenth and
+      // those are mostly blank.
+      sortingFn: 'text',
+      sortUndefined: 'last',
+    },
     { accessorKey: 'projectCount', header: 'Projects' },
     { accessorKey: 'skipped204Count', header: '204 Projects Skipped' },
     {
       cell: ({ row }) => {
         const { additionalOrgR, name, ucpEmployeeId } = row.original;
-        if (additionalOrgR === null) {
+        if (additionalOrgR === undefined) {
           return null;
         }
         return (

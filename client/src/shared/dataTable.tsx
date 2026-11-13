@@ -177,6 +177,16 @@ export const DataTable = <TData extends object>({
     },
   });
 
+  // Searching from a later page would otherwise leave the table past the end
+  // of the narrowed results. Manual tables page on the server and only
+  // search the rows already loaded, so their page stays put.
+  const setSearch = (value: string) => {
+    table.setGlobalFilter(value);
+    if (!manualPagination) {
+      table.setPageIndex(0);
+    }
+  };
+
   const filterControl =
     globalFilter === 'none' ? null : (
       <label className="input input-bordered flex items-center gap-2 w-full max-w-sm">
@@ -198,7 +208,7 @@ export const DataTable = <TData extends object>({
         </svg>
         <input
           className="grow"
-          onChange={(e) => table.setGlobalFilter(e.target.value)}
+          onChange={(e) => setSearch(e.target.value)}
           placeholder={filterPlaceholder}
           type="text"
           value={table.getState().globalFilter ?? ''}
@@ -206,7 +216,7 @@ export const DataTable = <TData extends object>({
         {table.getState().globalFilter && (
           <button
             className="btn btn-ghost btn-sm btn-circle"
-            onClick={() => table.setGlobalFilter('')}
+            onClick={() => setSearch('')}
             type="button"
           >
             <svg

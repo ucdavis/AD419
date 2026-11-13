@@ -597,7 +597,7 @@ public class OrgRControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task GetPis_lists_each_pi_once_with_their_non_204_project_count_and_home_orgrs()
+    public async Task GetPis_lists_each_pi_once_with_project_counts_and_home_orgrs()
     {
         using var db = TestDbContextFactory.CreateDataInMemory();
         db.OrgRs.Add(new OrgR { Code = "ANUT" });
@@ -622,8 +622,8 @@ public class OrgRControllerTests : IDisposable
         dtos.Should().BeEquivalentTo(
             new[]
             {
-                new PiDto("10000002", "Doe, Jane", 1, Array.Empty<string>()),
-                new PiDto("10000001", "Slupsky, Carolyn", 2, new[] { "ANUT" }),
+                new PiDto("10000002", "Doe, Jane", 1, 0, Array.Empty<string>()),
+                new PiDto("10000001", "Slupsky, Carolyn", 2, 1, new[] { "ANUT" }),
             },
             options => options.WithStrictOrdering());
     }

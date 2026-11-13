@@ -17,8 +17,20 @@ function renderTab() {
 }
 
 const pis: Pi[] = [
-  { homeOrgRs: ['AARE'], name: 'Doe, Jane', projectCount: 1, ucpEmployeeId: '10000002' },
-  { homeOrgRs: ['ANUT'], name: 'Slupsky, Carolyn', projectCount: 2, ucpEmployeeId: '10000001' },
+  {
+    homeOrgRs: ['AARE'],
+    name: 'Doe, Jane',
+    projectCount: 1,
+    skipped204Count: 3,
+    ucpEmployeeId: '10000002',
+  },
+  {
+    homeOrgRs: ['ANUT'],
+    name: 'Slupsky, Carolyn',
+    projectCount: 2,
+    skipped204Count: 1,
+    ucpEmployeeId: '10000001',
+  },
 ];
 
 const appointments: PiAppointment[] = [
@@ -128,8 +140,37 @@ describe('PiAppointmentsTab', () => {
     // Doe sorts ahead of Slupsky by name but has a single appointment.
     expect(within(second).getByText('Doe, Jane')).toBeInTheDocument();
     expect(within(second).getByText('AARE')).toBeInTheDocument();
+    // Her 204 projects are counted even though no appointment skips them yet.
+    expect(within(second).getByText('3')).toBeInTheDocument();
     expect(within(second).queryByRole('button')).not.toBeInTheDocument();
     expect(within(section).getAllByRole('row')).toHaveLength(3);
+  });
+
+  it('keeps PIs without an additional OrgR last when sorting by that column', async () => {
+    mockApi();
+    const user = userEvent.setup();
+    renderTab();
+
+    const section = await screen.findByRole('region', { name: 'PI appointments' });
+    const header = within(section).getByRole('columnheader', { name: /Additional OrgR/ });
+    const firstPi = () => within(section).getAllByRole('row')[1];
+
+    await user.click(header);
+    expect(header).toHaveAttribute('aria-sort', 'ascending');
+    expect(within(firstPi()).getByText('Slupsky, Carolyn')).toBeInTheDocument();
+
+    await user.click(header);
+    expect(header).toHaveAttribute('aria-sort', 'descending');
+    expect(within(firstPi()).getByText('Slupsky, Carolyn')).toBeInTheDocument();
+  });
+
+  it('shows an error instead of a partial list when the PI list fails to load', async () => {
+    mockApi();
+    server.use(http.get('/api/orgr/pis', () => new HttpResponse(null, { status: 500 })));
+    renderTab();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load PI appointments.');
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
   it('has no per project placement list or controls', async () => {

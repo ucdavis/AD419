@@ -275,4 +275,53 @@ describe('DataTable', () => {
     expect(within(body).getByText('Alpha project')).toBeInTheDocument();
     expect(within(body).queryByText('Beta project')).not.toBeInTheDocument();
   });
+
+  it('returns to the first page when the search text changes', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <DataTable
+        columns={columns}
+        data={makeRows(12)}
+        initialState={{ pagination: { pageSize: 5 } }}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Last' }));
+    expect(screen.getByLabelText('Page')).toHaveValue(3);
+
+    await user.type(
+      screen.getByPlaceholderText('Search all columns...'),
+      'Row 2'
+    );
+
+    expect(screen.getByText('Row 2')).toBeInTheDocument();
+    expect(screen.getByLabelText('Page')).toHaveValue(1);
+    expect(screen.getByText('of 1')).toBeInTheDocument();
+  });
+
+  it('keeps the server page when a manual table is searched', async () => {
+    const user = userEvent.setup();
+    const onPageIndexChange = vi.fn();
+
+    render(
+      <DataTable
+        columns={columns}
+        data={makeRows(2)}
+        manualPagination
+        onPageIndexChange={onPageIndexChange}
+        pageCount={3}
+        pageIndex={2}
+        pageSize={2}
+      />
+    );
+
+    await user.type(
+      screen.getByPlaceholderText('Search all columns...'),
+      'Row 1'
+    );
+
+    expect(onPageIndexChange).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Page')).toHaveValue(3);
+  });
 });
