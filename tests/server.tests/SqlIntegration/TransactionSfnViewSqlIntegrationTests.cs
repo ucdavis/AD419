@@ -114,6 +114,63 @@ public sealed class TransactionSfnViewSqlIntegrationTests(SqlServerDataDbFixture
         aeRow.FteSfn.Should().BeNull();
     }
 
+    [Fact]
+    public async Task FteSfn_moves_a_pi_from_line_242_to_241_and_leaves_everyone_else()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedReferenceDataAsync();
+
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        // PI1 directs two projects so a careless join would double their rows.
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[StaffTypes] ([StaffTypeCode], [FteSfn], [Description])
+            VALUES ('SUPP', '242', 'Professional Support'), ('TECH', '243', 'Technical Support');
+
+            INSERT INTO [data].[Titles] ([TitleCode], [StaffTypeCode], [Name])
+            VALUES ('3300', 'SUPP', 'Specialist'), ('4000', 'TECH', 'Technician');
+
+            INSERT INTO [data].[Projects]
+                ([AccessionNumber], [NifaProjectNumber], [UcpEmployeeId], [Is204], [Sfn], [AEProjectNumber])
+            VALUES
+                ('1000101', 'CA-D-ABC-1101-H', 'PI1', 0, '201', NULL),
+                ('1000102', 'CA-D-ABC-1102-H', 'PI1', 0, '201', NULL);
+
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [PositionNumber], [JobCode],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq])
+            VALUES
+                ('pi-242',        '3310', 'F201', 'D1', 'D1', 'A1', 'P1', NULL, 'AE-204', 'AC1', 'REG', 'PI1', 'POS1', '3300', 1, 1, 0.1, '2024-11-15', 'S', 2025, '5', 0, 0),
+                ('pi-242-fringe', '3310', 'F201', 'D1', 'D1', 'A1', 'P1', NULL, 'AE-204', 'AC1', 'XXX', 'PI1', 'POS1', '3300', 0, 1, 0,   '2024-11-15', 'F', 2025, '5', 0, 0),
+                ('non-pi-242',    '3310', 'F201', 'D1', 'D1', 'A1', 'P1', NULL, 'AE-204', 'AC1', 'REG', 'X1',  'POS2', '3300', 1, 1, 0.1, '2024-11-15', 'S', 2025, '5', 0, 0),
+                ('pi-243',        '3310', 'F201', 'D1', 'D1', 'A1', 'P1', NULL, 'AE-204', 'AC1', 'REG', 'PI1', 'POS1', '4000', 1, 1, 0.1, '2024-11-15', 'S', 2025, '5', 0, 0),
+                ('pi-241',        '3310', 'F201', 'D1', 'D1', 'A1', 'P1', NULL, 'AE-204', 'AC1', 'REG', 'PI1', 'POS1', '1234', 1, 1, 0.1, '2024-11-15', 'S', 2025, '5', 0, 0),
+                ('pi-no-line',    '3310', 'F201', 'D1', 'D1', 'A1', 'P1', NULL, 'AE-204', 'AC1', 'REG', 'PI1', 'POS1', '9999', 1, 1, 0.1, '2024-11-15', 'S', 2025, '5', 0, 0),
+                ('pi-no-title',   '3310', 'F201', 'D1', 'D1', 'A1', 'P1', NULL, 'AE-204', 'AC1', 'REG', 'PI1', 'POS1', '0000', 1, 1, 0.1, '2024-11-15', 'S', 2025, '5', 0, 0);
+            """);
+
+        var rows = (await connection.QueryAsync<UcPathRow>(
+            """
+            SELECT [TransactionId], [ExpenseSfn], [FteSfn]
+            FROM [data].[v_TransactionSfn]
+            WHERE [Source] = N'UCPath'
+            """)).ToList();
+
+        rows.Should().HaveCount(7);
+        var byId = rows.ToDictionary(row => row.TransactionId);
+        byId["pi-242"].FteSfn.Should().Be("241");
+        byId["pi-242-fringe"].FteSfn.Should().Be("241");
+        byId["non-pi-242"].FteSfn.Should().Be("242");
+        byId["pi-243"].FteSfn.Should().Be("243");
+        byId["pi-241"].FteSfn.Should().Be("241");
+        byId["pi-no-line"].FteSfn.Should().BeNull();
+        byId["pi-no-title"].FteSfn.Should().BeNull();
+    }
+
     private async Task SeedReferenceDataAsync()
     {
         await using var connection = new SqlConnection(fixture.ConnectionString);
