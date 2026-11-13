@@ -14,10 +14,13 @@ import { ExportDataButton } from '@/shared/exportDataButton.tsx';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 
-interface AppointmentRow {
-  homeOrgR: string;
+// One row per appointment, then one row per PI who has none. additionalOrgR
+// is undefined, not null, on a PI with only their default OrgR: the table
+// only knows how to sort undefined values to the end.
+interface PiRow {
+  additionalOrgR: string | undefined;
+  defaultOrgR: string;
   name: string;
-  orgR: string;
   projectCount: number;
   skipped204Count: number;
   ucpEmployeeId: string;
@@ -28,10 +31,16 @@ function projectLabel(count: number): string {
 }
 
 export function PiAppointmentsTab() {
-  const { data: pis = [], isLoading: pisLoading } = useQuery(pisQueryOptions());
-  const { data: appointments = [], isLoading: appointmentsLoading } = useQuery(
-    piAppointmentsQueryOptions()
-  );
+  const {
+    data: pis = [],
+    isError: pisFailed,
+    isLoading: pisLoading,
+  } = useQuery(pisQueryOptions());
+  const {
+    data: appointments = [],
+    isError: appointmentsFailed,
+    isLoading: appointmentsLoading,
+  } = useQuery(piAppointmentsQueryOptions());
   const { data: orgRs = [] } = useQuery(orgRsQueryOptions());
   const add = useAddPiAppointment();
   const remove = useRemovePiAppointment();
@@ -43,6 +52,15 @@ export function PiAppointmentsTab() {
 
   if (pisLoading || appointmentsLoading) {
     return <p role="status">Loading PI appointments...</p>;
+  }
+
+  // The table and its export need both lists; half of them would look complete.
+  if (pisFailed || appointmentsFailed) {
+    return (
+      <div className="alert alert-error" role="alert">
+        <span>Could not load PI appointments. Reload the page to try again.</span>
+      </div>
+    );
   }
 
   const handleAdd = () => {
@@ -63,14 +81,29 @@ export function PiAppointmentsTab() {
     );
   };
 
-  const rows: AppointmentRow[] = appointments.map((appointment) => ({
-    homeOrgR: appointment.homeOrgRs.join(', '),
-    name: appointment.name,
-    orgR: appointment.orgR,
-    projectCount: appointment.projectCount,
-    skipped204Count: appointment.skipped204Count,
-    ucpEmployeeId: appointment.ucpEmployeeId,
-  }));
+  // PIs with an additional OrgR lead the list; everyone else follows with
+  // only their default OrgR. Both lists arrive sorted by name.
+  const appointed = new Set(appointments.map((appointment) => appointment.ucpEmployeeId));
+  const rows: PiRow[] = [
+    ...appointments.map((appointment) => ({
+      additionalOrgR: appointment.orgR,
+      defaultOrgR: appointment.homeOrgRs.join(', '),
+      name: appointment.name,
+      projectCount: appointment.projectCount,
+      skipped204Count: appointment.skipped204Count,
+      ucpEmployeeId: appointment.ucpEmployeeId,
+    })),
+    ...pis
+      .filter((pi) => !appointed.has(pi.ucpEmployeeId))
+      .map((pi) => ({
+        additionalOrgR: undefined,
+        defaultOrgR: pi.homeOrgRs.join(', '),
+        name: pi.name,
+        projectCount: pi.projectCount,
+        skipped204Count: pi.skipped204Count,
+        ucpEmployeeId: pi.ucpEmployeeId,
+      })),
+  ];
 
   // The employee ID is part of what the search matches, so either works.
   const piOptions = pis.map((pi) => ({
@@ -78,31 +111,44 @@ export function PiAppointmentsTab() {
     value: pi.ucpEmployeeId,
   }));
 
-  const columns: ColumnDef<AppointmentRow>[] = [
+  const columns: ColumnDef<PiRow>[] = [
     { accessorKey: 'name', header: 'PI' },
     { accessorKey: 'ucpEmployeeId', header: 'Employee ID' },
-    { accessorKey: 'homeOrgR', header: 'Home OrgR' },
-    { accessorKey: 'orgR', header: 'Added OrgR' },
+    { accessorKey: 'defaultOrgR', header: 'Default OrgR' },
+    {
+      accessorKey: 'additionalOrgR',
+      header: 'Additional OrgR',
+      // Named, because the automatic choice samples rows past the tenth and
+      // those are mostly blank.
+      sortingFn: 'text',
+      sortUndefined: 'last',
+    },
     { accessorKey: 'projectCount', header: 'Projects' },
     { accessorKey: 'skipped204Count', header: '204 Projects Skipped' },
     {
-      cell: ({ row }) => (
-        <button
-          aria-label={`Remove ${row.original.name} from ${row.original.orgR}`}
-          className="btn btn-ghost btn-xs text-error"
-          disabled={remove.isPending}
-          onClick={() => {
-            setError(null);
-            remove.mutate(
-              { orgR: row.original.orgR, ucpEmployeeId: row.original.ucpEmployeeId },
-              { onError: (err) => setError(apiErrorMessage(err, 'Could not remove the appointment.')) }
-            );
-          }}
-          type="button"
-        >
-          Remove
-        </button>
-      ),
+      cell: ({ row }) => {
+        const { additionalOrgR, name, ucpEmployeeId } = row.original;
+        if (additionalOrgR === undefined) {
+          return null;
+        }
+        return (
+          <button
+            aria-label={`Remove ${name} from ${additionalOrgR}`}
+            className="btn btn-ghost btn-xs text-error"
+            disabled={remove.isPending}
+            onClick={() => {
+              setError(null);
+              remove.mutate(
+                { orgR: additionalOrgR, ucpEmployeeId },
+                { onError: (err) => setError(apiErrorMessage(err, 'Could not remove the appointment.')) }
+              );
+            }}
+            type="button"
+          >
+            Remove
+          </button>
+        );
+      },
       header: '',
       id: 'actions',
     },
@@ -162,8 +208,8 @@ export function PiAppointmentsTab() {
               columns={[
                 { header: 'PI', key: 'name' },
                 { header: 'Employee ID', key: 'ucpEmployeeId' },
-                { header: 'Home OrgR', key: 'homeOrgR' },
-                { header: 'Added OrgR', key: 'orgR' },
+                { header: 'Default OrgR', key: 'defaultOrgR' },
+                { header: 'Additional OrgR', key: 'additionalOrgR' },
                 { header: 'Projects', key: 'projectCount' },
                 { header: '204 Projects Skipped', key: 'skipped204Count' },
               ]}

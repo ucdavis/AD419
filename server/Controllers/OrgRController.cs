@@ -43,9 +43,7 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
         // NIFA projects per OrgR: distinct accessions that land on the OrgR
         // through the NIFA department mapping or a PI appointment, the same
         // union [data].[v_ProjXOrgR] exposes.
-        var nifaMap = await db.OrgRNifaDepartments
-            .Where(m => m.OrgR != null)
-            .ToDictionaryAsync(m => m.NifaDepartment, m => m.OrgR!, cancellationToken);
+        var nifaMap = await LoadNifaMapAsync(cancellationToken);
         var projectPairs = await db.Projects
             .Select(p => new { p.AccessionNumber, p.NifaProjectNumber, p.UcpEmployeeId, p.Sfn })
             .Distinct()
@@ -325,10 +323,17 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
     public async Task<ActionResult<IReadOnlyList<PiDto>>> GetPis(CancellationToken cancellationToken)
     {
         var projects = await LoadPiProjectsAsync(cancellationToken);
+        var nifaMap = await LoadNifaMapAsync(cancellationToken);
         var dtos = projects
-            .Where(p => p.Sfn != Sfn204)
             .GroupBy(p => p.UcpEmployeeId)
-            .Select(g => new PiDto(g.Key, PiNameOf(g, g.Key), g.Count()))
+            .Select(g => new { Pi = g, Placed = g.Where(p => p.Sfn != Sfn204).ToList() })
+            .Where(x => x.Placed.Count > 0)
+            .Select(x => new PiDto(
+                x.Pi.Key,
+                PiNameOf(x.Pi, x.Pi.Key),
+                x.Placed.Count,
+                x.Pi.Count() - x.Placed.Count,
+                HomeOrgRsOf(x.Placed, nifaMap)))
             .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
             .ThenBy(d => d.UcpEmployeeId)
             .ToList();
@@ -341,9 +346,7 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
     public async Task<ActionResult<IReadOnlyList<PiAppointmentDto>>> GetPiAppointments(CancellationToken cancellationToken)
     {
         var appointments = await db.OrgRPiAppointments.ToListAsync(cancellationToken);
-        var nifaMap = await db.OrgRNifaDepartments
-            .Where(m => m.OrgR != null)
-            .ToDictionaryAsync(m => m.NifaDepartment, m => m.OrgR!, cancellationToken);
+        var nifaMap = await LoadNifaMapAsync(cancellationToken);
         var projectsByPi = (await LoadPiProjectsAsync(cancellationToken)).ToLookup(p => p.UcpEmployeeId);
 
         var dtos = appointments
@@ -351,24 +354,11 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
             {
                 var projects = projectsByPi[a.UcpEmployeeId].ToList();
                 var placed = projects.Where(p => p.Sfn != Sfn204).ToList();
-                var homeOrgRs = new List<string>();
-                foreach (var project in placed)
-                {
-                    var department = NifaDepartmentOf(project.NifaProjectNumber);
-                    if (department != null
-                        && nifaMap.TryGetValue(department, out var home)
-                        && !homeOrgRs.Contains(home))
-                    {
-                        homeOrgRs.Add(home);
-                    }
-                }
-
-                homeOrgRs.Sort(StringComparer.Ordinal);
                 // The current project list names the PI; the stored name only
                 // covers a PI with no projects this cycle.
                 var name = PiNameOf(projects, a.PiName ?? a.UcpEmployeeId);
                 return new PiAppointmentDto(
-                    a.UcpEmployeeId, name, a.OrgR, homeOrgRs, placed.Count, projects.Count - placed.Count);
+                    a.UcpEmployeeId, name, a.OrgR, HomeOrgRsOf(placed, nifaMap), placed.Count, projects.Count - placed.Count);
             })
             .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
             .ThenBy(d => d.UcpEmployeeId)
@@ -449,6 +439,31 @@ public partial class OrgRController(DataDbContext db, IOrgRReviewSeeder seeder, 
             .ToListAsync(cancellationToken);
 
         return rows.GroupBy(p => p.AccessionNumber).Select(g => g.First()).ToList();
+    }
+
+    // NIFA department to OrgR, for the departments that have one.
+    private async Task<Dictionary<string, string>> LoadNifaMapAsync(CancellationToken cancellationToken) =>
+        await db.OrgRNifaDepartments
+            .Where(m => m.OrgR != null)
+            .ToDictionaryAsync(m => m.NifaDepartment, m => m.OrgR!, cancellationToken);
+
+    // The default OrgRs the projects sit under, each listed once in code order.
+    private static List<string> HomeOrgRsOf(IEnumerable<PiProject> projects, Dictionary<string, string> nifaMap)
+    {
+        var homeOrgRs = new List<string>();
+        foreach (var project in projects)
+        {
+            var department = NifaDepartmentOf(project.NifaProjectNumber);
+            if (department != null
+                && nifaMap.TryGetValue(department, out var home)
+                && !homeOrgRs.Contains(home))
+            {
+                homeOrgRs.Add(home);
+            }
+        }
+
+        homeOrgRs.Sort(StringComparer.Ordinal);
+        return homeOrgRs;
     }
 
     // The same person can be spelled differently across projects, so pick one

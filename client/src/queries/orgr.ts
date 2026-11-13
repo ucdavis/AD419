@@ -31,8 +31,12 @@ export interface OrgRNifaDepartment {
 // A PI who can be given an appointment. projectCount leaves out 204 projects,
 // which appointments never move.
 export interface Pi {
+  // Default OrgRs of the PI's non-204 projects.
+  homeOrgRs: string[];
   name: string;
   projectCount: number;
+  // The PI's 204 projects, which an appointment would leave in place.
+  skipped204Count: number;
   ucpEmployeeId: string;
 }
 
@@ -197,6 +201,7 @@ export const useSetNifaDepartmentOrgR = () => {
       Promise.all([
         queryClient.invalidateQueries({ queryKey: ORGR_KEYS.nifaDepartments }),
         queryClient.invalidateQueries({ queryKey: ORGR_KEYS.piAppointments }),
+        queryClient.invalidateQueries({ queryKey: ORGR_KEYS.pis }),
         queryClient.invalidateQueries({ queryKey: ORGR_KEYS.orgRs }),
         queryClient.invalidateQueries({ queryKey: WORKFLOW_SNAPSHOT_KEY }),
       ]),
