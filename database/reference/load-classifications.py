@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Load SegmentClassifications.csv into [data].[SegmentClassifications].
 
-Validates the CSV, then prints (or runs with --run) an INSERT of every listed
-code. It only loads into an empty table and stops with an error otherwise, so
-it can never change a classification made in the app. Run it before the first
-import; the seed then adds any code the CSV does not list as unclassified.
+Validates the CSV, then prints (or runs with --run) a script that adds every
+listed code that is missing and classifies rows that are still unclassified.
+A row that already has a classification is never changed, so a classification
+made in the app always wins; rows where it disagrees with the CSV are listed.
+Safe to run before or after an import, and to run again; the import's seed
+adds any code the CSV does not list as unclassified.
 
 Usage:
   ./load-classifications.py > merge.sql
@@ -126,16 +128,39 @@ FROM (VALUES
 
 BEGIN TRANSACTION;
 
--- Only load into an empty table, so a classification made in the app is
--- never overwritten.
-IF EXISTS (SELECT 1 FROM [data].[SegmentClassifications] WITH (UPDLOCK, HOLDLOCK))
-    THROW 50000, 'SegmentClassifications already has rows. The loader only loads into an empty table.', 1;
+-- Classify rows the import's seed added unclassified. A row that already has a
+-- classification is left alone, so one made in the app is never overwritten.
+UPDATE t
+SET t.[IncludeInReport] = s.[IncludeInReport],
+    t.[Sfn] = s.[Sfn],
+    t.[Description] = COALESCE(t.[Description], s.[Description])
+FROM [data].[SegmentClassifications] t WITH (UPDLOCK, HOLDLOCK)
+JOIN #Source s ON s.[SegmentType] = t.[SegmentType] AND s.[Code] = t.[Code]
+WHERE t.[IncludeInReport] IS NULL
+  AND s.[IncludeInReport] IS NOT NULL;
+
+DECLARE @Classified INT = @@ROWCOUNT;
 
 INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description], [IncludeInReport], [Sfn])
-SELECT [SegmentType], [Code], [Description], [IncludeInReport], [Sfn]
-FROM #Source;
+SELECT s.[SegmentType], s.[Code], s.[Description], s.[IncludeInReport], s.[Sfn]
+FROM #Source s
+WHERE NOT EXISTS
+(
+    SELECT 1 FROM [data].[SegmentClassifications] t
+    WHERE t.[SegmentType] = s.[SegmentType] AND t.[Code] = s.[Code]
+);
 
-SELECT @@ROWCOUNT AS [Inserted];
+SELECT @@ROWCOUNT AS [Inserted], @Classified AS [Classified];
+
+-- Kept classifications that disagree with the CSV, for review.
+SELECT t.[SegmentType], t.[Code], t.[IncludeInReport], t.[Sfn],
+       s.[IncludeInReport] AS [CsvIncludeInReport], s.[Sfn] AS [CsvSfn]
+FROM [data].[SegmentClassifications] t
+JOIN #Source s ON s.[SegmentType] = t.[SegmentType] AND s.[Code] = t.[Code]
+WHERE t.[IncludeInReport] IS NOT NULL
+  AND s.[IncludeInReport] IS NOT NULL
+  AND (t.[IncludeInReport] <> s.[IncludeInReport] OR ISNULL(t.[Sfn], N'') <> ISNULL(s.[Sfn], N''))
+ORDER BY t.[SegmentType], t.[Code];
 
 COMMIT TRANSACTION;
 """
