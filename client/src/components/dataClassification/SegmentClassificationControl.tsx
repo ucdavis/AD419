@@ -7,9 +7,11 @@ import {
 const EXCLUDED = 'Excluded';
 
 export function SegmentClassificationControl({
+  disabled = false,
   onClassify,
   segment,
 }: {
+  disabled?: boolean;
   onClassify: (includeInReport: boolean, sfn: string | null) => void;
   segment: SegmentClassification;
 }) {
@@ -30,6 +32,7 @@ export function SegmentClassificationControl({
     return (
       <select
         className="select select-xs select-bordered"
+        disabled={disabled}
         onChange={(event) => handleChange(event.target.value)}
         value={value}
       >
@@ -53,6 +56,7 @@ export function SegmentClassificationControl({
     <div className="flex items-center gap-2">
       <button
         className={`btn btn-xs ${status === true ? 'btn-success' : 'btn-ghost'}`}
+        disabled={disabled}
         onClick={() => onClassify(true, null)}
         type="button"
       >
@@ -60,6 +64,7 @@ export function SegmentClassificationControl({
       </button>
       <button
         className={`btn btn-xs ${status === false ? 'btn-error' : 'btn-ghost'}`}
+        disabled={disabled}
         onClick={() => onClassify(false, null)}
         type="button"
       >

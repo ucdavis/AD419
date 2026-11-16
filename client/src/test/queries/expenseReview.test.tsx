@@ -6,6 +6,7 @@ import {
   type ExpenseReviewFilterOptionsResponse,
 } from '@/queries/expenseReview.ts';
 import { useUpdateSegmentClassification } from '@/queries/segmentClassifications.ts';
+import { WORKFLOW_SNAPSHOT_KEY } from '@/queries.ts';
 import { server } from '@/test/mswUtils.ts';
 import {
   QueryClient,
@@ -180,7 +181,24 @@ describe('expense review query invalidation', () => {
 });
 
 describe('classification invalidation', () => {
-  it.each([false, true])('invalidates after navigation even when the mutation fails: %s', async (fails) => {
+  const buildKey = ['autoAssociations', 'build'] as const;
+  const reportKey = ['autoAssociations', 'fte'] as const;
+  const employeeKey = [
+    'expenseReview',
+    'details',
+    { buildId: 1, employeeId: 'E1', kind: 'employee' },
+  ] as const;
+  const groupKey = [
+    'expenseReview', 'details', { groupId: 'G1', kind: 'group' },
+  ] as const;
+  const transactionKey = ['expenseReview', 'transactions'] as const;
+
+  it.each([
+    { fails: false, segmentType: 'Fund' as const },
+    { fails: true, segmentType: 'Fund' as const },
+    { fails: false, segmentType: 'Ern' as const },
+    { fails: true, segmentType: 'Ern' as const },
+  ])('resets built data after navigation ($segmentType, failure: $fails)', async ({ fails, segmentType }) => {
     const queryClient = client();
     const started = completion<void>();
     const response = completion<void>();
@@ -193,6 +211,11 @@ describe('classification invalidation', () => {
     }));
     const key = expenseReviewFilterOptionsQueryOptions(EMPTY_EXPENSE_REVIEW_FILTERS).queryKey;
     queryClient.setQueryData(key, initialOptions);
+    for (const queryKey of [
+      buildKey, reportKey, employeeKey, groupKey, transactionKey, WORKFLOW_SNAPSHOT_KEY,
+    ]) {
+      queryClient.setQueryData(queryKey, 'cached');
+    }
     const { result, unmount } = renderHook(useUpdateSegmentClassification, {
       wrapper: ({ children }: { children: ReactNode }) => (
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -200,14 +223,32 @@ describe('classification invalidation', () => {
     });
     try {
       act(() => {
-        result.current.mutate({ code: 'OLD', includeInReport: true, segmentType: 'Fund', sfn: '220' });
+        result.current.mutate({
+          code: 'OLD',
+          includeInReport: true,
+          segmentType,
+          sfn: segmentType === 'Fund' ? '220' : null,
+        });
       });
       await started.promise;
       unmount();
       response.resolve();
-      await waitFor(() => expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe(fails ? 'error' : 'success'));
-      expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+      await waitFor(() =>
+        expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe(
+          fails ? 'error' : 'success'
+        )
+      );
+      expect(queryClient.getQueryState(key)?.isInvalidated).toBe(segmentType !== 'Ern');
       expect(queryClient.getQueryData(key)).toBe(initialOptions);
+      for (const queryKey of [buildKey, reportKey, employeeKey]) {
+        expect(queryClient.getQueryData(queryKey)).toBeUndefined();
+        expect(queryClient.getQueryState(queryKey)?.fetchStatus).toBe('idle');
+      }
+      for (const queryKey of [groupKey, transactionKey]) {
+        expect(queryClient.getQueryData(queryKey)).toBe('cached');
+        expect(queryClient.getQueryState(queryKey)?.isInvalidated).toBe(segmentType !== 'Ern');
+      }
+      expect(queryClient.getQueryState(WORKFLOW_SNAPSHOT_KEY)?.isInvalidated).toBe(true);
     } finally {
       response.resolve();
       unmount();
@@ -215,22 +256,76 @@ describe('classification invalidation', () => {
     }
   });
 
-  it('does not invalidate expense review for ERN-only changes', async () => {
+  it.each([
+    { fails: false, queryKey: buildKey, segmentType: 'Ern' as const },
+    { fails: true, queryKey: buildKey, segmentType: 'Ern' as const },
+    { fails: false, queryKey: employeeKey, segmentType: 'Ern' as const },
+    { fails: true, queryKey: employeeKey, segmentType: 'Ern' as const },
+    { fails: false, queryKey: employeeKey, segmentType: 'Fund' as const },
+    { fails: true, queryKey: employeeKey, segmentType: 'Fund' as const },
+    { fails: false, queryKey: WORKFLOW_SNAPSHOT_KEY, segmentType: 'Ern' as const },
+    { fails: true, queryKey: WORKFLOW_SNAPSHOT_KEY, segmentType: 'Ern' as const },
+  ])('replaces outstanding queries and awaits refresh ($segmentType, failure: $fails, key: $queryKey)', async ({ fails, queryKey, segmentType }) => {
     const queryClient = client();
-    server.use(http.patch('/api/segmentclassifications', () => new HttpResponse(null, { status: 204 })));
-    const key = expenseReviewFilterOptionsQueryOptions(EMPTY_EXPENSE_REVIEW_FILTERS).queryKey;
-    queryClient.setQueryData(key, initialOptions);
+    const obsolete = completion<string>();
+    const fresh = completion<string>();
+    const refreshStarted = completion<void>();
+    let oldSignal: AbortSignal | undefined;
+    let calls = 0;
+    // Exercise a workflow snapshot's very first request as well as cached reports.
+    if (queryKey !== WORKFLOW_SNAPSHOT_KEY) {
+      queryClient.setQueryData(queryKey, 'cached');
+    }
+    const observer = new QueryObserver(queryClient, {
+      queryFn: ({ signal }) => {
+        calls += 1;
+        if (calls === 1) {
+          oldSignal = signal;
+          return obsolete.promise;
+        }
+        refreshStarted.resolve();
+        return fresh.promise;
+      },
+      queryKey,
+    });
+    const unsubscribe = observer.subscribe(() => {});
+    server.use(http.patch('/api/segmentclassifications', () =>
+      fails
+        ? HttpResponse.text('Save failed after reset.', { status: 500 })
+        : new HttpResponse(null, { status: 204 })
+    ));
     const { result, unmount } = renderHook(useUpdateSegmentClassification, {
       wrapper: ({ children }: { children: ReactNode }) => (
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
       ),
     });
     try {
-      await act(async () => {
-        await result.current.mutateAsync({ code: 'REG', includeInReport: true, segmentType: 'Ern', sfn: null });
+      act(() => {
+        result.current.mutate({
+          code: 'REG',
+          includeInReport: true,
+          segmentType,
+          sfn: segmentType === 'Fund' ? '220' : null,
+        });
       });
-      expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
+      await refreshStarted.promise;
+      expect(oldSignal?.aborted).toBe(true);
+      expect(observer.getCurrentResult().data).toBeUndefined();
+      expect(observer.getCurrentResult().isFetching).toBe(true);
+      await waitFor(() => expect(result.current.isPending).toBe(true));
+      obsolete.resolve('obsolete');
+      await obsolete.promise;
+      expect(queryClient.getQueryData(queryKey)).toBeUndefined();
+      fresh.resolve('current');
+      await waitFor(() =>
+        expect(result.current.status).toBe(fails ? 'error' : 'success')
+      );
+      expect(calls).toBe(2);
+      expect(queryClient.getQueryData(queryKey)).toBe('current');
     } finally {
+      obsolete.resolve('obsolete');
+      fresh.resolve('current');
+      unsubscribe();
       unmount();
       queryClient.clear();
     }

@@ -361,7 +361,7 @@ describe('Auto-Associations stage', () => {
       await user.click(screen.getByRole('tab', { name: '220' }));
       expect(await screen.findByText('Hatch one')).toBeInTheDocument();
 
-      await user.click(screen.getByRole('tab', { name: 'FTE over 1.0' }));
+      await user.click(screen.getByRole('tab', { name: 'FTE over 1.1' }));
       expect(await screen.findByText('1.300')).toBeInTheDocument();
 
       await user.click(screen.getByRole('tab', { name: 'Pre-association totals' }));

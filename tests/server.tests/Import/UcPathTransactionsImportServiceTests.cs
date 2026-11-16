@@ -34,6 +34,24 @@ public class UcPathTransactionsImportServiceTests
     }
 
     [Fact]
+    public void Queries_import_earn_end_date_but_keep_pay_end_date_as_the_window_filter()
+    {
+        var queries = new[]
+        {
+            UcPathTransactionsImportService.BuildSalaryQuery(Projects, Bcbs, 2088),
+            UcPathTransactionsImportService.BuildFringeQuery(Projects, Bcbs),
+        };
+
+        foreach (var query in queries)
+        {
+            query.Should().Contain("PAY_END_DT AS pay_period_end_date");
+            query.Should().Contain("UC_EARN_END_DT AS uc_earn_end_date");
+            query.Should().Contain("PAY_END_DT BETWEEN ? AND ?");
+            query.Should().NotContain("UC_EARN_END_DT BETWEEN");
+        }
+    }
+
+    [Fact]
     public void BuildSalaryQuery_computes_fte_payrate_and_salary_marker_in_source_sql()
     {
         var query = UcPathTransactionsImportService.BuildSalaryQuery(Projects, Bcbs, 2096);

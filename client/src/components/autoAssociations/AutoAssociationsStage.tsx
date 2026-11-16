@@ -105,7 +105,7 @@ export function AutoAssociationsStage({ status }: { status: WorkflowStageStatus 
           ) : activeId === 'excluded' ? (
             <ExcludedProjectsTab />
           ) : activeId === 'fte' ? (
-            <FteOverOneTab />
+            <FteOverOneTab buildId={build.buildId} key={build.buildId} />
           ) : activeId === 'totals' ? (
             <PreAssociationTotalsTab />
           ) : (

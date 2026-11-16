@@ -78,7 +78,8 @@ public sealed partial class ExpenseReviewService
             SELECT m.[Id], m.[AeTransactionId], m.[LaborTransactionId],
                 m.[AccountingPeriod], m.[AccountingPeriodSort], m.[Amount],
                 COALESCE(CAST(u.[PayPeriodEndDate] AS DATETIME2), CAST(a.[JournalAcctDate] AS DATETIME2)) AS [TransactionDate],
-                u.[EmployeeName], u.[PositionNumber], u.[ErnCode], u.[ErnDescription],
+                u.[UcEarnEndDate], {{UcPathJournalIdSql("u")}} AS [TransactionId],
+                u.[EmployeeId], u.[EmployeeName], u.[PositionNumber], u.[ErnCode], u.[ErnDescription],
                 CASE u.[FringeBenefitSalaryCd] WHEN 'S' THEN N'Salary' WHEN 'F' THEN N'Fringe' END AS [SalaryFringe],
                 u.[JobCode], u.[Hours], u.[CalculatedFte],
                 CONVERT(NVARCHAR(30), a.[AccountingSequenceNumber]) AS [AccountingSequenceNumber],
@@ -98,16 +99,7 @@ public sealed partial class ExpenseReviewService
             SELECT COUNT(1) FROM #Details;
             """)}}
 
-            DELETE FROM #Details WHERE @search IS NOT NULL AND NOT EXISTS (
-                SELECT 1 FROM (VALUES
-                    (CONVERT(NVARCHAR(30), [AeTransactionId])), ([LaborTransactionId]),
-                    ([AccountingPeriod]), ([EmployeeName]), ([PositionNumber]), ([ErnCode]),
-                    ([ErnDescription]), ([SalaryFringe]), ([JobCode]), ([AccountingSequenceNumber]),
-                    ([JournalName]), ([LineDescription]), ([DocumentType]), ([JournalReference])) textFields([Value])
-                WHERE CHARINDEX(@search COLLATE Latin1_General_100_CI_AS, textFields.[Value] COLLATE Latin1_General_100_CI_AS) > 0)
-              AND NOT EXISTS (
-                SELECT 1 FROM OPENJSON([ReasonsJson]) WITH ([Label] NVARCHAR(500) '$.Label') reasons
-                WHERE CHARINDEX(@search COLLATE Latin1_General_100_CI_AS, reasons.[Label] COLLATE Latin1_General_100_CI_AS) > 0);
+            {{DetailSearchSql()}}
 
             {{(export ? "" : "SELECT COUNT(1) AS [TotalCount], COALESCE(SUM([Amount]), 0) AS [TotalAmount] FROM #Details;")}}
             SELECT * FROM #Details
@@ -115,6 +107,26 @@ public sealed partial class ExpenseReviewService
             {{pagination}};
             """;
     }
+
+    // JOURNAL_ID is the first component of the imported natural key. Keep the full key as Id.
+    private static string UcPathJournalIdSql(string alias) =>
+        $"NULLIF(LEFT({alias}.[LaborTransactionId], CHARINDEX('_', {alias}.[LaborTransactionId] + '_') - 1), '')";
+
+    private static string DetailSearchSql(bool employee = false) => $$"""
+        DELETE FROM #Details WHERE @search IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM (VALUES
+                (CONVERT(NVARCHAR(30), [AeTransactionId])), ([LaborTransactionId]), ([TransactionId]),
+                (CONVERT(NVARCHAR(10), [TransactionDate], 23)), (CONVERT(NVARCHAR(10), [UcEarnEndDate], 23)),
+                ([AccountingPeriod]), ([EmployeeId]), ([EmployeeName]), ([PositionNumber]), ([ErnCode]),
+                ([ErnDescription]), ([SalaryFringe]), ([JobCode]), ([AccountingSequenceNumber]),
+                ([JournalName]), ([LineDescription]), ([DocumentType]), ([JournalReference])
+                {{(employee ? ", ([Entity]), ([FinancialDepartment]), ([Fund]), ([Account]), ([Project]), ([Purpose]), ([Program]), ([Activity]), ([OrgR]), ([ExpenseSfn]), ([FteSfn]), ([ReportStatus])" : "")}}
+            ) textFields([Value])
+            WHERE CHARINDEX(@search COLLATE Latin1_General_100_CI_AS, textFields.[Value] COLLATE Latin1_General_100_CI_AS) > 0)
+          AND NOT EXISTS (
+            SELECT 1 FROM OPENJSON([ReasonsJson]) WITH ([Label] NVARCHAR(500) '$.Label') reasons
+            WHERE CHARINDEX(@search COLLATE Latin1_General_100_CI_AS, reasons.[Label] COLLATE Latin1_General_100_CI_AS) > 0);
+        """;
 
     private sealed record DetailRow : ExpenseReviewTransactionDetailDto
     {
@@ -125,11 +137,16 @@ public sealed partial class ExpenseReviewService
     {
         Id = row.Id.StartsWith("AE:", StringComparison.Ordinal) ? row.Id[3..] : row.Id[4..],
         TransactionDate = row.TransactionDate, AccountingPeriod = row.AccountingPeriod,
-        EmployeeName = row.EmployeeName, PositionNumber = row.PositionNumber, ErnCode = row.ErnCode,
+        UcEarnEndDate = row.UcEarnEndDate, TransactionId = row.TransactionId,
+        EmployeeId = row.EmployeeId, EmployeeName = row.EmployeeName, PositionNumber = row.PositionNumber, ErnCode = row.ErnCode,
         ErnDescription = row.ErnDescription, SalaryFringe = row.SalaryFringe, JobCode = row.JobCode,
         Hours = row.Hours, CalculatedFte = row.CalculatedFte, AccountingSequenceNumber = row.AccountingSequenceNumber,
         JournalName = row.JournalName, LineDescription = row.LineDescription, DocumentType = row.DocumentType,
         JournalReference = row.JournalReference, Amount = row.Amount,
+        Entity = row.Entity, FinancialDepartment = row.FinancialDepartment, Fund = row.Fund,
+        Account = row.Account, Project = row.Project, Purpose = row.Purpose, Program = row.Program,
+        Activity = row.Activity, OrgR = row.OrgR, ExpenseSfn = row.ExpenseSfn, FteSfn = row.FteSfn,
+        ReportIncluded = row.ReportIncluded, ReportFteContribution = row.ReportFteContribution, ReportStatus = row.ReportStatus,
         ExclusionReasons = JsonSerializer.Deserialize<ExpenseReviewExclusionReasonDto[]>(row.ReasonsJson) ?? [],
     };
 }

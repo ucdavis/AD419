@@ -52,7 +52,7 @@ public sealed class AutoAssociationReportServiceSqlIntegrationTests(SqlServerDat
     }
 
     [Fact]
-    public async Task Fte_over_one_lists_employees_whose_summary_fte_exceeds_one()
+    public async Task Fte_over_one_lists_employees_whose_summary_fte_exceeds_one_point_one()
     {
         await fixture.ClearDataTablesAsync();
         await SeedAndBuildAsync();
@@ -64,6 +64,32 @@ public sealed class AutoAssociationReportServiceSqlIntegrationTests(SqlServerDat
         row.EmployeeName.Should().Be("PI One");
         row.Fte.Should().Be(1.300000m);
         row.RowCount.Should().Be(3);
+    }
+
+    [Fact]
+    public async Task Fte_report_applies_strict_decimal_threshold_after_summing_adjustments()
+    {
+        await fixture.ClearDataTablesAsync();
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+        await connection.ExecuteAsync("""
+            INSERT INTO [data].[ExpenseSummary] ([Source], [OrgR], [EmployeeId], [Expenses], [Fte])
+            VALUES
+                ('UCPath', 'ADNO', 'E1', 100, 1.000000),
+                ('UCPath', 'ADNO', 'E2', 100, 1.100000),
+                ('UCPath', 'ADNO', 'E3', 100, 1.100001),
+                ('UCPath', 'ADNO', 'E4', 100, 1.300000),
+                ('UCPath', 'ADNO', 'E4', -10, -0.200000),
+                ('UCPath', 'ADNO', 'E5', 100, 1.500000),
+                ('UCPath', 'ADNO', 'E5', -10, -0.200000),
+                ('UCPath', 'ADNO', NULL, 100, 5.000000),
+                ('AE', 'ADNO', 'E6', 100, 4.000000);
+            """);
+
+        var rows = await CreateService().GetFteOverOneAsync(CancellationToken.None);
+
+        rows.Select(row => (row.EmployeeId, row.Fte, row.RowCount)).Should().Equal(
+            ("E5", 1.300000m, 2), ("E3", 1.100001m, 1));
     }
 
     [Fact]

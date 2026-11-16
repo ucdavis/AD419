@@ -121,8 +121,10 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
         remoteQuery.Should().Contain("project IN ('PR204')");
     }
 
-    [Fact]
-    public async Task UcPath_import_bulk_copies_salary_and_fringe_rows_then_applies_name_and_job_enrichment()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UcPath_import_bulk_copies_dates_for_salary_and_fringe_then_applies_enrichment(bool hasEarnEndDate)
     {
         await fixture.ClearDataTablesAsync();
         await using var connection = await OpenConnectionAsync();
@@ -132,9 +134,10 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
             VALUES ('A000001', 'NIFA-CG', 1, '204', 'PR204');
             """);
 
+        DateTime? earnEndDate = hasEarnEndDate ? new DateTime(2024, 9, 30) : null;
         var linkedServer = new FakeLinkedServerQueryExecutor(
-            UcPathTransactionRows("SALARY-1", "E01", "1234"),
-            UcPathTransactionRows("FRINGE-1", "XXX", DBNull.Value),
+            UcPathTransactionRows("SALARY-1", "E01", "1234", earnEndDate),
+            UcPathTransactionRows("FRINGE-1", "XXX", DBNull.Value, earnEndDate),
             EmployeeNameRows(),
             JobCodeRows());
         await using var db = fixture.CreateDataDbContext();
@@ -150,12 +153,12 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
 
         invalidator.Calls.Should().Be(1);
         rowsImported.Should().Be(2);
-        var rows = (await connection.QueryAsync<(string Id, string? EmployeeName, string? JobCode)>(
-            "SELECT [LaborTransactionId], [EmployeeName], [JobCode] FROM [data].[UcPathTransactions] ORDER BY [LaborTransactionId];"))
+        var rows = (await connection.QueryAsync<(string Id, string? EmployeeName, string? JobCode, DateTime PayEndDate, DateTime? EarnEndDate)>(
+            "SELECT [LaborTransactionId], [EmployeeName], [JobCode], [PayPeriodEndDate], [UcEarnEndDate] FROM [data].[UcPathTransactions] ORDER BY [LaborTransactionId];"))
             .ToList();
         rows.Should().BeEquivalentTo([
-            ("FRINGE-1", "Example Employee", "5678"),
-            ("SALARY-1", "Example Employee", "1234"),
+            ("FRINGE-1", "Example Employee", "5678", new DateTime(2024, 10, 31), earnEndDate),
+            ("SALARY-1", "Example Employee", "1234", new DateTime(2024, 10, 31), earnEndDate),
         ]);
         linkedServer.Calls.Should().HaveCount(4);
         linkedServer.Calls.Select(call => call.CommandText).Should().ContainInOrder(
@@ -401,7 +404,7 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
         return table;
     }
 
-    private static DataTable UcPathTransactionRows(string id, string ernCode, object jobCode)
+    private static DataTable UcPathTransactionRows(string id, string ernCode, object jobCode, DateTime? earnEndDate)
     {
         var table = Table(
             ("labor_transaction_id", typeof(string)),
@@ -425,6 +428,7 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
             ("pay_rate", typeof(decimal)),
             ("calculated_fte", typeof(decimal)),
             ("pay_period_end_date", typeof(DateTime)),
+            ("uc_earn_end_date", typeof(DateTime)),
             ("fringe_benefit_salary_cd", typeof(string)),
             ("paid_percent", typeof(decimal)),
             ("ern_derived_percent", typeof(decimal)),
@@ -455,7 +459,8 @@ public sealed class LinkedImportServiceTests(SqlServerDataDbFixture fixture)
             1.25m,
             0.5m,
             new DateTime(2024, 10, 31),
-            "S",
+            (object?)earnEndDate ?? DBNull.Value,
+            ernCode == "XXX" ? "F" : "S",
             100m,
             100m,
             2024,

@@ -1703,6 +1703,7 @@ function mockDetailsApi(requests: URL[] = []) {
                   amount: 100,
                   calculatedFte: 0.123_456,
                   documentType: 'JE',
+                  employeeId: '00123456',
                   employeeName: 'Ada Lovelace',
                   ernCode: 'REG',
                   ernDescription: 'Regular earnings',
@@ -1716,6 +1717,8 @@ function mockDetailsApi(requests: URL[] = []) {
                   positionNumber: '12345678',
                   salaryFringe: 'Salary',
                   transactionDate: '2025-10-15',
+                  transactionId: 'SCT0001234',
+                  ucEarnEndDate: '2025-09-30',
                 },
               ],
           transactionCount: 60,
@@ -1856,6 +1859,11 @@ describe('Expense Review transaction details', () => {
         name: 'Transaction details · UCP',
       });
       await within(dialog).findByText('Ada Lovelace');
+      expect(within(dialog).getByText('00123456')).toBeInTheDocument();
+      expect(within(dialog).getByText('SCT0001234')).toBeInTheDocument();
+      expect(within(dialog).getByText('2025-09-30')).toBeInTheDocument();
+      expect(within(dialog).getByRole('columnheader', { name: /Pay End Date/ })).toBeInTheDocument();
+      expect(within(dialog).getByRole('columnheader', { name: 'UC Earn End Date' })).toBeInTheDocument();
       expect(
         within(dialog).getByRole('columnheader', { name: 'Employee name' })
       ).toBeInTheDocument();
@@ -2057,7 +2065,7 @@ describe('Expense Review transaction details', () => {
       const dialog = await screen.findByRole('dialog');
       await within(dialog).findByText('Ada Lovelace');
       let dateHeader = within(dialog).getByRole('columnheader', {
-        name: /Pay-period end date/,
+        name: /Pay End Date/,
       });
       expect(dateHeader).toHaveAttribute('aria-sort', 'ascending');
       await user.click(within(dialog).getByRole('button', { name: 'Next' }));
@@ -2088,7 +2096,7 @@ describe('Expense Review transaction details', () => {
         within(dialog).getByRole('columnheader', { name: /Employee name/ })
       ).toHaveAttribute('aria-sort', 'ascending');
       dateHeader = within(dialog).getByRole('columnheader', {
-        name: 'Pay-period end date',
+        name: 'Pay End Date',
       });
       expect(dateHeader).not.toHaveAttribute('aria-sort');
       expect(dateHeader).not.toHaveTextContent(/🔼|🔽/);

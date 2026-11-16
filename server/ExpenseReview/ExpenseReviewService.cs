@@ -675,7 +675,9 @@ public sealed partial class ExpenseReviewService(
         WHERE TRY_CONVERT(DATE, CONCAT('01-', a.[PeriodName]), 6) BETWEEN @cycleStart AND @cycleEnd
         """;
 
-    private static readonly string UcPathTransactionsProjection = $$"""
+    private static readonly string UcPathTransactionsProjection = BuildUcPathTransactionsProjection();
+
+    private static string BuildUcPathTransactionsProjection(bool employee = false) => $$"""
         SELECT
             CAST(CONCAT('UCP:', u.[LaborTransactionId]) AS NVARCHAR(160)) AS [Id],
             CAST(NULL AS BIGINT) AS [AeTransactionId],
@@ -755,6 +757,7 @@ public sealed partial class ExpenseReviewService(
         LEFT JOIN [data].[Sfns] sfn
             ON sfn.[Sfn] = incl.[ExpenseSfn]
         WHERE CAST(u.[PayPeriodEndDate] AS DATE) BETWEEN @cycleStart AND @cycleEnd
+          {{(employee ? "AND u.[EmployeeId] = @employeeId" : "")}}
         """;
 
     public static readonly string UnifiedTransactionsCte =

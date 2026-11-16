@@ -8,8 +8,9 @@ import {
 import { buildSegmentExport } from './exportSegments.ts';
 import { SegmentGrid } from './SegmentGrid.tsx';
 import { ExportDataButton } from '@/shared/exportDataButton.tsx';
+import { apiErrorMessage } from '@/queries/orgr.ts';
 import {
-  UPDATE_SEGMENT_CLASSIFICATION_MUTATION_KEY,
+  SEGMENT_CLASSIFICATION_MUTATION_KEY,
   segmentClassificationsQueryOptions,
   type SegmentClassification,
   useUpdateSegmentClassification,
@@ -32,12 +33,12 @@ export function DataClassificationStage({
 }: {
   status: WorkflowStageStatus;
 }) {
-  const { data: segments = [], isLoading } = useQuery(
+  const { data: segments = [], error, isError, isLoading } = useQuery(
     segmentClassificationsQueryOptions()
   );
   const updateClassification = useUpdateSegmentClassification();
-  const pendingClassificationUpdates = useIsMutating({
-    mutationKey: UPDATE_SEGMENT_CLASSIFICATION_MUTATION_KEY,
+  const pendingMutations = useIsMutating({
+    mutationKey: SEGMENT_CLASSIFICATION_MUTATION_KEY,
   });
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -45,6 +46,7 @@ export function DataClassificationStage({
   const continueMutation = useMutation({
     mutationFn: () =>
       updateWorkflowStageStatus('data-classification', 'Complete'),
+    mutationKey: SEGMENT_CLASSIFICATION_MUTATION_KEY,
     onSuccess: (snapshot) => {
       queryClient.setQueryData(WORKFLOW_SNAPSHOT_KEY, snapshot);
       void navigate({
@@ -71,7 +73,7 @@ export function DataClassificationStage({
     });
   };
 
-  const gateOpen = allClassified(segments);
+  const gateOpen = !isError && allClassified(segments);
   const isComplete = status === 'Complete';
   const activeTab =
     SEGMENT_TABS.find((tab) => tab.type === activeType) ?? SEGMENT_TABS[0];
@@ -84,6 +86,29 @@ export function DataClassificationStage({
         New chart-string segments need to be classified before they can be
         included or excluded from the AD419 report.
       </p>
+
+      {isComplete ? (
+        <p className="alert alert-info" role="note">
+          Changing a classification reopens this step and the later review
+          steps, and clears the built auto-associations report. Complete the
+          reviews again to rebuild it.
+        </p>
+      ) : null}
+      {isError ? (
+        <div className="alert alert-error" role="alert">
+          <span>{apiErrorMessage(error, 'Could not load classifications.')}</span>
+        </div>
+      ) : null}
+      {updateClassification.isError ? (
+        <div className="alert alert-error" role="alert">
+          <span>
+            {apiErrorMessage(
+              updateClassification.error,
+              'Could not save the classification.'
+            )}
+          </span>
+        </div>
+      ) : null}
 
       <div className="tabs tabs-bordered" role="tablist">
         {SEGMENT_TABS.map((tab) => {
@@ -117,6 +142,7 @@ export function DataClassificationStage({
 
       <SegmentGrid
         classificationHeader={activeTab.classificationHeader}
+        disabled={isError || pendingMutations > 0}
         onClassify={handleClassify}
         segments={tabSegments}
         segmentType={activeType}
@@ -132,16 +158,16 @@ export function DataClassificationStage({
 
       <div className="flex items-center justify-between border-t pt-4">
         <span className={gateOpen ? 'text-success' : 'text-warning'}>
-          {gateOpen
-            ? 'All segments classified.'
-            : 'Unclassified rows must be set before the next step.'}
+          {isError
+            ? 'Classifications could not be loaded.'
+            : gateOpen
+              ? 'All segments classified.'
+              : 'Unclassified rows must be set before the next step.'}
         </span>
         {isComplete ? null : gateOpen ? (
           <button
             className="btn btn-primary"
-            disabled={
-              continueMutation.isPending || pendingClassificationUpdates > 0
-            }
+            disabled={continueMutation.isPending || pendingMutations > 0}
             onClick={() => continueMutation.mutate()}
             type="button"
           >
@@ -158,9 +184,10 @@ export function DataClassificationStage({
       {continueMutation.isError ? (
         <div className="alert alert-error" role="alert">
           <span>
-            {continueMutation.error instanceof Error
-              ? continueMutation.error.message
-              : 'Could not update the workflow stage.'}
+            {apiErrorMessage(
+              continueMutation.error,
+              'Could not update the workflow stage.'
+            )}
           </span>
         </div>
       ) : null}

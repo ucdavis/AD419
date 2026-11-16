@@ -283,7 +283,7 @@ public sealed class AutoAssociationReportService(
             FROM [data].[ExpenseSummary]
             WHERE [Source] = N'UCPath' AND [EmployeeId] IS NOT NULL
             GROUP BY [EmployeeId]
-            HAVING SUM([Fte]) > 1
+            HAVING SUM([Fte]) > 1.1
             ORDER BY SUM([Fte]) DESC, [EmployeeId]
             """, cancellationToken));
         return rows.ToList();
