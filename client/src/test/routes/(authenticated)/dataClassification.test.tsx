@@ -305,13 +305,24 @@ describe('Data Classification stage', () => {
     const { cleanup } = renderRoute({ initialPath: '/workflow/data-classification' });
 
     try {
-      const tab = await screen.findByRole('tab', { name: /Job Code/ });
-      fireEvent.click(tab);
+      // The stage opens on Financial Dept; the failure must show there too,
+      // or a disabled Continue has no explanation.
+      const tab = await screen.findByRole('tab', { name: /Financial Dept/ });
+      expect(tab).toHaveAttribute('aria-selected', 'true');
 
       const alert = await screen.findByRole('alert');
       expect(alert).toHaveTextContent('No fiscal period has been confirmed in Project Identification.');
       expect(screen.getByRole('button', { name: /Continue to Expense Review/ })).toBeDisabled();
+      expect(screen.getByText('Job codes could not be loaded.')).toBeInTheDocument();
       expect(screen.queryByText('All segments classified.')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('Unclassified rows must be set before the next step.')
+      ).not.toBeInTheDocument();
+
+      // The Job Code tab shows the same single alert, not a table.
+      fireEvent.click(screen.getByRole('tab', { name: /Job Code/ }));
+      expect(screen.getAllByRole('alert')).toHaveLength(1);
+      expect(screen.queryByRole('combobox', { name: /^Job SFN for/ })).not.toBeInTheDocument();
     } finally {
       cleanup();
     }

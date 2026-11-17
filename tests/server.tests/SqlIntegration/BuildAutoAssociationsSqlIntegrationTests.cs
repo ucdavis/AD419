@@ -116,6 +116,43 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
     }
 
     [Fact]
+    public async Task Rejected_rebuild_leaves_the_previous_build_in_place()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedScenarioAsync();
+
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+        var window = new { cycleStart = CycleStart, cycleEnd = CycleEnd };
+        await connection.ExecuteAsync("EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd", window);
+
+        const string stateSql =
+            """
+            SELECT
+                (SELECT MAX([BuildId]) FROM [data].[AutoAssociationBuilds]) AS [BuildId],
+                (SELECT COUNT(*) FROM [data].[AutoAssociationBuilds]) AS [Builds],
+                (SELECT COUNT(*) FROM [data].[ExpenseSummary]) AS [SummaryRows],
+                (SELECT COUNT(*) FROM [data].[StagedAssociations]) AS [AssociationRows],
+                (SELECT COUNT(*) FROM [data].[AutoAssociationExcludedProjects]) AS [ExcludedProjects],
+                (SELECT SUM([Expenses]) FROM [data].[StagedAssociations]) AS [AssociatedExpenses]
+            """;
+        var before = await connection.QuerySingleAsync<StagingState>(stateSql);
+        before.Should().Be(new StagingState(before.BuildId, 1, 8, 11, 2, before.AssociatedExpenses));
+
+        // The rebuild button reruns the procedure over an existing build. The
+        // no OrgR rejection is thrown after the procedure has deleted the old
+        // staging rows, so only the rollback keeps them.
+        await connection.ExecuteAsync("UPDATE [data].[OrgRFinancialDepartments] SET [OrgR] = NULL WHERE [FinancialDepartment] = 'D1'");
+        var rebuild = () => connection.ExecuteAsync("EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd", window);
+        await rebuild.Should().ThrowAsync<SqlException>().WithMessage("*no OrgR*");
+
+        (await connection.QuerySingleAsync<StagingState>(stateSql)).Should().Be(before);
+        await connection.ExecuteAsync("UPDATE [data].[OrgRFinancialDepartments] SET [OrgR] = 'AAAA' WHERE [FinancialDepartment] = 'D1'");
+    }
+
+    private sealed record StagingState(int BuildId, int Builds, int SummaryRows, int AssociationRows, int ExcludedProjects, decimal AssociatedExpenses);
+
+    [Fact]
     public async Task Summary_total_equals_expense_review_included_total()
     {
         await fixture.ClearDataTablesAsync();

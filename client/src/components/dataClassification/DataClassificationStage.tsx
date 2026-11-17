@@ -120,6 +120,16 @@ export function DataClassificationStage({
         included or excluded from the AD419 report.
       </p>
 
+      {/* Shown on every tab: job codes gate Continue, so a failed load must
+          not hide behind the Job Code tab. */}
+      {jobCodesQuery.isError ? (
+        <div className="alert alert-error" role="alert">
+          <span>
+            {apiErrorMessage(jobCodesQuery.error, 'Could not load job codes.')}
+          </span>
+        </div>
+      ) : null}
+
       <div className="tabs tabs-bordered" role="tablist">
         {SEGMENT_TABS.map((tab) => {
           const count = unclassifiedCount(segments, tab.type);
@@ -176,16 +186,7 @@ export function DataClassificationStage({
               </span>
             </div>
           ) : null}
-          {jobCodesQuery.isError ? (
-            <div className="alert alert-error" role="alert">
-              <span>
-                {apiErrorMessage(
-                  jobCodesQuery.error,
-                  'Could not load job codes.'
-                )}
-              </span>
-            </div>
-          ) : jobCodes ? (
+          {jobCodesQuery.isError ? null : jobCodes ? (
             <JobCodeTab
               data={jobCodes}
               onAssign={(jobCode, staffTypeCode) =>
@@ -217,7 +218,11 @@ export function DataClassificationStage({
         <span className={gateOpen ? 'text-success' : 'text-warning'}>
           {gateOpen
             ? 'All segments classified.'
-            : 'Unclassified rows must be set before the next step.'}
+            : jobCodesQuery.isError
+              ? 'Job codes could not be loaded.'
+              : jobCodes === undefined
+                ? 'Checking job codes...'
+                : 'Unclassified rows must be set before the next step.'}
         </span>
         {isComplete ? null : gateOpen ? (
           <button
