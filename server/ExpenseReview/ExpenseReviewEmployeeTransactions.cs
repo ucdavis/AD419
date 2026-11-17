@@ -95,6 +95,9 @@ public sealed partial class ExpenseReviewService
                 u.[JobCode], u.[Hours], u.[CalculatedFte],
                 CAST(NULL AS NVARCHAR(30)) AS [AccountingSequenceNumber], CAST(NULL AS BIGINT) AS [SequenceNumberSort],
                 CAST(NULL AS NVARCHAR(1)) AS [JournalName], CAST(NULL AS NVARCHAR(1)) AS [LineDescription],
+                -- Intentionally NULL: the UCPath import does not supply a document type.
+                -- FinanceDocTypeCd is unmapped by UcPathTransactionsImportService; journal ID prefixes
+                -- are not a verified document-type mapping.
                 CAST(NULL AS NVARCHAR(1)) AS [DocumentType], CAST(NULL AS NVARCHAR(1)) AS [JournalReference],
                 u.[Entity], u.[FinancialDepartment], u.[Fund], u.[Account], u.[Project], u.[Purpose], u.[Program], u.[Activity],
                 o.[OrgR], m.[Sfn] AS [ExpenseSfn], incl.[FteSfn], membership.[ReportIncluded],

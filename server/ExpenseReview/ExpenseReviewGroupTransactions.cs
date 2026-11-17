@@ -84,6 +84,7 @@ public sealed partial class ExpenseReviewService
                 u.[JobCode], u.[Hours], u.[CalculatedFte],
                 CONVERT(NVARCHAR(30), a.[AccountingSequenceNumber]) AS [AccountingSequenceNumber],
                 a.[AccountingSequenceNumber] AS [SequenceNumberSort],
+                -- DocumentType is AE-only; UCPath FinanceDocTypeCd is not populated by the import.
                 a.[JournalName], a.[JournalLineDescription] AS [LineDescription], a.[DocumentType], a.[JournalReference],
                 (SELECT r.[Code], r.[Label], 1 AS [RowCount], COALESCE(m.[Amount], 0) AS [Amount]
                  FROM (VALUES {{ReasonValuesSql("m")}}) r([Code], [Label])
