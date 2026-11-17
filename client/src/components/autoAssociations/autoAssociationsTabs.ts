@@ -8,8 +8,7 @@ export type AutoAssociationsTabId =
   | 'rule-220'
   | 'excluded'
   | 'fte'
-  | 'totals'
-  | 'job-codes';
+  | 'totals';
 
 export interface AutoAssociationsTab {
   id: AutoAssociationsTabId;
@@ -61,11 +60,6 @@ export const AUTO_ASSOCIATIONS_TABS: AutoAssociationsTab[] = [
     id: 'totals',
     label: 'Pre-association totals',
     note: 'Included expenses and FTE by OrgR, financial department, fund SFN and job SFN before any association. Use it to spot anything far off.',
-  },
-  {
-    id: 'job-codes',
-    label: 'Unmatched job codes',
-    note: 'Payroll job codes with no SFN. Their dollars are included. Until the title or staff type is classified their FTE cannot be reported and their State Appropriations (13U02) dollars cannot be auto-associated.',
   },
 ];
 

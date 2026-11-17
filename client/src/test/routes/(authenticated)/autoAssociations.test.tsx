@@ -241,25 +241,6 @@ function mockApi(options: { completeFails?: boolean; failingReport?: boolean; ha
         ])
       )
     ),
-    http.get('/api/ExpenseReview/unmatched-job-codes', () =>
-      HttpResponse.json({
-        cycleEnd: '2025-09-30',
-        cycleStart: '2024-10-01',
-        fiscalYear: 'FY25',
-        rows: [
-          {
-            amount: 12.5,
-            employeeCount: 1,
-            fte: 0.05,
-            jobCode: '9999',
-            reason: 'noTitle',
-            rowCount: 1,
-            staffTypeCode: null,
-            titleName: null,
-          },
-        ],
-      })
-    ),
     http.put('/api/workflow/stages/auto-associations', () => {
       if (options.completeFails) {
         return HttpResponse.text('The workflow stage cannot be updated in its current state.', { status: 400 });
@@ -405,8 +386,10 @@ describe('Auto-Associations stage', () => {
       expect(screen.getByRole('columnheader', { name: 'Job SFN' })).toBeInTheDocument();
       expect(screen.getByRole('cell', { name: '241' })).toBeInTheDocument();
 
-      await user.click(screen.getByRole('tab', { name: 'Unmatched job codes' }));
-      expect(await screen.findByText('9999')).toBeInTheDocument();
+
+      // Job codes are classified in Data Classification now; the report tab is gone.
+      expect(screen.queryByRole('tab', { name: 'Unmatched job codes' })).not.toBeInTheDocument();
+      expect(screen.getAllByRole('tab').at(-1)).toHaveTextContent('Pre-association totals');
     } finally {
       cleanup();
     }

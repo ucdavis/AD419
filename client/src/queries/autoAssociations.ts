@@ -117,29 +117,10 @@ export interface PreAssociationTotal {
   sfnLabel: string | null;
 }
 
-export interface UnmatchedJobCode {
-  amount: number;
-  employeeCount: number;
-  fte: number;
-  jobCode: string | null;
-  reason: string;
-  rowCount: number;
-  staffTypeCode: string | null;
-  titleName: string | null;
-}
-
-export interface UnmatchedJobCodesResponse {
-  cycleEnd: string;
-  cycleStart: string;
-  fiscalYear: string;
-  rows: UnmatchedJobCode[];
-}
-
 export const AUTO_ASSOCIATIONS_KEYS = {
   build: ['autoAssociations', 'build'] as const,
   excluded: ['autoAssociations', 'excluded'] as const,
   fte: ['autoAssociations', 'fte'] as const,
-  jobCodes: ['autoAssociations', 'jobCodes'] as const,
   rule204: ['autoAssociations', 'rule204'] as const,
   rule20x: ['autoAssociations', 'rule20x'] as const,
   rule220: ['autoAssociations', 'rule220'] as const,
@@ -188,11 +169,4 @@ export const preAssociationTotalsQueryOptions = () =>
   queryOptions({
     queryFn: () => report<PreAssociationTotal[]>('/api/autoassociations/pre-association-totals'),
     queryKey: AUTO_ASSOCIATIONS_KEYS.totals,
-  });
-
-export const unmatchedJobCodesQueryOptions = () =>
-  queryOptions({
-    queryFn: () =>
-      fetchJson<UnmatchedJobCodesResponse>('/api/ExpenseReview/unmatched-job-codes').then((r) => r.rows),
-    queryKey: AUTO_ASSOCIATIONS_KEYS.jobCodes,
   });

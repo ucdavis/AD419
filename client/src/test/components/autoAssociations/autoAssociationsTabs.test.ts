@@ -17,7 +17,6 @@ describe('autoAssociationsTabs', () => {
       'excluded',
       'fte',
       'totals',
-      'job-codes',
     ]);
   });
 

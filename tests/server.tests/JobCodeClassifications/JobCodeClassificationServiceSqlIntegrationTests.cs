@@ -71,6 +71,9 @@ public sealed class JobCodeClassificationServiceSqlIntegrationTests(SqlServerDat
         // staff type with no line all leave reported FTE without a line.
         rows["0000"].Blocking.Should().BeTrue();
         rows["5678"].Blocking.Should().BeTrue();
+        // 5678 has a second row on an excluded ERN code: its dollars count, its FTE does not.
+        rows["5678"].Amount.Should().Be(70m);
+        rows["5678"].Fte.Should().Be(0.050000m);
         rows["7777"].Blocking.Should().BeTrue();
         rows["7777"].StaffTypeCode.Should().Be("GHOST");
         rows["7777"].FteSfn.Should().BeNull();

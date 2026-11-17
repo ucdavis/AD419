@@ -10,7 +10,6 @@ import { PreAssociationTotalsTab } from './PreAssociationTotalsTab.tsx';
 import { Rule20xTab } from './Rule20xTab.tsx';
 import { Rule204Tab } from './Rule204Tab.tsx';
 import { Rule220Tab } from './Rule220Tab.tsx';
-import { UnmatchedJobCodesTab } from './UnmatchedJobCodesTab.tsx';
 import { autoAssociationBuildQueryOptions } from '@/queries/autoAssociations.ts';
 import { apiErrorMessage } from '@/queries/orgr.ts';
 import { WORKFLOW_SNAPSHOT_KEY, updateWorkflowStageStatus } from '@/queries.ts';
@@ -106,10 +105,8 @@ export function AutoAssociationsStage({ status }: { status: WorkflowStageStatus 
             <ExcludedProjectsTab />
           ) : activeId === 'fte' ? (
             <FteOverOneTab />
-          ) : activeId === 'totals' ? (
-            <PreAssociationTotalsTab />
           ) : (
-            <UnmatchedJobCodesTab />
+            <PreAssociationTotalsTab />
           )}
         </>
       ) : null}
