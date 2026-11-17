@@ -39,6 +39,14 @@ const build = {
   summaryRows: 9,
 };
 
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 function mockApi(options: { completeFails?: boolean; failingReport?: boolean; hasBuild: boolean; }) {
   let snapshot = createWorkflowSnapshot(completedUpstream);
   server.use(
@@ -454,6 +462,136 @@ describe('Auto-Associations stage', () => {
       // The 202 tab must not inherit page 2 from the 201 tab.
       await user.click(screen.getByRole('tab', { name: '202' }));
       expect(await screen.findByText('PI Two')).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('shows when the build ran and a rebuild button', async () => {
+    mockApi({ hasBuild: true });
+    const { cleanup } = renderRoute({ initialPath: '/workflow/auto-associations' });
+
+    try {
+      expect(
+        await screen.findByRole('button', { name: 'Rebuild auto-associations' })
+      ).toBeEnabled();
+      expect(
+        screen.getByText(`Built ${new Date(build.builtAt).toLocaleString()}`)
+      ).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('has no rebuild button before the first build', async () => {
+    mockApi({ hasBuild: false });
+    const { cleanup } = renderRoute({ initialPath: '/workflow/auto-associations' });
+
+    try {
+      await screen.findByText(/Auto-associations have not run yet/);
+      expect(
+        screen.queryByRole('button', { name: 'Rebuild auto-associations' })
+      ).not.toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('rebuilds after confirmation and reloads the reports', async () => {
+    mockApi({ hasBuild: true });
+    let buildRequests = 0;
+    let reportRequests = 0;
+    let rebuildRequests = 0;
+    // Holds the rebuild request open until the test lets it finish.
+    const rebuildRequest = deferred();
+    const rebuilt = { ...build, buildId: 2, builtAt: '2026-11-17T22:05:00Z' };
+    server.use(
+      http.get('/api/autoassociations/build', () => {
+        buildRequests += 1;
+        return HttpResponse.json(envelope(rebuildRequests > 0 ? rebuilt : build));
+      }),
+      http.get('/api/autoassociations/rule-20x', () => {
+        reportRequests += 1;
+        return HttpResponse.json(envelope({ sfns: [], unassociated: [] }));
+      }),
+      http.post('/api/autoassociations/rebuild', async () => {
+        rebuildRequests += 1;
+        await rebuildRequest.promise;
+        return HttpResponse.json(envelope(rebuilt));
+      })
+    );
+    const user = userEvent.setup();
+    const { cleanup } = renderRoute({ initialPath: '/workflow/auto-associations' });
+
+    try {
+      const rebuild = await screen.findByRole('button', { name: 'Rebuild auto-associations' });
+      await waitFor(() => expect(reportRequests).toBe(1));
+      expect(buildRequests).toBe(1);
+
+      // Cancel leaves everything as it was.
+      await user.click(rebuild);
+      expect(
+        screen.getByText('This replaces the current auto-associations with a fresh run.')
+      ).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(rebuildRequests).toBe(0);
+
+      await user.click(rebuild);
+      await user.click(screen.getByRole('button', { name: 'Rebuild' }));
+
+      const running = await screen.findByRole('button', { name: 'Rebuilding...' });
+      expect(running).toBeDisabled();
+      expect(rebuildRequests).toBe(1);
+
+      rebuildRequest.resolve();
+
+      await waitFor(() => {
+        expect(buildRequests).toBe(2);
+        expect(reportRequests).toBe(2);
+      });
+      expect(
+        await screen.findByText(`Built ${new Date(rebuilt.builtAt).toLocaleString()}`)
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Rebuild auto-associations' })).toBeEnabled();
+      expect(rebuildRequests).toBe(1);
+    } finally {
+      rebuildRequest.resolve();
+      cleanup();
+    }
+  });
+
+  it('shows the server message when a rebuild is rejected and keeps the reports', async () => {
+    mockApi({ hasBuild: true });
+    server.use(
+      http.post('/api/autoassociations/rebuild', () =>
+        HttpResponse.text(
+          'Projects is empty; run the Data Import before building auto-associations.',
+          { status: 409 }
+        )
+      )
+    );
+    const user = userEvent.setup();
+    const { cleanup } = renderRoute({ initialPath: '/workflow/auto-associations' });
+
+    try {
+      await user.click(await screen.findByRole('button', { name: 'Rebuild auto-associations' }));
+      await user.click(screen.getByRole('button', { name: 'Rebuild' }));
+
+      const alerts = await screen.findAllByRole('alert');
+      expect(
+        alerts.some((el) =>
+          el.textContent?.includes(
+            'Projects is empty; run the Data Import before building auto-associations.'
+          )
+        )
+      ).toBe(true);
+      // The previous build and its reports are still there.
+      expect(screen.getByRole('tab', { name: '201' })).toBeInTheDocument();
+      expect(await screen.findByText('PI One')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Rebuild auto-associations' })).toBeEnabled();
+      expect(
+        screen.getByText(`Built ${new Date(build.builtAt).toLocaleString()}`)
+      ).toBeInTheDocument();
     } finally {
       cleanup();
     }

@@ -1,5 +1,5 @@
 import { fetchJson } from '../lib/api.ts';
-import { queryOptions } from '@tanstack/react-query';
+import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export interface ReportEnvelope<T> {
   cycleEnd: string;
@@ -127,7 +127,24 @@ export const AUTO_ASSOCIATIONS_KEYS = {
   totals: ['autoAssociations', 'totals'] as const,
 };
 
+export const REBUILD_AUTO_ASSOCIATIONS_MUTATION_KEY = ['autoAssociations', 'rebuild'] as const;
+
 const report = <T,>(url: string) => fetchJson<ReportEnvelope<T>>(url).then((r) => r.data);
+
+// Reruns the build for the current cycle. Every report reads the staging
+// tables the build replaces, so all of them reload once it finishes.
+export const useRebuildAutoAssociations = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () =>
+      fetchJson<ReportEnvelope<AutoAssociationBuild | null>>('/api/autoassociations/rebuild', {
+        method: 'POST',
+      }),
+    mutationKey: REBUILD_AUTO_ASSOCIATIONS_MUTATION_KEY,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['autoAssociations'] }),
+  });
+};
 
 export const autoAssociationBuildQueryOptions = () =>
   queryOptions({
