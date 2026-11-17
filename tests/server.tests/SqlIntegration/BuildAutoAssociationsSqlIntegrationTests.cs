@@ -254,6 +254,62 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
         staged.Should().NotContain(row => row.AccessionNumber == "2000001" || row.AccessionNumber == "2000003" || row.AccessionNumber == "2000004");
     }
 
+    [Fact]
+    public async Task Build_keeps_account_on_summary_rows_and_splits_rows_by_account()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedUnder100ScenarioAsync();
+
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        // Rows identical to the scenario's AE-N and P2 13U02 rows except for
+        // the account, plus a pair on one account that nets to zero.
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description], [IncludeInReport], [Sfn])
+            VALUES
+                ('Account', '500000', 'Account', 1, NULL),
+                ('Account', '520000', 'Account', 1, NULL),
+                ('Account', '530000', 'Account', 1, NULL);
+
+            INSERT INTO [data].[AETransactions]
+                ([Reference], [Entity], [Fund], [FinancialDepartment], [Account], [Activity], [Purpose], [Project], [PeriodName], [Amount], [ExcludedByDate], [AccountInUcPath])
+            VALUES
+                ('ae-acct-a', '3310', 'F204', 'D1', '500000', 'AC1', 'P1', 'AE-N', 'Oct-24', 60,  0, 0),
+                ('ae-acct-b', '3310', 'F204', 'D1', '520000', 'AC1', 'P1', 'AE-N', 'Oct-24', 40,  0, 0),
+                ('ae-net-a',  '3310', 'F204', 'D1', '530000', 'AC1', 'P1', 'AE-N', 'Oct-24', 25,  0, 0),
+                ('ae-net-b',  '3310', 'F204', 'D1', '530000', 'AC1', 'P1', 'AE-N', 'Nov-24', -25, 0, 0);
+
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [EmployeeName], [PositionNumber], [JobCode],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
+            VALUES
+                ('ucp-acct-a', '3310', '13U02', 'D1', 'D1', '500000', 'P1', NULL, 'AE-Q', 'AC1', 'REG', 'P2', 'PI Two', 'POS2', '1234', 10, 100, 0.100000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('ucp-acct-b', '3310', '13U02', 'D1', 'D1', '520000', 'P1', NULL, 'AE-Q', 'AC1', 'REG', 'P2', 'PI Two', 'POS2', '1234', 10, 50,  0.050000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0);
+            """);
+
+        await connection.ExecuteAsync(
+            "EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd",
+            new { cycleStart = CycleStart, cycleEnd = CycleEnd });
+
+        var summary = (await connection.QueryAsync<AccountRow>(
+            "SELECT [Source], [Project], [Account], [Expenses], [Fte] FROM [data].[ExpenseSummary]")).ToList();
+
+        summary.Where(row => row.Source == "AE" && row.Project == "AE-N")
+            .Select(row => (row.Account, row.Expenses))
+            .Should().BeEquivalentTo(new[] { ("A1", 300m), ("500000", 60m), ("520000", 40m) });
+        summary.Where(row => row.Source == "UCPath" && row.Project == "AE-Q")
+            .Select(row => (row.Account, row.Expenses, row.Fte))
+            .Should().BeEquivalentTo(new[] { ("A1", 150m, 0.300000m), ("500000", 100m, 0.100000m), ("520000", 50m, 0.050000m) });
+        summary.Should().NotContain(row => row.Account == "530000");
+        summary.Sum(row => row.Expenses).Should().Be(770m);
+    }
+
+    private sealed record AccountRow(string Source, string? Project, string? Account, decimal Expenses, decimal Fte);
+
     private async Task SeedUnder100ScenarioAsync()
     {
         await using var connection = new SqlConnection(fixture.ConnectionString);

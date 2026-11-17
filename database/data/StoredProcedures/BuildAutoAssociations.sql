@@ -31,14 +31,14 @@ BEGIN
     -- ad419_Transactions_Summary. A UCPath row's FTE counts only when its ERN
     -- code is classified included (dollars always count). AE rows carry no FTE.
     SELECT
-        x.[Source], x.[OrgR], x.[Entity], x.[Project], x.[Activity], x.[Fund], x.[FinancialDepartment],
+        x.[Source], x.[OrgR], x.[Entity], x.[Project], x.[Activity], x.[Fund], x.[FinancialDepartment], x.[Account],
         x.[EmployeeId], x.[EmployeeName], x.[JobCode], x.[ExpenseSfn], x.[FteSfn],
         SUM(x.[Amount]) AS [Expenses], SUM(x.[Fte]) AS [Fte]
     INTO #Summary
     FROM
     (
         SELECT
-            CAST(N'AE' AS NVARCHAR(12)) AS [Source], o.[OrgR], a.[Entity], a.[Project], a.[Activity], a.[Fund], a.[FinancialDepartment],
+            CAST(N'AE' AS NVARCHAR(12)) AS [Source], o.[OrgR], a.[Entity], a.[Project], a.[Activity], a.[Fund], a.[FinancialDepartment], a.[Account],
             CAST(NULL AS NVARCHAR(10)) AS [EmployeeId], CAST(NULL AS NVARCHAR(100)) AS [EmployeeName], CAST(NULL AS NVARCHAR(4)) AS [JobCode],
             i.[ExpenseSfn], i.[FteSfn],
             COALESCE(a.[Amount], 0) AS [Amount], CAST(0 AS DECIMAL(9, 6)) AS [Fte]
@@ -51,7 +51,7 @@ BEGIN
         UNION ALL
 
         SELECT
-            CAST(N'UCPath' AS NVARCHAR(12)), o.[OrgR], u.[Entity], u.[Project], u.[Activity], u.[Fund], u.[FinancialDepartment],
+            CAST(N'UCPath' AS NVARCHAR(12)), o.[OrgR], u.[Entity], u.[Project], u.[Activity], u.[Fund], u.[FinancialDepartment], u.[Account],
             u.[EmployeeId], u.[EmployeeName], u.[JobCode],
             i.[ExpenseSfn], i.[FteSfn],
             u.[Amount], CASE WHEN i.[ErnIncludeInReport] = 1 THEN u.[CalculatedFte] ELSE CAST(0 AS DECIMAL(9, 6)) END
@@ -61,7 +61,7 @@ BEGIN
         WHERE i.[Included] = 1
           AND CAST(u.[PayPeriodEndDate] AS DATE) BETWEEN @cycleStart AND @cycleEnd
     ) x
-    GROUP BY x.[Source], x.[OrgR], x.[Entity], x.[Project], x.[Activity], x.[Fund], x.[FinancialDepartment],
+    GROUP BY x.[Source], x.[OrgR], x.[Entity], x.[Project], x.[Activity], x.[Fund], x.[FinancialDepartment], x.[Account],
              x.[EmployeeId], x.[EmployeeName], x.[JobCode], x.[ExpenseSfn], x.[FteSfn]
     HAVING SUM(x.[Amount]) <> 0;
 
@@ -71,9 +71,9 @@ BEGIN
         THROW 50000, 'An included transaction has no OrgR; complete the OrgR Review mappings first.', 1;
 
     INSERT INTO [data].[ExpenseSummary]
-        ([Source], [OrgR], [Entity], [Project], [Activity], [Fund], [FinancialDepartment],
+        ([Source], [OrgR], [Entity], [Project], [Activity], [Fund], [FinancialDepartment], [Account],
          [EmployeeId], [EmployeeName], [JobCode], [ExpenseSfn], [FteSfn], [Expenses], [Fte])
-    SELECT [Source], [OrgR], [Entity], [Project], [Activity], [Fund], [FinancialDepartment],
+    SELECT [Source], [OrgR], [Entity], [Project], [Activity], [Fund], [FinancialDepartment], [Account],
            [EmployeeId], [EmployeeName], [JobCode], [ExpenseSfn], [FteSfn], [Expenses], [Fte]
     FROM #Summary;
 
