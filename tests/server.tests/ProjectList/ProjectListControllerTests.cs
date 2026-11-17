@@ -12,6 +12,7 @@ using Server.Tests.AutoAssociations;
 using Server.Tests.OrgRReview;
 using Server.Workflow;
 using System.Security.Claims;
+using Server.Tests.JobCodeClassifications;
 
 namespace Server.Tests.ProjectList;
 
@@ -145,7 +146,7 @@ public class ProjectListControllerTests
         await using var db = await CreateDbWithConfirmedRunAsync();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
         var service = new StubProjectListService();
-        var workflowService = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder());
+        var workflowService = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder(), new FakeJobCodeClassificationService());
         await workflowService.SetStageStatusAsync(
             WorkflowStageIds.ProjectIdentification,
             WorkflowStageStatus.Complete,

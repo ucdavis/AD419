@@ -5,6 +5,7 @@ using Server.AutoAssociations;
 using Server.Authorization;
 using Server.Core.Data;
 using Server.Core.Domain;
+using Server.JobCodeClassifications;
 using Server.Models;
 using Server.Models.Workflow;
 using Server.OrgRReview;
@@ -15,7 +16,8 @@ public sealed class WorkflowService(
     AppDbContext dbContext,
     DataDbContext dataDbContext,
     IOrgRReviewSeeder orgRReviewSeeder,
-    IAutoAssociationBuilder autoAssociationBuilder) : IWorkflowService
+    IAutoAssociationBuilder autoAssociationBuilder,
+    IJobCodeClassificationService jobCodeClassifications) : IWorkflowService
 {
     public async Task<WorkflowRun> GetOrCreateCurrentRunAsync(
         ClaimsPrincipal user,
@@ -107,7 +109,7 @@ public sealed class WorkflowService(
                 return null;
             }
 
-            if (!await CanCompleteStageAsync(definition.Id, cancellationToken))
+            if (!await CanCompleteStageAsync(definition.Id, run, cancellationToken))
             {
                 return null;
             }
@@ -296,6 +298,7 @@ public sealed class WorkflowService(
 
     private async Task<bool> CanCompleteStageAsync(
         string stageId,
+        WorkflowRun run,
         CancellationToken cancellationToken)
     {
         switch (stageId)
@@ -308,16 +311,25 @@ public sealed class WorkflowService(
                     .Where(segment => segment.IncludeInReport == null)
                     .Select(segment => new { segment.SegmentType, segment.Code })
                     .ToListAsync(cancellationToken);
-                if (blank.Count == 0)
+                if (blank.Count > 0)
                 {
-                    return true;
+                    var candidates = await dataDbContext.ClassificationCandidates
+                        .Select(candidate => new { candidate.SegmentType, candidate.Code })
+                        .ToListAsync(cancellationToken);
+                    var candidateKeys = candidates.Select(candidate => ClassificationCandidate.Key(candidate.SegmentType, candidate.Code)).ToHashSet();
+                    if (blank.Any(segment => candidateKeys.Contains(ClassificationCandidate.Key(segment.SegmentType, segment.Code))))
+                    {
+                        return false;
+                    }
                 }
 
-                var candidates = await dataDbContext.ClassificationCandidates
-                    .Select(candidate => new { candidate.SegmentType, candidate.Code })
-                    .ToListAsync(cancellationToken);
-                var candidateKeys = candidates.Select(candidate => ClassificationCandidate.Key(candidate.SegmentType, candidate.Code)).ToHashSet();
-                return !blank.Any(segment => candidateKeys.Contains(ClassificationCandidate.Key(segment.SegmentType, segment.Code)));
+                // Job codes whose payroll reports FTE or sits on State
+                // Appropriations need a job SFN before the stage can complete.
+                // The Job Code tab reads the same query, so the two agree.
+                var hasBlockingJobCode = await jobCodeClassifications.HasBlockingAsync(
+                    new FiscalYearCycle(run.FiscalYear, run.CycleStart, run.CycleEnd),
+                    cancellationToken);
+                return !hasBlockingJobCode;
             case WorkflowStageIds.OrgRReview:
                 // Only departments classified as included in this cycle's
                 // report count, matching the seed and the OrgR Review grid.
