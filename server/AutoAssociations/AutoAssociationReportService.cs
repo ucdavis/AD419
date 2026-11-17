@@ -93,8 +93,8 @@ public sealed class AutoAssociationReportService(
         var unassociated = (await connection.QueryAsync<UnassociatedExpenseDto>(Command(
             """
             SELECT
-                e.[ExpenseId], e.[Source], e.[Project], e.[Fund], e.[FinancialDepartment], e.[OrgR],
-                e.[EmployeeId], e.[EmployeeName], e.[ExpenseSfn], e.[Expenses], e.[Fte],
+                e.[ExpenseId], e.[Source], e.[Project], e.[Fund], e.[Account], e.[FinancialDepartment], e.[OrgR],
+                e.[EmployeeId], e.[EmployeeName], e.[ExpenseSfn], e.[FteSfn], e.[Expenses], e.[Fte],
                 CASE
                     WHEN e.[RuleExclusion] = N'Misclassified204' THEN N'Misclassified204'
                     WHEN e.[Project] IS NULL THEN N'NoAeProject'
@@ -175,8 +175,8 @@ public sealed class AutoAssociationReportService(
         var unassociated = (await connection.QueryAsync<UnassociatedExpenseDto>(Command(
             """
             SELECT
-                e.[ExpenseId], e.[Source], e.[Project], e.[Fund], e.[FinancialDepartment], e.[OrgR],
-                e.[EmployeeId], e.[EmployeeName], e.[ExpenseSfn], e.[Expenses], e.[Fte],
+                e.[ExpenseId], e.[Source], e.[Project], e.[Fund], e.[Account], e.[FinancialDepartment], e.[OrgR],
+                e.[EmployeeId], e.[EmployeeName], e.[ExpenseSfn], e.[FteSfn], e.[Expenses], e.[Fte],
                 CASE
                     WHEN e.[EmployeeId] IS NULL THEN N'NoEmployee'
                     WHEN NOT EXISTS
@@ -224,8 +224,8 @@ public sealed class AutoAssociationReportService(
         var unassociated = (await connection.QueryAsync<UnassociatedExpenseDto>(Command(
             """
             SELECT
-                e.[ExpenseId], e.[Source], e.[Project], e.[Fund], e.[FinancialDepartment], e.[OrgR],
-                e.[EmployeeId], e.[EmployeeName], e.[ExpenseSfn], e.[Expenses], e.[Fte],
+                e.[ExpenseId], e.[Source], e.[Project], e.[Fund], e.[Account], e.[FinancialDepartment], e.[OrgR],
+                e.[EmployeeId], e.[EmployeeName], e.[ExpenseSfn], e.[FteSfn], e.[Expenses], e.[Fte],
                 CASE
                     WHEN e.[EmployeeId] IS NULL THEN N'NoEmployee'
                     WHEN e.[FteSfn] IS NULL OR e.[FteSfn] <> '241' THEN N'NoFteLine'
@@ -300,13 +300,14 @@ public sealed class AutoAssociationReportService(
                 NULLIF(cs.[Description], '') AS [FinancialDepartmentName],
                 e.[ExpenseSfn],
                 sf.[Label] AS [SfnLabel],
+                e.[FteSfn],
                 SUM(e.[Expenses]) AS [Expenses],
                 SUM(e.[Fte]) AS [Fte]
             FROM [data].[ExpenseSummary] e
             LEFT JOIN [data].[ChartSegments] cs ON cs.[SegmentName] = 'FinancialDepartment' AND cs.[Code] = e.[FinancialDepartment]
             LEFT JOIN [data].[Sfns] sf ON sf.[Sfn] = e.[ExpenseSfn]
-            GROUP BY e.[OrgR], e.[FinancialDepartment], cs.[Description], e.[ExpenseSfn], sf.[Label]
-            ORDER BY e.[OrgR], e.[FinancialDepartment], e.[ExpenseSfn]
+            GROUP BY e.[OrgR], e.[FinancialDepartment], cs.[Description], e.[ExpenseSfn], sf.[Label], e.[FteSfn]
+            ORDER BY e.[OrgR], e.[FinancialDepartment], e.[ExpenseSfn], e.[FteSfn]
             """, cancellationToken));
         return rows.ToList();
     }

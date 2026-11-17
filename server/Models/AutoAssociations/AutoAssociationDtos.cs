@@ -4,10 +4,10 @@ public sealed record AutoAssociationReportResponse<T>(string FiscalYear, DateOnl
 public sealed record AutoAssociationBuildDto(int BuildId, DateOnly CycleStart, DateOnly CycleEnd, DateTimeOffset BuiltAt, int SummaryRows, int AssociationRows, int ExcludedProjects, int Misclassified204Rows);
 public sealed record ExcludedProjectDto(string AccessionNumber, string NifaProjectNumber, string? Title, string? ProjectDirector, string? AeProjects, decimal Total);
 public sealed record FteOverOneDto(string EmployeeId, string? EmployeeName, decimal Fte, int RowCount);
-public sealed record PreAssociationTotalDto(string OrgR, string? FinancialDepartment, string? FinancialDepartmentName, string? ExpenseSfn, string? SfnLabel, decimal Expenses, decimal Fte);
+public sealed record PreAssociationTotalDto(string OrgR, string? FinancialDepartment, string? FinancialDepartmentName, string? ExpenseSfn, string? SfnLabel, string? FteSfn, decimal Expenses, decimal Fte);
 public sealed record AssociatedProjectDto(string AccessionNumber, string NifaProjectNumber, string? Title, string? ProjectDirector, string? AeProjects, decimal Expenses, decimal Fte);
-/// <summary>Reason is one of: Misclassified204, ProjectExcluded, NoRuleMatched, NoEmployee, NoProject, NoFteLine, NoAeProject.</summary>
-public sealed record UnassociatedExpenseDto(int ExpenseId, string Source, string? Project, string? Fund, string? FinancialDepartment, string OrgR, string? EmployeeId, string? EmployeeName, string? ExpenseSfn, decimal Expenses, decimal Fte, string Reason);
+/// <summary>ExpenseSfn is the fund SFN and FteSfn the job SFN. Account is null on rows from a build made before account joined the summary. Reason is one of: Misclassified204, ProjectExcluded, NoRuleMatched, NoEmployee, NoProject, NoFteLine, NoAeProject.</summary>
+public sealed record UnassociatedExpenseDto(int ExpenseId, string Source, string? Project, string? Fund, string? Account, string? FinancialDepartment, string OrgR, string? EmployeeId, string? EmployeeName, string? ExpenseSfn, string? FteSfn, decimal Expenses, decimal Fte, string Reason);
 public sealed record Rule204ReportDto(IReadOnlyList<AssociatedProjectDto> Projects, IReadOnlyList<UnassociatedExpenseDto> Unassociated, IReadOnlyList<UnassociatedExpenseDto> Misclassified);
 public sealed record Rule20xPiDto(string EmployeeId, string? EmployeeName, int ProjectCount, decimal Expenses, decimal Fte);
 public sealed record Rule20xSfnDto(string Sfn, string? Label, decimal Expenses, decimal Fte, int ProjectCount, IReadOnlyList<Rule20xPiDto> Pis);

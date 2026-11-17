@@ -67,18 +67,38 @@ public sealed class AutoAssociationReportServiceSqlIntegrationTests(SqlServerDat
     }
 
     [Fact]
-    public async Task Pre_association_totals_group_by_orgr_department_and_sfn()
+    public async Task Pre_association_totals_group_by_orgr_department_fund_sfn_and_job_sfn()
     {
         await fixture.ClearDataTablesAsync();
         await SeedAndBuildAsync();
 
+        // Payroll on a second FTE line under the same OrgR, department and fund SFN.
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[StaffTypes] ([StaffTypeCode], [FteSfn], [Description]) VALUES ('TECH', '243', 'Technical Support');
+            INSERT INTO [data].[Titles] ([TitleCode], [StaffTypeCode], [Name]) VALUES ('4460', 'TECH', 'Lab Assistant');
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [EmployeeName], [PositionNumber], [JobCode],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
+            VALUES
+                ('ucp-201-tech', '3310', 'F201', 'D1', 'D1', 'A1', 'P1', NULL, 'AE-C', 'AC1', 'REG', 'E4', 'Lab Tech', 'POS4', '4460', 10, 30, 0.030000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0);
+            EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd;
+            """,
+            new { cycleStart = CycleStart, cycleEnd = CycleEnd });
+
         var rows = await CreateService().GetPreAssociationTotalsAsync(CancellationToken.None);
 
-        rows.Select(row => (row.OrgR, row.FinancialDepartment, row.ExpenseSfn, row.Expenses, row.Fte)).Should().Equal(
-            ("AAAA", "D1", "201", 750m, 0.660000m),
-            ("AAAA", "D1", "202", 200m, 0.200000m),
-            ("AAAA", "D1", "204", 1380m, 0m),
-            ("AAAA", "D1", "220", 540m, 0.500000m));
+        rows.Select(row => (row.OrgR, row.FinancialDepartment, row.ExpenseSfn, row.FteSfn, row.Expenses, row.Fte)).Should().Equal(
+            ("AAAA", "D1", "201", null, 90m, 0m),
+            ("AAAA", "D1", "201", "241", 660m, 0.660000m),
+            ("AAAA", "D1", "201", "243", 30m, 0.030000m),
+            ("AAAA", "D1", "202", "241", 200m, 0.200000m),
+            ("AAAA", "D1", "204", null, 1380m, 0m),
+            ("AAAA", "D1", "220", "241", 540m, 0.500000m));
         rows[0].SfnLabel.Should().Be("Hatch");
         rows[0].FinancialDepartmentName.Should().Be("Dept One");
     }
@@ -103,6 +123,7 @@ public sealed class AutoAssociationReportServiceSqlIntegrationTests(SqlServerDat
             ("AE-S", 80m, "ProjectExcluded"),
         });
         report.Unassociated.Should().OnlyContain(u => u.Source == "AE" && u.OrgR == "AAAA" && u.ExpenseSfn == "204");
+        report.Unassociated.Should().OnlyContain(u => u.Account == "A1" && u.FteSfn == null);
         report.Unassociated.Should().NotContain(u => u.Project == "AE-ZZ");
         report.Misclassified.Should().BeEmpty();
     }
@@ -130,6 +151,8 @@ public sealed class AutoAssociationReportServiceSqlIntegrationTests(SqlServerDat
         remainder.ExpenseSfn.Should().Be("201");
         remainder.Expenses.Should().Be(90m);
         remainder.Reason.Should().Be("NoEmployee");
+        remainder.Account.Should().Be("A1");
+        remainder.FteSfn.Should().BeNull();
     }
 
     [Fact]
@@ -210,6 +233,13 @@ public sealed class AutoAssociationReportServiceSqlIntegrationTests(SqlServerDat
             ("E8", 100m, "NoProject"),
         });
         report.Unassociated.Should().OnlyContain(u => u.ExpenseSfn == "220" && u.Fund == "13U02");
+        // The AE row has no job, E1's row has no job code, and E8's title is on line 241.
+        report.Unassociated.Select(u => (u.EmployeeId, u.FteSfn, u.Account)).Should().BeEquivalentTo(new[]
+        {
+            ((string?)null, (string?)null, "A1"),
+            ("E1", null, "A1"),
+            ("E8", "241", "A1"),
+        });
     }
 
     internal AutoAssociationReportService CreateService()
