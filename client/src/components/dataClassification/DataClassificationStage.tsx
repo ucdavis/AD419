@@ -6,12 +6,21 @@ import {
   unclassifiedCount,
 } from './segments.ts';
 import { buildSegmentExport } from './exportSegments.ts';
+import { JobCodeTab } from './JobCodeTab.tsx';
 import { SegmentGrid } from './SegmentGrid.tsx';
 import { ExportDataButton } from '@/shared/exportDataButton.tsx';
+import {
+  ASSIGN_JOB_CODE_MUTATION_KEY,
+  blockingJobCodeCount,
+  jobCodeClassificationsQueryOptions,
+  useAssignJobCode,
+} from '@/queries/jobCodeClassifications.ts';
+import { apiErrorMessage } from '@/queries/orgr.ts';
 import {
   UPDATE_SEGMENT_CLASSIFICATION_MUTATION_KEY,
   segmentClassificationsQueryOptions,
   type SegmentClassification,
+  type SegmentType,
   useUpdateSegmentClassification,
 } from '@/queries/segmentClassifications.ts';
 import {
@@ -27,6 +36,12 @@ import {
 } from '@tanstack/react-query';
 import type { WorkflowStageStatus } from '@/types.ts';
 
+// Job codes are classified to a job SFN through their own tab; they are not a
+// chart-string segment, so they sit beside SEGMENT_TABS rather than in it.
+const JOB_CODE_TAB = 'JobCode';
+const JOB_CODE_NOTE =
+  'The job SFN is the FTE line a job code reports on. Dollars are included either way. Without a line the FTE cannot be reported and State Appropriations (13U02) dollars cannot be auto-associated. Changes made after auto-associations have run apply when they are rebuilt.';
+
 export function DataClassificationStage({
   status,
 }: {
@@ -35,13 +50,22 @@ export function DataClassificationStage({
   const { data: segments = [], isLoading } = useQuery(
     segmentClassificationsQueryOptions()
   );
+  const jobCodesQuery = useQuery(jobCodeClassificationsQueryOptions());
   const updateClassification = useUpdateSegmentClassification();
-  const pendingClassificationUpdates = useIsMutating({
+  const assignJobCode = useAssignJobCode();
+  const pendingSegmentUpdates = useIsMutating({
     mutationKey: UPDATE_SEGMENT_CLASSIFICATION_MUTATION_KEY,
   });
+  const pendingJobCodeUpdates = useIsMutating({
+    mutationKey: ASSIGN_JOB_CODE_MUTATION_KEY,
+  });
+  const pendingClassificationUpdates =
+    pendingSegmentUpdates + pendingJobCodeUpdates;
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [activeType, setActiveType] = useState(SEGMENT_TABS[0].type);
+  const [activeType, setActiveType] = useState<
+    SegmentType | typeof JOB_CODE_TAB
+  >(SEGMENT_TABS[0].type);
   const continueMutation = useMutation({
     mutationFn: () =>
       updateWorkflowStageStatus('data-classification', 'Complete'),
@@ -71,12 +95,23 @@ export function DataClassificationStage({
     });
   };
 
-  const gateOpen = allClassified(segments);
+  // Job codes that need a line block the stage like unclassified segments
+  // do. Until they have loaded there is nothing to judge by, so the gate
+  // stays closed, including when the request fails.
+  const jobCodes = jobCodesQuery.data;
+  const blockingJobCodes = jobCodes ? blockingJobCodeCount(jobCodes.rows) : 0;
+  const jobCodesReady = jobCodes !== undefined && !jobCodesQuery.isError;
+  const gateOpen =
+    allClassified(segments) && jobCodesReady && blockingJobCodes === 0;
   const isComplete = status === 'Complete';
+  const isJobCodeTab = activeType === JOB_CODE_TAB;
   const activeTab =
     SEGMENT_TABS.find((tab) => tab.type === activeType) ?? SEGMENT_TABS[0];
-  const tabSegments = segmentsForType(segments, activeType);
+  const tabSegments = isJobCodeTab
+    ? []
+    : segmentsForType(segments, activeType);
   const exportData = buildSegmentExport(tabSegments, activeTab);
+  const note = isJobCodeTab ? JOB_CODE_NOTE : activeTab.note;
 
   return (
     <div className="space-y-4">
@@ -107,28 +142,76 @@ export function DataClassificationStage({
             </button>
           );
         })}
+        <button
+          aria-selected={isJobCodeTab}
+          className={`tab ${isJobCodeTab ? 'tab-active' : ''}`}
+          onClick={() => setActiveType(JOB_CODE_TAB)}
+          role="tab"
+          type="button"
+        >
+          Job Code
+          {blockingJobCodes > 0 && (
+            <span className="badge badge-warning badge-sm ml-2">
+              {blockingJobCodes} new
+            </span>
+          )}
+        </button>
       </div>
 
-      {activeTab.note && (
+      {note && (
         <div className="alert alert-info" role="note">
-          <span>{activeTab.note}</span>
+          <span>{note}</span>
         </div>
       )}
 
-      <SegmentGrid
-        classificationHeader={activeTab.classificationHeader}
-        onClassify={handleClassify}
-        segments={tabSegments}
-        segmentType={activeType}
-        tableActions={
-          <ExportDataButton
-            columns={exportData.columns}
-            data={exportData.rows}
-            filename={exportData.filename}
-            label="Export"
-          />
-        }
-      />
+      {isJobCodeTab ? (
+        <>
+          {assignJobCode.isError ? (
+            <div className="alert alert-error" role="alert">
+              <span>
+                {apiErrorMessage(
+                  assignJobCode.error,
+                  'Could not save the job code.'
+                )}
+              </span>
+            </div>
+          ) : null}
+          {jobCodesQuery.isError ? (
+            <div className="alert alert-error" role="alert">
+              <span>
+                {apiErrorMessage(
+                  jobCodesQuery.error,
+                  'Could not load job codes.'
+                )}
+              </span>
+            </div>
+          ) : jobCodes ? (
+            <JobCodeTab
+              data={jobCodes}
+              onAssign={(jobCode, staffTypeCode) =>
+                assignJobCode.mutate({ jobCode, staffTypeCode })
+              }
+            />
+          ) : (
+            <p role="status">Loading job codes...</p>
+          )}
+        </>
+      ) : (
+        <SegmentGrid
+          classificationHeader={activeTab.classificationHeader}
+          onClassify={handleClassify}
+          segments={tabSegments}
+          segmentType={activeType}
+          tableActions={
+            <ExportDataButton
+              columns={exportData.columns}
+              data={exportData.rows}
+              filename={exportData.filename}
+              label="Export"
+            />
+          }
+        />
+      )}
 
       <div className="flex items-center justify-between border-t pt-4">
         <span className={gateOpen ? 'text-success' : 'text-warning'}>

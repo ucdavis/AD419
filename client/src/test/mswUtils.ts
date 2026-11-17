@@ -136,6 +136,16 @@ export function createWorkflowSnapshot(
 export const testServer = setupServer(
   http.get('/api/workflow/snapshot', () =>
     HttpResponse.json(createWorkflowSnapshot())
+  ),
+  // The Data Classification stage always asks for job codes; none by default.
+  http.get('/api/jobcodeclassifications', () =>
+    HttpResponse.json({
+      cycleEnd: '2026-09-30',
+      cycleStart: '2025-10-01',
+      fiscalYear: 'FY26',
+      rows: [],
+      staffTypes: [],
+    })
   )
 );
 
