@@ -78,18 +78,21 @@ export function ReportSection<T extends object>({
   columns,
   csv,
   data,
+  description,
   filename,
   title,
 }: {
   columns: ColumnDef<T>[];
   csv: CsvColumn<T>[];
   data: T[];
+  description?: string;
   filename: string;
   title: string;
 }) {
   return (
     <section className="space-y-2">
       <h3 className="text-lg font-semibold">{title}</h3>
+      {description && <p className="text-sm">{description}</p>}
       <DataTable
         columns={columns}
         data={data}

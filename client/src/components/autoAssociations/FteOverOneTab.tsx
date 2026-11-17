@@ -12,13 +12,15 @@ import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef, VisibilityState } from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
 
+const payrollExpenseGroupsLabel = 'Payroll expense groups';
+
 const fteOverOneColumns: ColumnDef<FteOverOne>[] = [
   { accessorKey: 'employeeId', header: 'Employee ID' },
   { accessorKey: 'employeeName', header: 'Employee' },
   fteColumn<FteOverOne>('FTE', 'fte'),
   {
     accessorKey: 'rowCount',
-    header: 'Summary rows',
+    header: payrollExpenseGroupsLabel,
     meta: { cellClassName: 'text-right', headerClassName: 'text-right' },
   },
 ];
@@ -27,7 +29,7 @@ const fteOverOneCsv: CsvColumn<FteOverOne>[] = [
   { header: 'Employee ID', key: 'employeeId' },
   { header: 'Employee', key: 'employeeName' },
   { header: 'FTE', key: 'fte' },
-  { header: 'Summary rows', key: 'rowCount' },
+  { header: payrollExpenseGroupsLabel, key: 'rowCount' },
 ];
 
 export function FteOverOneTab({ buildId }: { buildId: number }) {
@@ -83,6 +85,7 @@ export function FteOverOneTab({ buildId }: { buildId: number }) {
         columns={columns}
         csv={fteOverOneCsv}
         data={data}
+        description="Each group combines payroll transactions that share the same reporting fields. Select View transactions to see the individual entries."
         filename="auto-associations-fte-over-1.1.csv"
         title="Employees over 1.1 FTE"
       />
