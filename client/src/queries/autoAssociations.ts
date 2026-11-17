@@ -39,6 +39,8 @@ export type UnassociatedReason =
   | 'ProjectExcluded';
 
 export interface UnassociatedExpense {
+  // Null on rows from a build made before account joined the summary.
+  account: string | null;
   employeeId: string | null;
   employeeName: string | null;
   expenseId: number;
@@ -46,6 +48,8 @@ export interface UnassociatedExpense {
   expenseSfn: string | null;
   financialDepartment: string | null;
   fte: number;
+  // The job SFN (FTE line). expenseSfn is the fund SFN.
+  fteSfn: string | null;
   fund: string | null;
   orgR: string;
   project: string | null;
@@ -108,6 +112,7 @@ export interface PreAssociationTotal {
   financialDepartment: string | null;
   financialDepartmentName: string | null;
   fte: number;
+  fteSfn: string | null;
   orgR: string;
   sfnLabel: string | null;
 }

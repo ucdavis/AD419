@@ -60,7 +60,7 @@ export const AUTO_ASSOCIATIONS_TABS: AutoAssociationsTab[] = [
   {
     id: 'totals',
     label: 'Pre-association totals',
-    note: 'Included expenses and FTE by OrgR, financial department and SFN before any association. Use it to spot anything far off.',
+    note: 'Included expenses and FTE by OrgR, financial department, fund SFN and job SFN before any association. Use it to spot anything far off.',
   },
   {
     id: 'job-codes',

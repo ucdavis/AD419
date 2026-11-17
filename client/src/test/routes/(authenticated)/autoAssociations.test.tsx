@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { http, HttpResponse } from 'msw';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { createWorkflowSnapshot, server } from '@/test/mswUtils.ts';
 import { renderRoute } from '@/test/routerUtils.tsx';
@@ -81,6 +81,7 @@ function mockApi(options: { completeFails?: boolean; failingReport?: boolean; ha
           ],
           unassociated: [
             {
+              account: null,
               employeeId: null,
               employeeName: null,
               expenseId: 7,
@@ -88,6 +89,7 @@ function mockApi(options: { completeFails?: boolean; failingReport?: boolean; ha
               expenseSfn: '204',
               financialDepartment: 'D1',
               fte: 0,
+              fteSfn: null,
               fund: 'F204',
               orgR: 'AAAA',
               project: 'AE-S',
@@ -183,7 +185,24 @@ function mockApi(options: { completeFails?: boolean; failingReport?: boolean; ha
                   title: 'Hatch one',
                 },
               ],
-              unassociated: [],
+              unassociated: [
+                {
+                  account: '500000',
+                  employeeId: 'E7',
+                  employeeName: 'State Leftover',
+                  expenseId: 90,
+                  expenses: 70,
+                  expenseSfn: '220',
+                  financialDepartment: 'D1',
+                  fte: 0.07,
+                  fteSfn: '243',
+                  fund: '13U02',
+                  orgR: 'AAAA',
+                  project: null,
+                  reason: 'NoFteLine',
+                  source: 'UCPath',
+                },
+              ],
             })
           )
     ),
@@ -215,6 +234,7 @@ function mockApi(options: { completeFails?: boolean; failingReport?: boolean; ha
             financialDepartment: 'D1',
             financialDepartmentName: 'Dept One',
             fte: 0,
+            fteSfn: '241',
             orgR: 'AAAA',
             sfnLabel: 'Grants',
           },
@@ -360,15 +380,50 @@ describe('Auto-Associations stage', () => {
 
       await user.click(screen.getByRole('tab', { name: '220' }));
       expect(await screen.findByText('Hatch one')).toBeInTheDocument();
+      const leftovers = within(
+        screen.getByRole('heading', { name: 'Not associated' }).closest('section')!
+      );
+      expect(leftovers.getByRole('columnheader', { name: 'Fund SFN' })).toBeInTheDocument();
+      expect(leftovers.getByRole('columnheader', { name: 'Job SFN' })).toBeInTheDocument();
+      expect(leftovers.getByRole('columnheader', { name: 'Account' })).toBeInTheDocument();
+      expect(leftovers.queryByRole('columnheader', { name: 'SFN' })).not.toBeInTheDocument();
+      expect(leftovers.getByRole('cell', { name: '243' })).toBeInTheDocument();
+      expect(leftovers.getByRole('cell', { name: '500000' })).toBeInTheDocument();
 
       await user.click(screen.getByRole('tab', { name: 'FTE over 1.0' }));
       expect(await screen.findByText('1.300')).toBeInTheDocument();
 
       await user.click(screen.getByRole('tab', { name: 'Pre-association totals' }));
       expect(await screen.findByText('Dept One')).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', {
+          name: 'Included totals by OrgR, department, fund SFN and job SFN',
+        })
+      ).toBeInTheDocument();
+      expect(screen.getByRole('columnheader', { name: 'Fund SFN' })).toBeInTheDocument();
+      expect(screen.getByRole('columnheader', { name: 'Fund SFN label' })).toBeInTheDocument();
+      expect(screen.getByRole('columnheader', { name: 'Job SFN' })).toBeInTheDocument();
+      expect(screen.getByRole('cell', { name: '241' })).toBeInTheDocument();
 
       await user.click(screen.getByRole('tab', { name: 'Unmatched job codes' }));
       expect(await screen.findByText('9999')).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('shows blank cells for a row from a build without account', async () => {
+    mockApi({ hasBuild: true });
+    const user = userEvent.setup();
+    const { cleanup } = renderRoute({ initialPath: '/workflow/auto-associations' });
+
+    try {
+      await user.click(await screen.findByRole('tab', { name: '204' }));
+      expect(await screen.findByText('AE-S')).toBeInTheDocument();
+      const leftovers = screen.getByRole('heading', { name: 'Not associated' }).closest('section')!;
+      expect(within(leftovers).getByRole('columnheader', { name: 'Account' })).toBeInTheDocument();
+      expect(leftovers).not.toHaveTextContent('null');
+      expect(leftovers).not.toHaveTextContent('undefined');
     } finally {
       cleanup();
     }
