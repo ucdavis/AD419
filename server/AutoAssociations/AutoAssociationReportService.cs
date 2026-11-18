@@ -279,7 +279,7 @@ public sealed class AutoAssociationReportService(
         await using var connection = await OpenAsync(cancellationToken);
         var rows = await connection.QueryAsync<FteOverOneDto>(Command(
             """
-            SELECT [EmployeeId], MAX([EmployeeName]) AS [EmployeeName], SUM([Fte]) AS [Fte], COUNT(*) AS [RowCount]
+            SELECT [EmployeeId], MAX([EmployeeName]) AS [EmployeeName], SUM([Fte]) AS [Fte]
             FROM [data].[ExpenseSummary]
             WHERE [Source] = N'UCPath' AND [EmployeeId] IS NOT NULL
             GROUP BY [EmployeeId]

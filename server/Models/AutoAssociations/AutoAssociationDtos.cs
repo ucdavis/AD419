@@ -3,7 +3,7 @@ namespace Server.Models.AutoAssociations;
 public sealed record AutoAssociationReportResponse<T>(string FiscalYear, DateOnly CycleStart, DateOnly CycleEnd, T Data);
 public sealed record AutoAssociationBuildDto(int BuildId, DateOnly CycleStart, DateOnly CycleEnd, DateTimeOffset BuiltAt, int SummaryRows, int AssociationRows, int ExcludedProjects, int Misclassified204Rows);
 public sealed record ExcludedProjectDto(string AccessionNumber, string NifaProjectNumber, string? Title, string? ProjectDirector, string? AeProjects, decimal Total);
-public sealed record FteOverOneDto(string EmployeeId, string? EmployeeName, decimal Fte, int RowCount);
+public sealed record FteOverOneDto(string EmployeeId, string? EmployeeName, decimal Fte);
 public sealed record PreAssociationTotalDto(string OrgR, string? FinancialDepartment, string? FinancialDepartmentName, string? ExpenseSfn, string? SfnLabel, decimal Expenses, decimal Fte);
 public sealed record AssociatedProjectDto(string AccessionNumber, string NifaProjectNumber, string? Title, string? ProjectDirector, string? AeProjects, decimal Expenses, decimal Fte);
 /// <summary>Reason is one of: Misclassified204, ProjectExcluded, NoRuleMatched, NoEmployee, NoProject, NoFteLine, NoAeProject.</summary>

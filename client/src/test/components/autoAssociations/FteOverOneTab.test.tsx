@@ -81,9 +81,7 @@ function mockList() {
       HttpResponse.json({
         cycleEnd: '2025-09-30',
         cycleStart: '2024-10-01',
-        data: [
-          { employeeId: 'E1', employeeName: 'PI One', fte: 1.3, rowCount: 3 },
-        ],
+        data: [{ employeeId: 'E1', employeeName: 'PI One', fte: 1.3 }],
         fiscalYear: 'FY25',
       })
     )

@@ -99,7 +99,6 @@ export interface FteOverOne {
   employeeId: string;
   employeeName: string | null;
   fte: number;
-  rowCount: number;
 }
 
 export interface PreAssociationTotal {

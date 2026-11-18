@@ -63,7 +63,6 @@ public sealed class AutoAssociationReportServiceSqlIntegrationTests(SqlServerDat
         row.EmployeeId.Should().Be("E1");
         row.EmployeeName.Should().Be("PI One");
         row.Fte.Should().Be(1.300000m);
-        row.RowCount.Should().Be(3);
     }
 
     [Fact]
@@ -88,8 +87,8 @@ public sealed class AutoAssociationReportServiceSqlIntegrationTests(SqlServerDat
 
         var rows = await CreateService().GetFteOverOneAsync(CancellationToken.None);
 
-        rows.Select(row => (row.EmployeeId, row.Fte, row.RowCount)).Should().Equal(
-            ("E5", 1.300000m, 2), ("E3", 1.100001m, 1));
+        rows.Select(row => (row.EmployeeId, row.Fte)).Should().Equal(
+            ("E5", 1.300000m), ("E3", 1.100001m));
     }
 
     [Fact]

@@ -203,7 +203,7 @@ function mockApi(options: { completeFails?: boolean; failingReport?: boolean; ha
     ),
     http.get('/api/autoassociations/fte-over-one', () =>
       HttpResponse.json(
-        envelope([{ employeeId: 'E1', employeeName: 'PI One', fte: 1.3, rowCount: 3 }])
+        envelope([{ employeeId: 'E1', employeeName: 'PI One', fte: 1.3 }])
       )
     ),
     http.get('/api/autoassociations/pre-association-totals', () =>
