@@ -383,9 +383,10 @@ describe('Auto-Associations stage', () => {
 
       await user.click(screen.getByRole('tab', { name: 'PI FTE to 241' }));
       expect(await screen.findByText('Specialist')).toBeInTheDocument();
-      // The list covers every fund, so the note must not promise proration for all of it.
+      // The list covers every fund and PIs with no eligible project, so the note
+      // must only promise proration for the adjusted 13U02 payroll.
       expect(screen.getByRole('note')).toHaveTextContent(
-        'Any State Appropriations (13U02) payroll they have can then be prorated across their projects.'
+        "Rule 220 prorates the adjusted State Appropriations (13U02) payroll across the PI's eligible projects."
       );
       expect(screen.getByText('3300')).toBeInTheDocument();
       expect(screen.getByText('242')).toBeInTheDocument();
