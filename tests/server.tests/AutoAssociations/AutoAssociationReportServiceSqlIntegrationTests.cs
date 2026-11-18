@@ -3,6 +3,7 @@ using FluentAssertions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Server.AutoAssociations;
+using Server.Models.AutoAssociations;
 using Server.Tests.SqlIntegration;
 
 namespace Server.Tests.AutoAssociations;
@@ -64,6 +65,54 @@ public sealed class AutoAssociationReportServiceSqlIntegrationTests(SqlServerDat
         row.EmployeeName.Should().Be("PI One");
         row.Fte.Should().Be(1.300000m);
         row.RowCount.Should().Be(3);
+    }
+
+    [Fact]
+    public async Task Pi_fte_adjustments_is_empty_when_no_pi_sits_on_line_242()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedAndBuildAsync();
+
+        var rows = await CreateService().GetPiFteAdjustmentsAsync(CancellationToken.None);
+
+        rows.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Pi_fte_adjustments_lists_pi_payroll_moved_from_242_by_employee_and_job_code()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedAndBuildAsync();
+
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[StaffTypes] ([StaffTypeCode], [FteSfn], [Description]) VALUES ('SUPP', '242', 'Professional Support');
+            INSERT INTO [data].[Titles] ([TitleCode], [StaffTypeCode], [Name])
+            VALUES ('3300', 'SUPP', 'Specialist'), ('3310', 'SUPP', 'Associate Specialist');
+
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [EmployeeName], [PositionNumber], [JobCode],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
+            VALUES
+                ('ucp-13u02-e2-3300', '3310', '13U02', 'D1', 'D1', 'A1', 'P1', NULL, 'AE-C', 'AC1', 'REG', 'E2', 'PI Two',   'POS2', '3300', 10, 100, 0.100000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('ucp-201-e2-3300',   '3310', 'F201',  'D1', 'D1', 'A1', 'P1', NULL, 'AE-C', 'AC1', 'REG', 'E2', 'PI Two',   'POS2', '3300', 10, 40,  0.040000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('ucp-201-e2-3310',   '3310', 'F201',  'D1', 'D1', 'A1', 'P1', NULL, 'AE-C', 'AC1', 'REG', 'E2', 'PI Two',   'POS2', '3310', 10, 25,  0.025000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('ucp-13u02-e8-3300', '3310', '13U02', 'D1', 'D1', 'A1', 'P1', NULL, 'AE-C', 'AC1', 'REG', 'E8', 'Not A PI', 'POS8', '3300', 10, 70,  0.070000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0);
+            EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd;
+            """,
+            new { cycleStart = CycleStart, cycleEnd = CycleEnd });
+
+        var rows = await CreateService().GetPiFteAdjustmentsAsync(CancellationToken.None);
+
+        // E2's two 3300 summary rows (13U02 and F201) collapse to one line. E2's
+        // own 1234 payroll is on a 241 title, E1 is on 241 and E8 is not a PI.
+        rows.Should().Equal(
+            new PiFteAdjustmentDto("E2", "PI Two", "3300", "Specialist", "242", "241", 140m, 0.140000m, 2),
+            new PiFteAdjustmentDto("E2", "PI Two", "3310", "Associate Specialist", "242", "241", 25m, 0.025000m, 1));
     }
 
     [Fact]

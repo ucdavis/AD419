@@ -4,6 +4,8 @@ public sealed record AutoAssociationReportResponse<T>(string FiscalYear, DateOnl
 public sealed record AutoAssociationBuildDto(int BuildId, DateOnly CycleStart, DateOnly CycleEnd, DateTimeOffset BuiltAt, int SummaryRows, int AssociationRows, int ExcludedProjects, int Misclassified204Rows);
 public sealed record ExcludedProjectDto(string AccessionNumber, string NifaProjectNumber, string? Title, string? ProjectDirector, string? AeProjects, decimal Total);
 public sealed record FteOverOneDto(string EmployeeId, string? EmployeeName, decimal Fte, int RowCount);
+/// <summary>PI payroll the FTE line rule moved: TitleFteSfn is the line the title gives (242), FteSfn the line it reports on (241).</summary>
+public sealed record PiFteAdjustmentDto(string EmployeeId, string? EmployeeName, string JobCode, string? TitleName, string TitleFteSfn, string FteSfn, decimal Expenses, decimal Fte, int RowCount);
 public sealed record PreAssociationTotalDto(string OrgR, string? FinancialDepartment, string? FinancialDepartmentName, string? ExpenseSfn, string? SfnLabel, decimal Expenses, decimal Fte);
 public sealed record AssociatedProjectDto(string AccessionNumber, string NifaProjectNumber, string? Title, string? ProjectDirector, string? AeProjects, decimal Expenses, decimal Fte);
 /// <summary>Reason is one of: Misclassified204, ProjectExcluded, NoRuleMatched, NoEmployee, NoProject, NoFteLine, NoAeProject.</summary>

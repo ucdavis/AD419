@@ -580,7 +580,9 @@ public sealed partial class ExpenseReviewService(
     // they cannot split a job code's rows any further: Source is always
     // UCPath here, OrgR follows the job code and financial department
     // (v_TransactionOrgR), ExpenseSfn follows the fund and project
-    // (v_TransactionSfn), and FteSfn follows the job code.
+    // (v_TransactionSfn), and FteSfn follows the job code and the employee
+    // (the PI rule in v_TransactionSfn moves a PI from 242 to 241, never to
+    // or from NULL).
     public const string UnmatchedJobCodesSql = """
         WITH SummaryRows AS
         (

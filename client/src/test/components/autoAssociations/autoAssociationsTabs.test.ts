@@ -16,6 +16,7 @@ describe('autoAssociationsTabs', () => {
       'rule-220',
       'excluded',
       'fte',
+      'pi-fte',
       'totals',
       'job-codes',
     ]);

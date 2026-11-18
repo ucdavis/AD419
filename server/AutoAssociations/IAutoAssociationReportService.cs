@@ -10,5 +10,6 @@ public interface IAutoAssociationReportService
     Task<Rule220ReportDto> GetRule220Async(CancellationToken cancellationToken);
     Task<IReadOnlyList<ExcludedProjectDto>> GetExcludedProjectsAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<FteOverOneDto>> GetFteOverOneAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<PiFteAdjustmentDto>> GetPiFteAdjustmentsAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<PreAssociationTotalDto>> GetPreAssociationTotalsAsync(CancellationToken cancellationToken);
 }

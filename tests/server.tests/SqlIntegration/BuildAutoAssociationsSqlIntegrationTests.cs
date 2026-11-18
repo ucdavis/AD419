@@ -145,6 +145,62 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
         summaryTotal.Should().Be(reviewTotal);
     }
 
+    [Fact]
+    public async Task Pi_on_a_242_title_is_built_on_line_241_and_rule_220_takes_their_state_payroll()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedScenarioAsync();
+
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[StaffTypes] ([StaffTypeCode], [FteSfn], [Description]) VALUES ('SUPP', '242', 'Professional Support');
+            INSERT INTO [data].[Titles] ([TitleCode], [StaffTypeCode], [Name]) VALUES ('3300', 'SUPP', 'Specialist');
+
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [EmployeeName], [PositionNumber], [JobCode],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
+            VALUES
+                ('ucp-13u02-e2-242', '3310', '13U02', 'D1', 'D1', 'A1', 'P1', NULL, 'AE-C', 'AC1', 'REG', 'E2', 'PI Two',   'POS2', '3300', 10, 100, 0.100000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('ucp-13u02-e7-242', '3310', '13U02', 'D1', 'D1', 'A1', 'P1', NULL, 'AE-C', 'AC1', 'REG', 'E7', 'PI Seven', 'POS7', '3300', 10, 50,  0.050000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('ucp-13u02-e8-242', '3310', '13U02', 'D1', 'D1', 'A1', 'P1', NULL, 'AE-C', 'AC1', 'REG', 'E8', 'Not A PI', 'POS8', '3300', 10, 70,  0.070000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0);
+            """);
+
+        await connection.ExecuteAsync(
+            "EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd",
+            new { cycleStart = CycleStart, cycleEnd = CycleEnd });
+
+        var summary = (await connection.QueryAsync<SummaryRow>(
+            "SELECT [ExpenseId], [Source], [OrgR], [Project], [Fund], [EmployeeId], [ExpenseSfn], [FteSfn], [Expenses], [Fte], [RuleExclusion] FROM [data].[ExpenseSummary] WHERE [Fund] = '13U02' AND [EmployeeId] IN ('E2', 'E7', 'E8')"))
+            .ToDictionary(row => row.EmployeeId!);
+
+        summary["E2"].FteSfn.Should().Be("241");
+        summary["E7"].FteSfn.Should().Be("241");
+        summary["E8"].FteSfn.Should().Be("242");
+
+        var staged = (await connection.QueryAsync<StagedRow>(
+            """
+            SELECT s.[Rule], s.[AccessionNumber], s.[OrgR], s.[AeProject], s.[ExpenseSfn], s.[Expenses], s.[Fte], s.[FteSfn], e.[Source], e.[Project], e.[Fund], e.[EmployeeId]
+            FROM [data].[StagedAssociations] s
+            JOIN [data].[ExpenseSummary] e ON e.[ExpenseId] = s.[ExpenseId]
+            WHERE e.[Fund] = '13U02' AND e.[EmployeeId] IN ('E2', 'E7', 'E8')
+            """)).ToList();
+
+        // E2's state payroll follows them to their one project on line 241.
+        // E7 is a PI but their only project is excluded under $100; E8 is not a PI.
+        var row = staged.Should().ContainSingle().Subject;
+        row.Rule.Should().Be("220");
+        row.EmployeeId.Should().Be("E2");
+        row.AccessionNumber.Should().Be("1000006");
+        row.Expenses.Should().Be(100m);
+        row.Fte.Should().Be(0.100000m);
+        row.FteSfn.Should().Be("241");
+    }
+
     private async Task SeedScenarioAsync()
     {
         await using var connection = new SqlConnection(fixture.ConnectionString);
