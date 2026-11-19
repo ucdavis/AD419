@@ -27,12 +27,14 @@ function unsetFirstCodes(segments: SegmentClassification[]): string[] {
 
 export function SegmentGrid({
   classificationHeader,
+  disabled = false,
   onClassify,
   segments,
   segmentType,
   tableActions,
 }: {
   classificationHeader: string;
+  disabled?: boolean;
   onClassify: (
     segment: SegmentClassification,
     includeInReport: boolean,
@@ -86,6 +88,7 @@ export function SegmentGrid({
       accessorFn: classificationSortValue,
       cell: ({ row }) => (
         <SegmentClassificationControl
+          disabled={disabled}
           onClassify={(includeInReport, sfn) =>
             onClassify(row.original, includeInReport, sfn)
           }

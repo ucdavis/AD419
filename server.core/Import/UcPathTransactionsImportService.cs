@@ -42,6 +42,7 @@ public sealed class UcPathTransactionsImportService
         new("pay_rate", "PayRate"),
         new("calculated_fte", "CalculatedFte"),
         new("pay_period_end_date", "PayPeriodEndDate"),
+        new("uc_earn_end_date", "UcEarnEndDate"),
         new("fringe_benefit_salary_cd", "FringeBenefitSalaryCd"),
         new("paid_percent", "PaidPercent"),
         new("ern_derived_percent", "ErnDerivedPercent"),
@@ -290,7 +291,8 @@ public sealed class UcPathTransactionsImportService
 
     // Column names verified against the warehouse 2026-07-30 (ALL_TAB_COLUMNS for
     // both labor views). PAY_END_DT is the pay period end date used for the window
-    // filter; UC_EARN_END_DT also exists but the 2025 notes say not to use it.
+    // filter; UC_EARN_END_DT is imported for diagnostic display only and must
+    // not replace PAY_END_DT in cycle-window or FTE calculations.
     // ACCOUNTING_PERIOD is limited to 1-13 like the 2025 process, which drops
     // the few source rows that carry a year (e.g. 2025) in that column.
     public static string BuildSalaryQuery(
@@ -320,6 +322,7 @@ public sealed class UcPathTransactionsImportService
             CASE WHEN HOURS1 <> 0 THEN MONETARY_AMOUNT / HOURS1 END AS pay_rate,
             HOURS1 / {fteDenominatorHours} AS calculated_fte,
             PAY_END_DT AS pay_period_end_date,
+            UC_EARN_END_DT AS uc_earn_end_date,
             'S' AS fringe_benefit_salary_cd,
             UC_PCT_TOT_PAY AS paid_percent,
             UC_DRV_EFT_PCT AS ern_derived_percent,
@@ -366,6 +369,7 @@ public sealed class UcPathTransactionsImportService
             CAST(NULL AS DECIMAL(17,4)) AS pay_rate,
             0 AS calculated_fte,
             PAY_END_DT AS pay_period_end_date,
+            UC_EARN_END_DT AS uc_earn_end_date,
             'F' AS fringe_benefit_salary_cd,
             CAST(NULL AS DECIMAL(7,4)) AS paid_percent,
             CAST(NULL AS DECIMAL(7,4)) AS ern_derived_percent,

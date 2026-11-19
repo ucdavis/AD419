@@ -12,6 +12,55 @@ public sealed class ExpenseReviewController(
     IExpenseReviewService expenseReviewService,
     IConfirmedCycleProvider confirmedCycles) : ApiControllerBase
 {
+    [HttpGet("employees/{employeeId}/transactions")]
+    public async Task<IActionResult> EmployeeTransactions(string employeeId,
+        [FromQuery] ExpenseReviewEmployeeTransactionsQuery query, CancellationToken cancellationToken)
+    {
+        if (!ExpenseReviewEmployeeTransactionsParser.TryParse(employeeId, query, out var request, out var error))
+            return BadRequest(error);
+        var (cycle, cycleError) = await GetConfirmedCycleAsync(cancellationToken);
+        if (cycle == null) return cycleError!;
+        var result = await expenseReviewService.GetEmployeeTransactionsAsync(cycle, request, cancellationToken);
+        if (!result.BuildAvailable) return Conflict("Auto-associations must be built for the confirmed fiscal period.");
+        return result.Response == null
+            ? NotFound("The employee has no UCPath summary rows in the current report.")
+            : Ok(result.Response);
+    }
+
+    [HttpGet("employees/{employeeId}/transactions.csv")]
+    public async Task<IActionResult> EmployeeTransactionsCsv(string employeeId,
+        [FromQuery] ExpenseReviewEmployeeTransactionsQuery query, CancellationToken cancellationToken)
+    {
+        if (!ExpenseReviewEmployeeTransactionsParser.TryParse(employeeId, query, out var request, out var error))
+            return BadRequest(error);
+        var (cycle, cycleError) = await GetConfirmedCycleAsync(cancellationToken);
+        if (cycle == null) return cycleError!;
+        var result = await expenseReviewService.GetEmployeeTransactionsAsync(cycle,
+            request with { Page = 1, PageSize = 1 }, cancellationToken);
+        if (!result.BuildAvailable) return Conflict("Auto-associations must be built for the confirmed fiscal period.");
+        if (result.Response == null) return NotFound("The employee has no UCPath summary rows in the current report.");
+        Response.ContentType = "text/csv; charset=utf-8";
+        Response.Headers[HeaderNames.ContentDisposition] = new ContentDispositionHeaderValue("attachment")
+        {
+            FileNameStar = $"employee-transactions-{cycle.FiscalYear}.csv",
+        }.ToString();
+        try
+        {
+            await expenseReviewService.WriteEmployeeTransactionsCsvAsync(cycle, request, result.Response,
+                Response.Body, cancellationToken);
+        }
+        catch (ExpenseReviewEmployeeTransactionsUnavailableException exception)
+        {
+            // Validation failed before the writer emitted CSV headers or rows.
+            Response.ContentType = null;
+            Response.Headers.Remove(HeaderNames.ContentDisposition);
+            return exception.BuildAvailable
+                ? NotFound("The employee has no UCPath summary rows in the current report.")
+                : Conflict("Auto-associations must be built for the confirmed fiscal period.");
+        }
+        return new EmptyResult();
+    }
+
     [HttpGet("groups/{groupId}/transactions")]
     public async Task<IActionResult> GroupTransactions(string groupId,
         [FromQuery] ExpenseReviewGroupTransactionsQuery query, CancellationToken cancellationToken)

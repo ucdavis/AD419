@@ -203,7 +203,7 @@ function mockApi(options: { completeFails?: boolean; failingReport?: boolean; ha
     ),
     http.get('/api/autoassociations/fte-over-one', () =>
       HttpResponse.json(
-        envelope([{ employeeId: 'E1', employeeName: 'PI One', fte: 1.3, rowCount: 3 }])
+        envelope([{ employeeId: 'E1', employeeName: 'PI One', fte: 1.3 }])
       )
     ),
     http.get('/api/autoassociations/pi-fte-adjustments', () =>
@@ -378,7 +378,7 @@ describe('Auto-Associations stage', () => {
       await user.click(screen.getByRole('tab', { name: '220' }));
       expect(await screen.findByText('Hatch one')).toBeInTheDocument();
 
-      await user.click(screen.getByRole('tab', { name: 'FTE over 1.0' }));
+      await user.click(screen.getByRole('tab', { name: 'FTE over 1.1' }));
       expect(await screen.findByText('1.300')).toBeInTheDocument();
 
       await user.click(screen.getByRole('tab', { name: 'PI FTE to 241' }));

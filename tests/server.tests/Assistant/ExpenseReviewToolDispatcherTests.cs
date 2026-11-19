@@ -329,6 +329,13 @@ public class ExpenseReviewToolDispatcherTests
 
     private sealed class StubService : IExpenseReviewService
     {
+        public Task<ExpenseReviewEmployeeTransactionsResult> GetEmployeeTransactionsAsync(
+            FiscalYearCycle cycle, ExpenseReviewEmployeeTransactionsRequest request, CancellationToken cancellationToken) =>
+            Task.FromResult(new ExpenseReviewEmployeeTransactionsResult(true, null));
+
+        public Task WriteEmployeeTransactionsCsvAsync(FiscalYearCycle cycle, ExpenseReviewEmployeeTransactionsRequest request,
+            ExpenseReviewEmployeeTransactionsResponse response, Stream output, CancellationToken cancellationToken) => Task.CompletedTask;
+
         public bool Throw { get; init; }
         public bool ThrowCancelled { get; init; }
         public ExpenseReviewTransactionsRequest? LastRequest { get; private set; }

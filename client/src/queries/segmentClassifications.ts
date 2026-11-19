@@ -1,7 +1,9 @@
 import { fetchJson } from '../lib/api.ts';
-import { invalidateExpenseReviewQueries } from './expenseReview.ts';
+import { WORKFLOW_SNAPSHOT_KEY } from '@/queries.ts';
 import {
   queryOptions,
+  type Query,
+  type QueryFilters,
   useMutation,
   useQueryClient,
 } from '@tanstack/react-query';
@@ -53,10 +55,33 @@ export const FUND_SFNS = SFN_CATALOG.map((entry) => entry.code);
 export const SFN_MULTIPLE = 'Multiple';
 
 const SEGMENTS_KEY = ['segmentClassifications'] as const;
-export const UPDATE_SEGMENT_CLASSIFICATION_MUTATION_KEY = [
+// Classification edits and completion must wait for each other, including cache refreshes.
+export const SEGMENT_CLASSIFICATION_MUTATION_KEY = [
   'segmentClassifications',
-  'update',
+  'mutate',
 ] as const;
+
+function isEmployeeDetailQuery({ queryKey }: Query) {
+  const params = queryKey[2];
+  return (
+    queryKey[0] === 'expenseReview' &&
+    queryKey[1] === 'details' &&
+    typeof params === 'object' &&
+    params !== null &&
+    'kind' in params &&
+    params.kind === 'employee'
+  );
+}
+
+const employeeDetailQueries: QueryFilters = {
+  predicate: isEmployeeDetailQuery,
+  queryKey: ['expenseReview', 'details'],
+};
+
+const otherExpenseReviewQueries: QueryFilters = {
+  predicate: (query) => !isEmployeeDetailQuery(query),
+  queryKey: ['expenseReview'],
+};
 
 export const segmentClassificationsQueryOptions = () =>
   queryOptions({
@@ -81,7 +106,7 @@ export const useUpdateSegmentClassification = () => {
         body: JSON.stringify(input),
         method: 'PATCH',
       }),
-    mutationKey: UPDATE_SEGMENT_CLASSIFICATION_MUTATION_KEY,
+    mutationKey: SEGMENT_CLASSIFICATION_MUTATION_KEY,
     onMutate: async (input) => {
       await queryClient.cancelQueries({ queryKey: SEGMENTS_KEY });
       const previous =
@@ -104,12 +129,26 @@ export const useUpdateSegmentClassification = () => {
         queryClient.setQueryData(SEGMENTS_KEY, context.previous);
       }
     },
-    onSettled: (_data, _error, input) =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: SEGMENTS_KEY }),
+    onSettled: async (_data, _error, input) => {
+      // A failed save can still have reopened the workflow and cleared its build.
+      // Discard built reports and employee details so remounts cannot display them.
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: WORKFLOW_SNAPSHOT_KEY }),
+        queryClient.cancelQueries({ queryKey: ['autoAssociations'] }),
+        queryClient.cancelQueries(employeeDetailQueries),
         input.segmentType === 'Ern'
           ? Promise.resolve()
-          : invalidateExpenseReviewQueries(queryClient),
-      ]),
+          : queryClient.cancelQueries(otherExpenseReviewQueries),
+      ]);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: SEGMENTS_KEY }),
+        queryClient.invalidateQueries({ queryKey: WORKFLOW_SNAPSHOT_KEY }),
+        queryClient.resetQueries({ queryKey: ['autoAssociations'] }),
+        queryClient.resetQueries(employeeDetailQueries),
+        input.segmentType === 'Ern'
+          ? Promise.resolve()
+          : queryClient.invalidateQueries(otherExpenseReviewQueries),
+      ]);
+    },
   });
 };

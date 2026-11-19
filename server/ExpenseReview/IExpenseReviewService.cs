@@ -5,6 +5,13 @@ namespace Server.ExpenseReview;
 
 public interface IExpenseReviewService
 {
+    Task<ExpenseReviewEmployeeTransactionsResult> GetEmployeeTransactionsAsync(
+        FiscalYearCycle cycle, ExpenseReviewEmployeeTransactionsRequest request, CancellationToken cancellationToken);
+
+    Task WriteEmployeeTransactionsCsvAsync(
+        FiscalYearCycle cycle, ExpenseReviewEmployeeTransactionsRequest request,
+        ExpenseReviewEmployeeTransactionsResponse employee, Stream output, CancellationToken cancellationToken);
+
     Task<ExpenseReviewGroupTransactionsResponse?> GetGroupTransactionsAsync(
         FiscalYearCycle cycle,
         ExpenseReviewGroupTransactionsRequest request,

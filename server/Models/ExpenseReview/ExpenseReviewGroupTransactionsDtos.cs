@@ -32,7 +32,10 @@ public record ExpenseReviewTransactionDetailDto
 {
     public required string Id { get; init; }
     public DateTime? TransactionDate { get; init; }
+    public DateTime? UcEarnEndDate { get; init; }
+    public string? TransactionId { get; init; }
     public string? AccountingPeriod { get; init; }
+    public string? EmployeeId { get; init; }
     public string? EmployeeName { get; init; }
     public string? PositionNumber { get; init; }
     public string? ErnCode { get; init; }
@@ -47,6 +50,21 @@ public record ExpenseReviewTransactionDetailDto
     public string? DocumentType { get; init; }
     public string? JournalReference { get; init; }
     public decimal? Amount { get; init; }
+    // Employee details span chartfield groups; group details keep their existing header context.
+    public string? Entity { get; init; }
+    public string? FinancialDepartment { get; init; }
+    public string? Fund { get; init; }
+    public string? Account { get; init; }
+    public string? Project { get; init; }
+    public string? Purpose { get; init; }
+    public string? Program { get; init; }
+    public string? Activity { get; init; }
+    public string? OrgR { get; init; }
+    public string? ExpenseSfn { get; init; }
+    public string? FteSfn { get; init; }
+    public bool? ReportIncluded { get; init; }
+    public decimal? ReportFteContribution { get; init; }
+    public string? ReportStatus { get; init; }
     public IReadOnlyList<ExpenseReviewExclusionReasonDto> ExclusionReasons { get; init; } = [];
 }
 
@@ -56,7 +74,10 @@ public static class ExpenseReviewGroupTransactionsParser
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["transactionDate"] = "TransactionDate",
+            ["ucEarnEndDate"] = "UcEarnEndDate",
+            ["transactionId"] = "TransactionId",
             ["accountingPeriod"] = "AccountingPeriodSort",
+            ["employeeId"] = "EmployeeId",
             ["employeeName"] = "EmployeeName",
             ["positionNumber"] = "PositionNumber",
             ["ernCode"] = "ErnCode",
@@ -84,32 +105,10 @@ public static class ExpenseReviewGroupTransactionsParser
             return false;
         }
         if (!ExpenseReviewRequestParser.TryParse(query, out var context, out error)) return false;
-        if ((long)(context.Page - 1) * context.PageSize > int.MaxValue)
-        {
-            error = "page exceeds the supported range.";
-            return false;
-        }
-        var sort = string.IsNullOrWhiteSpace(query.DetailSortBy) ? "transactionDate" : query.DetailSortBy.Trim();
-        if (!SortColumns.ContainsKey(sort))
-        {
-            error = "detailSortBy is not a supported transaction column.";
-            return false;
-        }
-        var direction = query.DetailSortDirection?.Trim() ?? "asc";
-        if (!direction.Equals("asc", StringComparison.OrdinalIgnoreCase) &&
-            !direction.Equals("desc", StringComparison.OrdinalIgnoreCase))
-        {
-            error = "detailSortDirection must be asc or desc.";
-            return false;
-        }
-        if (query.Search?.Length > 500)
-        {
-            error = "search must be at most 500 characters.";
-            return false;
-        }
-        request = new(groupId.ToUpperInvariant(), context, sort,
-            direction.Equals("desc", StringComparison.OrdinalIgnoreCase),
-            string.IsNullOrWhiteSpace(query.Search) ? null : query.Search.Trim());
+        if (!ExpenseReviewDetailRequestParser.TryParse(context.Page, context.PageSize,
+                query.DetailSortBy, query.DetailSortDirection, query.Search, SortColumns,
+                out var sort, out var descending, out var search, out error)) return false;
+        request = new(groupId.ToUpperInvariant(), context, sort, descending, search);
         return true;
     }
 }
