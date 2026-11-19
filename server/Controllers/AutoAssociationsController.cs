@@ -36,6 +36,10 @@ public sealed class AutoAssociationsController(
     public Task<IActionResult> FteOverOne(CancellationToken cancellationToken) =>
         ReportAsync(reports.GetFteOverOneAsync, cancellationToken);
 
+    [HttpGet("pi-fte-adjustments")]
+    public Task<IActionResult> PiFteAdjustments(CancellationToken cancellationToken) =>
+        ReportAsync(reports.GetPiFteAdjustmentsAsync, cancellationToken);
+
     [HttpGet("pre-association-totals")]
     public Task<IActionResult> PreAssociationTotals(CancellationToken cancellationToken) =>
         ReportAsync(reports.GetPreAssociationTotalsAsync, cancellationToken);

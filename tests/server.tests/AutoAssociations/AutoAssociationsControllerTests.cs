@@ -22,6 +22,7 @@ public class AutoAssociationsControllerTests
         (await controller.Rule220(CancellationToken.None)).Should().BeOfType<ConflictObjectResult>();
         (await controller.ExcludedProjects(CancellationToken.None)).Should().BeOfType<ConflictObjectResult>();
         (await controller.FteOverOne(CancellationToken.None)).Should().BeOfType<ConflictObjectResult>();
+        (await controller.PiFteAdjustments(CancellationToken.None)).Should().BeOfType<ConflictObjectResult>();
         (await controller.PreAssociationTotals(CancellationToken.None)).Should().BeOfType<ConflictObjectResult>();
         service.Calls.Should().Be(0);
     }
@@ -91,6 +92,12 @@ public class AutoAssociationsControllerTests
         {
             Calls++;
             return Task.FromResult<IReadOnlyList<FteOverOneDto>>([]);
+        }
+
+        public Task<IReadOnlyList<PiFteAdjustmentDto>> GetPiFteAdjustmentsAsync(CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromResult<IReadOnlyList<PiFteAdjustmentDto>>([]);
         }
 
         public Task<IReadOnlyList<PreAssociationTotalDto>> GetPreAssociationTotalsAsync(CancellationToken cancellationToken)
