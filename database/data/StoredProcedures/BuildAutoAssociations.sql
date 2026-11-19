@@ -28,8 +28,11 @@ BEGIN
     DELETE FROM [data].[AutoAssociationBuilds];
 
     -- Included transactions in the cycle window, grouped like last year's
-    -- ad419_Transactions_Summary. A UCPath row's FTE counts only when its ERN
-    -- code is classified included (dollars always count). AE rows carry no FTE.
+    -- ad419_Transactions_Summary plus account. A UCPath row's FTE counts only
+    -- when its ERN code is classified included (dollars always count). AE rows
+    -- carry no FTE.
+    -- A row is dropped only when it has neither dollars nor FTE. FTE stays
+    -- even when its dollars net to zero (a payment and its correction).
     SELECT
         x.[Source], x.[OrgR], x.[Entity], x.[Project], x.[Activity], x.[Fund], x.[FinancialDepartment], x.[Account],
         x.[EmployeeId], x.[EmployeeName], x.[JobCode], x.[ExpenseSfn], x.[FteSfn],
@@ -63,7 +66,7 @@ BEGIN
     ) x
     GROUP BY x.[Source], x.[OrgR], x.[Entity], x.[Project], x.[Activity], x.[Fund], x.[FinancialDepartment], x.[Account],
              x.[EmployeeId], x.[EmployeeName], x.[JobCode], x.[ExpenseSfn], x.[FteSfn]
-    HAVING SUM(x.[Amount]) <> 0;
+    HAVING SUM(x.[Amount]) <> 0 OR SUM(x.[Fte]) <> 0;
 
     -- Every included row must already have an OrgR (the OrgR Review gate
     -- guarantees it); fail closed rather than insert a NULL.

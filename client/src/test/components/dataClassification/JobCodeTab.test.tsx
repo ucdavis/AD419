@@ -90,6 +90,13 @@ describe('JobCodeTab', () => {
     expect(onAssign).toHaveBeenCalledExactlyOnceWith('0000', '1X');
   });
 
+  it('locks only the dropdown of a job code whose save is running', () => {
+    render(<JobCodeTab data={data} onAssign={vi.fn()} savingJobCodes={['0000']} />);
+
+    expect(selectFor('0000')).toBeDisabled();
+    expect(selectFor('4460')).toBeEnabled();
+  });
+
   it('cannot clear an assignment', () => {
     const onAssign = vi.fn();
     render(<JobCodeTab data={data} onAssign={onAssign} />);

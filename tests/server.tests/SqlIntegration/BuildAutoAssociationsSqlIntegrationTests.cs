@@ -345,6 +345,57 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
         summary.Sum(row => row.Expenses).Should().Be(770m);
     }
 
+    [Fact]
+    public async Task Build_keeps_fte_on_a_row_whose_dollars_net_to_zero()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedUnder100ScenarioAsync();
+
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        // P2 already has 150 and 0.3 FTE on account A1. On account 540000 a
+        // payment with FTE is reversed by a correction with none, so the
+        // account's dollars net to zero while its FTE does not. P4 has the
+        // same pair and no other pay. Both keep their FTE.
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description], [IncludeInReport], [Sfn])
+            VALUES ('Account', '540000', 'Account', 1, NULL);
+
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [EmployeeName], [PositionNumber], [JobCode],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
+            VALUES
+                ('ucp-p2-pay',     '3310', '13U02', 'D1', 'D1', '540000', 'P1', NULL, 'AE-Q', 'AC1', 'REG', 'P2', 'PI Two',  'POS2', '1234', 10,  50, 0.500000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('ucp-p2-correct', '3310', '13U02', 'D1', 'D1', '540000', 'P1', NULL, 'AE-Q', 'AC1', 'REG', 'P2', 'PI Two',  'POS2', '1234', 0,  -50, 0.000000, '2024-12-15', 'S', 2025, '6', 0, 0, 0, 0),
+                ('ucp-p4-pay',     '3310', '13U02', 'D1', 'D1', '540000', 'P1', NULL, 'AE-Q', 'AC1', 'REG', 'P4', 'PI Four', 'POS4', '1234', 10,  50, 0.250000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('ucp-p4-correct', '3310', '13U02', 'D1', 'D1', '540000', 'P1', NULL, 'AE-Q', 'AC1', 'REG', 'P4', 'PI Four', 'POS4', '1234', 0,  -50, 0.000000, '2024-12-15', 'S', 2025, '6', 0, 0, 0, 0);
+            """);
+
+        await connection.ExecuteAsync(
+            "EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd",
+            new { cycleStart = CycleStart, cycleEnd = CycleEnd });
+
+        var payroll = (await connection.QueryAsync<(string EmployeeId, string Account, decimal Expenses, decimal Fte)>(
+            "SELECT [EmployeeId], [Account], [Expenses], [Fte] FROM [data].[ExpenseSummary] WHERE [Source] = N'UCPath'")).ToList();
+
+        payroll.Should().BeEquivalentTo(new[]
+        {
+            ("P2", "A1", 150m, 0.300000m),
+            ("P2", "540000", 0m, 0.500000m),
+            ("P4", "540000", 0m, 0.250000m),
+        });
+
+        // Rule 220 carries P2's kept FTE to P2's project with no dollars. P4
+        // has no project, so its row is left for manual association.
+        var staged = await connection.QuerySingleAsync<(decimal Expenses, decimal Fte)>(
+            "SELECT SUM([Expenses]), SUM([Fte]) FROM [data].[StagedAssociations] WHERE [Rule] = N'220'");
+        staged.Should().Be((150m, 0.800000m));
+    }
+
     private sealed record AccountRow(string Source, string? Project, string? Account, decimal Expenses, decimal Fte);
 
     private async Task SeedUnder100ScenarioAsync()

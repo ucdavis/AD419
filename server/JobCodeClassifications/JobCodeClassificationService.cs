@@ -29,11 +29,12 @@ public sealed class JobCodeClassificationService(
     // build works on expense summary rows, not job codes, so SummaryRows
     // groups the way BuildAutoAssociations does and the test is made per
     // summary row. Dollars or FTE that offset across employees or chart
-    // strings still leave a summary row each. A summary row counts when its
-    // dollars do not net to zero (the build drops it otherwise) and it either
-    // reports FTE, which needs a line to land on, or is on State
-    // Appropriations (13U02), where rule 220 in AutoAssociationCandidates only
-    // associates the dollars on FTE line 241.
+    // strings still leave a summary row each. A summary row counts when the
+    // build keeps it and it either reports FTE, which needs a line to land
+    // on, or is on State Appropriations (13U02), where rule 220 in
+    // AutoAssociationCandidates only associates the dollars on FTE line 241.
+    // The build keeps a row that has dollars or FTE, so FTE counts even when
+    // its dollars net to zero.
     // SummaryRows leaves out four of the build's grouping columns because
     // they cannot split a job code's rows any further: Source is always
     // UCPath here, OrgR follows the job code and financial department
@@ -67,7 +68,7 @@ public sealed class JobCodeClassificationService(
                 COUNT(DISTINCT s.[EmployeeId]) AS [EmployeeCount],
                 SUM(s.[Amount]) AS [Amount],
                 SUM(s.[Fte]) AS [Fte],
-                MAX(CASE WHEN s.[Amount] <> 0 AND (s.[Fte] <> 0 OR s.[Fund] = '13U02') THEN 1 ELSE 0 END) AS [Matters]
+                MAX(CASE WHEN s.[Fte] <> 0 OR (s.[Amount] <> 0 AND s.[Fund] = '13U02') THEN 1 ELSE 0 END) AS [Matters]
             FROM SummaryRows s
             GROUP BY s.[JobCode]
         ),

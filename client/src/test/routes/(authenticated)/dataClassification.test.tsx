@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { createWorkflowSnapshot, server } from '@/test/mswUtils.ts';
+import { createWorkflowSnapshot, deferred, server } from '@/test/mswUtils.ts';
 import { renderRoute } from '@/test/routerUtils.tsx';
 
 const mockUser = {
@@ -65,7 +65,14 @@ const allClassifiedSegments = segments.map((segment) => ({
   sfn: segment.segmentType === 'Fund' ? '201' : null,
 }));
 
-function mockApi(options: { jobCodes?: MockJobCode[]; segments?: typeof segments } = {}) {
+function mockApi(
+  options: {
+    jobCodes?: MockJobCode[];
+    // What the job code list becomes once a segment save changes which payroll is reported.
+    jobCodesAfterSegmentSave?: MockJobCode[];
+    segments?: typeof segments;
+  } = {}
+) {
   let current = [...(options.segments ?? segments)];
   let jobCodes = [...(options.jobCodes ?? [])];
   server.use(
@@ -96,6 +103,9 @@ function mockApi(options: { jobCodes?: MockJobCode[]; segments?: typeof segments
       current = current.map((s) =>
         s.code === body.code ? { ...s, includeInReport: body.includeInReport } : s
       );
+      if (options.jobCodesAfterSegmentSave) {
+        jobCodes = [...options.jobCodesAfterSegmentSave];
+      }
       return new HttpResponse(null, { status: 204 });
     })
   );
@@ -289,6 +299,109 @@ describe('Data Classification stage', () => {
       expect(tab).not.toHaveTextContent('new');
       expect(screen.getByRole<HTMLSelectElement>('combobox', { name: 'Job SFN for 0000' }).value).toBe('1S');
     } finally {
+      cleanup();
+    }
+  });
+
+  it('reloads job codes after a segment save brings in payroll with a blocking job code', async () => {
+    mockApi({ jobCodesAfterSegmentSave: [jobCodeRow('0000', { blocking: true })] });
+    const { cleanup } = renderRoute({ initialPath: '/workflow/data-classification' });
+
+    try {
+      fireEvent.click(await screen.findByRole('tab', { name: /Fund/ }));
+      await screen.findByText('70575');
+      const jobCodeTab = screen.getByRole('tab', { name: /Job Code/ });
+      expect(jobCodeTab).not.toHaveTextContent('new');
+
+      // Including the last unclassified fund classifies every segment.
+      const dropdowns = screen.getAllByRole<HTMLSelectElement>('combobox');
+      fireEvent.change(dropdowns.find((dropdown) => dropdown.value === '')!, {
+        target: { value: '201' },
+      });
+
+      await waitFor(() => expect(jobCodeTab).toHaveTextContent('1 new'));
+      expect(screen.getByRole('button', { name: /Continue to Expense Review/ })).toBeDisabled();
+
+      fireEvent.click(jobCodeTab);
+      expect(await screen.findByRole('combobox', { name: 'Job SFN for 0000' })).toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('reads job codes again when their first read was still running as a segment save finished', async () => {
+    mockApi();
+    let jobCodeRequests = 0;
+    // Holds the first job code read open, as a slow read from before the save.
+    const firstRead = deferred();
+    server.use(
+      http.get('/api/jobcodeclassifications', async () => {
+        jobCodeRequests += 1;
+        if (jobCodeRequests === 1) {
+          await firstRead.promise;
+          return HttpResponse.json(jobCodesResponse([]));
+        }
+        return HttpResponse.json(jobCodesResponse([jobCodeRow('0000', { blocking: true })]));
+      })
+    );
+    const { cleanup } = renderRoute({ initialPath: '/workflow/data-classification' });
+
+    try {
+      fireEvent.click(await screen.findByRole('tab', { name: /Fund/ }));
+      await screen.findByText('70575');
+      await waitFor(() => expect(jobCodeRequests).toBe(1));
+
+      const dropdowns = screen.getAllByRole<HTMLSelectElement>('combobox');
+      fireEvent.change(dropdowns.find((dropdown) => dropdown.value === '')!, {
+        target: { value: '201' },
+      });
+
+      // The read that started before the save cannot stand in for the reload.
+      await waitFor(() => expect(jobCodeRequests).toBe(2));
+      await waitFor(() =>
+        expect(screen.getByRole('tab', { name: /Job Code/ })).toHaveTextContent('1 new')
+      );
+      expect(screen.getByRole('button', { name: /Continue to Expense Review/ })).toBeDisabled();
+    } finally {
+      firstRead.resolve();
+      cleanup();
+    }
+  });
+
+  it('locks a job code dropdown until its save has finished', async () => {
+    mockApi({
+      jobCodes: [jobCodeRow('0000', { blocking: true }), jobCodeRow('4446')],
+      segments: allClassifiedSegments,
+    });
+    // Holds the save open until the test lets it finish.
+    const save = deferred();
+    const saved: string[] = [];
+    server.use(
+      http.patch('/api/jobcodeclassifications', async ({ request }) => {
+        const body = await request.json() as { jobCode: string; staffTypeCode: string };
+        saved.push(body.staffTypeCode);
+        await save.promise;
+        return new HttpResponse(null, { status: 204 });
+      })
+    );
+    const { cleanup } = renderRoute({ initialPath: '/workflow/data-classification' });
+
+    try {
+      fireEvent.click(await screen.findByRole('tab', { name: /Job Code/ }));
+      // The table redraws its cells, so the dropdown is looked up each time.
+      const select = () => screen.getByRole<HTMLSelectElement>('combobox', { name: 'Job SFN for 0000' });
+      await waitFor(() => expect(select()).toBeEnabled());
+      fireEvent.change(select(), { target: { value: '1S' } });
+
+      // A second pick now could finish before the first and be overwritten by it.
+      await waitFor(() => expect(select()).toBeDisabled());
+      expect(screen.getByRole('combobox', { name: 'Job SFN for 4446' })).toBeEnabled();
+
+      save.resolve();
+      await waitFor(() => expect(select()).toBeEnabled());
+      expect(saved).toEqual(['1S']);
+    } finally {
+      save.resolve();
       cleanup();
     }
   });

@@ -12,6 +12,7 @@ import { Rule204Tab } from './Rule204Tab.tsx';
 import { Rule220Tab } from './Rule220Tab.tsx';
 import {
   autoAssociationBuildQueryOptions,
+  REBUILD_AUTO_ASSOCIATIONS_MUTATION_KEY,
   useRebuildAutoAssociations,
 } from '@/queries/autoAssociations.ts';
 import { apiErrorMessage } from '@/queries/orgr.ts';
@@ -19,7 +20,7 @@ import { WORKFLOW_SNAPSHOT_KEY, updateWorkflowStageStatus } from '@/queries.ts';
 import { ConfirmationDialog } from '@/shared/ConfirmationDialog.tsx';
 import type { WorkflowStageStatus } from '@/types.ts';
 import { useNavigate } from '@tanstack/react-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export const EMPTY_STATE_TEXT =
   'Auto-associations have not run yet. Reopen OrgR Review and mark it complete to run them.';
@@ -36,6 +37,9 @@ export function AutoAssociationsStage({ status }: { status: WorkflowStageStatus 
   const [activeId, setActiveId] = useState<AutoAssociationsTabId>(AUTO_ASSOCIATIONS_TABS[0].id);
   const [confirmingRebuild, setConfirmingRebuild] = useState(false);
   const rebuildMutation = useRebuildAutoAssociations();
+  // Read by key, not from rebuildMutation, so a rebuild started before this
+  // stage was left and reopened still counts as running.
+  const rebuilding = useIsMutating({ mutationKey: REBUILD_AUTO_ASSOCIATIONS_MUTATION_KEY }) > 0;
   const continueMutation = useMutation({
     mutationFn: () => updateWorkflowStageStatus('auto-associations', 'Complete'),
     onSuccess: (snapshot) => {
@@ -84,11 +88,11 @@ export function AutoAssociationsStage({ status }: { status: WorkflowStageStatus 
             </span>
             <button
               className="btn btn-sm"
-              disabled={rebuildMutation.isPending}
+              disabled={rebuilding || continueMutation.isPending}
               onClick={() => setConfirmingRebuild(true)}
               type="button"
             >
-              {rebuildMutation.isPending ? 'Rebuilding...' : 'Rebuild auto-associations'}
+              {rebuilding ? 'Rebuilding...' : 'Rebuild auto-associations'}
             </button>
           </div>
 
@@ -161,10 +165,12 @@ export function AutoAssociationsStage({ status }: { status: WorkflowStageStatus 
                 : 'Auto-associations completed. Click Continue after review.'
               : 'Auto-associations must run before continuing.'}
         </span>
+        {/* A rebuild stays pending until the reports have reloaded. The
+            previous build would let the stage complete before then. */}
         {isComplete ? null : (
           <button
             className="btn btn-primary"
-            disabled={!gateOpen || continueMutation.isPending}
+            disabled={!gateOpen || continueMutation.isPending || rebuilding}
             onClick={() => continueMutation.mutate()}
             type="button"
           >

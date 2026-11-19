@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using Server.Core.ExpenseReview;
 using Server.ExpenseReview;
 using Server.Helpers;
 using Server.JobCodeClassifications;
@@ -11,8 +10,7 @@ namespace Server.Controllers;
 // payroll and the job SFN (FTE line) each one is assigned to.
 public sealed class JobCodeClassificationsController(
     IJobCodeClassificationService jobCodes,
-    IConfirmedCycleProvider confirmedCycles,
-    IExpenseReviewFilterCacheInvalidator filterCacheInvalidator) : ApiControllerBase
+    IConfirmedCycleProvider confirmedCycles) : ApiControllerBase
 {
     // GET api/jobcodeclassifications
     [HttpGet]
@@ -47,8 +45,8 @@ public sealed class JobCodeClassificationsController(
             return BadRequest($"Unknown staff type '{request.StaffTypeCode}'.");
         }
 
-        // The job SFN feeds v_TransactionInclusion, which Expense Review reads.
-        filterCacheInvalidator.InvalidateAll();
+        // The Expense Review filter cache is left alone: a job SFN is not part
+        // of the inclusion rule or of anything Expense Review filters on.
         return NoContent();
     }
 }

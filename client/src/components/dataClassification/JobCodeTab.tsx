@@ -32,10 +32,12 @@ function optionLabel(option: StaffTypeOption): string {
 function JobSfnSelect({
   onAssign,
   row,
+  saving,
   staffTypes,
 }: {
   onAssign: (jobCode: string, staffTypeCode: string) => void;
   row: JobCodeClassification;
+  saving: boolean;
   staffTypes: StaffTypeOption[];
 }) {
   // A staff type that is not offered (no line, or no longer in the list)
@@ -47,6 +49,9 @@ function JobSfnSelect({
     <select
       aria-label={`Job SFN for ${row.jobCode}`}
       className="select select-xs select-bordered"
+      // Each pick is its own request. Locked while one is running so a
+      // second pick cannot finish first and then be overwritten by it.
+      disabled={saving}
       onChange={(event) => {
         if (event.target.value !== '') {
           onAssign(row.jobCode, event.target.value);
@@ -70,9 +75,11 @@ function JobSfnSelect({
 export function JobCodeTab({
   data,
   onAssign,
+  savingJobCodes = [],
 }: {
   data: JobCodeClassifications;
   onAssign: (jobCode: string, staffTypeCode: string) => void;
+  savingJobCodes?: string[];
 }) {
   // Freeze the server's order (codes that need a line first) when the tab is
   // entered, so assigning a row in place does not move it. Codes that show up
@@ -90,7 +97,12 @@ export function JobCodeTab({
     {
       accessorFn: (row) => row.fteSfn ?? '',
       cell: ({ row }) => (
-        <JobSfnSelect onAssign={onAssign} row={row.original} staffTypes={data.staffTypes} />
+        <JobSfnSelect
+          onAssign={onAssign}
+          row={row.original}
+          saving={savingJobCodes.includes(row.original.jobCode)}
+          staffTypes={data.staffTypes}
+        />
       ),
       header: 'Job SFN',
       id: 'fteSfn',

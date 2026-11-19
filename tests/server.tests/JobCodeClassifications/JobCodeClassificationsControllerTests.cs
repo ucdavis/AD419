@@ -6,7 +6,6 @@ using Server.ExpenseReview;
 using Server.JobCodeClassifications;
 using Server.Models;
 using Server.Models.JobCodeClassifications;
-using Server.Tests.Helpers;
 
 namespace Server.Tests.JobCodeClassifications;
 
@@ -16,9 +15,8 @@ public class JobCodeClassificationsControllerTests
 
     private static JobCodeClassificationsController CreateController(
         StubService service,
-        FiscalYearCycle? cycle,
-        RecordingExpenseReviewFilterCacheInvalidator? invalidator = null) =>
-        new(service, new StubCycleProvider(cycle), invalidator ?? new RecordingExpenseReviewFilterCacheInvalidator())
+        FiscalYearCycle? cycle) =>
+        new(service, new StubCycleProvider(cycle))
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
         };
@@ -51,17 +49,15 @@ public class JobCodeClassificationsControllerTests
     }
 
     [Fact]
-    public async Task Patch_returns_no_content_and_invalidates_the_expense_review_filter_cache_when_assigned()
+    public async Task Patch_returns_no_content_when_assigned()
     {
         var service = new StubService { AssignResult = JobCodeAssignResult.Assigned };
-        var invalidator = new RecordingExpenseReviewFilterCacheInvalidator();
-        var controller = CreateController(service, Fy25, invalidator);
+        var controller = CreateController(service, Fy25);
 
         var result = await controller.Assign(new UpdateJobCodeClassificationRequest("0000", "1S"), CancellationToken.None);
 
         result.Should().BeOfType<NoContentResult>();
         service.ReceivedAssignment.Should().Be(("0000", "1S"));
-        invalidator.Calls.Should().Be(1);
     }
 
     [Theory]
@@ -71,13 +67,11 @@ public class JobCodeClassificationsControllerTests
         JobCodeAssignResult assignResult, string message)
     {
         var service = new StubService { AssignResult = assignResult };
-        var invalidator = new RecordingExpenseReviewFilterCacheInvalidator();
-        var controller = CreateController(service, Fy25, invalidator);
+        var controller = CreateController(service, Fy25);
 
         var result = await controller.Assign(new UpdateJobCodeClassificationRequest("0000", "ZZ"), CancellationToken.None);
 
         result.Should().BeOfType<BadRequestObjectResult>().Which.Value.Should().Be(message);
-        invalidator.Calls.Should().Be(0);
     }
 
     private sealed class StubCycleProvider(FiscalYearCycle? cycle) : IConfirmedCycleProvider

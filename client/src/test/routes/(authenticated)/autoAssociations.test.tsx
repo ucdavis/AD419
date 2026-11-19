@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { createWorkflowSnapshot, server } from '@/test/mswUtils.ts';
+import { createWorkflowSnapshot, deferred, server } from '@/test/mswUtils.ts';
 import { renderRoute } from '@/test/routerUtils.tsx';
 
 const mockUser = {
@@ -38,14 +38,6 @@ const build = {
   misclassified204Rows: 1,
   summaryRows: 9,
 };
-
-function deferred() {
-  let resolve!: () => void;
-  const promise = new Promise<void>((done) => {
-    resolve = done;
-  });
-  return { promise, resolve };
-}
 
 function mockApi(options: { completeFails?: boolean; failingReport?: boolean; hasBuild: boolean; }) {
   let snapshot = createWorkflowSnapshot(completedUpstream);
@@ -542,6 +534,9 @@ describe('Auto-Associations stage', () => {
       const running = await screen.findByRole('button', { name: 'Rebuilding...' });
       expect(running).toBeDisabled();
       expect(rebuildRequests).toBe(1);
+      // The previous build would let the stage complete before the new one is seen.
+      const continueButton = screen.getByRole('button', { name: 'Continue to Manual Associations' });
+      expect(continueButton).toBeDisabled();
 
       rebuildRequest.resolve();
 
@@ -553,9 +548,70 @@ describe('Auto-Associations stage', () => {
         await screen.findByText(`Built ${new Date(rebuilt.builtAt).toLocaleString()}`)
       ).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Rebuild auto-associations' })).toBeEnabled();
+      expect(continueButton).toBeEnabled();
       expect(rebuildRequests).toBe(1);
     } finally {
       rebuildRequest.resolve();
+      cleanup();
+    }
+  });
+
+  it('reads a report again when its first read was still running as the rebuild finished', async () => {
+    mockApi({ hasBuild: true });
+    let reportRequests = 0;
+    // Holds the first report read open, as a slow read of the previous build.
+    const firstReport = deferred();
+    const rebuilt = { ...build, buildId: 2, builtAt: '2026-11-17T22:05:00Z' };
+    server.use(
+      http.get('/api/autoassociations/rule-20x', async () => {
+        reportRequests += 1;
+        if (reportRequests === 1) {
+          await firstReport.promise;
+        }
+        return HttpResponse.json(envelope({ sfns: [], unassociated: [] }));
+      }),
+      http.post('/api/autoassociations/rebuild', () => HttpResponse.json(envelope(rebuilt)))
+    );
+    const user = userEvent.setup();
+    const { cleanup } = renderRoute({ initialPath: '/workflow/auto-associations' });
+
+    try {
+      await user.click(await screen.findByRole('button', { name: 'Rebuild auto-associations' }));
+      await waitFor(() => expect(reportRequests).toBe(1));
+      await user.click(screen.getByRole('button', { name: 'Rebuild' }));
+
+      // The read that started before the rebuild cannot stand in for the reload.
+      await waitFor(() => expect(reportRequests).toBe(2));
+    } finally {
+      firstReport.resolve();
+      cleanup();
+    }
+  });
+
+  it('disables Rebuild while the stage is being completed', async () => {
+    mockApi({ hasBuild: true });
+    // Holds the completion request open until the test lets it finish.
+    const completeRequest = deferred();
+    server.use(
+      http.put('/api/workflow/stages/auto-associations', async () => {
+        await completeRequest.promise;
+        return HttpResponse.text('The workflow stage cannot be updated in its current state.', { status: 400 });
+      })
+    );
+    const user = userEvent.setup();
+    const { cleanup } = renderRoute({ initialPath: '/workflow/auto-associations' });
+
+    try {
+      const rebuild = await screen.findByRole('button', { name: 'Rebuild auto-associations' });
+      await user.click(screen.getByRole('button', { name: 'Continue to Manual Associations' }));
+
+      await screen.findByRole('button', { name: 'Continuing...' });
+      expect(rebuild).toBeDisabled();
+
+      completeRequest.resolve();
+      await waitFor(() => expect(rebuild).toBeEnabled());
+    } finally {
+      completeRequest.resolve();
       cleanup();
     }
   });

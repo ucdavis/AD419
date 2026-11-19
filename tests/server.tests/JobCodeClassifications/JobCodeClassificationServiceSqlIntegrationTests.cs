@@ -197,7 +197,11 @@ public sealed class JobCodeClassificationServiceSqlIntegrationTests(SqlServerDat
                  [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
             VALUES
                 ('JC-STATE-OFFSET-ACCOUNT-A', '3310', '13U02', 'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000026', 'POS26', '4461', 0,  25.00, 0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
-                ('JC-STATE-OFFSET-ACCOUNT-B', '3310', '13U02', 'D1', 'D1', 'A2', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000026', 'POS26', '4461', 0, -25.00, 0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0);
+                ('JC-STATE-OFFSET-ACCOUNT-B', '3310', '13U02', 'D1', 'D1', 'A2', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000026', 'POS26', '4461', 0, -25.00, 0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                -- 4462 has FTE on an account whose dollars net to zero, next to an account with dollars and no FTE.
+                ('JC-FTE-ZERO-ACCOUNT-A',     '3310', 'F1',    'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000027', 'POS27', '4462', 10, 50.00, 0.500000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('JC-FTE-ZERO-ACCOUNT-B',     '3310', 'F1',    'D1', 'D1', 'A1', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000027', 'POS27', '4462', 0, -50.00, 0.000000, '2024-12-15', 'S', 2025, '6', 0, 0, 0, 0),
+                ('JC-FTE-ZERO-ACCOUNT-C',     '3310', 'F1',    'D1', 'D1', 'A2', 'P1', 'PG1', 'PR1', 'AC1', 'E01', '30000027', 'POS27', '4462', 0, 100.00, 0.000000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0);
             """);
 
         var cycle = Cycle();
@@ -222,11 +226,12 @@ public sealed class JobCodeClassificationServiceSqlIntegrationTests(SqlServerDat
         var service = CreateService();
         var response = await service.GetAsync(cycle, CancellationToken.None);
 
-        // 4450 and 4451 offset across employees, 4454 to 4459 across the other
-        // grouping columns. 4452's FTE cancels inside one summary row and
-        // 4453's dollars net to zero, so the build has nothing for them.
-        expected.Should().Contain(["0000", "4448", "4450", "4451", "4454", "4455", "4456", "4457", "4458", "4459", "4461"]);
-        expected.Should().NotContain(["4452", "4453"]);
+        // 4450 and 4451 offset across employees, 4454 to 4459 and 4461 across
+        // the other grouping columns. 4453 and 4462 have FTE on a summary row
+        // whose dollars net to zero, and the build keeps FTE either way.
+        // 4452's FTE cancels inside one summary row, so there is none to place.
+        expected.Should().Contain(["0000", "4448", "4450", "4451", "4453", "4454", "4455", "4456", "4457", "4458", "4459", "4461", "4462"]);
+        expected.Should().NotContain(["4452"]);
         response.Rows.Where(row => row.Blocking).Select(row => row.JobCode).Should().BeEquivalentTo(expected);
 
         // Why 4450 has to block: nothing of it is associated yet, and

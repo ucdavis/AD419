@@ -11,6 +11,7 @@ import { SegmentGrid } from './SegmentGrid.tsx';
 import { ExportDataButton } from '@/shared/exportDataButton.tsx';
 import {
   ASSIGN_JOB_CODE_MUTATION_KEY,
+  type AssignJobCodeInput,
   blockingJobCodeCount,
   jobCodeClassificationsQueryOptions,
   useAssignJobCode,
@@ -31,6 +32,7 @@ import { useNavigate } from '@tanstack/react-router';
 import {
   useIsMutating,
   useMutation,
+  useMutationState,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
@@ -58,6 +60,12 @@ export function DataClassificationStage({
   });
   const pendingJobCodeUpdates = useIsMutating({
     mutationKey: ASSIGN_JOB_CODE_MUTATION_KEY,
+  });
+  // Job codes with a save still running; their dropdowns are locked.
+  const savingJobCodes = useMutationState({
+    filters: { mutationKey: ASSIGN_JOB_CODE_MUTATION_KEY, status: 'pending' },
+    select: (mutation) =>
+      (mutation.state.variables as AssignJobCodeInput).jobCode,
   });
   const pendingClassificationUpdates =
     pendingSegmentUpdates + pendingJobCodeUpdates;
@@ -192,6 +200,7 @@ export function DataClassificationStage({
               onAssign={(jobCode, staffTypeCode) =>
                 assignJobCode.mutate({ jobCode, staffTypeCode })
               }
+              savingJobCodes={savingJobCodes}
             />
           ) : (
             <p role="status">Loading job codes...</p>
