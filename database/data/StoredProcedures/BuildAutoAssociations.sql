@@ -33,6 +33,11 @@ BEGIN
     -- carry no FTE.
     -- A row is dropped only when it has neither dollars nor FTE. FTE stays
     -- even when its dollars net to zero (a payment and its correction).
+    -- This is a change in FTE methodology from last year's summary, which
+    -- dropped every row whose dollars netted to zero and its FTE with it.
+    -- Adding account to the grain made that rule drop FTE whenever a payment
+    -- and its correction shared an account apart from the rest of the pay, so
+    -- FTE is now kept on its own terms. A kept row can have 0 dollars.
     SELECT
         x.[Source], x.[OrgR], x.[Entity], x.[Project], x.[Activity], x.[Fund], x.[FinancialDepartment], x.[Account],
         x.[EmployeeId], x.[EmployeeName], x.[JobCode], x.[ExpenseSfn], x.[FteSfn],
