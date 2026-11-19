@@ -14,6 +14,7 @@ using Server.Tests.AutoAssociations;
 using Server.Tests.OrgRReview;
 using Server.Tests.Helpers;
 using Server.Workflow;
+using Server.Tests.JobCodeClassifications;
 
 namespace Server.Tests.ProjectIdentification;
 
@@ -279,7 +280,7 @@ public partial class ProjectIdentificationServiceTests
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
         var service = CreateService(db, dataDb);
-        var workflowService = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder());
+        var workflowService = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder(), new FakeJobCodeClassificationService());
 
         await service.ConfirmFiscalPeriodAsync("FY26", User, CancellationToken.None);
         await workflowService.SetStageStatusAsync(
@@ -313,7 +314,7 @@ public partial class ProjectIdentificationServiceTests
             db,
             new FlatFileImportRegistry(),
             projectListService ?? new StubProjectListService(),
-            new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder()),
+            new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder(), new FakeJobCodeClassificationService()),
             logger ?? NullLogger<ProjectIdentificationService>.Instance,
             invalidator ?? new RecordingExpenseReviewFilterCacheInvalidator());
 

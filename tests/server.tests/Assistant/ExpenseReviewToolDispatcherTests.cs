@@ -394,10 +394,6 @@ public class ExpenseReviewToolDispatcherTests
                 none, none, fund, none, aeProjects, none, none, none, none, sfn, none, none));
         }
 
-        public Task<UnmatchedJobCodesResponse> GetUnmatchedJobCodesAsync(
-            FiscalYearCycle cycle, CancellationToken cancellationToken) =>
-            Task.FromResult(new UnmatchedJobCodesResponse(cycle.FiscalYear, cycle.CycleStart, cycle.CycleEnd, []));
-
         public Task<ExpenseReviewSummaryResponse> GetSummaryAsync(
             FiscalYearCycle cycle, ExpenseReviewSummaryRequest request, CancellationToken cancellationToken)
         {

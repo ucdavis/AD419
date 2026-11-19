@@ -21,6 +21,9 @@ CREATE TABLE [data].[ExpenseSummary]
     [Expenses]            DECIMAL(19, 4) NOT NULL,
     [Fte]                 DECIMAL(9, 6)  NOT NULL,
     [RuleExclusion]       NVARCHAR(30)   NULL,      -- Misclassified204: skipped by every rule, reported read-only
+    -- Last so publishing over an existing table adds the column in place.
+    -- NULL on rows from a build made before account joined the grain.
+    [Account]             NVARCHAR(50)   NULL,
     CONSTRAINT [PK_ExpenseSummary] PRIMARY KEY CLUSTERED ([ExpenseId]),
     CONSTRAINT [CK_ExpenseSummary_Source] CHECK ([Source] IN (N'AE', N'UCPath'))
 );

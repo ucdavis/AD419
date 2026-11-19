@@ -116,6 +116,43 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
     }
 
     [Fact]
+    public async Task Rejected_rebuild_leaves_the_previous_build_in_place()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedScenarioAsync();
+
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+        var window = new { cycleStart = CycleStart, cycleEnd = CycleEnd };
+        await connection.ExecuteAsync("EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd", window);
+
+        const string stateSql =
+            """
+            SELECT
+                (SELECT MAX([BuildId]) FROM [data].[AutoAssociationBuilds]) AS [BuildId],
+                (SELECT COUNT(*) FROM [data].[AutoAssociationBuilds]) AS [Builds],
+                (SELECT COUNT(*) FROM [data].[ExpenseSummary]) AS [SummaryRows],
+                (SELECT COUNT(*) FROM [data].[StagedAssociations]) AS [AssociationRows],
+                (SELECT COUNT(*) FROM [data].[AutoAssociationExcludedProjects]) AS [ExcludedProjects],
+                (SELECT SUM([Expenses]) FROM [data].[StagedAssociations]) AS [AssociatedExpenses]
+            """;
+        var before = await connection.QuerySingleAsync<StagingState>(stateSql);
+        before.Should().Be(new StagingState(before.BuildId, 1, 8, 11, 2, before.AssociatedExpenses));
+
+        // The rebuild button reruns the procedure over an existing build. The
+        // no OrgR rejection is thrown after the procedure has deleted the old
+        // staging rows, so only the rollback keeps them.
+        await connection.ExecuteAsync("UPDATE [data].[OrgRFinancialDepartments] SET [OrgR] = NULL WHERE [FinancialDepartment] = 'D1'");
+        var rebuild = () => connection.ExecuteAsync("EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd", window);
+        await rebuild.Should().ThrowAsync<SqlException>().WithMessage("*no OrgR*");
+
+        (await connection.QuerySingleAsync<StagingState>(stateSql)).Should().Be(before);
+        await connection.ExecuteAsync("UPDATE [data].[OrgRFinancialDepartments] SET [OrgR] = 'AAAA' WHERE [FinancialDepartment] = 'D1'");
+    }
+
+    private sealed record StagingState(int BuildId, int Builds, int SummaryRows, int AssociationRows, int ExcludedProjects, decimal AssociatedExpenses);
+
+    [Fact]
     public async Task Summary_total_equals_expense_review_included_total()
     {
         await fixture.ClearDataTablesAsync();
@@ -309,6 +346,113 @@ public sealed class BuildAutoAssociationsSqlIntegrationTests(SqlServerDataDbFixt
             new { AccessionNumber = "2000002", ExpenseSfn = "220", Expenses = 150m, Fte = 0.300000m, EmployeeId = "P2" });
         staged.Should().NotContain(row => row.AccessionNumber == "2000001" || row.AccessionNumber == "2000003" || row.AccessionNumber == "2000004");
     }
+
+    [Fact]
+    public async Task Build_keeps_account_on_summary_rows_and_splits_rows_by_account()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedUnder100ScenarioAsync();
+
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        // Rows identical to the scenario's AE-N and P2 13U02 rows except for
+        // the account, plus a pair on one account that nets to zero.
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description], [IncludeInReport], [Sfn])
+            VALUES
+                ('Account', '500000', 'Account', 1, NULL),
+                ('Account', '520000', 'Account', 1, NULL),
+                ('Account', '530000', 'Account', 1, NULL);
+
+            INSERT INTO [data].[AETransactions]
+                ([Reference], [Entity], [Fund], [FinancialDepartment], [Account], [Activity], [Purpose], [Project], [PeriodName], [Amount], [ExcludedByDate], [AccountInUcPath])
+            VALUES
+                ('ae-acct-a', '3310', 'F204', 'D1', '500000', 'AC1', 'P1', 'AE-N', 'Oct-24', 60,  0, 0),
+                ('ae-acct-b', '3310', 'F204', 'D1', '520000', 'AC1', 'P1', 'AE-N', 'Oct-24', 40,  0, 0),
+                ('ae-net-a',  '3310', 'F204', 'D1', '530000', 'AC1', 'P1', 'AE-N', 'Oct-24', 25,  0, 0),
+                ('ae-net-b',  '3310', 'F204', 'D1', '530000', 'AC1', 'P1', 'AE-N', 'Nov-24', -25, 0, 0);
+
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [EmployeeName], [PositionNumber], [JobCode],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
+            VALUES
+                ('ucp-acct-a', '3310', '13U02', 'D1', 'D1', '500000', 'P1', NULL, 'AE-Q', 'AC1', 'REG', 'P2', 'PI Two', 'POS2', '1234', 10, 100, 0.100000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('ucp-acct-b', '3310', '13U02', 'D1', 'D1', '520000', 'P1', NULL, 'AE-Q', 'AC1', 'REG', 'P2', 'PI Two', 'POS2', '1234', 10, 50,  0.050000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0);
+            """);
+
+        await connection.ExecuteAsync(
+            "EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd",
+            new { cycleStart = CycleStart, cycleEnd = CycleEnd });
+
+        var summary = (await connection.QueryAsync<AccountRow>(
+            "SELECT [Source], [Project], [Account], [Expenses], [Fte] FROM [data].[ExpenseSummary]")).ToList();
+
+        summary.Where(row => row.Source == "AE" && row.Project == "AE-N")
+            .Select(row => (row.Account, row.Expenses))
+            .Should().BeEquivalentTo(new[] { ("A1", 300m), ("500000", 60m), ("520000", 40m) });
+        summary.Where(row => row.Source == "UCPath" && row.Project == "AE-Q")
+            .Select(row => (row.Account, row.Expenses, row.Fte))
+            .Should().BeEquivalentTo(new[] { ("A1", 150m, 0.300000m), ("500000", 100m, 0.100000m), ("520000", 50m, 0.050000m) });
+        summary.Should().NotContain(row => row.Account == "530000");
+        summary.Sum(row => row.Expenses).Should().Be(770m);
+    }
+
+    [Fact]
+    public async Task Build_keeps_fte_on_a_row_whose_dollars_net_to_zero()
+    {
+        await fixture.ClearDataTablesAsync();
+        await SeedUnder100ScenarioAsync();
+
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        // P2 already has 150 and 0.3 FTE on account A1. On account 540000 a
+        // payment with FTE is reversed by a correction with none, so the
+        // account's dollars net to zero while its FTE does not. P4 has the
+        // same pair and no other pay. Both keep their FTE.
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO [data].[SegmentClassifications] ([SegmentType], [Code], [Description], [IncludeInReport], [Sfn])
+            VALUES ('Account', '540000', 'Account', 1, NULL);
+
+            INSERT INTO [data].[UcPathTransactions]
+                ([LaborTransactionId], [Entity], [Fund], [FinancialDepartment], [ParentDepartment], [Account],
+                 [Purpose], [Program], [Project], [Activity], [ErnCode], [EmployeeId], [EmployeeName], [PositionNumber], [JobCode],
+                 [Hours], [Amount], [CalculatedFte], [PayPeriodEndDate], [FringeBenefitSalaryCd],
+                 [FiscalYear], [Period], [EmpRcd], [EffSeq], [ExcludedByDate], [AccountNotInAE])
+            VALUES
+                ('ucp-p2-pay',     '3310', '13U02', 'D1', 'D1', '540000', 'P1', NULL, 'AE-Q', 'AC1', 'REG', 'P2', 'PI Two',  'POS2', '1234', 10,  50, 0.500000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('ucp-p2-correct', '3310', '13U02', 'D1', 'D1', '540000', 'P1', NULL, 'AE-Q', 'AC1', 'REG', 'P2', 'PI Two',  'POS2', '1234', 0,  -50, 0.000000, '2024-12-15', 'S', 2025, '6', 0, 0, 0, 0),
+                ('ucp-p4-pay',     '3310', '13U02', 'D1', 'D1', '540000', 'P1', NULL, 'AE-Q', 'AC1', 'REG', 'P4', 'PI Four', 'POS4', '1234', 10,  50, 0.250000, '2024-11-15', 'S', 2025, '5', 0, 0, 0, 0),
+                ('ucp-p4-correct', '3310', '13U02', 'D1', 'D1', '540000', 'P1', NULL, 'AE-Q', 'AC1', 'REG', 'P4', 'PI Four', 'POS4', '1234', 0,  -50, 0.000000, '2024-12-15', 'S', 2025, '6', 0, 0, 0, 0);
+            """);
+
+        await connection.ExecuteAsync(
+            "EXEC [data].[BuildAutoAssociations] @cycleStart, @cycleEnd",
+            new { cycleStart = CycleStart, cycleEnd = CycleEnd });
+
+        var payroll = (await connection.QueryAsync<(string EmployeeId, string Account, decimal Expenses, decimal Fte)>(
+            "SELECT [EmployeeId], [Account], [Expenses], [Fte] FROM [data].[ExpenseSummary] WHERE [Source] = N'UCPath'")).ToList();
+
+        payroll.Should().BeEquivalentTo(new[]
+        {
+            ("P2", "A1", 150m, 0.300000m),
+            ("P2", "540000", 0m, 0.500000m),
+            ("P4", "540000", 0m, 0.250000m),
+        });
+
+        // Rule 220 carries P2's kept FTE to P2's project with no dollars. P4
+        // has no project, so its row is left for manual association.
+        var staged = await connection.QuerySingleAsync<(decimal Expenses, decimal Fte)>(
+            "SELECT SUM([Expenses]), SUM([Fte]) FROM [data].[StagedAssociations] WHERE [Rule] = N'220'");
+        staged.Should().Be((150m, 0.800000m));
+    }
+
+    private sealed record AccountRow(string Source, string? Project, string? Account, decimal Expenses, decimal Fte);
 
     private async Task SeedUnder100ScenarioAsync()
     {

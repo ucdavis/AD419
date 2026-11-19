@@ -18,7 +18,6 @@ describe('autoAssociationsTabs', () => {
       'fte',
       'pi-fte',
       'totals',
-      'job-codes',
     ]);
   });
 

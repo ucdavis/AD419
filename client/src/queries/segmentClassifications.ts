@@ -1,5 +1,6 @@
 import { fetchJson } from '../lib/api.ts';
 import { invalidateExpenseReviewQueries } from './expenseReview.ts';
+import { reloadJobCodeClassifications } from './jobCodeClassifications.ts';
 import {
   queryOptions,
   useMutation,
@@ -104,9 +105,14 @@ export const useUpdateSegmentClassification = () => {
         queryClient.setQueryData(SEGMENTS_KEY, context.previous);
       }
     },
+    // Any segment can change which payroll is reported, and an ERN code
+    // changes which FTE is, so the job codes that need a line can change too.
+    // The save stays pending until they have reloaded, which keeps Continue
+    // disabled until the Job Code tab is current.
     onSettled: (_data, _error, input) =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: SEGMENTS_KEY }),
+        reloadJobCodeClassifications(queryClient),
         input.segmentType === 'Ern'
           ? Promise.resolve()
           : invalidateExpenseReviewQueries(queryClient),

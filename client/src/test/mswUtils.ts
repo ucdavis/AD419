@@ -93,6 +93,15 @@ const workflowStageDefinitions = [
   Pick<WorkflowStage, 'description' | 'id' | 'isRequired' | 'number' | 'title'>
 >;
 
+// A promise a test resolves by hand, to hold a mocked request open.
+export function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 export function createWorkflowSnapshot(
   statuses: Partial<Record<WorkflowStageId, WorkflowStageStatus>> = {}
 ): WorkflowSnapshot {
@@ -136,6 +145,16 @@ export function createWorkflowSnapshot(
 export const testServer = setupServer(
   http.get('/api/workflow/snapshot', () =>
     HttpResponse.json(createWorkflowSnapshot())
+  ),
+  // The Data Classification stage always asks for job codes; none by default.
+  http.get('/api/jobcodeclassifications', () =>
+    HttpResponse.json({
+      cycleEnd: '2026-09-30',
+      cycleStart: '2025-10-01',
+      fiscalYear: 'FY26',
+      rows: [],
+      staffTypes: [],
+    })
   )
 );
 
