@@ -39,7 +39,9 @@ public sealed class JobCodeClassificationService(
     // they cannot split a job code's rows any further: Source is always
     // UCPath here, OrgR follows the job code and financial department
     // (v_TransactionOrgR), ExpenseSfn follows the fund and project
-    // (v_TransactionSfn), and FteSfn follows the job code.
+    // (v_TransactionSfn), and FteSfn follows the job code and the employee
+    // (the PI rule in v_TransactionSfn moves a PI from 242 to 241, never to
+    // or from NULL).
     // FteSfn is the title's own line, read straight from the lookup rather
     // than from v_TransactionSfn, because this is the value the user edits.
     // The list and the gate share this text so they cannot drift apart.

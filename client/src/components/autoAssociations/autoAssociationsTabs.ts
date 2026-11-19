@@ -8,6 +8,7 @@ export type AutoAssociationsTabId =
   | 'rule-220'
   | 'excluded'
   | 'fte'
+  | 'pi-fte'
   | 'totals';
 
 export interface AutoAssociationsTab {
@@ -55,6 +56,11 @@ export const AUTO_ASSOCIATIONS_TABS: AutoAssociationsTab[] = [
     id: 'fte',
     label: 'FTE over 1.0',
     note: 'Employees whose included payroll FTE adds up to more than 1.0. Review only.',
+  },
+  {
+    id: 'pi-fte',
+    label: 'PI FTE to 241',
+    note: "PIs whose title puts their payroll on FTE line 242 (Professional Support). It is reported on 241 (Scientist) instead. Rule 220 prorates the adjusted State Appropriations (13U02) payroll across the PI's eligible projects. Review only.",
   },
   {
     id: 'totals',
