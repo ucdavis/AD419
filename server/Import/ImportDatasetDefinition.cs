@@ -45,7 +45,8 @@ public sealed partial class ImportDatasetDefinition
         IReadOnlyList<ImportColumn> columns,
         IReadOnlyList<ImportUniqueKey> uniqueKeys,
         bool truncateStringsToMaxLength = false,
-        IReadOnlyList<ImportReferenceValidation>? referenceValidations = null)
+        IReadOnlyList<ImportReferenceValidation>? referenceValidations = null,
+        bool ignoreUnknownHeaders = false)
     {
         Id = id;
         DisplayName = displayName;
@@ -55,6 +56,7 @@ public sealed partial class ImportDatasetDefinition
         UniqueKeys = uniqueKeys;
         TruncateStringsToMaxLength = truncateStringsToMaxLength;
         ReferenceValidations = referenceValidations ?? [];
+        IgnoreUnknownHeaders = ignoreUnknownHeaders;
 
         columnsByNormalizedHeader = [];
         var normalizedHeaderSources = new Dictionary<string, (ImportColumn Column, string SourceHeader)>();
@@ -97,6 +99,7 @@ public sealed partial class ImportDatasetDefinition
     public IReadOnlyList<ImportUniqueKey> UniqueKeys { get; }
     public bool TruncateStringsToMaxLength { get; }
     public IReadOnlyList<ImportReferenceValidation> ReferenceValidations { get; }
+    public bool IgnoreUnknownHeaders { get; }
 
     public ImportColumn? FindColumnBySourceHeader(string sourceHeader)
     {

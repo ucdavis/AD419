@@ -35,7 +35,8 @@ public sealed record ImportSuccessResponse(
     string Filename,
     int RowsImported,
     int? ImportLogId,
-    DateTimeOffset ImportedAt)
+    DateTimeOffset ImportedAt,
+    IReadOnlyList<string> IgnoredHeaders)
 {
     public bool Succeeded => true;
 }

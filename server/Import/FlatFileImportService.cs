@@ -189,7 +189,8 @@ public sealed class FlatFileImportService(
             file!.FileName,
             parseResult.Rows.Count,
             importLogId,
-            DateTimeOffset.UtcNow));
+            DateTimeOffset.UtcNow,
+            parseResult.IgnoredHeaders));
     }
 
     private static List<ImportFileError> ValidateFile(IFormFile? file)
@@ -278,7 +279,7 @@ public sealed class FlatFileImportService(
         var sourceHeaders = Enumerable.Range(1, lastHeaderCell.Address.ColumnNumber)
             .Select(columnNumber => headerRow.Cell(columnNumber).GetString())
             .ToList();
-        var headersByColumnNumber = MapHeaders(definition, sourceHeaders, fileErrors);
+        var (headersByColumnNumber, ignoredHeaders) = MapHeaders(definition, sourceHeaders, fileErrors);
         AddMissingRequiredHeaderErrors(definition, headersByColumnNumber, fileErrors);
 
         if (fileErrors.Count > 0)
@@ -311,7 +312,7 @@ public sealed class FlatFileImportService(
 
         AddDuplicateKeyErrors(definition, parsedRows);
 
-        return new FlatFileParseResult(fileErrors, rows, parsedRows);
+        return new FlatFileParseResult(fileErrors, rows, parsedRows) { IgnoredHeaders = ignoredHeaders };
     }
 
     private static bool IsWorkbookParseException(Exception exception)
@@ -342,7 +343,7 @@ public sealed class FlatFileImportService(
             }
 
             var fileErrors = new List<ImportFileError>();
-            var headersByColumnNumber = MapHeaders(definition, csv.HeaderRecord ?? [], fileErrors);
+            var (headersByColumnNumber, ignoredHeaders) = MapHeaders(definition, csv.HeaderRecord ?? [], fileErrors);
             AddMissingRequiredHeaderErrors(definition, headersByColumnNumber, fileErrors);
 
             if (fileErrors.Count > 0)
@@ -373,7 +374,7 @@ public sealed class FlatFileImportService(
 
             AddDuplicateKeyErrors(definition, parsedRows);
 
-            return new FlatFileParseResult(fileErrors, rows, parsedRows);
+            return new FlatFileParseResult(fileErrors, rows, parsedRows) { IgnoredHeaders = ignoredHeaders };
         }
         catch (CsvHelperException)
         {
@@ -384,12 +385,14 @@ public sealed class FlatFileImportService(
         }
     }
 
-    private static Dictionary<int, HeaderBinding> MapHeaders(
+    private static (Dictionary<int, HeaderBinding> Bindings, List<string> IgnoredHeaders) MapHeaders(
         ImportDatasetDefinition definition,
         IReadOnlyList<string> sourceHeaders,
         List<ImportFileError> fileErrors)
     {
         var bindings = new Dictionary<int, HeaderBinding>();
+        var ignoredHeaders = new List<string>();
+        var seenIgnoredHeaders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var seenHeaders = new Dictionary<string, string>();
         var seenTargetColumns = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -398,6 +401,16 @@ public sealed class FlatFileImportService(
             var sourceHeader = sourceHeaders[columnNumber - 1].Trim();
             if (string.IsNullOrWhiteSpace(sourceHeader))
             {
+                continue;
+            }
+
+            var column = definition.FindColumnBySourceHeader(sourceHeader);
+            if (column is null && definition.IgnoreUnknownHeaders)
+            {
+                if (seenIgnoredHeaders.Add(sourceHeader))
+                {
+                    ignoredHeaders.Add(sourceHeader);
+                }
                 continue;
             }
 
@@ -413,7 +426,6 @@ public sealed class FlatFileImportService(
 
             seenHeaders[normalized] = sourceHeader;
 
-            var column = definition.FindColumnBySourceHeader(sourceHeader);
             if (column is null)
             {
                 fileErrors.Add(new ImportFileError(
@@ -437,7 +449,7 @@ public sealed class FlatFileImportService(
             bindings[columnNumber] = new HeaderBinding(sourceHeader, column);
         }
 
-        return bindings;
+        return (bindings, ignoredHeaders);
     }
 
     private static void AddMissingRequiredHeaderErrors(
@@ -1261,7 +1273,10 @@ public sealed class FlatFileImportService(
     private sealed record FlatFileParseResult(
         List<ImportFileError> FileErrors,
         List<ImportRowResult> Rows,
-        List<ParsedImportRow> ParsedRows);
+        List<ParsedImportRow> ParsedRows)
+    {
+        public IReadOnlyList<string> IgnoredHeaders { get; init; } = [];
+    }
 
     private sealed record ParsedImportRow(
         int RowNum,

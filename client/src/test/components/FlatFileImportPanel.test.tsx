@@ -249,6 +249,60 @@ describe('FlatFileImportPanel', () => {
     }
   });
 
+  it.each([
+    ['import panel', renderPanel],
+    ['workflow checklist', renderChecklistImport],
+  ] as const)(
+    'lists skipped columns in the %s upload result',
+    async (_, renderUpload) => {
+      const user = userEvent.setup();
+      const ignoredHeaders = ['Export Version', 'Review, status'];
+      server.use(
+        http.get('/api/imports/recent', () => HttpResponse.json([])),
+        http.get('/api/projectlist/resolution-edits', () =>
+          HttpResponse.json({ hasResolutionEdits: false })
+        ),
+        http.post('/api/imports/active-projects', () =>
+          HttpResponse.json({
+            dataset: 'active-projects',
+            filename: 'active-projects.csv',
+            ignoredHeaders,
+            importedAt: '2026-06-09T18:30:00Z',
+            rowsImported: 42,
+            succeeded: true,
+          })
+        )
+      );
+
+      const { cleanup } = renderUpload();
+      try {
+        const datasetSelect = screen.queryByLabelText('Dataset');
+        if (datasetSelect) {
+          await user.selectOptions(datasetSelect, 'active-projects');
+        }
+        await user.upload(
+          screen.getByLabelText('Import file'),
+          new File(['test'], 'active-projects.csv', { type: 'text/csv' })
+        );
+        await user.click(await screen.findByRole('button', { name: 'Upload' }));
+
+        const list = await screen.findByRole('list', {
+          name: 'Skipped columns',
+        });
+        expect(
+          within(list)
+            .getAllByRole('listitem')
+            .map((item) => item.textContent)
+        ).toEqual(ignoredHeaders);
+        expect(
+          screen.getByText(/Imported 42 rows from active-projects\.csv/)
+        ).toBeInTheDocument();
+      } finally {
+        cleanup();
+      }
+    }
+  );
+
   it('uploads the selected file to the selected dataset and shows success', async () => {
     const user = userEvent.setup();
     let postedDataset = '';
@@ -261,6 +315,7 @@ describe('FlatFileImportPanel', () => {
         return HttpResponse.json({
           dataset: postedDataset,
           filename: 'active-projects.csv',
+          ignoredHeaders: [],
           importedAt: '2026-06-09T18:30:00Z',
           importLogId: 12,
           rowsImported: 42,
@@ -291,6 +346,7 @@ describe('FlatFileImportPanel', () => {
         await screen.findByText('Imported 42 rows from active-projects.csv.')
       ).toBeInTheDocument();
       expect(postedDataset).toBe('active-projects');
+      expect(screen.queryByText('Skipped columns')).not.toBeInTheDocument();
     } finally {
       cleanup();
     }
@@ -420,6 +476,7 @@ describe('FlatFileImportPanel', () => {
         return HttpResponse.json({
           dataset: 'active-projects',
           filename: 'active-projects.csv',
+          ignoredHeaders: [],
           importedAt: '2026-06-09T18:30:00Z',
           importLogId: 50,
           rowsImported: 1,
@@ -462,6 +519,7 @@ describe('FlatFileImportPanel', () => {
       expect(
         await screen.findByText(/Imported 1 rows from\s+active-projects\.csv/)
       ).toBeInTheDocument();
+      expect(screen.queryByText('Skipped columns')).not.toBeInTheDocument();
       expect(postCount).toBe(1);
     } finally {
       cleanup();
@@ -659,10 +717,10 @@ describe('FlatFileImportPanel', () => {
                 cellErrors: [
                   {
                     code: 'required',
-                    message: 'ProjectDirector is required.',
+                    message: 'FundingSource is required.',
                     rawValue: '',
-                    sourceHeader: 'Project Director',
-                    targetColumn: 'ProjectDirector',
+                    sourceHeader: 'Funding Source',
+                    targetColumn: 'FundingSource',
                   },
                   {
                     code: 'type_conversion',
@@ -684,8 +742,8 @@ describe('FlatFileImportPanel', () => {
                 rowNum: 2,
                 values: {
                   AccessionNumber: 'A-2',
+                  FundingSource: '',
                   LastProgressReportFy: 'FY25',
-                  ProjectDirector: '',
                   ProjectNumber: 'PRJ-1',
                 },
               },
@@ -721,7 +779,7 @@ describe('FlatFileImportPanel', () => {
         screen.getByRole('columnheader', { name: 'ProjectNumber' })
       ).toHaveClass('text-error');
       expect(screen.getByText('FY25')).toHaveClass('text-error');
-      expect(screen.getByText(/ProjectDirector is required.;/)).toHaveAttribute(
+      expect(screen.getByText(/FundingSource is required.;/)).toHaveAttribute(
         'title',
         expect.stringContaining('Project Number duplicates another row')
       );
