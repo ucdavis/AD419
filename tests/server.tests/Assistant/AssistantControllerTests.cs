@@ -31,6 +31,17 @@ public class AssistantControllerTests
     }
 
     [Fact]
+    public async Task Opts_the_session_in_to_the_github_code_reading_tools()
+    {
+        var sessions = new StubSessions();
+        var controller = Controller(sessions);
+
+        await controller.CreateSession(CancellationToken.None);
+
+        sessions.LastDefinition!.McpServers.Should().Equal("github");
+    }
+
+    [Fact]
     public async Task Returns_503_when_caes_ai_rejects_the_request()
     {
         var controller = Controller(new StubSessions
