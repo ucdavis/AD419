@@ -68,6 +68,7 @@ interface ImportValidationResponse {
 interface ImportSuccessResponse {
   dataset: string;
   filename: string;
+  ignoredHeaders?: string[];
   importedAt: string;
   importLogId?: number | null;
   rowsImported: number;
@@ -360,10 +361,7 @@ export function FlatFileImportPanel({
 
       {success && (
         <div className="alert alert-success">
-          <span>
-            Imported {success.rowsImported.toLocaleString()} rows from{' '}
-            {success.filename}.
-          </span>
+          <ImportSuccessSummary success={success} />
         </div>
       )}
 
@@ -571,11 +569,9 @@ export function FlatFileImportChecklistItem({
 
       {success && (
         <div className="alert alert-success py-3 text-sm">
-          <span>
-            Imported {success.rowsImported.toLocaleString()} rows from{' '}
-            {success.filename}. Mark this checklist item done when you are ready
-            to use this import.
-          </span>
+          <ImportSuccessSummary success={success}>
+            Mark this checklist item done when you are ready to use this import.
+          </ImportSuccessSummary>
         </div>
       )}
 
@@ -599,6 +595,33 @@ export function FlatFileImportChecklistItem({
           import.
         </p>
       </ConfirmationDialog>
+    </div>
+  );
+}
+
+function ImportSuccessSummary({
+  children,
+  success,
+}: {
+  children?: string;
+  success: ImportSuccessResponse;
+}) {
+  return (
+    <div className="min-w-0 break-words">
+      <p>
+        Imported {success.rowsImported.toLocaleString()} rows from{' '}
+        {success.filename}.{children && ` ${children}`}
+      </p>
+      {success.ignoredHeaders?.length ? (
+        <div className="mt-2">
+          <p>Skipped columns</p>
+          <ul aria-label="Skipped columns" className="list-disc pl-5">
+            {success.ignoredHeaders.map((header) => (
+              <li key={header}>{header}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -24,7 +24,7 @@ public sealed class FlatFileImportRegistry : IFlatFileImportRegistry
                 Text("Title", false, null, "Project Title"),
                 Text("OrganizationName", true, 300, "Organization Name"),
                 Text("Department", false, 300),
-                Text("ProjectDirector", true, 200, "Project Director"),
+                Text("ProjectDirector", false, 200, "Project Director"),
                 Text("ProjectDirectorEmail", false, 320, "Project Director Email", "PD Email"),
                 Text("Aor", false, 200, "AOR"),
                 Text("AorEmail", false, 320, "AOR Email"),
@@ -41,7 +41,7 @@ public sealed class FlatFileImportRegistry : IFlatFileImportRegistry
                 Text("ReportingPeriodOfPerformance", false, 50, "Reporting Period Of Performance"),
                 Text("ProjectFinancialReportFiscalYear", false, 50, "Project Financial Report Fiscal Year"),
                 Date("FinalReportSubmissionDate", false, "Final Report Submission Date"),
-                Text("DocumentType", true, 7, "Document Type"),
+                Text("DocumentType", false, 7, "Document Type"),
                 Text("ProgressReportStatus", false, 50, "Progress Report Status"),
                 Text("ProjectStatus", true, 100, "Project Status"),
                 Text("ProjectFinancialReportStatus", false, 50, "Project Financial Report Status"),
@@ -69,7 +69,8 @@ public sealed class FlatFileImportRegistry : IFlatFileImportRegistry
             [
                 new("Accession Number", ["AccessionNumber"]),
                 new("Project Number", ["ProjectNumber"]),
-            ]),
+            ],
+            ignoreUnknownHeaders: true),
         new(
             "field-station-expenses",
             "Field Station Expenses",

@@ -257,6 +257,44 @@ public class FlatFileImportServiceTests
         parsedValues["AwardKey"].Should().Be("2025001");
     }
 
+    [Theory]
+    [InlineData("all-projects.csv")]
+    [InlineData("all-projects.xlsx")]
+    public void All_projects_parser_accepts_omitted_director_and_document_type_headers(string filename)
+    {
+        var dataset = new FlatFileImportRegistry().Find("all-projects");
+        var file = CreateImportFile(filename,
+            ["Organization Name", "Funding Source", "Project Status", "Source"],
+            [["Org", "Federal", "Active", "NIF"]]);
+
+        var parsedValues = ParseSingleRowValues(dataset!, file);
+
+        parsedValues.GetValueOrDefault("ProjectDirector").Should().BeNull();
+        parsedValues.GetValueOrDefault("DocumentType").Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("all-projects.csv", "", "   ")]
+    [InlineData("all-projects.xlsx", "", "   ")]
+    [InlineData("all-projects.csv", "Director", "")]
+    [InlineData("all-projects.xlsx", "Director", "")]
+    [InlineData("all-projects.csv", "  ", "Initial")]
+    [InlineData("all-projects.xlsx", "  ", "Initial")]
+    [InlineData("all-projects.csv", "Director", "Initial")]
+    [InlineData("all-projects.xlsx", "Director", "Initial")]
+    public void All_projects_parser_accepts_optional_director_and_document_type_values(
+        string filename, string director, string documentType)
+    {
+        var dataset = new FlatFileImportRegistry().Find("all-projects");
+        var file = CreateImportFile(filename, AllProjectsHeaders(),
+            [["A-1", "PRJ-1", "", "Org", director, "Federal", documentType, "Active", "NIF"]]);
+
+        var parsedValues = ParseSingleRowValues(dataset!, file);
+
+        parsedValues["ProjectDirector"].Should().Be(string.IsNullOrWhiteSpace(director) ? null : director);
+        parsedValues["DocumentType"].Should().Be(string.IsNullOrWhiteSpace(documentType) ? null : documentType);
+    }
+
     [Fact]
     public async Task Import_rejects_unsupported_file_types()
     {
@@ -297,30 +335,61 @@ public class FlatFileImportServiceTests
             log.Status == "ValidationFailed");
     }
 
-    [Fact]
-    public async Task Import_reports_missing_required_headers()
+    [Theory]
+    [InlineData("all-projects.csv")]
+    [InlineData("all-projects.xlsx")]
+    public async Task Import_all_projects_reports_missing_required_headers(string filename)
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
         var service = CreateService(db, dataDb);
-        var file = CreateWorkbook("all-projects.xlsx",
+        var file = CreateImportFile(filename,
             ["Accession Number"],
             [["A123"]]);
 
         var result = await service.ImportAsync("all-projects", file, null, CancellationToken.None);
 
         var validation = result.Should().BeOfType<ImportValidationFailed>().Subject.Response;
-        validation.FileErrors.Should().Contain(error =>
-            error.Code == "missing_required_header" && error.TargetColumn == "OrganizationName");
+        validation.FileErrors.Where(error => error.Code == "missing_required_header")
+            .Select(error => error.TargetColumn)
+            .Should().BeEquivalentTo("OrganizationName", "FundingSource", "ProjectStatus", "Source");
     }
 
-    [Fact]
-    public async Task Import_rejects_flat_files_without_data_rows()
+    [Theory]
+    [InlineData("active-projects.csv")]
+    [InlineData("active-projects.xlsx")]
+    public void Active_projects_parser_skips_extra_columns_and_rows_with_only_extra_values(string filename)
+    {
+        var dataset = new FlatFileImportRegistry().Find("active-projects");
+        var file = CreateImportFile(filename,
+            [
+                "Project Number", "Export Comment", "Accession Number", "UCP Employee ID",
+                "UCPath Name", "Is 204", "Export Comment", "Project Director", "PD Email Address",
+            ],
+            [
+                ["", "Export footer", "", "", "", "", "", "", ""],
+                ["PRJ-1", "New field", "1234567", "00000001", "Path Person", "yes", "Other comment", "Director", "pd@example.com"],
+            ]);
+
+        var values = ParseSingleRowValues(dataset!, file);
+
+        values.Should().NotContainKey("Export Comment");
+        values["ProjectNumber"].Should().Be("PRJ-1");
+        values["AccessionNumber"].Should().Be("1234567");
+        values["Is204"].Should().Be(true);
+        values["ProjectDirector"].Should().Be("Director");
+    }
+
+    [Theory]
+    [InlineData("active-projects.xlsx", false)]
+    [InlineData("active-projects.csv", true)]
+    [InlineData("active-projects.xlsx", true)]
+    public async Task Import_rejects_flat_files_without_data_rows(string filename, bool includeExportFooter)
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
         var service = CreateService(db, dataDb);
-        var file = CreateWorkbook("active-projects.xlsx",
+        var file = CreateImportFile(filename,
             [
                 "Project Number",
                 "Accession Number",
@@ -329,13 +398,14 @@ public class FlatFileImportServiceTests
                 "Is 204",
                 "Project Director",
                 "PD Email Address",
+                "Export Comment",
             ],
-            []);
+            includeExportFooter ? [["", "", "", "", "", "", "", "Export footer"]] : []);
 
         var result = await service.ImportAsync("active-projects", file, null, CancellationToken.None);
 
         var validation = result.Should().BeOfType<ImportValidationFailed>().Subject.Response;
-        validation.FileErrors.Should().Contain(error => error.Code == "no_data_rows");
+        validation.FileErrors.Should().ContainSingle().Which.Code.Should().Be("no_data_rows");
         validation.AttemptedRows.Should().Be(0);
     }
 
@@ -357,7 +427,7 @@ public class FlatFileImportServiceTests
             ],
             [
                 ["PRJ-1", "1234567", "00000001", "Path Person", "maybe", "Director", "pd@example.com"],
-                ["PRJ-1", "123456789", "", "Second Person", "yes", "Director", "pd2@example.com"],
+                ["PRJ-1", "123456789", "", "Second Person", "yes", "", "pd2@example.com"],
             ]);
 
         var result = await service.ImportAsync("active-projects", file, null, CancellationToken.None);
@@ -376,6 +446,8 @@ public class FlatFileImportServiceTests
             error.TargetColumn == "AccessionNumber" && error.Code == "max_length");
         validation.Rows[1].CellErrors.Should().Contain(error =>
             error.TargetColumn == "UcpEmployeeId" && error.Code == "required");
+        validation.Rows[1].CellErrors.Should().Contain(error =>
+            error.TargetColumn == "ProjectDirector" && error.Code == "required");
         validation.Rows[1].CellErrors.Should().Contain(error =>
             error.TargetColumn == "ProjectNumber" &&
             error.SourceHeader == "Project Number" &&
@@ -467,25 +539,27 @@ public class FlatFileImportServiceTests
                 error.Code != "duplicate_key"));
     }
 
-    [Fact]
-    public async Task Import_all_projects_still_rejects_overlong_strings()
+    [Theory]
+    [InlineData("all-projects.csv")]
+    [InlineData("all-projects.xlsx")]
+    public async Task Import_all_projects_still_rejects_overlong_strings(string filename)
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
         var service = CreateService(db, dataDb);
-        var file = CreateCsvFile("all-projects.csv",
+        var file = CreateImportFile(filename,
             AllProjectsHeaders(),
             [
-                ["A-1", "PRJ-1", "", "Org", "Director", "Federal", "DocumentTooLong", "Active", "NIF"],
+                ["A-1", "PRJ-1", "", "Org", new string('D', 201), "Federal", "12345678", "Active", "NIF"],
             ]);
 
         var result = await service.ImportAsync("all-projects", file, null, CancellationToken.None);
 
         var validation = result.Should().BeOfType<ImportValidationFailed>().Subject.Response;
         validation.Rows.Should().ContainSingle();
-        validation.Rows[0].CellErrors.Should().Contain(error =>
-            error.TargetColumn == "DocumentType" &&
-            error.Code == "max_length");
+        validation.Rows[0].CellErrors.Where(error => error.Code == "max_length")
+            .Select(error => error.TargetColumn)
+            .Should().BeEquivalentTo("ProjectDirector", "DocumentType");
     }
 
     [Fact]
@@ -498,6 +572,7 @@ public class FlatFileImportServiceTests
             [
                 "PD Email Address",
                 "Project Director",
+                "Export Comment",
                 "Is 204",
                 "UCPath Name",
                 "UCP Employee ID",
@@ -505,13 +580,15 @@ public class FlatFileImportServiceTests
                 "Project Number",
             ],
             [
-                ["pd@example.com", "Director", "maybe", "Path Person", "00000001", "1234567", "PRJ-1"],
+                ["pd@example.com", "Director", "New field", "maybe", "Path Person", "00000001", "1234567", "PRJ-1"],
             ]);
 
         var result = await service.ImportAsync("active-projects", file, null, CancellationToken.None);
 
         var validation = result.Should().BeOfType<ImportValidationFailed>().Subject.Response;
         validation.Rows.Should().ContainSingle();
+        validation.Rows[0].CellErrors.Should().Contain(error =>
+            error.TargetColumn == "Is204" && error.Code == "type_conversion");
         validation.Rows[0].Values.Keys.Should().Equal([
             "PdEmailAddress",
             "ProjectDirector",
@@ -523,8 +600,12 @@ public class FlatFileImportServiceTests
         ]);
     }
 
-    [Fact]
-    public async Task Import_reports_duplicate_headers_before_row_parsing()
+    [Theory]
+    [InlineData("PD Email Address", "PD-Email-Address", "duplicate_header", null)]
+    [InlineData("PD Email Address", "Project Director Email", "duplicate_target_header", "PdEmailAddress")]
+    [InlineData("PD Email Adress", "Export Comment", "missing_required_header", "PdEmailAddress")]
+    public async Task Active_projects_import_rejects_ambiguous_or_missing_headers_before_row_parsing(
+        string emailHeader, string additionalHeader, string expectedCode, string? expectedTarget)
     {
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
@@ -532,22 +613,24 @@ public class FlatFileImportServiceTests
         var file = CreateWorkbook("active-projects.xlsx",
             [
                 "Project Number",
-                "Project-Number",
                 "Accession Number",
                 "UCP Employee ID",
                 "UCPath Name",
                 "Is 204",
                 "Project Director",
-                "PD Email Address",
+                emailHeader,
+                additionalHeader,
             ],
             [
-                ["PRJ-1", "PRJ-1", "1234567", "00000001", "Path Person", "yes", "Director", "pd@example.com"],
+                ["PRJ-1", "1234567", "00000001", "Path Person", "yes", "Director", "pd@example.com", "other@example.com"],
             ]);
 
         var result = await service.ImportAsync("active-projects", file, null, CancellationToken.None);
 
         var validation = result.Should().BeOfType<ImportValidationFailed>().Subject.Response;
-        validation.FileErrors.Should().Contain(error => error.Code == "duplicate_header");
+        var error = validation.FileErrors.Should().ContainSingle().Subject;
+        error.Code.Should().Be(expectedCode);
+        error.TargetColumn.Should().Be(expectedTarget);
         validation.Rows.Should().BeEmpty();
         validation.AttemptedRows.Should().Be(0);
     }
@@ -704,7 +787,9 @@ public class FlatFileImportServiceTests
             .GetValue(parseResult)!;
 
         fileErrors.Should().BeEmpty();
-        rows.Should().ContainSingle();
+        var row = rows.Should().ContainSingle().Subject;
+        row.Errors.Should().BeEmpty();
+        row.CellErrors.Should().BeEmpty();
 
         var parsedRow = parsedRows.Cast<object>().Should().ContainSingle().Subject;
         return (IReadOnlyDictionary<string, object?>)parsedRow.GetType()

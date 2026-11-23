@@ -15,6 +15,81 @@ namespace Server.Tests.SqlIntegration;
 [Collection(SqlIntegrationCollection.Name)]
 public sealed class FlatFileImportSqlIntegrationTests(SqlServerDataDbFixture fixture)
 {
+    [Fact]
+    public async Task All_projects_import_accepts_omitted_headers_and_blank_values_for_director_and_document_type()
+    {
+        await fixture.ClearDataTablesAsync();
+        await using var appDb = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = fixture.CreateDataDbContext();
+        var service = CreateService(appDb, dataDb);
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        const string selectFields = """
+            SELECT [ProjectDirector], [DocumentType]
+            FROM [data].[AllProjects]
+            ORDER BY [OrganizationName];
+            """;
+        string[] requiredHeaders = ["Organization Name", "Funding Source", "Project Status", "Source"];
+        var omittedHeadersFile = CreateCsvFile("all-projects.csv", requiredHeaders,
+            [["Org A", "Federal", "Active", "NIF"]]);
+
+        var omittedResult = await service.ImportAsync("all-projects", omittedHeadersFile, null, CancellationToken.None);
+
+        omittedResult.Should().BeOfType<ImportSucceeded>();
+        var omitted = await connection.QuerySingleAsync<AllProjectFields>(selectFields);
+        omitted.Should().Be(new AllProjectFields(null, null));
+
+        var mixedValuesFile = CreateCsvFile("all-projects.csv", [.. requiredHeaders, "Project Director", "Document Type"],
+            [
+                ["Org A", "Federal", "Active", "NIF", "", "   "],
+                ["Org B", "Federal", "Active", "NIF", "   ", "Initial"],
+                ["Org C", "Federal", "Active", "NIF", "First Director", ""],
+                ["Org D", "Federal", "Active", "NIF", "Second Director", "Final"],
+            ]);
+
+        var mixedResult = await service.ImportAsync("all-projects", mixedValuesFile, null, CancellationToken.None);
+
+        mixedResult.Should().BeOfType<ImportSucceeded>();
+        var mixed = await connection.QueryAsync<AllProjectFields>(selectFields);
+        mixed.Should().Equal(
+            new AllProjectFields(null, null),
+            new AllProjectFields(null, "Initial"),
+            new AllProjectFields("First Director", null),
+            new AllProjectFields("Second Director", "Final"));
+    }
+
+    [Fact]
+    public async Task Active_projects_import_reports_extra_columns_and_preserves_projects_on_an_extra_only_upload()
+    {
+        await fixture.ClearDataTablesAsync();
+        await using var appDb = TestDbContextFactory.CreateInMemory();
+        await using var dataDb = fixture.CreateDataDbContext();
+        var service = CreateService(appDb, dataDb);
+        string[] headers =
+        [
+            "Project Number", "Export Status", "Accession Number", "UCP Employee ID", "UCPath Name",
+            "Export Date", "Is 204", "Project Director", "PD Email Address", "Export Status",
+        ];
+        var file = CreateCsvFile("active-projects.csv", headers,
+            [["PRJ-42", "Ready", "1234567", "00000001", "Path Person", "Yesterday", "yes", "Director", "pd@example.test", "Final"]]);
+
+        var result = await service.ImportAsync("active-projects", file, null, CancellationToken.None);
+
+        var success = result.Should().BeOfType<ImportSucceeded>().Subject.Response;
+        success.RowsImported.Should().Be(1);
+        success.IgnoredHeaders.Should().Equal("Export Status", "Export Date");
+
+        var extraOnlyFile = CreateCsvFile("active-projects.csv", headers,
+            [["", "Ready", "", "", "", "Today", "", "", "", "Final"]]);
+        var rejected = await service.ImportAsync("active-projects", extraOnlyFile, null, CancellationToken.None);
+
+        var validation = rejected.Should().BeOfType<ImportValidationFailed>().Subject.Response;
+        validation.FileErrors.Should().Contain(error => error.Code == "no_data_rows");
+        await using var connection = new SqlConnection(fixture.ConnectionString);
+        var project = await connection.QuerySingleAsync<(string ProjectNumber, string AccessionNumber, bool Is204)>(
+            "SELECT [ProjectNumber], [AccessionNumber], [Is204] FROM [data].[ActiveProjects];");
+        project.Should().Be(("PRJ-42", "1234567", true));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -288,6 +363,8 @@ public sealed class FlatFileImportSqlIntegrationTests(SqlServerDataDbFixture fix
             ? $"\"{value.Replace("\"", "\"\"")}\""
             : value;
     }
+
+    private sealed record AllProjectFields(string? ProjectDirector, string? DocumentType);
 
     private sealed class CeSpecialistRow
     {
