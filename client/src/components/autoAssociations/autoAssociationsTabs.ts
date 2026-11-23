@@ -55,8 +55,8 @@ export const AUTO_ASSOCIATIONS_TABS: AutoAssociationsTab[] = [
   },
   {
     id: 'fte',
-    label: 'FTE over 1.0',
-    note: 'Employees whose included payroll FTE adds up to more than 1.0. Review only.',
+    label: 'FTE over 1.1',
+    note: 'Employees whose included payroll FTE adds up to more than 1.1. Open an employee’s transactions to review the payroll behind their FTE.',
   },
   {
     id: 'pi-fte',

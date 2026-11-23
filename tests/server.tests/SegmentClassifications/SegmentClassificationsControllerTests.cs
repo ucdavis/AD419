@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -6,15 +7,29 @@ using Server.Core.Data;
 using Server.Core.Domain;
 using Server.Helpers;
 using Server.Models.SegmentClassifications;
+using Server.Tests.AutoAssociations;
 using Server.Tests.Helpers;
+using Server.Tests.OrgRReview;
+using Server.Workflow;
 
 namespace Server.Tests.SegmentClassifications;
 
-public class SegmentClassificationsControllerTests
+public partial class SegmentClassificationsControllerTests : IDisposable
 {
-    private static SegmentClassificationsController CreateController(DataDbContext db, RecordingExpenseReviewFilterCacheInvalidator? invalidator = null) => new(db, invalidator ?? new RecordingExpenseReviewFilterCacheInvalidator())
+    private readonly AppDbContext appDb = TestDbContextFactory.CreateInMemory();
+    private static readonly ClaimsPrincipal TestUser = new(new ClaimsIdentity(
+        [new Claim("name", "Classification Reviewer")], "Test"));
+
+    public void Dispose() => appDb.Dispose();
+
+    private SegmentClassificationsController CreateController(
+        DataDbContext db,
+        RecordingExpenseReviewFilterCacheInvalidator? invalidator = null,
+        IWorkflowService? workflowService = null) => new(db,
+            invalidator ?? new RecordingExpenseReviewFilterCacheInvalidator(),
+            workflowService ?? new WorkflowService(appDb, db, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder()))
     {
-        ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
+        ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = TestUser } },
     };
 
     [Theory]

@@ -35,6 +35,7 @@ CREATE TABLE [data].[UcPathTransactions]
     [PayRate]                DECIMAL(17, 4) NULL,       -- amount/hours; undefined on fringe rows
     [CalculatedFte]          DECIMAL(9, 6)  NOT NULL,   -- hours / hours in federal fiscal year (2088 or 2096); 0 on fringe rows
     [PayPeriodEndDate]       DATETIME2(7)   NOT NULL,   -- authoritative date for cycle-window logic (fiscal year/period unreliable on corrections)
+    [UcEarnEndDate]          DATETIME2(7)   NULL,       -- UC_EARN_END_DT; diagnostic earning date, not used for cycle-window logic
     [FringeBenefitSalaryCd]  NVARCHAR(1)    NOT NULL,   -- 'S' salary, 'F' fringe (assigned by the import per source view)
     [PaidPercent]            DECIMAL(7, 4)  NULL,       -- salary rows only; source fringe view has no percent columns
     [ErnDerivedPercent]      DECIMAL(7, 4)  NULL,       -- salary rows only

@@ -99,7 +99,6 @@ export interface FteOverOne {
   employeeId: string;
   employeeName: string | null;
   fte: number;
-  rowCount: number;
 }
 
 // PI payroll the FTE line rule moved: titleFteSfn is the line the title gives

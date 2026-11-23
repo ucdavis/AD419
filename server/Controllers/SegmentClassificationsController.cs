@@ -5,6 +5,7 @@ using Server.Core.Domain;
 using Server.Core.ExpenseReview;
 using Server.Helpers;
 using Server.Models.SegmentClassifications;
+using Server.Workflow;
 
 namespace Server.Controllers;
 
@@ -12,11 +13,14 @@ public class SegmentClassificationsController : ApiControllerBase
 {
     private readonly DataDbContext _db;
     private readonly IExpenseReviewFilterCacheInvalidator _filterCacheInvalidator;
+    private readonly IWorkflowService _workflowService;
 
-    public SegmentClassificationsController(DataDbContext db, IExpenseReviewFilterCacheInvalidator filterCacheInvalidator)
+    public SegmentClassificationsController(DataDbContext db, IExpenseReviewFilterCacheInvalidator filterCacheInvalidator,
+        IWorkflowService workflowService)
     {
         _db = db;
         _filterCacheInvalidator = filterCacheInvalidator;
+        _workflowService = workflowService;
     }
 
     // GET api/segmentclassifications
@@ -108,13 +112,18 @@ public class SegmentClassificationsController : ApiControllerBase
         }
 
         var sfn = isFund && request.IncludeInReport == true ? request.Sfn : null;
-        var affectsExpenseReview = segmentType != SegmentType.Ern
-            && (segment.IncludeInReport != request.IncludeInReport || segment.Sfn != sfn);
+        if (segment.IncludeInReport == request.IncludeInReport && segment.Sfn == sfn)
+        {
+            return NoContent();
+        }
 
+        // Reset before saving, including ERN edits: the saved report uses these classifications.
+        // A failed reset leaves the edit retryable; a failed save leaves the report cleared.
+        await _workflowService.ResetFromStageAsync(WorkflowStageIds.DataClassification, User, cancellationToken);
         segment.IncludeInReport = request.IncludeInReport;
         segment.Sfn = sfn;
         await _db.SaveChangesAsync(cancellationToken);
-        if (affectsExpenseReview)
+        if (segmentType != SegmentType.Ern)
         {
             _filterCacheInvalidator.InvalidateAll();
         }

@@ -10,7 +10,7 @@ using Server.Models.ExpenseReview;
 
 namespace Server.Tests.ExpenseReview;
 
-public class ExpenseReviewControllerTests
+public partial class ExpenseReviewControllerTests
 {
     [Fact]
     public async Task Transactions_conflicts_when_no_confirmed_workflow_cycle_exists()
@@ -352,6 +352,28 @@ public class ExpenseReviewControllerTests
 
     private sealed class StubExpenseReviewService : IExpenseReviewService
     {
+        public ExpenseReviewEmployeeTransactionsResult EmployeeResult { get; set; } = new(true, null);
+        public ExpenseReviewEmployeeTransactionsRequest? EmployeeRequest { get; private set; }
+        public ExpenseReviewEmployeeTransactionsRequest? EmployeeCsvRequest { get; private set; }
+        public FiscalYearCycle? EmployeeCycle { get; private set; }
+        public ExpenseReviewEmployeeTransactionsUnavailableException? EmployeeExportFailure { get; set; }
+
+        public Task<ExpenseReviewEmployeeTransactionsResult> GetEmployeeTransactionsAsync(
+            FiscalYearCycle cycle, ExpenseReviewEmployeeTransactionsRequest request, CancellationToken cancellationToken)
+        {
+            EmployeeCycle = cycle;
+            EmployeeRequest = request;
+            return Task.FromResult(EmployeeResult);
+        }
+
+        public async Task WriteEmployeeTransactionsCsvAsync(FiscalYearCycle cycle, ExpenseReviewEmployeeTransactionsRequest request,
+            ExpenseReviewEmployeeTransactionsResponse response, Stream output, CancellationToken cancellationToken)
+        {
+            EmployeeCsvRequest = request;
+            if (EmployeeExportFailure != null) throw EmployeeExportFailure;
+            await output.WriteAsync(System.Text.Encoding.UTF8.GetBytes("employee-csv"), cancellationToken);
+        }
+
         public bool TransactionsCalled { get; private set; }
         public bool FiltersCalled { get; private set; }
         public bool CsvCalled { get; private set; }

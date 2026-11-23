@@ -1,8 +1,11 @@
 import {
-  buildExpenseReviewGroupTransactionsCsvUrl,
-  expenseReviewGroupTransactionsQueryOptions,
+  buildExpenseReviewDetailCsvUrl,
+  expenseReviewDetailQueryOptions,
+  type ExpenseReviewDetailParams,
+  type ExpenseReviewDetailResponse,
   type ExpenseReviewDetailSortBy,
-  type ExpenseReviewGroupTransactionsResponse,
+  type ExpenseReviewEmployeeDetailSortBy,
+  type ExpenseReviewEmployeeScope,
   type ExpenseReviewTransaction,
   type ExpenseReviewTransactionDetail,
   type ExpenseReviewTransactionsCsvParams,
@@ -18,11 +21,28 @@ import type {
 import { useEffect, useId, useRef, useState } from 'react';
 
 export const defaultDetailVisibility = (
-  source: 'AE' | 'UCP'
+  source: 'AE' | 'UCP',
+  employee = false
 ): VisibilityState =>
   Object.fromEntries(
     (source === 'UCP'
-      ? ['jobCode', 'hours', 'calculatedFte', 'id']
+      ? [
+          'jobCode',
+          'hours',
+          'id',
+          ...(employee
+            ? [
+                'entity',
+                'account',
+                'purpose',
+                'program',
+                'activity',
+                'orgR',
+                'expenseSfn',
+                'fteSfn',
+              ]
+            : ['calculatedFte']),
+        ]
       : ['documentType', 'journalReference', 'id']
     ).map((id) => [id, false])
   );
@@ -38,10 +58,11 @@ const currency = (amount: number | null) =>
       });
 
 function detailColumns(
-  source: 'AE' | 'UCP'
+  source: 'AE' | 'UCP',
+  employee = false
 ): ColumnDef<ExpenseReviewTransactionDetail>[] {
   const field = (
-    id: ExpenseReviewDetailSortBy,
+    id: ExpenseReviewEmployeeDetailSortBy,
     header: string
   ): ColumnDef<ExpenseReviewTransactionDetail> => ({
     accessorKey: id,
@@ -53,13 +74,27 @@ function detailColumns(
     {
       ...field(
         'transactionDate',
-        source === 'UCP' ? 'Pay-period end date' : 'Journal accounting date'
+        source === 'UCP' ? 'Pay End Date' : 'Journal accounting date'
       ),
       cell: ({ row }) => row.original.transactionDate?.slice(0, 10) ?? '—',
     },
+    ...(source === 'UCP'
+      ? [
+          {
+            ...field('ucEarnEndDate', 'UC Earn End Date'),
+            cell: ({
+              row,
+            }: {
+              row: { original: ExpenseReviewTransactionDetail };
+            }) => row.original.ucEarnEndDate?.slice(0, 10) ?? '—',
+          },
+          field('transactionId', 'Transaction ID'),
+        ]
+      : []),
     field('accountingPeriod', 'Accounting period'),
     ...(source === 'UCP'
       ? [
+          field('employeeId', 'Employee ID'),
           field('employeeName', 'Employee name'),
           field('positionNumber', 'Position number'),
           {
@@ -85,6 +120,24 @@ function detailColumns(
       ...field('amount', 'Amount'),
       cell: ({ row }) => currency(row.original.amount),
     },
+    ...(employee
+      ? [
+          field('calculatedFte', 'Calculated FTE'),
+          field('reportFteContribution', 'Report FTE contribution'),
+          field('reportStatus', 'Report status'),
+          field('entity', 'Entity'),
+          field('financialDepartment', 'Financial Dept'),
+          field('fund', 'Fund'),
+          field('account', 'Account'),
+          field('project', 'Project'),
+          field('purpose', 'Purpose'),
+          field('program', 'Program'),
+          field('activity', 'Activity'),
+          field('orgR', 'OrgR'),
+          field('expenseSfn', 'Expense SFN'),
+          field('fteSfn', 'FTE SFN'),
+        ]
+      : []),
     {
       accessorKey: 'exclusionReasons',
       cell: ({ row }) =>
@@ -99,7 +152,7 @@ function detailColumns(
       ? [
           field('jobCode', 'Job code'),
           field('hours', 'Hours'),
-          field('calculatedFte', 'Calculated FTE'),
+          ...(employee ? [] : [field('calculatedFte', 'Calculated FTE')]),
           field('id', 'Labor transaction ID'),
         ]
       : [
@@ -110,22 +163,43 @@ function detailColumns(
   ];
 }
 const columnsBySource = { AE: detailColumns('AE'), UCP: detailColumns('UCP') };
+const employeeColumns = detailColumns('UCP', true);
 
-export function ExpenseReviewTransactionDialog({
-  context,
-  group,
-  onClose,
-  onVisibilityChange,
-  opener,
-  visibility,
-}: {
-  context: ExpenseReviewTransactionsCsvParams;
-  group: ExpenseReviewTransaction;
+type DialogProps = {
   onClose: () => void;
   onVisibilityChange: (value: VisibilityState) => void;
   opener: HTMLElement | null;
   visibility: VisibilityState;
-}) {
+} & (
+  | {
+      context: ExpenseReviewTransactionsCsvParams;
+      group: ExpenseReviewTransaction;
+      mode?: 'group';
+    }
+  | {
+      buildId: number;
+      employee: {
+        employeeId: string;
+        employeeName: string | null;
+        reportFte: number;
+      };
+      mode: 'employee';
+    }
+);
+
+export function ExpenseReviewTransactionDialog(props: DialogProps) {
+  // Remount the dialog state when its subject changes, including a rebuilt report.
+  const subjectKey =
+    props.mode === 'employee'
+      ? `employee:${props.buildId}:${props.employee.employeeId}`
+      : `group:${props.group.id}`;
+  return <TransactionDialogContent key={subjectKey} {...props} />;
+}
+
+function TransactionDialogContent(props: DialogProps) {
+  const { onClose, onVisibilityChange, opener, visibility } = props;
+  const employeeMode = props.mode === 'employee';
+  const source = employeeMode ? 'UCP' : props.group.source;
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const [draft, setDraft] = useState('');
@@ -136,25 +210,44 @@ export function ExpenseReviewTransactionDialog({
     { desc: false, id: 'transactionDate' },
   ]);
   const [exportError, setExportError] = useState<string | null>(null);
-  const params = {
-    context,
-    groupId: group.id,
+  const [scope, setScope] = useState<ExpenseReviewEmployeeScope>('report');
+  const paging = {
     page,
     pageSize,
     search,
-    sortBy: (sorting[0]?.id ?? 'transactionDate') as ExpenseReviewDetailSortBy,
     sortDirection: sorting[0]?.desc ? ('desc' as const) : ('asc' as const),
   };
-  const query = useQuery(expenseReviewGroupTransactionsQueryOptions(params));
-  const columns = columnsBySource[group.source];
+  const params: ExpenseReviewDetailParams = employeeMode
+    ? {
+        ...paging,
+        buildId: props.buildId,
+        employeeId: props.employee.employeeId,
+        kind: 'employee',
+        scope,
+        sortBy: (sorting[0]?.id ??
+          'transactionDate') as ExpenseReviewEmployeeDetailSortBy,
+      }
+    : {
+        ...paging,
+        context: props.context,
+        groupId: props.group.id,
+        kind: 'group',
+        sortBy: (sorting[0]?.id ??
+          'transactionDate') as ExpenseReviewDetailSortBy,
+      };
+  const query = useQuery(expenseReviewDetailQueryOptions(params));
+  const columns = employeeMode ? employeeColumns : columnsBySource[source];
   const data = query.data;
-  // Retain full group totals while another search/page is loading.
-  const [lastData, setLastData] =
-    useState<ExpenseReviewGroupTransactionsResponse | null>(null);
-  if (data && data !== lastData) {
-    setLastData(data);
+  // Retain totals during search/paging, but never across transaction scopes.
+  const [lastData, setLastData] = useState<{
+    data: ExpenseReviewDetailResponse;
+    scope: ExpenseReviewEmployeeScope;
+  } | null>(null);
+  if (data && data !== lastData?.data) {
+    setLastData({ data, scope });
   }
-  const fullContext = data ?? lastData;
+  const fullContext =
+    data ?? (lastData?.scope === scope ? lastData.data : null);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -175,7 +268,18 @@ export function ExpenseReviewTransactionDialog({
     setPage(1);
     setExportError(null);
   };
-  const displayedGroup = fullContext?.group ?? group;
+  const displayedGroup =
+    fullContext && 'group' in fullContext
+      ? fullContext.group
+      : employeeMode
+        ? null
+        : props.group;
+  const displayedEmployee =
+    fullContext && 'employeeId' in fullContext
+      ? fullContext
+      : employeeMode
+        ? props.employee
+        : null;
   const count = fullContext?.transactionCount;
 
   return (
@@ -211,7 +315,7 @@ export function ExpenseReviewTransactionDialog({
       <div className="modal-box flex max-h-[92dvh] w-[96vw] max-w-[100rem] flex-col gap-4 overflow-y-auto">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-xl font-bold" id={titleId}>
-            Transaction details · {group.source}
+            Transaction details · {source}
           </h2>
           <button
             autoFocus
@@ -227,46 +331,81 @@ export function ExpenseReviewTransactionDialog({
             {fullContext
               ? `${fullContext.fiscalYear} · ${fullContext.cycleStart} – ${fullContext.cycleEnd}`
               : 'Fiscal cycle loading…'}{' '}
-            · {group.source} · {group.included ? 'Included' : 'Excluded'}
+            · {source}
+            {displayedGroup
+              ? ` · ${displayedGroup.included ? 'Included' : 'Excluded'}`
+              : ''}
           </p>
-          <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
-            {(
-              [
-                ['Entity', displayedGroup.entity],
-                ['Financial Dept', displayedGroup.financialDept],
-                ['Fund', displayedGroup.fund],
-                ['Account', displayedGroup.account],
-                ['Project', displayedGroup.aeProject],
-                ['Purpose', displayedGroup.purpose],
-                ['Program', displayedGroup.program],
-                ['Activity', displayedGroup.activity],
-              ] as const
-            ).map(([label, value]) => (
-              <div className="min-w-0 wrap-anywhere" key={label}>
-                <dt className="inline font-semibold">{label}:</dt>{' '}
+          {displayedEmployee ? (
+            <>
+              <p>
+                Employee:{' '}
+                {[displayedEmployee.employeeId, displayedEmployee.employeeName]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+              <p>Report FTE: {displayedEmployee.reportFte.toFixed(6)}</p>
+              <p>
+                Report FTE contribution shows the FTE counted in this report.
+                Calculated FTE is the original payroll value.
+              </p>
+            </>
+          ) : null}
+          {displayedGroup ? (
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
+              {(
+                [
+                  ['Entity', displayedGroup.entity],
+                  ['Financial Dept', displayedGroup.financialDept],
+                  ['Fund', displayedGroup.fund],
+                  ['Account', displayedGroup.account],
+                  ['Project', displayedGroup.aeProject],
+                  ['Purpose', displayedGroup.purpose],
+                  ['Program', displayedGroup.program],
+                  ['Activity', displayedGroup.activity],
+                ] as const
+              ).map(([label, value]) => (
+                <div className="min-w-0 wrap-anywhere" key={label}>
+                  <dt className="inline font-semibold">{label}:</dt>{' '}
+                  <dd className="inline">
+                    {[value.code, value.name].filter(Boolean).join(' · ') ||
+                      '—'}
+                  </dd>
+                </div>
+              ))}
+              <div className="min-w-0 wrap-anywhere">
+                <dt className="inline font-semibold">SFN:</dt>{' '}
                 <dd className="inline">
-                  {[value.code, value.name].filter(Boolean).join(' · ') || '—'}
+                  {[displayedGroup.sfn, displayedGroup.sfnLabel]
+                    .filter(Boolean)
+                    .join(' · ') || '—'}
                 </dd>
               </div>
-            ))}
-            <div className="min-w-0 wrap-anywhere">
-              <dt className="inline font-semibold">SFN:</dt>{' '}
-              <dd className="inline">
-                {[group.sfn, group.sfnLabel].filter(Boolean).join(' · ') || '—'}
-              </dd>
-            </div>
-            {context.displayByPeriod ? (
-              <div className="min-w-0 wrap-anywhere">
-                <dt className="inline font-semibold">
-                  Group accounting period:
-                </dt>{' '}
-                <dd className="inline">{group.accountingPeriod ?? '—'}</dd>
-              </div>
-            ) : null}
-          </dl>
+              {!employeeMode && props.context.displayByPeriod ? (
+                <div className="min-w-0 wrap-anywhere">
+                  <dt className="inline font-semibold">
+                    Group accounting period:
+                  </dt>{' '}
+                  <dd className="inline">
+                    {displayedGroup.accountingPeriod ?? '—'}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          ) : null}
           <p>
-            Full group: {count?.toLocaleString() ?? '…'} transactions ·{' '}
-            {currency(displayedGroup.amount)}
+            {employeeMode
+              ? scope === 'report'
+                ? 'Report rows'
+                : 'All in-cycle rows'
+              : 'Full group'}
+            : {count?.toLocaleString() ?? '…'} transactions ·{' '}
+            {currency(
+              displayedGroup?.amount ??
+                (fullContext && 'totalAmount' in fullContext
+                  ? fullContext.totalAmount
+                  : null)
+            )}
           </p>
           {search && data ? (
             <p role="status">
@@ -275,6 +414,35 @@ export function ExpenseReviewTransactionDialog({
             </p>
           ) : null}
         </div>
+        {employeeMode ? (
+          <fieldset className="flex flex-wrap gap-4">
+            <legend className="mb-1 text-sm font-semibold">
+              Transactions to show
+            </legend>
+            {(
+              [
+                ['report', 'Report rows only'],
+                ['all', 'All in-cycle rows'],
+              ] as const
+            ).map(([value, label]) => (
+              <label className="flex items-center gap-2 text-sm" key={value}>
+                <input
+                  checked={scope === value}
+                  className="radio radio-sm"
+                  name={`${titleId}-scope`}
+                  onChange={() => {
+                    setScope(value);
+                    setPage(1);
+                    setExportError(null);
+                  }}
+                  type="radio"
+                  value={value}
+                />
+                {label}
+              </label>
+            ))}
+          </fieldset>
+        ) : null}
         <form
           className="flex flex-wrap items-end gap-2"
           onSubmit={(event) => {
@@ -332,7 +500,9 @@ export function ExpenseReviewTransactionDialog({
             <button
               className="btn btn-ghost btn-xs"
               onClick={() =>
-                onVisibilityChange(defaultDetailVisibility(group.source))
+                onVisibilityChange(
+                  defaultDetailVisibility(source, employeeMode)
+                )
               }
               type="button"
             >
@@ -387,7 +557,11 @@ export function ExpenseReviewTransactionDialog({
         <div className="flex justify-end">
           <ExportEndpointButton
             disabled={!data || query.isFetching}
-            filename="expense-review-transactions.csv"
+            filename={
+              employeeMode
+                ? `employee-${props.employee.employeeId}-transactions.csv`
+                : 'expense-review-transactions.csv'
+            }
             label="Export transactions CSV"
             onError={() =>
               setExportError(
@@ -395,7 +569,7 @@ export function ExpenseReviewTransactionDialog({
               )
             }
             onSuccess={() => setExportError(null)}
-            url={buildExpenseReviewGroupTransactionsCsvUrl(params)}
+            url={buildExpenseReviewDetailCsvUrl(params)}
           />
         </div>
         {exportError ? (

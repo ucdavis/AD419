@@ -253,7 +253,10 @@ export const expenseReviewFilterOptionsQueryOptions = (
 
 export type ExpenseReviewDetailSortBy =
   | 'transactionDate'
+  | 'ucEarnEndDate'
+  | 'transactionId'
   | 'accountingPeriod'
+  | 'employeeId'
   | 'employeeName'
   | 'positionNumber'
   | 'ernCode'
@@ -269,25 +272,58 @@ export type ExpenseReviewDetailSortBy =
   | 'journalReference'
   | 'amount';
 
+export type ExpenseReviewEmployeeDetailSortBy =
+  | ExpenseReviewDetailSortBy
+  | 'entity'
+  | 'financialDepartment'
+  | 'fund'
+  | 'account'
+  | 'project'
+  | 'purpose'
+  | 'program'
+  | 'activity'
+  | 'orgR'
+  | 'expenseSfn'
+  | 'fteSfn'
+  | 'reportFteContribution'
+  | 'reportStatus';
+
 export interface ExpenseReviewTransactionDetail {
+  account?: string | null;
   accountingPeriod: string | null;
   accountingSequenceNumber: string | null;
+  activity?: string | null;
   amount: number | null;
   calculatedFte: number | null;
   documentType: string | null;
+  employeeId: string | null;
   employeeName: string | null;
+  entity?: string | null;
   ernCode: string | null;
   ernDescription: string | null;
   exclusionReasons: ExpenseReviewExclusionReason[];
+  expenseSfn?: string | null;
+  financialDepartment?: string | null;
+  fteSfn?: string | null;
+  fund?: string | null;
   hours: number | null;
   id: string;
   jobCode: string | null;
   journalName: string | null;
   journalReference: string | null;
   lineDescription: string | null;
+  orgR?: string | null;
   positionNumber: string | null;
+  program?: string | null;
+  project?: string | null;
+  purpose?: string | null;
+  reportFteContribution?: number | null;
+  reportIncluded?: boolean | null;
+  reportStatus?: string | null;
   salaryFringe: string | null;
   transactionDate: string | null;
+  transactionId: string | null;
+  ucEarnEndDate: string | null;
 }
 
 export interface ExpenseReviewGroupTransactionsResponse {
@@ -347,3 +383,77 @@ export const expenseReviewGroupTransactionsQueryOptions = (
 export const buildExpenseReviewGroupTransactionsCsvUrl = (
   params: ExpenseReviewGroupTransactionsParams
 ) => groupTransactionsUrl(params, true);
+
+export type ExpenseReviewEmployeeScope = 'report' | 'all';
+
+export interface ExpenseReviewEmployeeTransactionsResponse
+  extends Omit<ExpenseReviewGroupTransactionsResponse, 'group'> {
+  employeeId: string;
+  employeeName: string | null;
+  reportFte: number;
+  scope: ExpenseReviewEmployeeScope;
+  totalAmount: number;
+}
+
+export interface ExpenseReviewEmployeeTransactionsParams
+  extends Omit<
+    ExpenseReviewGroupTransactionsParams,
+    'context' | 'groupId' | 'sortBy'
+  > {
+  buildId: number;
+  employeeId: string;
+  scope: ExpenseReviewEmployeeScope;
+  sortBy: ExpenseReviewEmployeeDetailSortBy;
+}
+
+function employeeTransactionsUrl(
+  params: ExpenseReviewEmployeeTransactionsParams,
+  csv = false
+) {
+  const search = new URLSearchParams({
+    detailSortBy: params.sortBy,
+    detailSortDirection: params.sortDirection,
+    scope: params.scope,
+  });
+  if (params.search) {
+    search.set('search', params.search);
+  }
+  if (!csv) {
+    search.set('page', String(params.page));
+    search.set('pageSize', String(params.pageSize));
+  }
+  return `/api/expensereview/employees/${encodeURIComponent(params.employeeId)}/transactions${csv ? '.csv' : ''}?${search}`;
+}
+
+export type ExpenseReviewDetailResponse =
+  | ExpenseReviewGroupTransactionsResponse
+  | ExpenseReviewEmployeeTransactionsResponse;
+
+export type ExpenseReviewDetailParams =
+  | ({ kind: 'group' } & ExpenseReviewGroupTransactionsParams)
+  | ({ kind: 'employee' } & ExpenseReviewEmployeeTransactionsParams);
+
+const detailTransactionsUrl = (
+  params: ExpenseReviewDetailParams,
+  csv = false
+) =>
+  params.kind === 'employee'
+    ? employeeTransactionsUrl(params, csv)
+    : groupTransactionsUrl(params, csv);
+
+export const expenseReviewDetailQueryOptions = (
+  params: ExpenseReviewDetailParams
+) =>
+  queryOptions({
+    queryFn: ({ signal }) =>
+      fetchJson<ExpenseReviewDetailResponse>(
+        detailTransactionsUrl(params),
+        {},
+        signal
+      ),
+    queryKey: ['expenseReview', 'details', params],
+  });
+
+export const buildExpenseReviewDetailCsvUrl = (
+  params: ExpenseReviewDetailParams
+) => detailTransactionsUrl(params, true);
