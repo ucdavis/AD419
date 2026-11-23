@@ -87,6 +87,112 @@ describe('matchFilterOptions', () => {
 });
 
 describe('FilterTypeahead', () => {
+  it('checks matching options by click or Enter and applies once on Escape', async () => {
+    const user = userEvent.setup();
+    const onSelectionChange = vi.fn();
+    render(
+      <FilterTypeahead
+        disabled={false}
+        label="Account"
+        onSelectionChange={onSelectionChange}
+        options={accountOptions}
+        selected={['510000', 'unavailable']}
+      />
+    );
+    const input = screen.getByRole('combobox', { name: 'Account filter' });
+    expect(input).toHaveAttribute('placeholder', '2 selected');
+    await user.click(input);
+    expect(screen.getByRole('listbox')).toHaveAttribute(
+      'aria-multiselectable',
+      'true'
+    );
+    const benefits = screen.getByRole('option', { name: /Benefits/ });
+    expect(benefits).toHaveAttribute('aria-selected', 'true');
+    await user.click(benefits);
+    expect(benefits).toHaveAttribute('aria-selected', 'false');
+
+    await user.type(input, 'sal');
+    const salaries = screen.getByRole('option', { name: /Salaries/ });
+    await user.click(salaries);
+    expect(salaries).toHaveAttribute('aria-selected', 'true');
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('sal');
+    await user.keyboard('{ArrowDown}');
+    const recharge = screen.getByRole('option', { name: /Recharge/ });
+    expect(input).toHaveAttribute('aria-activedescendant', recharge.id);
+    expect(recharge).toHaveAttribute('aria-selected', 'false');
+    await user.keyboard('{Enter}');
+    expect(recharge).toHaveAttribute('aria-selected', 'true');
+    expect(onSelectionChange).not.toHaveBeenCalled();
+
+    await user.keyboard('{Escape}');
+    await user.tab();
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(onSelectionChange.mock.calls).toEqual([
+      [['unavailable', '500000', '531010']],
+    ]);
+    expect(input).toHaveValue('');
+  });
+
+  it('reopens with applied values and skips an unchanged selection regardless of order', async () => {
+    const user = userEvent.setup();
+    const onSelectionChange = vi.fn();
+    const props = {
+      disabled: false,
+      label: 'Account',
+      onSelectionChange,
+      options: accountOptions,
+    };
+    const initial = accountOptions.map((option) => option.value);
+    const { rerender } = render(
+      <FilterTypeahead {...props} selected={initial} />
+    );
+    const input = screen.getByRole('combobox', { name: 'Account filter' });
+    await user.click(input);
+    const salaries = screen.getByRole('option', { name: /Salaries/ });
+    await user.click(salaries);
+    await user.click(salaries);
+    await user.tab();
+    expect(onSelectionChange).not.toHaveBeenCalled();
+
+    rerender(<FilterTypeahead {...props} selected={['531010']} />);
+    await user.click(input);
+    expect(screen.getAllByRole('option', { selected: true })).toEqual([
+      screen.getByRole('option', { name: /Recharge/ }),
+    ]);
+    await user.click(screen.getByRole('option', { name: /Supplies/ }));
+    rerender(<FilterTypeahead {...props} options={[]} selected={['531010']} />);
+    expect(screen.getByText('No matches')).toBeVisible();
+    await user.tab();
+    expect(onSelectionChange.mock.calls).toEqual([[['531010', '540000']]]);
+  });
+
+  it('applies on an outside click even when the target keeps focus in the picker', async () => {
+    const user = userEvent.setup();
+    const onSelectionChange = vi.fn();
+    render(
+      <>
+        <FilterTypeahead
+          disabled={false}
+          label="Account"
+          onSelectionChange={onSelectionChange}
+          options={accountOptions}
+          selected={[]}
+        />
+        <button onMouseDown={(event) => event.preventDefault()} type="button">
+          Outside
+        </button>
+      </>
+    );
+    await user.click(screen.getByRole('combobox'));
+    await user.click(screen.getByRole('option', { name: /Supplies/ }));
+    await user.click(screen.getByRole('button', { name: 'Outside' }));
+    expect(screen.getByRole('combobox')).toHaveFocus();
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    await user.tab();
+    expect(onSelectionChange.mock.calls).toEqual([[['540000']]]);
+  });
+
   it('narrows options as the user types and adds the clicked option', async () => {
     const user = userEvent.setup();
     const { input, onAdd } = renderTypeahead();

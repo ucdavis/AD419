@@ -1,5 +1,12 @@
 import type { ExpenseReviewFilterOption } from '@/queries/expenseReview.ts';
-import { type KeyboardEvent, useId, useRef, useState } from 'react';
+import {
+  type KeyboardEvent,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useRef,
+  useState,
+} from 'react';
 
 export const MAX_VISIBLE_MATCHES = 50;
 
@@ -28,58 +35,136 @@ export function matchFilterOptions(
   ];
 }
 
-// By default this adds to a list of filters: choosing an option clears the
-// box for the next one. For a single choice, pass keepChoice so the chosen
-// label stays in the box, and onEdit to learn when the user changes the text
-// so the caller can drop its choice.
+type FilterTypeaheadProps = {
+  ariaLabel?: string;
+  disabled: boolean;
+  label: string;
+  options: ExpenseReviewFilterOption[];
+  placeholder?: string;
+  selected: string[];
+} & (
+  | {
+      keepChoice?: boolean;
+      onAdd: (value: string) => void;
+      onDraftDirtyChange?: never;
+      onEdit?: () => void;
+      onSelectionChange?: never;
+    }
+  | {
+      keepChoice?: never;
+      onAdd?: never;
+      onDraftDirtyChange?: (dirty: boolean) => void;
+      onEdit?: never;
+      onSelectionChange: (values: string[]) => void;
+    }
+);
+
+function sameSelection(left: string[], right: string[]) {
+  if (left === right) {
+    return true;
+  }
+  const leftValues = new Set(left);
+  const rightValues = new Set(right);
+  return (
+    leftValues.size === rightValues.size &&
+    [...leftValues].every((value) => rightValues.has(value))
+  );
+}
+
 export function FilterTypeahead({
   ariaLabel,
   disabled,
   keepChoice = false,
   label,
   onAdd,
+  onDraftDirtyChange,
   onEdit,
+  onSelectionChange,
   options,
   placeholder = 'Any',
   selected,
-}: {
-  ariaLabel?: string;
-  disabled: boolean;
-  keepChoice?: boolean;
-  label: string;
-  onAdd: (value: string) => void;
-  onEdit?: () => void;
-  options: ExpenseReviewFilterOption[];
-  placeholder?: string;
-  selected: string[];
-}) {
+}: FilterTypeaheadProps) {
   const inputId = useId();
   const listboxId = useId();
+  const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const openingSelection = useRef<string[] | null>(null);
   const [query, setQuery] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
+  const [draft, setDraft] = useState<string[] | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const availableOptions = options.filter(
-    (option) => !selected.includes(option.value)
-  );
+  const isMulti = onSelectionChange !== undefined;
+  const availableOptions = isMulti
+    ? options
+    : options.filter((option) => !selected.includes(option.value));
   const matches = matchFilterOptions(availableOptions, query);
   const visibleMatches = matches.slice(0, MAX_VISIBLE_MATCHES);
-  const isDisabled = disabled || availableOptions.length === 0;
-  const showList = isOpen && !isDisabled;
+  const isDisabled =
+    disabled || (availableOptions.length === 0 && !(isMulti && draft));
+  const showList = draft !== null && !isDisabled;
+  const selectedValues = draft ?? selected;
   const highlightedIndex = Math.min(activeIndex, visibleMatches.length - 1);
   const optionId = (index: number) => `${listboxId}-option-${index}`;
 
+  const open = () => {
+    if (!openingSelection.current) {
+      openingSelection.current = selected;
+      setDraft(selected);
+    }
+  };
+
+  const close = () => {
+    const initial = openingSelection.current;
+    if (!initial) {
+      return;
+    }
+    // An outside pointer press can also cause blur. Commit once per opening.
+    openingSelection.current = null;
+    setDraft(null);
+    if (onSelectionChange && draft) {
+      setQuery('');
+      setActiveIndex(0);
+      if (!sameSelection(initial, draft)) {
+        onSelectionChange(draft);
+      }
+      onDraftDirtyChange?.(false);
+    }
+  };
+
+  // Disabled controls and targets that suppress mousedown may not move focus.
+  const handleOutsidePointer = useEffectEvent((event: PointerEvent) => {
+    const container = containerRef.current;
+    if (container && !event.composedPath().includes(container)) {
+      close();
+    }
+  });
+  useEffect(() => {
+    if (!showList || !isMulti) {
+      return;
+    }
+    document.addEventListener('pointerdown', handleOutsidePointer, true);
+    return () =>
+      document.removeEventListener('pointerdown', handleOutsidePointer, true);
+  }, [isMulti, showList]);
+
   const choose = (option: ExpenseReviewFilterOption) => {
+    if (onSelectionChange) {
+      const next = selectedValues.includes(option.value)
+        ? selectedValues.filter((value) => value !== option.value)
+        : [...selectedValues, option.value];
+      setDraft(next);
+      onDraftDirtyChange?.(!sameSelection(next, selected));
+      return;
+    }
     onAdd(option.value);
     setQuery(keepChoice ? option.label : '');
     setActiveIndex(0);
-    setIsOpen(false);
+    close();
   };
 
   const moveHighlight = (delta: number) => {
     if (!showList) {
-      setIsOpen(true);
+      open();
       return;
     }
     if (visibleMatches.length === 0) {
@@ -108,7 +193,7 @@ export function FilterTypeahead({
       }
     } else if (event.key === 'Escape') {
       if (showList) {
-        setIsOpen(false);
+        close();
       } else {
         setQuery('');
         onEdit?.();
@@ -117,7 +202,15 @@ export function FilterTypeahead({
   };
 
   return (
-    <div className="form-control w-full">
+    <div
+      className="form-control w-full"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          close();
+        }
+      }}
+      ref={containerRef}
+    >
       <label className="label-text" htmlFor={inputId}>
         {label}
       </label>
@@ -136,24 +229,32 @@ export function FilterTypeahead({
           className="input input-bordered input-sm w-full"
           disabled={isDisabled}
           id={inputId}
-          onBlur={() => setIsOpen(false)}
           onChange={(event) => {
             setQuery(event.target.value);
             setActiveIndex(0);
-            setIsOpen(true);
+            open();
             onEdit?.();
           }}
-          onClick={() => setIsOpen(true)}
+          onClick={open}
           onKeyDown={handleKeyDown}
-          placeholder={placeholder}
+          placeholder={
+            isMulti && selectedValues.length > 0
+              ? `${selectedValues.length} selected`
+              : placeholder
+          }
           role="combobox"
           type="text"
           value={query}
         />
         {showList ? (
-          <div className="absolute z-20 mt-1 w-full min-w-64 rounded-box border border-base-300 bg-base-100 shadow-lg">
+          <div
+            className="absolute z-20 mt-1 w-full min-w-64 rounded-box border border-base-300 bg-base-100 shadow-lg"
+            // Keep focus in the input for clicks anywhere inside the popup.
+            onMouseDown={(event) => event.preventDefault()}
+          >
             <ul
               aria-label={`${label} options`}
+              aria-multiselectable={isMulti || undefined}
               className="max-h-64 overflow-y-auto py-1"
               id={listboxId}
               ref={listRef}
@@ -161,19 +262,28 @@ export function FilterTypeahead({
             >
               {visibleMatches.map((option, index) => (
                 <li
-                  aria-selected={index === highlightedIndex}
-                  className={`cursor-pointer px-3 py-1.5 text-sm ${
+                  aria-selected={
+                    isMulti
+                      ? selectedValues.includes(option.value)
+                      : index === highlightedIndex
+                  }
+                  className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm ${
                     index === highlightedIndex ? 'bg-base-200' : ''
                   }`}
                   id={optionId(index)}
                   key={option.value}
                   onClick={() => choose(option)}
-                  // Keep focus in the input so blur does not close the list
-                  // before the click lands.
-                  onMouseDown={(event) => event.preventDefault()}
                   onMouseEnter={() => setActiveIndex(index)}
                   role="option"
                 >
+                  {isMulti ? (
+                    <span
+                      aria-checked={selectedValues.includes(option.value)}
+                      aria-hidden="true"
+                      className="checkbox checkbox-primary checkbox-xs"
+                      role="checkbox"
+                    />
+                  ) : null}
                   {option.label}
                 </li>
               ))}
