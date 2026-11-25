@@ -35,7 +35,7 @@ import type {
   SortingState,
   VisibilityState,
 } from '@tanstack/react-table';
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useTransition } from 'react';
 
 const TransactionDetailsOpenerContext = createContext<
   (group: ExpenseReviewTransaction, opener: HTMLElement) => void
@@ -507,6 +507,8 @@ export function ExpenseReviewStage() {
     { desc: sortDirection === 'desc', id: sortBy },
   ];
   const [exportError, setExportError] = useState<string | null>(null);
+  const [hasFilterEdits, setHasFilterEdits] = useState(false);
+  const [isApplyingFilters, startFilterTransition] = useTransition();
   const detailContext = {
     displayByPeriod,
     filters,
@@ -558,6 +560,11 @@ export function ExpenseReviewStage() {
     }),
     enabled: shouldLoadTransactions,
   });
+  const reviewActionsDisabled =
+    hasFilterEdits ||
+    isApplyingFilters ||
+    (shouldLoadTransactions &&
+      (!transactionsQuery.isSuccess || transactionsQuery.isFetching));
   const continueMutation = useMutation({
     mutationFn: () => updateWorkflowStageStatus('expense-review', 'Complete'),
     onSuccess: (snapshot) => {
@@ -591,7 +598,8 @@ export function ExpenseReviewStage() {
     update: (current: ExpenseReviewFilters) => ExpenseReviewFilters,
     nextIncludeState: ExpenseReviewIncludeState
   ) => {
-    void navigateSearch({
+    resetExportError();
+    return navigateSearch({
       replace: true,
       search: (previous: ExpenseReviewSearch) => ({
         ...previous,
@@ -601,17 +609,16 @@ export function ExpenseReviewStage() {
         ),
       }),
     });
-    resetExportError();
   };
-  const addFilter = (filter: keyof ExpenseReviewFilters, value: string) =>
-    applyFilters(
-      (current) => ({
-        ...current,
-        [filter]: current[filter].includes(value)
-          ? current[filter]
-          : [...current[filter], value],
-      }),
-      includeState
+  const setFilterValues = (
+    filter: keyof ExpenseReviewFilters,
+    values: string[]
+  ) =>
+    startFilterTransition(() =>
+      applyFilters(
+        (current) => ({ ...current, [filter]: values }),
+        includeState
+      )
     );
   const removeFilter = (filter: keyof ExpenseReviewFilters, value: string) =>
     applyFilters(
@@ -673,12 +680,6 @@ export function ExpenseReviewStage() {
         </button>
       </div>
 
-      {transactions ? (
-        <div className="text-sm text-base-content/70">
-          {transactions.totalCount.toLocaleString()} grouped rows
-        </div>
-      ) : null}
-
       <div className="space-y-3">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <IncludeStateSelect
@@ -699,7 +700,10 @@ export function ExpenseReviewStage() {
               disabled={!filterOptions}
               key={control.id}
               label={control.label}
-              onAdd={(value) => addFilter(control.id, value)}
+              onDraftDirtyChange={setHasFilterEdits}
+              onSelectionChange={(values) =>
+                setFilterValues(control.id, values)
+              }
               options={filterOptions?.[control.optionsKey] ?? []}
               selected={filters[control.id]}
             />
@@ -782,6 +786,18 @@ export function ExpenseReviewStage() {
 
       {transactions ? (
         <TransactionDetailsOpenerContext.Provider value={openGroup}>
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
+            <dl className="flex items-baseline gap-2">
+              <dt>Filtered total</dt>
+              <dd className="font-semibold tabular-nums">
+                {formatCurrency(transactions.totalAmount)}
+              </dd>
+            </dl>
+            <span className="text-base-content/70">
+              {transactions.totalCount.toLocaleString()} grouped{' '}
+              {transactions.totalCount === 1 ? 'row' : 'rows'}
+            </span>
+          </div>
           <DataTable
             columns={columns}
             data={transactions.rows}
@@ -850,11 +866,7 @@ export function ExpenseReviewStage() {
         <div className="flex flex-wrap items-center gap-2">
           <ExportEndpointButton
             className="btn-outline"
-            disabled={
-              !shouldLoadTransactions ||
-              !transactionsQuery.isSuccess ||
-              transactionsQuery.isFetching
-            }
+            disabled={reviewActionsDisabled || !shouldLoadTransactions}
             filename="expense-review-transactions.csv"
             label="Export CSV"
             onError={(error) =>
@@ -868,11 +880,7 @@ export function ExpenseReviewStage() {
           />
           <button
             className="btn btn-primary"
-            disabled={
-              continueMutation.isPending ||
-              (shouldLoadTransactions &&
-                (!transactionsQuery.isSuccess || transactionsQuery.isFetching))
-            }
+            disabled={reviewActionsDisabled || continueMutation.isPending}
             onClick={() => continueMutation.mutate()}
             type="button"
           >

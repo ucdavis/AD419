@@ -42,7 +42,10 @@ const filtersResponse = {
   entities: [{ label: '3310 - UC Davis', value: '3310' }],
   exclusionReasons: [{ label: 'Excluded by fund', value: 'fund:excluded' }],
   financialDepts: [{ label: 'D0123 - Plant Sciences', value: 'D0123' }],
-  funds: [{ label: '13U02 - Experiment Station', value: '13U02' }],
+  funds: [
+    { label: '13U02 - Experiment Station', value: '13U02' },
+    { label: 'F2 - Excluded Fund', value: 'F2' },
+  ],
   programs: [{ label: 'PG01 - Extension Program', value: 'PG01' }],
   purposes: [{ label: '44 - Research', value: '44' }],
   sfns: [{ label: '220 - AES', value: '220' }],
@@ -115,7 +118,8 @@ function transactionsResponse(page = 1) {
 
 function mockExpenseReviewApi(
   requests: URL[] = [],
-  exportRequests: URL[] = []
+  exportRequests: URL[] = [],
+  filterRequests: URL[] = []
 ) {
   server.use(
     http.get('/api/user/me', () => HttpResponse.json(mockUser)),
@@ -129,9 +133,10 @@ function mockExpenseReviewApi(
         })
       )
     ),
-    http.get('/api/expensereview/filters', () =>
-      HttpResponse.json(filtersResponse)
-    ),
+    http.get('/api/expensereview/filters', ({ request }) => {
+      filterRequests.push(new URL(request.url));
+      return HttpResponse.json(filtersResponse);
+    }),
     http.get('/api/expensereview/transactions', ({ request }) => {
       const url = new URL(request.url);
       requests.push(url);
@@ -156,13 +161,16 @@ function mockExpenseReviewApi(
   );
 }
 
-async function chooseFilterOption(
+async function chooseFilterOptions(
   user: ReturnType<typeof userEvent.setup>,
   label: string,
-  option: string
+  ...options: string[]
 ) {
   await user.click(screen.getByLabelText(`${label} filter`));
-  await user.click(screen.getByRole('option', { name: option }));
+  for (const option of options) {
+    await user.click(screen.getByRole('option', { name: option }));
+  }
+  await user.keyboard('{Escape}');
 }
 
 function mockCsvDownload() {
@@ -302,7 +310,7 @@ describe('Expense Review stage', () => {
         );
       });
 
-      await chooseFilterOption(user, 'Fund', '13U02 - Experiment Station');
+      await chooseFilterOptions(user, 'Fund', '13U02 - Experiment Station');
       await waitFor(() => {
         expect(requests.at(-1)?.searchParams.getAll('fund')).toEqual(['13U02']);
       });
@@ -312,19 +320,19 @@ describe('Expense Review stage', () => {
         })
       ).toBeInTheDocument();
 
-      await chooseFilterOption(user, 'Source', 'Aggie Enterprise');
+      await chooseFilterOptions(user, 'Source', 'Aggie Enterprise');
       await waitFor(() => {
         expect(requests.at(-1)?.searchParams.getAll('source')).toEqual(['AE']);
       });
 
-      await chooseFilterOption(user, 'Accounting Period', 'Oct-24');
+      await chooseFilterOptions(user, 'Accounting Period', 'Oct-24');
       await waitFor(() => {
         expect(
           requests.at(-1)?.searchParams.getAll('accountingPeriod')
         ).toEqual(['Oct-24']);
       });
 
-      await chooseFilterOption(user, 'Exclusion Reason', 'Excluded by fund');
+      await chooseFilterOptions(user, 'Exclusion Reason', 'Excluded by fund');
       await waitFor(() => {
         expect(requests.at(-1)?.searchParams.getAll('exclusionReason')).toEqual(
           ['fund:excluded']
@@ -341,7 +349,7 @@ describe('Expense Review stage', () => {
         await screen.findByText('Select a filter to view expenses.')
       ).toBeInTheDocument();
       expect(screen.queryByRole('table')).not.toBeInTheDocument();
-      await chooseFilterOption(user, 'Entity', '3310 - UC Davis');
+      await chooseFilterOptions(user, 'Entity', '3310 - UC Davis');
       await screen.findByRole('table');
       expect(requests.at(-1)?.searchParams.get('includeState')).toBe('all');
       expect(requests.at(-1)?.searchParams.getAll('fund')).toEqual([]);
@@ -532,7 +540,12 @@ describe('Expense Review stage', () => {
       await user.selectOptions(screen.getByLabelText('Include State filter'), [
         'excluded',
       ]);
-      await chooseFilterOption(user, 'Fund', '13U02 - Experiment Station');
+      await chooseFilterOptions(
+        user,
+        'Fund',
+        '13U02 - Experiment Station',
+        'F2 - Excluded Fund'
+      );
       await user.click(screen.getByLabelText('Display by period'));
       await user.click(screen.getByLabelText('Include $0 groups'));
       await user.click(
@@ -550,7 +563,7 @@ describe('Expense Review stage', () => {
       expect(exportUrl.searchParams.get('includeState')).toBe('excluded');
       expect(exportUrl.searchParams.get('displayByPeriod')).toBe('true');
       expect(exportUrl.searchParams.get('includeZeroAmounts')).toBe('true');
-      expect(exportUrl.searchParams.getAll('fund')).toEqual(['13U02']);
+      expect(exportUrl.searchParams.getAll('fund')).toEqual(['13U02', 'F2']);
       expect(exportUrl.searchParams.get('sortBy')).toBe('financialDept');
       expect(exportUrl.searchParams.get('sortDirection')).toBe('asc');
       expect(exportUrl.searchParams.get('page')).toBeNull();
@@ -561,6 +574,101 @@ describe('Expense Review stage', () => {
       download.restore();
     }
   });
+
+  it.each(['Export CSV', 'Continue to OrgR Review'])(
+    'requires a second click on %s after applying a pending fund selection',
+    async (action) => {
+      const user = userEvent.setup();
+      const exportRequests: URL[] = [];
+      const completionRequests: unknown[] = [];
+      const workflowSnapshot = () =>
+        createWorkflowSnapshot({
+          'data-classification': 'Complete',
+          'data-import': 'Complete',
+          'expense-review': completionRequests.length
+            ? 'Complete'
+            : 'InProgress',
+          'orgr-review': completionRequests.length
+            ? 'InProgress'
+            : 'NotStarted',
+          'project-identification': 'Complete',
+        });
+      const filteredStarted = completion();
+      const filteredResponse = completion();
+      const download = mockCsvDownload();
+      mockExpenseReviewApi([], exportRequests);
+      server.use(
+        http.get('/api/expensereview/transactions', async ({ request }) => {
+          if (new URL(request.url).searchParams.get('fund') === 'F2') {
+            filteredStarted.resolve();
+            await filteredResponse.promise;
+            return HttpResponse.json({
+              ...transactionsResponse(),
+              rows: [transactionRows[1]],
+              totalAmount: transactionRows[1].amount,
+              totalCount: 1,
+            });
+          }
+          return HttpResponse.json(transactionsResponse());
+        }),
+        http.get('/api/workflow/snapshot', () =>
+          HttpResponse.json(workflowSnapshot())
+        ),
+        http.put('/api/workflow/stages/expense-review', async ({ request }) => {
+          completionRequests.push(await request.json());
+          return HttpResponse.json(workflowSnapshot());
+        }),
+        http.get('/api/orgr/financial-departments', () =>
+          HttpResponse.json([])
+        ),
+        http.get('/api/orgr/nifa-departments', () => HttpResponse.json([])),
+        http.get('/api/orgr/orgrs', () => HttpResponse.json([]))
+      );
+      const { cleanup, router } = renderRoute({
+        initialPath: '/workflow/expense-review?entity=%5B%223310%22%5D',
+      });
+      try {
+        await screen.findByRole('table');
+        const button = screen.getByRole('button', { name: action });
+        expect(button).toBeEnabled();
+        await user.click(screen.getByLabelText('Fund filter'));
+        expect(button).toBeEnabled();
+        await user.click(screen.getByRole('option', { name: /Excluded Fund/ }));
+        expect(button).toBeDisabled();
+        await user.click(button);
+
+        await filteredStarted.promise;
+        expect(exportRequests).toHaveLength(0);
+        expect(completionRequests).toHaveLength(0);
+        expect(router.state.location.search.fund).toEqual(['F2']);
+        expect(button).toBeDisabled();
+
+        filteredResponse.resolve();
+        await screen.findByText('1 grouped row');
+        expect(button).toBeEnabled();
+        expect(exportRequests).toHaveLength(0);
+        expect(completionRequests).toHaveLength(0);
+        await user.click(button);
+
+        if (action === 'Export CSV') {
+          await waitFor(() => expect(download.click).toHaveBeenCalledOnce());
+          expect(exportRequests).toHaveLength(1);
+          expect(exportRequests[0].searchParams.getAll('fund')).toEqual(['F2']);
+          expect(completionRequests).toHaveLength(0);
+        } else {
+          await waitFor(() =>
+            expect(router.state.location.pathname).toBe('/workflow/orgr-review')
+          );
+          expect(completionRequests).toEqual([{ status: 'Complete' }]);
+          expect(exportRequests).toHaveLength(0);
+        }
+      } finally {
+        filteredResponse.resolve();
+        cleanup();
+        download.restore();
+      }
+    }
+  );
 
   it('shows export failure text', async () => {
     const user = userEvent.setup();
@@ -691,6 +799,60 @@ describe('Expense Review stage', () => {
     }
   });
 
+  it('shows the full filtered amount above both pages and updates it for a different include state', async () => {
+    const user = userEvent.setup();
+    mockExpenseReviewApi();
+    const included = Array.from({ length: 11 }, (_, index) => ({
+      ...transactionRows[0],
+      amount: 100,
+      id: `included-${index}`,
+    }));
+    const excluded = [{ ...transactionRows[1], amount: -48.25 }];
+    server.use(
+      http.get('/api/expensereview/transactions', ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        const page = Number(params.get('page'));
+        const rows =
+          params.get('includeState') === 'included' ? included : excluded;
+        return HttpResponse.json({
+          ...transactionsResponse(page),
+          counts: { all: 12, excluded: 1, included: 11 },
+          pageCount: Math.ceil(rows.length / 10),
+          pageSize: 10,
+          rows: rows.slice((page - 1) * 10, page * 10),
+          totalAmount: rows.reduce((sum, row) => sum + row.amount, 0),
+          totalCount: rows.length,
+        });
+      })
+    );
+    const { cleanup } = renderRoute({
+      initialPath: '/workflow/expense-review?include=included&size=10',
+    });
+    try {
+      const firstPage = await screen.findByRole('table');
+      expect(within(firstPage).getAllByText('$100.00')).toHaveLength(10);
+      expect(screen.getByText('$1,100.00')).toAppearBefore(firstPage);
+
+      await user.click(screen.getByRole('button', { name: 'Next' }));
+      await waitFor(() => {
+        const secondPage = screen.getByRole('table');
+        expect(within(secondPage).getAllByText('$100.00')).toHaveLength(1);
+        expect(screen.getByText('$1,100.00')).toAppearBefore(secondPage);
+      });
+
+      await user.selectOptions(
+        screen.getByLabelText('Include State filter'),
+        'excluded'
+      );
+      await waitFor(() =>
+        expect(screen.getByRole('definition')).toHaveTextContent('-$48.25')
+      );
+      expect(screen.queryByText('$1,100.00')).not.toBeInTheDocument();
+    } finally {
+      cleanup();
+    }
+  });
+
   it('narrows filter dropdowns to options valid for the current selections', async () => {
     const user = userEvent.setup();
     const filterRequests: URL[] = [];
@@ -727,7 +889,7 @@ describe('Expense Review stage', () => {
       ).toBeInTheDocument();
       await user.keyboard('{Escape}');
 
-      await chooseFilterOption(
+      await chooseFilterOptions(
         user,
         'Financial Dept',
         'D0123 - Plant Sciences'
@@ -756,25 +918,79 @@ describe('Expense Review stage', () => {
     }
   });
 
-  it('writes filter changes to the URL and resets the page', async () => {
+  it('applies multiple values once when switching filters and restores them on reload', async () => {
     const user = userEvent.setup();
-    mockExpenseReviewApi();
-    const { cleanup, router } = renderRoute({
+    const requests: URL[] = [];
+    const filterRequests: URL[] = [];
+    mockExpenseReviewApi(requests, [], filterRequests);
+    let route = renderRoute({
       initialPath: '/workflow/expense-review?entity=%5B%223310%22%5D&page=2',
     });
 
     try {
       await screen.findByRole('table');
-      await chooseFilterOption(user, 'Fund', '13U02 - Experiment Station');
-
-      await waitFor(() => {
-        expect(router.state.location.search).toEqual({
-          entity: ['3310'],
-          fund: ['13U02'],
-        });
+      const fund = screen.getByRole('combobox', { name: 'Fund filter' });
+      await user.click(fund);
+      const firstFund = screen.getByRole('option', {
+        name: '13U02 - Experiment Station',
       });
+      await user.click(firstFund);
+      await user.click(firstFund);
+      await user.tab();
+      expect(route.router.state.location.search.page).toBe(2);
+      expect(requests).toHaveLength(1);
+      expect(filterRequests).toHaveLength(1);
+
+      await user.click(fund);
+      await user.click(
+        screen.getByRole('option', { name: '13U02 - Experiment Station' })
+      );
+      await user.type(fund, 'Excluded');
+      await user.keyboard('{Enter}');
+      expect(
+        screen.getByRole('option', {
+          name: 'F2 - Excluded Fund',
+          selected: true,
+        })
+      ).toBeInTheDocument();
+      expect(route.router.state.location.search).toEqual({
+        entity: ['3310'],
+        page: 2,
+      });
+      expect(requests).toHaveLength(1);
+      expect(filterRequests).toHaveLength(1);
+
+      await user.click(screen.getByRole('combobox', { name: 'Source filter' }));
+      expect(
+        screen.getByRole('listbox', { name: 'Source options' })
+      ).toBeInTheDocument();
+      await waitFor(() => {
+        expect(requests).toHaveLength(2);
+        expect(filterRequests).toHaveLength(2);
+      });
+      const funds = ['13U02', 'F2'];
+      expect(requests[1].searchParams.getAll('fund')).toEqual(funds);
+      expect(filterRequests[1].searchParams.getAll('fund')).toEqual(funds);
+      expect(requests[1].searchParams.get('page')).toBe('1');
+      expect(route.router.state.location.search).toEqual({
+        entity: ['3310'],
+        fund: funds,
+      });
+
+      const initialPath = route.router.state.location.href;
+      route.cleanup();
+      route = renderRoute({ initialPath });
+      await screen.findByRole('table');
+      await user.click(screen.getByRole('combobox', { name: 'Fund filter' }));
+      expect(requests.at(-1)?.searchParams.getAll('fund')).toEqual(funds);
+      expect(
+        screen.getAllByRole('option', {
+          name: /Experiment Station|Excluded Fund/,
+          selected: true,
+        })
+      ).toHaveLength(2);
     } finally {
-      cleanup();
+      route.cleanup();
     }
   });
 
@@ -859,6 +1075,7 @@ describe('Expense Review loading eligibility', () => {
         await screen.findByText('Select a filter to view expenses.');
         expect(screen.queryByRole('table')).not.toBeInTheDocument();
         expect(screen.queryByText(/grouped rows/)).not.toBeInTheDocument();
+        expect(screen.queryByText('Filtered total')).not.toBeInTheDocument();
         expect(
           within(screen.getByLabelText('Include State filter')).getByRole(
             'option',
@@ -970,6 +1187,7 @@ describe('Expense Review loading eligibility', () => {
         await screen.findByText('Select a filter to view expenses.');
         expect(screen.queryByRole('table')).not.toBeInTheDocument();
         expect(screen.queryByText(/grouped rows/)).not.toBeInTheDocument();
+        expect(screen.queryByText('Filtered total')).not.toBeInTheDocument();
         expect(
           screen.getByRole('tab', { name: 'Grouped Expenses' })
         ).toBeInTheDocument();
@@ -1284,10 +1502,10 @@ describe('Expense Review loading eligibility', () => {
         expect(screen.getByLabelText('Source filter')).toBeEnabled()
       );
       const user = userEvent.setup();
-      await chooseFilterOption(user, 'Source', 'Aggie Enterprise');
+      await chooseFilterOptions(user, 'Source', 'Aggie Enterprise');
       await earlierStarted.promise;
       expect(screen.getByLabelText('Source filter')).toBeEnabled();
-      await chooseFilterOption(user, 'Source', 'UCPath');
+      await chooseFilterOptions(user, 'Source', 'UCPath');
       await latestCompleted.promise;
       await earlierAborted.promise;
       await waitFor(() =>
@@ -1627,6 +1845,7 @@ describe('Expense Review loading eligibility', () => {
       await started.promise;
       expect(screen.queryByRole('table')).not.toBeInTheDocument();
       expect(screen.queryByText(/grouped rows/)).not.toBeInTheDocument();
+      expect(screen.queryByText('Filtered total')).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Export CSV' })).toBeDisabled();
       await user.selectOptions(
         screen.getByLabelText('Include State filter'),
@@ -1661,6 +1880,7 @@ describe('Expense Review loading eligibility', () => {
     try {
       await screen.findByRole('table');
       expect(screen.getByText('0 grouped rows')).toBeInTheDocument();
+      expect(screen.getByRole('definition')).toHaveTextContent('$0.00');
       expect(screen.getByRole('button', { name: 'Export CSV' })).toBeEnabled();
       expect(
         screen.getByRole('button', { name: 'Continue to OrgR Review' })
