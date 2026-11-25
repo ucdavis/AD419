@@ -11,6 +11,7 @@ using System.Security.Claims;
 using Server.Tests.AutoAssociations;
 using Server.Tests.OrgRReview;
 using Server.Workflow;
+using Server.Tests.JobCodeClassifications;
 
 namespace Server.Tests.Import;
 
@@ -64,7 +65,7 @@ public class ImportRunsControllerTests
             new FakeStageProvider(),
             starter,
             new FakeReadinessCheck(blockingIssue),
-            new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder()));
+            new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder(), new FakeJobCodeClassificationService()));
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext
@@ -163,7 +164,7 @@ public class ImportRunsControllerTests
         await using var db = TestDbContextFactory.CreateInMemory();
         await using var dataDb = TestDbContextFactory.CreateDataInMemory();
         await SeedWorkflowRunAsync(db);
-        var workflowService = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder());
+        var workflowService = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder(), new FakeJobCodeClassificationService());
         await workflowService.SetStageStatusAsync(
             WorkflowStageIds.ProjectIdentification,
             WorkflowStageStatus.Complete,

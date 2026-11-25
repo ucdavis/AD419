@@ -8,8 +8,9 @@ const preAssociationTotalsColumns: ColumnDef<PreAssociationTotal>[] = [
   { accessorKey: 'orgR', header: 'OrgR' },
   { accessorKey: 'financialDepartment', header: 'Financial dept' },
   { accessorKey: 'financialDepartmentName', header: 'Name' },
-  { accessorKey: 'expenseSfn', header: 'SFN' },
-  { accessorKey: 'sfnLabel', header: 'SFN label' },
+  { accessorKey: 'expenseSfn', header: 'Fund SFN' },
+  { accessorKey: 'sfnLabel', header: 'Fund SFN label' },
+  { accessorKey: 'fteSfn', header: 'Job SFN' },
   amountColumn<PreAssociationTotal>('Expenses', 'expenses'),
   fteColumn<PreAssociationTotal>('FTE', 'fte'),
 ];
@@ -18,8 +19,9 @@ const preAssociationTotalsCsv: CsvColumn<PreAssociationTotal>[] = [
   { header: 'OrgR', key: 'orgR' },
   { header: 'Financial dept', key: 'financialDepartment' },
   { header: 'Name', key: 'financialDepartmentName' },
-  { header: 'SFN', key: 'expenseSfn' },
-  { header: 'SFN label', key: 'sfnLabel' },
+  { header: 'Fund SFN', key: 'expenseSfn' },
+  { header: 'Fund SFN label', key: 'sfnLabel' },
+  { header: 'Job SFN', key: 'fteSfn' },
   { format: 'currency', header: 'Expenses', key: 'expenses' },
   { header: 'FTE', key: 'fte' },
 ];
@@ -36,7 +38,7 @@ export function PreAssociationTotalsTab() {
         csv={preAssociationTotalsCsv}
         data={data}
         filename="auto-associations-pre-association-totals.csv"
-        title="Included totals by OrgR, department and SFN"
+        title="Included totals by OrgR, department, fund SFN and job SFN"
       />
     </div>
   );

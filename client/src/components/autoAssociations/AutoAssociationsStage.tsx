@@ -11,13 +11,17 @@ import { PreAssociationTotalsTab } from './PreAssociationTotalsTab.tsx';
 import { Rule20xTab } from './Rule20xTab.tsx';
 import { Rule204Tab } from './Rule204Tab.tsx';
 import { Rule220Tab } from './Rule220Tab.tsx';
-import { UnmatchedJobCodesTab } from './UnmatchedJobCodesTab.tsx';
-import { autoAssociationBuildQueryOptions } from '@/queries/autoAssociations.ts';
+import {
+  autoAssociationBuildQueryOptions,
+  REBUILD_AUTO_ASSOCIATIONS_MUTATION_KEY,
+  useRebuildAutoAssociations,
+} from '@/queries/autoAssociations.ts';
 import { apiErrorMessage } from '@/queries/orgr.ts';
 import { WORKFLOW_SNAPSHOT_KEY, updateWorkflowStageStatus } from '@/queries.ts';
+import { ConfirmationDialog } from '@/shared/ConfirmationDialog.tsx';
 import type { WorkflowStageStatus } from '@/types.ts';
 import { useNavigate } from '@tanstack/react-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export const EMPTY_STATE_TEXT =
   'Auto-associations have not run yet. Reopen OrgR Review and mark it complete to run them.';
@@ -32,6 +36,11 @@ export function AutoAssociationsStage({ status }: { status: WorkflowStageStatus 
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [activeId, setActiveId] = useState<AutoAssociationsTabId>(AUTO_ASSOCIATIONS_TABS[0].id);
+  const [confirmingRebuild, setConfirmingRebuild] = useState(false);
+  const rebuildMutation = useRebuildAutoAssociations();
+  // Read by key, not from rebuildMutation, so a rebuild started before this
+  // stage was left and reopened still counts as running.
+  const rebuilding = useIsMutating({ mutationKey: REBUILD_AUTO_ASSOCIATIONS_MUTATION_KEY }) > 0;
   const continueMutation = useMutation({
     mutationFn: () => updateWorkflowStageStatus('auto-associations', 'Complete'),
     onSuccess: (snapshot) => {
@@ -56,7 +65,8 @@ export function AutoAssociationsStage({ status }: { status: WorkflowStageStatus 
       <p>
         The rules engine ran when OrgR Review was completed. Review what it
         associated and what it could not, then continue to manual
-        associations.
+        associations. Rebuild after changing something upstream, such as a
+        job code, to run the rules again.
       </p>
 
       {buildIsError ? (
@@ -73,6 +83,39 @@ export function AutoAssociationsStage({ status }: { status: WorkflowStageStatus 
 
       {gateOpen && build ? (
         <>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-sm text-base-content/70">
+              Built {new Date(build.builtAt).toLocaleString()}
+            </span>
+            <button
+              className="btn btn-sm"
+              disabled={rebuilding || continueMutation.isPending}
+              onClick={() => setConfirmingRebuild(true)}
+              type="button"
+            >
+              {rebuilding ? 'Rebuilding...' : 'Rebuild auto-associations'}
+            </button>
+          </div>
+
+          {rebuildMutation.isError ? (
+            <div className="alert alert-error" role="alert">
+              <span>{apiErrorMessage(rebuildMutation.error, 'Could not rebuild auto-associations.')}</span>
+            </div>
+          ) : null}
+
+          <ConfirmationDialog
+            confirmLabel="Rebuild"
+            onCancel={() => setConfirmingRebuild(false)}
+            onConfirm={() => {
+              setConfirmingRebuild(false);
+              rebuildMutation.mutate();
+            }}
+            open={confirmingRebuild}
+            title="Rebuild auto-associations?"
+          >
+            This replaces the current auto-associations with a fresh run.
+          </ConfirmationDialog>
+
           <div className="tabs tabs-bordered" role="tablist">
             {AUTO_ASSOCIATIONS_TABS.map((tab) => (
               <button
@@ -109,10 +152,8 @@ export function AutoAssociationsStage({ status }: { status: WorkflowStageStatus 
             <FteOverOneTab />
           ) : activeId === 'pi-fte' ? (
             <PiFteAdjustmentsTab />
-          ) : activeId === 'totals' ? (
-            <PreAssociationTotalsTab />
           ) : (
-            <UnmatchedJobCodesTab />
+            <PreAssociationTotalsTab />
           )}
         </>
       ) : null}
@@ -127,10 +168,12 @@ export function AutoAssociationsStage({ status }: { status: WorkflowStageStatus 
                 : 'Auto-associations completed. Click Continue after review.'
               : 'Auto-associations must run before continuing.'}
         </span>
+        {/* A rebuild stays pending until the reports have reloaded. The
+            previous build would let the stage complete before then. */}
         {isComplete ? null : (
           <button
             className="btn btn-primary"
-            disabled={!gateOpen || continueMutation.isPending}
+            disabled={!gateOpen || continueMutation.isPending || rebuilding}
             onClick={() => continueMutation.mutate()}
             type="button"
           >

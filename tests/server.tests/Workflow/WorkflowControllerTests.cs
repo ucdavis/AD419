@@ -8,6 +8,7 @@ using Server.Tests.AutoAssociations;
 using Server.Tests.OrgRReview;
 using Server.Workflow;
 using System.Security.Claims;
+using Server.Tests.JobCodeClassifications;
 
 namespace Server.Tests.Workflow;
 
@@ -30,7 +31,7 @@ public class WorkflowControllerTests
         {
             BuildFailure = new AutoAssociationBuildException("An included transaction has no OrgR; complete the OrgR Review mappings first.", new InvalidOperationException()),
         };
-        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder(), builder);
+        var service = new WorkflowService(db, dataDb, new FakeOrgRReviewSeeder(), builder, new FakeJobCodeClassificationService());
         foreach (var stage in WorkflowStages.All.Where(stage => stage.IsRequired && stage.Number < 6))
         {
             await service.SetStageStatusAsync(stage.Id, WorkflowStageStatus.Complete, User, CancellationToken.None);

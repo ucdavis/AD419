@@ -16,6 +16,7 @@ using Server.Models.Workflow;
 using Server.Tests.AutoAssociations;
 using Server.Tests.Helpers;
 using Server.Workflow;
+using Server.Tests.JobCodeClassifications;
 
 namespace Server.Tests.OrgRReview;
 
@@ -82,7 +83,7 @@ public class OrgRControllerTests : IDisposable
         DataDbContext db,
         FakeOrgRReviewSeeder? seeder = null,
         IWorkflowService? workflowService = null) =>
-        new(db, seeder ?? new FakeOrgRReviewSeeder(), workflowService ?? new WorkflowService(appDb, db, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder()))
+        new(db, seeder ?? new FakeOrgRReviewSeeder(), workflowService ?? new WorkflowService(appDb, db, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder(), new FakeJobCodeClassificationService()))
         {
             ControllerContext = new ControllerContext
             {
@@ -100,7 +101,7 @@ public class OrgRControllerTests : IDisposable
             SegmentType = SegmentType.FinancialDepartment, Code = "AARE001", IncludeInReport = true,
         });
         await db.SaveChangesAsync();
-        var workflow = new WorkflowService(workflowDb ?? appDb, db, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder());
+        var workflow = new WorkflowService(workflowDb ?? appDb, db, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder(), new FakeJobCodeClassificationService());
         foreach (var stage in WorkflowStages.All.Where(stage => stage.IsRequired))
         {
             var result = await workflow.SetStageStatusAsync(stage.Id, WorkflowStageStatus.Complete, TestUser, CancellationToken.None);
@@ -175,7 +176,7 @@ public class OrgRControllerTests : IDisposable
         using (var requestData = new DataDbContext(requestDataOptions.Options))
         {
             var controller = CreateController(requestData, workflowService:
-                new WorkflowService(requestApp, requestData, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder()));
+                new WorkflowService(requestApp, requestData, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder(), new FakeJobCodeClassificationService()));
             Func<Task> update = () => SetMappingAsync(controller, financial, orgR, cancellation.Token);
             if (failure == SaveFailure.CancelledReset)
             {
@@ -192,7 +193,7 @@ public class OrgRControllerTests : IDisposable
         using (var verificationData = new DataDbContext(dataOptions))
         {
             (await ReadMappingAsync(verificationData, financial)).Should().Be("AARE");
-            var workflow = new WorkflowService(verificationApp, verificationData, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder());
+            var workflow = new WorkflowService(verificationApp, verificationData, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder(), new FakeJobCodeClassificationService());
             var afterFailure = await workflow.GetSnapshotAsync(TestUser, CancellationToken.None);
             if (failure == SaveFailure.MappingSave)
             {
@@ -208,7 +209,7 @@ public class OrgRControllerTests : IDisposable
         using (var retryData = new DataDbContext(dataOptions))
         {
             var controller = CreateController(retryData, workflowService:
-                new WorkflowService(retryApp, retryData, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder()));
+                new WorkflowService(retryApp, retryData, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder(), new FakeJobCodeClassificationService()));
             (await SetMappingAsync(controller, financial, orgR, CancellationToken.None))
                 .Should().BeOfType<NoContentResult>();
         }
@@ -217,7 +218,7 @@ public class OrgRControllerTests : IDisposable
         using (var verificationData = new DataDbContext(dataOptions))
         {
             (await ReadMappingAsync(verificationData, financial)).Should().Be(orgR);
-            var workflow = new WorkflowService(verificationApp, verificationData, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder());
+            var workflow = new WorkflowService(verificationApp, verificationData, new FakeOrgRReviewSeeder(), new FakeAutoAssociationBuilder(), new FakeJobCodeClassificationService());
             AssertReviewReopened(before, await workflow.GetSnapshotAsync(TestUser, CancellationToken.None));
         }
     }
